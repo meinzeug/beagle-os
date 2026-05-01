@@ -16,7 +16,7 @@ WORKFLOW_NAME="${WORKFLOW_NAME:-}"
 WORKFLOW_URL="${WORKFLOW_URL:-}"
 WORKFLOW_BRANCH="${WORKFLOW_BRANCH:-}"
 WORKFLOW_SHA="${WORKFLOW_SHA:-}"
-GH_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+GH_TOKEN="${COPILOT_ASSIGNMENT_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}"
 
 require_var "$REPO" "GITHUB_REPOSITORY"
 require_var "$RUN_ID" "WORKFLOW_RUN_ID"
@@ -97,8 +97,8 @@ if [[ "$pr_author" != "copilot-swe-agent[bot]" && "$pr_author" != "copilot-swe-a
 fi
 
 if [[ "$pr_draft" == "true" ]]; then
-  echo "[copilot-automerge] PR #${pr_number} is still draft: ${pr_url}" >&2
-  exit 0
+  echo "[copilot-automerge] marking PR #${pr_number} ready for review: ${pr_url}" >&2
+  gh pr ready "$pr_number" --repo "$REPO" || true
 fi
 
 if [[ -n "$pr_head" && "$pr_head" != "$WORKFLOW_SHA" ]]; then

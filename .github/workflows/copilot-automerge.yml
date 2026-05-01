@@ -21,9 +21,27 @@ permissions:
   contents: write
   pull-requests: write
   checks: read
-  actions: read
+  actions: write
 
 jobs:
+  approve-copilot-pr-run:
+    name: Approve Copilot PR checks when GitHub pauses them
+    if: ${{ github.event.workflow_run.conclusion == 'action_required' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Approve Copilot pull request workflow run
+        env:
+          COPILOT_ASSIGNMENT_TOKEN: ${{ secrets.COPILOT_ASSIGNMENT_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: bash scripts/approve-copilot-pr-workflow-run.sh
+
   merge-copilot-pr:
     name: Merge Copilot PR when checks pass
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
@@ -34,6 +52,7 @@ jobs:
 
       - name: Merge Copilot pull request
         env:
+          COPILOT_ASSIGNMENT_TOKEN: ${{ secrets.COPILOT_ASSIGNMENT_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}

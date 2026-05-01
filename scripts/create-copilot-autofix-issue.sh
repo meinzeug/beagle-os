@@ -31,6 +31,7 @@ repo_name="${REPO#*/}"
 base_branch="${WORKFLOW_BRANCH:-main}"
 short_sha="${WORKFLOW_SHA:0:8}"
 issue_title="[autofix] ${WORKFLOW_NAME} failed on ${base_branch} ${short_sha}"
+dedupe_title="[autofix] ${WORKFLOW_NAME} failed on ${base_branch}"
 run_url="${WORKFLOW_URL:-https://github.com/${REPO}/actions/runs/${RUN_ID}}"
 
 run_log="$(gh run view "$RUN_ID" --repo "$REPO" --log-failed 2>/dev/null || true)"
@@ -89,6 +90,36 @@ PY
 if [[ -z "$repo_id" || -z "$copilot_id" ]]; then
   echo "[copilot-autofix] ERROR: Copilot coding agent is not available for ${REPO}" >&2
   exit 1
+fi
+
+existing_issue="$(gh issue list \
+  --repo "$REPO" \
+  --state open \
+  --search "${dedupe_title} in:title" \
+  --json number,title,url \
+  --limit 20)"
+
+existing_number="$(python3 - "$existing_issue" "$dedupe_title" <<'PY'
+import json
+import sys
+
+issues = json.loads(sys.argv[1])
+prefix = sys.argv[2]
+for issue in issues:
+    title = str(issue.get("title") or "")
+    if title.startswith(prefix):
+        print(issue.get("number") or "")
+        raise SystemExit(0)
+print("")
+PY
+)"
+
+if [[ -n "$existing_number" ]]; then
+  gh issue comment "$existing_number" \
+    --repo "$REPO" \
+    --body "Another failure for this workflow/branch was detected at ${WORKFLOW_SHA:-unknown}: ${run_url}"
+  echo "[copilot-autofix] reused existing issue #${existing_number} for ${dedupe_title}"
+  exit 0
 fi
 
 create_issue_query='mutation($repositoryId: ID!, $botId: ID!, $title: String!, $body: String!, $baseBranch: String!, $targetRepositoryId: ID!, $instructions: String!) { createIssue(input: { repositoryId: $repositoryId, title: $title, body: $body, assigneeIds: [$botId], agentAssignment: { targetRepositoryId: $targetRepositoryId, baseRef: $baseBranch, customInstructions: $instructions, customAgent: "", model: "" } }) { issue { id url number title } } }'

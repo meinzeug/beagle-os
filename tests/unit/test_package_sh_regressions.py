@@ -23,3 +23,18 @@ def test_package_sh_can_skip_server_release_artifacts_for_host_local_refreshes()
     assert 'if [[ "$BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS" == "1" ]]; then' in script
     assert 'BEAGLE_VERIFY_SERVER_INSTALLER_DIR="$DIST_DIR" \\' in script
     assert 'checksum_targets+=(' in script
+
+
+def test_package_sh_seeds_sha256sums_before_server_installer_verifier() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    server_block_marker = 'if [[ "$BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS" == "1" ]]; then'
+    assert server_block_marker in script
+    server_block = script.split(server_block_marker, 1)[1]
+
+    checksum_pos = server_block.find('sha256sum \\\n      "$SERVER_INSTALLER_ISO_NAME"')
+    verifier_pos = server_block.find('"$ROOT_DIR/scripts/verify-server-installer-artifacts.sh"')
+
+    assert checksum_pos != -1, "SHA256SUMS seed creation not found in server release block"
+    assert verifier_pos != -1, "server installer verifier call not found in server release block"
+    assert checksum_pos < verifier_pos, "SHA256SUMS must exist before the verifier is called"

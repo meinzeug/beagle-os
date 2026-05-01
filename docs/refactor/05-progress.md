@@ -6472,3 +6472,23 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - YAML-Syntaxcheck fuer Release- und Public-Website-Workflow
   - Live-Smoke gegen `https://beagle-os.com/`, `/download/`, `/styles.css` und `/assets/img/beagleos-gaming.png`
   - Chrome DevTools: keine Console-Messages, alle Homepage-Requests `200`
+
+## Update (2026-05-01, Copilot PR-Automerge und offene Autofix-PRs konsolidiert)
+
+**Scope**: Offene Copilot-PRs blieben offen, weil GitHub sie als Draft erzeugte und PR-Workflow-Runs auf `action_required` pausierte. Die sinnvollen Copilot-Fixes wurden in `main` konsolidiert; die Automerge-Logik hebt Copilot-Drafts jetzt automatisch auf, approved pausierte Runs und dedupliziert neue Autofix-Issues.
+
+- Fixes aus Copilot-PRs:
+  - [beagle-kiosk/package.json](/home/dennis/beagle-os/beagle-kiosk/package.json) und [beagle-kiosk/package-lock.json](/home/dennis/beagle-os/beagle-kiosk/package-lock.json): Kiosk-Version auf SemVer `8.0.0`, damit `electron-builder` den Release-Build nicht abbricht.
+  - [tests/unit/test_package_sh_regressions.py](/home/dennis/beagle-os/tests/unit/test_package_sh_regressions.py): Regression fuer SHA256SUMS-Seeding vor `verify-server-installer-artifacts.sh`.
+  - [scripts/render-site-templates.py](/home/dennis/beagle-os/scripts/render-site-templates.py) und [scripts/deploy-public-website.sh](/home/dennis/beagle-os/scripts/deploy-public-website.sh): gemeinsamer Public-Site-Template-Renderer.
+- Automerge:
+  - [.github/workflows/copilot-automerge.yml](/home/dennis/beagle-os/.github/workflows/copilot-automerge.yml): neuer `action_required`-Pfad approved Copilot-PR-Workflow-Runs und nutzt den hinterlegten Copilot-Token.
+  - [scripts/approve-copilot-pr-workflow-run.sh](/home/dennis/beagle-os/scripts/approve-copilot-pr-workflow-run.sh): markiert Copilot-PRs ready-for-review und approved pausierte Workflow-Runs.
+  - [scripts/merge-copilot-autofix-pr.sh](/home/dennis/beagle-os/scripts/merge-copilot-autofix-pr.sh): Draft-PRs werden nicht mehr ignoriert, sondern automatisch ready gesetzt.
+  - [scripts/create-copilot-autofix-issue.sh](/home/dennis/beagle-os/scripts/create-copilot-autofix-issue.sh): offene Autofix-Issues werden pro Workflow/Branch wiederverwendet statt gespammt.
+- Validierung:
+  - `bash -n` fuer betroffene Shell-Skripte
+  - `python3 -m py_compile scripts/render-site-templates.py`
+  - YAML-Syntaxcheck fuer `copilot-automerge` und `public-website`
+  - direkter Python-Runner fuer `tests/unit/test_package_sh_regressions.py`
+  - lokaler Enrollment-Test konnte nicht laufen, weil `pytest` lokal nicht installiert ist
