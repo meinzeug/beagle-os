@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hmac
 import logging
+import re
 import uuid
 
 # Pull every symbol used below (BaseHTTPRequestHandler, HTTPStatus, urlparse,
@@ -19,6 +20,11 @@ from service_registry import *  # noqa: F401,F403
 from request_handler_mixin import HandlerMixin
 
 _LOG = logging.getLogger("beagle.control_plane")
+_SENSITIVE_QUERY_RE = re.compile(r"(?i)([?&](?:access_token|token|refresh_token)=)([^&\\s]+)")
+
+
+def _redact_request_target(value: Any) -> str:
+    return _SENSITIVE_QUERY_RE.sub(r"\1[redacted]", str(value or ""))
 
 
 class Handler(HandlerMixin, BaseHTTPRequestHandler):
@@ -1190,10 +1196,11 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
         # Route stdlib HTTP-server access logs through the structured logger
         # so request_id/method/path get emitted as JSON fields. Keep the
         # legacy printable format inside the "message" field for grep-compat.
+        safe_args = tuple(_redact_request_target(arg) for arg in args)
         try:
-            structured_logger().log_message(fmt, *args)
+            structured_logger().log_message(fmt, *safe_args)
         except Exception:
-            _LOG.info("[%s] %s %s", utcnow(), self.address_string(), fmt % args)
+            _LOG.info("[%s] %s %s", utcnow(), self.address_string(), fmt % safe_args)
 
     def handle_one_request(self) -> None:
         # GoAdvanced Plan 08 Schritt 4: Request-Id middleware.
@@ -1241,7 +1248,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 with log.context(
                     request_id=self._beagle_request_id,
                     method=self.command or "",
-                    path=getattr(self, "path", "") or "",
+                    path=_redact_request_target(getattr(self, "path", "") or ""),
                     client=self.address_string(),
                 ):
                     method()

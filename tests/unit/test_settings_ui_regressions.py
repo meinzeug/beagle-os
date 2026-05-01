@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SETTINGS_JS = ROOT / "website" / "ui" / "settings.js"
 INDEX_HTML = ROOT / "website" / "index.html"
+CONTROL_PLANE_HANDLER = ROOT / "beagle-host" / "services" / "control_plane_handler.py"
 
 
 def test_settings_ipam_requests_use_api_relative_paths() -> None:
@@ -42,3 +43,12 @@ def test_artifact_running_build_message_does_not_show_blocked_gate_as_primary() 
     assert "Public-Gate wartet auf den laufenden Build" in js
     assert "Artefakte werden gerade neu gebaut" in js
     assert "runningRefresh ? 'Nach Build'" in js
+
+
+def test_update_sse_access_token_is_redacted_from_control_plane_logs() -> None:
+    handler = CONTROL_PLANE_HANDLER.read_text(encoding="utf-8")
+
+    assert "_redact_request_target" in handler
+    assert "access_token|token|refresh_token" in handler
+    assert "path=_redact_request_target" in handler
+    assert "structured_logger().log_message(fmt, *safe_args)" in handler

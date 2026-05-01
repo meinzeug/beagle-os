@@ -1067,3 +1067,4 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - Die neue `GET /api/v1/settings/updates/stream`-Route akzeptiert wie andere EventSource-Endpunkte ein `access_token`-Query-Token, weil Browser-EventSource keine Authorization-Header setzen kann.
   - Der Handler validiert den Token ueber die bestehende Session/API-Token-Logik und prueft zusaetzlich die gleiche RBAC-Permission wie `GET /api/v1/settings/updates`.
   - Der Stream liefert keine Secrets, sondern nur Statusdaten fuer Repo-/Artefakt-/Service-/Watchdog-Zustand.
+  - Control-Plane-Access-Logs redigieren `access_token`, `token` und `refresh_token` in Request-Targets, bevor sie an den strukturierten Logger gehen.
