@@ -19,6 +19,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import time
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Callable
@@ -639,6 +640,59 @@ class ServerSettingsService:
             "repo_auto_update": self.get_repo_auto_update(),
         }
 
+    def get_update_stream_snapshot(self) -> dict[str, Any]:
+        """Return the live parts of the Updates page without running apt."""
+        return {
+            "ok": True,
+            "source": "sse",
+            "repo_auto_update": self.get_repo_auto_update(),
+            "artifacts": self.get_artifacts(),
+        }
+
+    def stream_update_events(
+        self,
+        *,
+        max_events: int = 300,
+        poll_interval: float = 2.0,
+    ):
+        """Yield SSE-framed live snapshots for the Updates page.
+
+        The stream intentionally skips apt-get update/list. Package checks are
+        comparatively expensive and stay behind the explicit refresh endpoint.
+        """
+        def encode(event_name: str, payload: dict[str, Any]) -> bytes:
+            body = (
+                f"event: {event_name}\n"
+                f"data: {json.dumps(payload, ensure_ascii=True, separators=(',', ':'))}\n\n"
+            )
+            return body.encode("utf-8")
+
+        yield encode("hello", {"ok": True, "source": "updates", "ts": self._utcnow()})
+        last_signature = ""
+        for index in range(max(1, int(max_events))):
+            payload = self.get_update_stream_snapshot()
+            payload["stream"] = {
+                "seq": index + 1,
+                "poll_interval_seconds": poll_interval,
+                "ts": self._utcnow(),
+            }
+            signature = json.dumps(
+                {
+                    "repo": payload.get("repo_auto_update", {}),
+                    "artifact_refresh": (payload.get("artifacts", {}) or {}).get("refresh_status", {}),
+                    "artifact_missing": (payload.get("artifacts", {}) or {}).get("missing", []),
+                    "artifact_services": (payload.get("artifacts", {}) or {}).get("services", {}),
+                    "artifact_primary": (payload.get("artifacts", {}) or {}).get("primary_status", {}),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            if signature != last_signature or index % 15 == 0:
+                last_signature = signature
+                yield encode("updates", payload)
+            time.sleep(max(0.5, float(poll_interval)))
+        yield encode("done", {"ok": True, "ts": self._utcnow()})
+
     def get_repo_auto_update(self) -> dict[str, Any]:
         settings = self._load_settings()
         config = {
@@ -799,7 +853,8 @@ class ServerSettingsService:
         refresh_service = _run_cmd(["systemctl", "is-active", "beagle-artifacts-refresh.service"]) or "unknown"
         refresh_timer = _run_cmd(["systemctl", "is-active", "beagle-artifacts-refresh.timer"]) or "unknown"
         refresh_state = str(refresh_status.get("status") or "").strip().lower()
-        running_refresh = refresh_state in {"queued", "running"} or refresh_service.strip() == "active"
+        refresh_service_state = refresh_service.strip()
+        running_refresh = refresh_state in {"queued", "running"} or refresh_service_state in {"active", "activating"}
         build_activity = self._artifact_build_activity(
             refresh_status=refresh_status,
             running_refresh=running_refresh,
@@ -811,6 +866,16 @@ class ServerSettingsService:
         downloads_path = str(status_json.get("downloads_path") or "/beagle-downloads").strip() or "/beagle-downloads"
         if not downloads_path.startswith("/"):
             downloads_path = "/" + downloads_path
+        ready = not missing and bool(status_json)
+        primary_status = self._artifact_primary_status(
+            ready=ready,
+            missing=missing,
+            running_refresh=running_refresh,
+            refresh_status=refresh_status,
+            build_activity=build_activity,
+            watchdog=watchdog,
+            publish_gate=publish_gate,
+        )
         return {
             "dist_dir": str(dist_dir),
             "status_file": str(status_file),
@@ -820,8 +885,9 @@ class ServerSettingsService:
             "refresh_status": refresh_status,
             "artifacts": artifacts,
             "missing": missing,
-            "ready": not missing and bool(status_json),
+            "ready": ready,
             "running_refresh": running_refresh,
+            "primary_status": primary_status,
             "build_activity": build_activity,
             "preflight": preflight,
             "publish_gate": publish_gate,
@@ -836,6 +902,70 @@ class ServerSettingsService:
                 "beagle-artifacts-watchdog.service": _run_cmd(["systemctl", "is-active", "beagle-artifacts-watchdog.service"], fallback="unknown") or "unknown",
                 "beagle-artifacts-watchdog.timer": _run_cmd(["systemctl", "is-active", "beagle-artifacts-watchdog.timer"], fallback="unknown") or "unknown",
             },
+        }
+
+    def _artifact_primary_status(
+        self,
+        *,
+        ready: bool,
+        missing: list[str],
+        running_refresh: bool,
+        refresh_status: dict[str, Any],
+        build_activity: dict[str, Any],
+        watchdog: dict[str, Any],
+        publish_gate: dict[str, Any],
+    ) -> dict[str, Any]:
+        refresh_state = str(refresh_status.get("status") or "").strip().lower()
+        watchdog_state = str(((watchdog or {}).get("status") or {}).get("state") or "").strip().lower()
+        label = str((build_activity or {}).get("label") or refresh_status.get("step") or "").strip()
+        detail = str((build_activity or {}).get("detail") or refresh_status.get("message") or "").strip()
+        if running_refresh:
+            return {
+                "state": "building",
+                "severity": "info",
+                "label": label or "Build laeuft",
+                "message": detail or "Artefakte werden gerade neu erzeugt. Fehlende Dateien sind waehrenddessen normal.",
+            }
+        if refresh_state == "failed":
+            return {
+                "state": "failed",
+                "severity": "warn",
+                "label": "Build fehlgeschlagen",
+                "message": str(refresh_status.get("message") or refresh_status.get("error_excerpt") or "Der letzte Artifact-Refresh ist fehlgeschlagen."),
+            }
+        if watchdog_state == "repairing":
+            return {
+                "state": "repairing",
+                "severity": "info",
+                "label": "Reparatur laeuft",
+                "message": str(((watchdog or {}).get("status") or {}).get("message") or "Der Watchdog repariert fehlende oder veraltete Downloads."),
+            }
+        if missing:
+            return {
+                "state": "missing",
+                "severity": "warn",
+                "label": f"{len(missing)} Datei(en) fehlen",
+                "message": "Artefakte fehlen. Starte den Build oder warte auf die automatische Reparatur.",
+            }
+        if ready and (publish_gate or {}).get("public_ready"):
+            return {
+                "state": "ready",
+                "severity": "info",
+                "label": "Bereit",
+                "message": "Alle benoetigten Downloads und Installationsdateien sind vorhanden.",
+            }
+        if ready:
+            return {
+                "state": "ready",
+                "severity": "info",
+                "label": "Downloads vorhanden",
+                "message": "Die lokalen Artefakte sind vorhanden. Public-Gate-Details stehen unten.",
+            }
+        return {
+            "state": "unknown",
+            "severity": "subtle",
+            "label": "Wartet",
+            "message": "Der Server prueft den Artefaktstatus.",
         }
 
     def _artifact_build_activity(self, *, refresh_status: dict[str, Any], running_refresh: bool) -> dict[str, Any]:
@@ -1366,6 +1496,8 @@ class ServerSettingsService:
             return _ok(self.get_services())
         if path == "/api/v1/settings/updates":
             return _ok(self.get_updates())
+        if path == "/api/v1/settings/updates/stream":
+            return {"kind": "sse", "status": HTTPStatus.OK, "generator": self.stream_update_events()}
         if path == "/api/v1/settings/artifacts":
             return _ok(self.get_artifacts())
         if path == "/api/v1/settings/backup":

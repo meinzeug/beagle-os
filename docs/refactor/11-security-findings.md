@@ -1056,3 +1056,14 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - `repo-auto-update` leitet `current_commit` jetzt aus Commit-Stempel, vorhandenem Healthy-Status oder lokalem Git-Checkout ab.
   - Git-basierte Host-Installationen schreiben `.beagle-installed-commit` jetzt direkt in den Runtime-Installationspfad.
   - Artefakt-Build wird nach erfolgreichem Repo-Deploy nur noch asynchron gestartet; der Repo-Status kann dadurch sofort wieder `healthy` werden.
+
+## Security Note (2026-05-01) - Update-SSE bleibt authentifiziert
+
+- Status: umgesetzt, kein neuer offener Finding
+- Betroffene Dateien:
+  - `beagle-host/services/control_plane_handler.py`
+  - `beagle-host/services/server_settings.py`
+- Beschreibung:
+  - Die neue `GET /api/v1/settings/updates/stream`-Route akzeptiert wie andere EventSource-Endpunkte ein `access_token`-Query-Token, weil Browser-EventSource keine Authorization-Header setzen kann.
+  - Der Handler validiert den Token ueber die bestehende Session/API-Token-Logik und prueft zusaetzlich die gleiche RBAC-Permission wie `GET /api/v1/settings/updates`.
+  - Der Stream liefert keine Secrets, sondern nur Statusdaten fuer Repo-/Artefakt-/Service-/Watchdog-Zustand.

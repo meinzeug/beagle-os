@@ -168,6 +168,37 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertEqual(result["publish_gate"]["missing_latest"].count("pve-thin-client-usb-installer-latest.sh"), 1)
         self.assertEqual(result["links"]["downloads_index"], "/beagle-downloads/beagle-downloads-index.html")
 
+    def test_get_artifacts_treats_activating_refresh_as_running(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            install_dir = Path(tmpdir) / "beagle"
+            (install_dir / "dist").mkdir(parents=True)
+            service = ServerSettingsService(data_dir=Path(tmpdir) / "data", install_dir=install_dir)
+
+            def fake_run_cmd(cmd, *args, **kwargs):
+                if cmd[:2] == ["systemctl", "is-active"] and cmd[2] == "beagle-artifacts-refresh.service":
+                    return "activating"
+                if cmd[:2] == ["systemctl", "is-active"]:
+                    return "inactive"
+                return ""
+
+            with mock.patch.object(MODULE, "_run_cmd", side_effect=fake_run_cmd), \
+                 mock.patch.object(MODULE, "_which", side_effect=lambda tool: f"/usr/bin/{tool}"):
+                result = service.get_artifacts()
+
+        self.assertTrue(result["running_refresh"])
+        self.assertEqual(result["primary_status"]["state"], "building")
+        self.assertEqual(result["primary_status"]["severity"], "info")
+
+    def test_route_get_updates_stream_returns_sse_descriptor(self):
+        service = self.make_service()
+
+        response = service.route_get("/api/v1/settings/updates/stream")
+
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(response["kind"], "sse")
+        self.assertIn("generator", response)
+
     def test_start_artifact_refresh_starts_systemd_service(self):
         service = self.make_service()
         proc = mock.Mock()

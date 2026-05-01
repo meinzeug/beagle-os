@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { escapeHtml, formatDate, qs, text } from './dom.js';
-import { request } from './api.js';
+import { apiBase, request } from './api.js';
 
 const settingsHooks = {
   setBanner() {}
@@ -8,6 +8,9 @@ const settingsHooks = {
 
 let webhookRows = [];
 let artifactRefreshPollTimer = 0;
+let updateStatusEventSource = null;
+let updateStatusReconnectTimer = 0;
+let updateStatusStreamActive = false;
 let lastSettingsVisibilityPanel = '';
 
 function formatBytesCompact(value) {
@@ -105,9 +108,106 @@ function stopArtifactRefreshPolling() {
 
 function scheduleArtifactRefreshPolling() {
   stopArtifactRefreshPolling();
+  if (updateStatusStreamActive) {
+    return;
+  }
   artifactRefreshPollTimer = window.setTimeout(() => {
     loadArtifactStatus({ silent: true });
   }, 5000);
+}
+
+function setUpdateLiveState(stateName, label) {
+  const node = qs('update-live-state');
+  if (!node) {
+    return;
+  }
+  node.className = 'settings-update-mode is-' + String(stateName || 'off');
+  node.textContent = label || 'LIVE AUS';
+}
+
+function stopUpdateStatusStream() {
+  updateStatusStreamActive = false;
+  if (updateStatusEventSource) {
+    updateStatusEventSource.close();
+    updateStatusEventSource = null;
+  }
+  if (updateStatusReconnectTimer) {
+    window.clearTimeout(updateStatusReconnectTimer);
+    updateStatusReconnectTimer = 0;
+  }
+  setUpdateLiveState('off', 'LIVE AUS');
+}
+
+function scheduleUpdateStatusReconnect() {
+  if (updateStatusReconnectTimer || String(state.activePanel || '') !== 'settings_updates') {
+    return;
+  }
+  updateStatusReconnectTimer = window.setTimeout(() => {
+    updateStatusReconnectTimer = 0;
+    if (String(state.activePanel || '') === 'settings_updates') {
+      loadSettingsUpdates({ silent: true, skipStreamStart: true });
+      startUpdateStatusStream();
+    }
+  }, 10000);
+}
+
+function renderUpdateStreamPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return;
+  }
+  if (payload.repo_auto_update) {
+    renderRepoUpdateStatus(payload.repo_auto_update);
+  }
+  if (payload.artifacts) {
+    renderArtifactStatus(payload.artifacts);
+  }
+}
+
+function startUpdateStatusStream() {
+  if (typeof EventSource !== 'function') {
+    setUpdateLiveState('off', 'LIVE FALLBACK');
+    scheduleArtifactRefreshPolling();
+    return;
+  }
+  if (updateStatusEventSource) {
+    return;
+  }
+  const streamUrl = new URL(apiBase() + '/settings/updates/stream', window.location.origin);
+  if (state.token) {
+    streamUrl.searchParams.set('access_token', state.token);
+  }
+  updateStatusStreamActive = true;
+  setUpdateLiveState('on', 'LIVE SSE');
+  const source = new EventSource(streamUrl.toString());
+  updateStatusEventSource = source;
+  source.addEventListener('hello', () => {
+    setUpdateLiveState('on', 'LIVE SSE');
+  });
+  source.addEventListener('updates', (event) => {
+    try {
+      renderUpdateStreamPayload(JSON.parse(event.data || '{}'));
+      setUpdateLiveState('on', 'LIVE SSE');
+    } catch (error) {
+      void error;
+    }
+  });
+  source.addEventListener('done', () => {
+    if (updateStatusEventSource === source) {
+      updateStatusEventSource = null;
+      source.close();
+      scheduleUpdateStatusReconnect();
+    }
+  });
+  source.addEventListener('error', (event) => {
+    void event;
+    if (updateStatusEventSource === source) {
+      updateStatusEventSource = null;
+      updateStatusStreamActive = false;
+      source.close();
+      setUpdateLiveState('warn', 'LIVE RECONNECT');
+      scheduleUpdateStatusReconnect();
+    }
+  });
 }
 
 export function configureSettings(nextHooks) {
@@ -473,13 +573,22 @@ export function restartService(name) {
   });
 }
 
-export function loadSettingsUpdates() {
-  settingsHooks.setBanner('Suche nach Updates...', 'info');
-  setUpdateConsoleState('checking', 'Live-Pruefung laeuft', 'Der Server fragt Systempakete, GitHub und Download-Artefakte ab.');
+export function loadSettingsUpdates(options) {
+  const silent = Boolean(options && options.silent);
+  const skipStreamStart = Boolean(options && options.skipStreamStart);
+  if (!skipStreamStart) {
+    startUpdateStatusStream();
+  }
+  if (!silent) {
+    settingsHooks.setBanner('Suche nach Updates...', 'info');
+  }
+  setUpdateConsoleState('checking', 'Live-Pruefung laeuft', 'Der Server fragt Systempakete ab; Repo und Artefakte laufen per SSE live weiter.');
   setUpdateFlowStep('packages', 'running', 'fragt an');
   setUpdateFlowStep('repo', 'running', 'fragt an');
   setUpdateFlowStep('artifacts', 'running', 'fragt an');
-  loadArtifactStatus();
+  if (!updateStatusStreamActive) {
+    loadArtifactStatus({ silent: true });
+  }
   return request('/settings/updates', { __timeoutMs: 60000 }).then((data) => {
     const packageCount = Number(data.upgradable_count || 0);
     text('upd-count', String(packageCount));
@@ -510,7 +619,9 @@ export function loadSettingsUpdates() {
     if (!packages.length) {
       tbody.innerHTML = '<tr><td colspan="2" class="empty-cell">System ist aktuell.</td></tr>';
       setUpdateFlowStep('packages', 'good', 'aktuell');
-      settingsHooks.setBanner('Systempakete sind aktuell.', 'info');
+      if (!silent) {
+        settingsHooks.setBanner('Systempakete sind aktuell.', 'info');
+      }
       renderRepoUpdateStatus(data.repo_auto_update || {});
       return;
     }
@@ -519,11 +630,15 @@ export function loadSettingsUpdates() {
       return '<tr><td>' + escapeHtml(pkg.package) + '</td><td><code>' + escapeHtml(pkg.line) + '</code></td></tr>';
     }).join('');
     renderRepoUpdateStatus(data.repo_auto_update || {});
-    settingsHooks.setBanner(packages.length + ' Paket-Update(s) verfuegbar.', 'info');
+    if (!silent) {
+      settingsHooks.setBanner(packages.length + ' Paket-Update(s) verfuegbar.', 'info');
+    }
   }).catch((error) => {
     setUpdateConsoleState('error', 'Update-Pruefung fehlgeschlagen', error.message);
     setUpdateFlowStep('packages', 'error', 'Fehler');
-    settingsHooks.setBanner('Update-Check fehlgeschlagen: ' + error.message, 'warn');
+    if (!silent) {
+      settingsHooks.setBanner('Update-Check fehlgeschlagen: ' + error.message, 'warn');
+    }
   });
 }
 
@@ -622,6 +737,7 @@ function renderArtifactStatus(data) {
     : (refreshStatus && refreshStatus.build_activity ? refreshStatus.build_activity : {});
   const preflight = data && data.preflight ? data.preflight : {};
   const publishGate = data && data.publish_gate ? data.publish_gate : {};
+  const primaryStatus = data && data.primary_status ? data.primary_status : {};
   const links = data && data.links ? data.links : {};
   const watchdog = data && data.watchdog ? data.watchdog : {};
   const watchdogConfig = watchdog && watchdog.config ? watchdog.config : {};
@@ -632,8 +748,8 @@ function renderArtifactStatus(data) {
   const missingLatest = Array.isArray(publishGate.missing_latest) ? publishGate.missing_latest : [];
   const missingVersioned = Array.isArray(publishGate.missing_versioned) ? publishGate.missing_versioned : [];
 
-  text('artifact-ready', data && data.ready ? 'Ja' : 'Nein');
-  text('artifact-missing-count', String(missing.length));
+  text('artifact-ready', runningRefresh ? 'Nach Build' : (data && data.ready ? 'Ja' : 'Nein'));
+  text('artifact-missing-count', runningRefresh && missing.length ? 'wird gebaut' : String(missing.length));
   text('artifact-refresh-service', String((data && data.services && data.services['beagle-artifacts-refresh.service']) || 'unknown'));
   text('artifact-refresh-timer', String((data && data.services && data.services['beagle-artifacts-refresh.timer']) || 'unknown'));
   text('artifact-refresh-step', String(refreshStatus.step || '—'));
@@ -690,8 +806,14 @@ function renderArtifactStatus(data) {
   }
   const artifactSummaryMessage = qs('artifact-summary-message');
   if (artifactSummaryMessage) {
-    if (data && data.ready && !missing.length) {
+    if (primaryStatus.message) {
+      artifactSummaryMessage.textContent = String(primaryStatus.message);
+      artifactSummaryMessage.className = 'banner ' + (primaryStatus.severity === 'warn' ? 'warn' : primaryStatus.severity === 'info' ? 'info' : 'subtle');
+    } else if (data && data.ready && !missing.length) {
       artifactSummaryMessage.textContent = 'Alle benoetigten Downloads und Installationsdateien sind vorhanden.';
+      artifactSummaryMessage.className = 'banner info';
+    } else if (runningRefresh) {
+      artifactSummaryMessage.textContent = 'Artefakte werden gerade neu gebaut. Fehlende Payload-/Bootstrap-Dateien sind waehrenddessen normal.';
       artifactSummaryMessage.className = 'banner info';
     } else if (missing.length) {
       artifactSummaryMessage.textContent = 'Es fehlen ' + String(missing.length) + ' wichtige Datei(en). Mit "Artefakte neu bauen/refreshen" kann der Server sie neu erstellen.';
@@ -721,6 +843,9 @@ function renderArtifactStatus(data) {
     if (publishGate.public_ready) {
       gateMessage.textContent = 'Installimage/Public-Release ist freigegeben: latest- und versionierte Thin-Client-Artefakte sind vorhanden.';
       gateMessage.className = 'banner info';
+    } else if (runningRefresh) {
+      gateMessage.textContent = 'Public-Gate wartet auf den laufenden Build. Fehlende latest/versionierte Artefakte werden gerade erzeugt.';
+      gateMessage.className = 'banner subtle';
     } else {
       gateMessage.textContent = 'Public-Gate blockiert. Latest fehlt: ' +
         (missingLatest.length ? missingLatest.join(', ') : '0') +
@@ -767,13 +892,15 @@ function renderArtifactStatus(data) {
   const repoState = String(qs('repo-update-state') ? qs('repo-update-state').textContent : '');
   const packageCount = Number(qs('upd-count') ? qs('upd-count').textContent : 0) || 0;
   const repoHealthy = repoState === 'healthy';
-  if (missing.length || watchdogStatus.state === 'drift') {
+  if (runningRefresh) {
+    setUpdateConsoleState('checking', 'Build laeuft live', String((primaryStatus && primaryStatus.label) || (buildActivity && buildActivity.label) || 'Artefakte werden aktualisiert.'));
+  } else if (missing.length || watchdogStatus.state === 'drift') {
     setUpdateConsoleState('warn', 'Downloads brauchen Pflege', 'Fehlende oder veraltete Dateien koennen automatisch repariert werden.');
   } else if (repoHealthy && packageCount <= 0 && data && data.ready) {
     setUpdateConsoleState('good', 'Alles aktuell', watchdogConfig.enabled && watchdogConfig.auto_repair ? 'Vollautomatik ist aktiv und alle Downloads sind bereit.' : 'Der Server ist aktuell. Die Download-Automatik ist eingeschraenkt.');
   }
 
-  if (runningRefresh) {
+  if (runningRefresh && !updateStatusStreamActive) {
     scheduleArtifactRefreshPolling();
   } else {
     stopArtifactRefreshPolling();
@@ -1499,6 +1626,10 @@ function deleteWebhook(index) {
 export function loadSettingsForPanel(panel) {
   if (!isAdminRole()) {
     return;
+  }
+  if (panel !== 'settings_updates') {
+    stopUpdateStatusStream();
+    stopArtifactRefreshPolling();
   }
   switch (panel) {
     case 'settings_general':

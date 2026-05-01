@@ -23,3 +23,22 @@ def test_settings_updates_panel_states_apt_policy_as_manual_only() -> None:
     assert "APT-Updates bleiben absichtlich manuell" in js
     assert "Installation erfolgt bewusst erst nach Klick." in js
     assert 'id="upd-policy-message"' in html
+
+
+def test_settings_updates_panel_uses_sse_for_live_status() -> None:
+    js = SETTINGS_JS.read_text(encoding="utf-8")
+    html = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert "new EventSource(streamUrl.toString())" in js
+    assert "apiBase() + '/settings/updates/stream'" in js
+    assert "renderUpdateStreamPayload" in js
+    assert "apt-get update" not in js
+    assert 'id="update-live-state"' in html
+
+
+def test_artifact_running_build_message_does_not_show_blocked_gate_as_primary() -> None:
+    js = SETTINGS_JS.read_text(encoding="utf-8")
+
+    assert "Public-Gate wartet auf den laufenden Build" in js
+    assert "Artefakte werden gerade neu gebaut" in js
+    assert "runningRefresh ? 'Nach Build'" in js

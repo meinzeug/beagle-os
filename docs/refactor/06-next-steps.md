@@ -1100,6 +1100,19 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 - `docs/goenterprise/03-gaming-kiosk-pools.md`: verbleibende Testpflicht fuer Gaming-Pool-Allocation ohne GPU sowie Kiosk-/RBAC-E2E sauber abschliessen
 # Next Steps
 
+## Stand (2026-05-01, Updates-WebUI SSE Follow-up)
+
+**Zuletzt erledigt**:
+- Update-Seite hat einen dedizierten SSE-Live-Stream fuer Repo-/Artifact-/Watchdog-/Build-Zustand.
+- APT-Update-Checks bleiben bewusst manuell/REST-basiert, damit die Live-Seite keine Paketmanager-Last erzeugt.
+- Laufende Artefakt-Builds werden als primaerer Zustand dargestellt; fehlende Payload-/Bootstrap-Dateien werden waehrenddessen nicht mehr als widerspruechlicher Hauptfehler angezeigt.
+
+**Naechste konkrete Schritte**:
+
+1. Mit Chrome DevTools auf `srv1` pruefen, dass `/#panel=settings_updates` den `LIVE SSE`-Status zeigt und nur noch der Stream aktualisiert.
+2. Nach Abschluss des laufenden Artefakt-Builds kontrollieren, dass `beagle-downloads-status.json`, Payload und Bootstrap wieder public `200` liefern.
+3. Optional die APT-Paketliste spaeter auf einen separaten, gecachten Job umstellen, falls die Paketliste ebenfalls live statt nur auf Refresh aktualisiert werden soll.
+
 ## Stand (2026-04-28, GoEnterprise Plan 04/09 telemetry follow-up)
 
 **Zuletzt erledigt**:

@@ -448,6 +448,13 @@ body.light-mode .settings-build-activity {
   color: var(--text-secondary);
   font-size: 0.88rem;
 }
+.settings-update-mode-row {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .settings-update-mode {
   flex: 0 0 auto;
   display: inline-flex;
@@ -465,6 +472,14 @@ body.light-mode .settings-build-activity {
   color: var(--ok);
   border-color: rgba(140, 226, 109, 0.34);
   background: rgba(140, 226, 109, 0.10);
+}
+.settings-update-mode.is-warn {
+  color: var(--warn);
+  border-color: rgba(255, 180, 84, 0.34);
+  background: rgba(255, 180, 84, 0.10);
+}
+.settings-update-mode.is-off {
+  color: var(--text-muted);
 }
 .settings-update-flow {
   position: relative;

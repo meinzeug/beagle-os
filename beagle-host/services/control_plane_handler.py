@@ -123,6 +123,25 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             self._stream_live_events(principal)
             return
 
+        if path == "/api/v1/settings/updates/stream":
+            principal = self._stream_principal(parsed)
+            if principal is None:
+                self._stream_auth_error(HTTPStatus.UNAUTHORIZED, code="unauthorized", message="unauthorized")
+                return
+            permission = authz_policy_service().required_permission("GET", "/api/v1/settings/updates")
+            role = str(principal.get("role") or "viewer").strip().lower() or "viewer"
+            if permission is not None and not authz_policy_service().is_allowed(
+                role,
+                permission,
+                auth_session_service().role_permissions(role),
+            ):
+                self._stream_auth_error(HTTPStatus.FORBIDDEN, code="forbidden", message="forbidden")
+                return
+            response = server_settings_service().route_get(path)
+            if response is not None and response.get("kind") == "sse":
+                self._stream_sse_job(response["generator"])
+                return
+
         if path == "/api/v1/jobs" or path.startswith("/api/v1/jobs/"):
             principal = self._stream_principal(parsed) if path.endswith("/stream") else self._auth_principal()
             if principal is None:

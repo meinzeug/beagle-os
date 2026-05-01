@@ -6350,3 +6350,19 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `python3 -m py_compile scripts/lib/prepare_host_downloads.py beagle-host/services/server_settings.py`
   - `python3 -m unittest tests.unit.test_server_settings -q`
   - ad-hoc Python-Runner fuer die neuen Regressionen
+
+## Update (2026-05-01, WebUI Updates: SSE-Live-Status fuer komplette Update-Seite)
+
+**Scope**: Die Update-Seite nutzt jetzt einen dedizierten SSE-Stream fuer Repo-/Artifact-/Watchdog-/Build-Live-Daten. Teure APT-Pruefungen bleiben bewusst hinter dem expliziten Refresh, damit die Seite keinen periodischen `apt-get update`-Loop erzeugt.
+
+- Backend:
+  - [beagle-host/services/server_settings.py](/home/dennis/beagle-os/beagle-host/services/server_settings.py): neuer `GET /api/v1/settings/updates/stream` SSE-Descriptor, Live-Snapshot ohne APT und normalisierter `primary_status` fuer Artefakt-Builds
+  - [beagle-host/services/control_plane_handler.py](/home/dennis/beagle-os/beagle-host/services/control_plane_handler.py): EventSource-Auth via `access_token` und RBAC-Check fuer die Update-Stream-Route
+- Frontend:
+  - [website/ui/settings.js](/home/dennis/beagle-os/website/ui/settings.js): EventSource fuer die komplette Update-Seite, automatischer Reconnect, Polling-Fallback und weniger widerspruechliche Artefakt-/Public-Gate-Meldungen waehrend laufender Builds
+  - [website/index.html](/home/dennis/beagle-os/website/index.html): sichtbarer `LIVE SSE`/Fallback-Indikator im Update Center
+- Validierung:
+  - `python3 -m py_compile beagle-host/services/server_settings.py beagle-host/services/control_plane_handler.py`
+  - `python3 -m unittest tests.unit.test_server_settings`
+  - direkter Python-Runner fuer `tests/unit/test_settings_ui_regressions.py`
+  - `pytest` war lokal nicht installiert
