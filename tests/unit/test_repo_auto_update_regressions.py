@@ -24,3 +24,21 @@ def test_repo_auto_update_accepts_short_installed_commit_hash() -> None:
     assert "def same_commit(installed: str, remote: str) -> bool:" in script
     assert "right.startswith(left)" in script
     assert "same_commit(current_commit, remote_commit)" in script
+
+
+def test_repo_auto_update_recovers_missing_commit_stamp_from_status_or_git() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert "def resolve_installed_commit(commit_file: Path, status: dict, install_dir: Path) -> str:" in script
+    assert 'status_current_commit = str(status.get("current_commit") or "").strip()' in script
+    assert 'status_remote_commit = str(status.get("remote_commit") or "").strip()' in script
+    assert 'if git_dir.exists():' in script
+    assert 'current_commit = resolve_installed_commit(commit_file, status, install_dir)' in script
+
+
+def test_repo_auto_update_marks_repo_healthy_before_artifact_refresh_finishes() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert '["systemctl", "--no-block", "start", "beagle-artifacts-refresh.service"]' in script
+    assert 'payload["reaction"] = "updated_artifact_refresh_started"' in script
+    assert 'payload["message"] = "Repo-Update erfolgreich eingespielt. Artefakt-Build laeuft separat weiter."' in script

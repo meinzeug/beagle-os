@@ -816,6 +816,20 @@
 3. **Plan 09 vertiefen**: Energy-Admin-Konfiguration und echte Green-Scheduling-Integration mit Plan 04 schließen.
 4. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
 5. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion prüfen.
+
+## Stand (2026-05-01, Host-Ops follow-up)
+
+**Zuletzt erledigt**:
+- `repo-auto-update` blockiert den GitHub-Status nicht mehr an langen Artefakt-Builds.
+- Hosts ohne vorhandene `.beagle-installed-commit`-Datei koennen den installierten Stand jetzt aus Status/Git ableiten.
+- Git-basierte Host-Installationen schreiben den Commit-Stempel jetzt direkt bei der Service-Installation.
+
+**Naechste konkrete Schritte**:
+
+1. **Live-Deploy auf `srv1` abschließen**: laufenden Alt-Prozess sauber stoppen, neue Skripte ausrollen und Statusdateien/Timer mit dem Fix neu initialisieren.
+2. **Repo-/Artifact-Status neu verifizieren**: `/#panel=settings_updates` und `/#panel=settings_artifacts` gegen die reale `srv1`-Runtime prüfen, bis `repo_auto_update.status.state=healthy` und der Build separat sichtbar ist.
+3. **Host-Artefaktlauf einmal neu abnehmen**: bestätigen, dass `beagle-artifacts-refresh.service` nach dem entkoppelten Repo-Update sauber bis `ok` durchläuft.
+4. **Zwei-Host-Follow-up**: denselben Update-/Artifact-Pfad später auch auf `srv2` gegen echte Runtime validieren, sobald der Host wieder verfügbar ist.
 6. **Plan 01 Fork-Pfad weiterziehen**: VPN-Enforcement nach dem aktuellen Broker-Pfad auch im späteren `beagle-stream-server`-Fork vorbereiten.
 
 ## Stand (2026-04-28, GoEnterprise Plan 02 follow-up)

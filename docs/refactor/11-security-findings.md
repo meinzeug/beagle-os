@@ -1015,3 +1015,19 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - `pytest -q tests/unit` -> 1222 passed, 4 subtests passed.
 - Rest-Risiko:
   - Stream-Persistenz ueber kompletten Host-Reboot ist noch separat zu validieren, damit DNAT-Reconciler, libvirt und Beagle-Guard nach Boot-Reihenfolge zusammenspielen.
+
+## S-023 - Fehlender Commit-Stempel konnte endlose Self-Updates triggern
+
+- Status: mitigiert in Repo (2026-05-01)
+- Risiko: Mittel
+- Betroffene Dateien:
+  - `scripts/repo-auto-update.sh`
+  - `scripts/install-beagle-host-services.sh`
+- Beschreibung:
+  - Hosts ohne `.beagle-installed-commit` konnten den lokal installierten Stand nicht wiedererkennen.
+  - Folge: `repo-auto-update` betrachtete GitHub-Commits immer wieder als neu und konnte unnötige Self-Updates samt teuren Artefakt-Builds starten.
+  - Gleichzeitig blieb der Repo-Status waehrend des Artefakt-Builds auf `updating`, obwohl der eigentliche Code-Deploy bereits fertig war.
+- Mitigation:
+  - `repo-auto-update` leitet `current_commit` jetzt aus Commit-Stempel, vorhandenem Healthy-Status oder lokalem Git-Checkout ab.
+  - Git-basierte Host-Installationen schreiben `.beagle-installed-commit` jetzt direkt in den Runtime-Installationspfad.
+  - Artefakt-Build wird nach erfolgreichem Repo-Deploy nur noch asynchron gestartet; der Repo-Status kann dadurch sofort wieder `healthy` werden.

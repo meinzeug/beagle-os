@@ -132,6 +132,35 @@ def same_commit(installed: str, remote: str) -> bool:
     return False
 
 
+def resolve_installed_commit(commit_file: Path, status: dict, install_dir: Path) -> str:
+    commit = ""
+    try:
+        if commit_file.is_file():
+            commit = commit_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        commit = ""
+    if commit:
+        return commit
+
+    status_current_commit = str(status.get("current_commit") or "").strip()
+    if status_current_commit:
+        return status_current_commit
+
+    status_state = str(status.get("state") or "").strip().lower()
+    status_remote_commit = str(status.get("remote_commit") or "").strip()
+    status_update_available = bool(status.get("update_available", False))
+    if status_remote_commit and status_state == "healthy" and not status_update_available:
+        return status_remote_commit
+
+    git_dir = install_dir / ".git"
+    if git_dir.exists():
+        installed_commit_proc = run(["git", "rev-parse", "HEAD"], cwd=install_dir, timeout=60)
+        if installed_commit_proc.returncode == 0:
+            return (installed_commit_proc.stdout or "").strip()
+
+    return ""
+
+
 settings = load_json(settings_path)
 status = load_json(status_path)
 config = {
@@ -157,12 +186,7 @@ payload = {
     "last_update_at": str(status.get("last_update_at") or ""),
 }
 
-current_commit = ""
-try:
-    if commit_file.is_file():
-        current_commit = commit_file.read_text(encoding="utf-8").strip()
-except OSError:
-    current_commit = ""
+current_commit = resolve_installed_commit(commit_file, status, install_dir)
 payload["current_commit"] = current_commit
 force_check = False
 try:
@@ -328,17 +352,25 @@ if install is None or install.returncode != 0:
     write_status(payload)
     raise SystemExit(1)
 
-refresh = run([str(install_dir / "scripts/refresh-host-artifacts.sh")], cwd=install_dir, timeout=7200)
-if refresh.returncode != 0:
-    payload["state"] = "error"
-    payload["reaction"] = "artifact_refresh_failed"
-    payload["message"] = (refresh.stderr or refresh.stdout or "refresh-host-artifacts.sh failed").strip()[-400:]
-    write_status(payload)
-    raise SystemExit(1)
+refresh_started_async = run(
+    ["systemctl", "--no-block", "start", "beagle-artifacts-refresh.service"],
+    timeout=60,
+)
+if refresh_started_async.returncode != 0:
+    refresh = run([str(install_dir / "scripts/refresh-host-artifacts.sh")], cwd=install_dir, timeout=7200)
+    if refresh.returncode != 0:
+        payload["state"] = "error"
+        payload["reaction"] = "artifact_refresh_failed"
+        payload["message"] = (refresh.stderr or refresh.stdout or "refresh-host-artifacts.sh failed").strip()[-400:]
+        write_status(payload)
+        raise SystemExit(1)
+    payload["reaction"] = "updated_with_inline_artifact_refresh"
+    payload["message"] = "Repo-Update erfolgreich eingespielt. Artefakte wurden direkt aktualisiert."
+else:
+    payload["reaction"] = "updated_artifact_refresh_started"
+    payload["message"] = "Repo-Update erfolgreich eingespielt. Artefakt-Build laeuft separat weiter."
 
 payload["state"] = "healthy"
-payload["reaction"] = "updated"
-payload["message"] = "Repo-Update erfolgreich eingespielt."
 payload["current_commit"] = remote_commit
 payload["remote_commit"] = remote_commit
 payload["update_available"] = False

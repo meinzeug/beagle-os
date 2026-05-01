@@ -6265,3 +6265,19 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `python3 -m pytest tests/unit/` — `1422 passed` (3 pre-existing unrelated failures)
   - srv1 Dry-Run: 1 VM + 1 Pool + 1 Device erkannt, 0 Fehler
   - Benchmark srv1: SQLite P99 < 1ms, JSON P99 ~2ms, **165x Speedup**, Target PASS
+
+## Update (2026-05-01, Host-Ops: Repo-Auto-Update entkoppelt von Artefakt-Build und Commit-Stempel gehaertet)
+
+**Scope**: Den produktiven Hänger in `/#panel=settings_updates` reproduzierbar geschlossen. `repo-auto-update` blockiert den GitHub-Update-Status nicht mehr bis zum Ende eines langen ISO-/Artefakt-Builds, und Hosts ohne vorhandene `.beagle-installed-commit`-Datei erkennen den bereits installierten Stand jetzt trotzdem sauber wieder.
+
+- Backend-/Ops-Fix:
+  - [scripts/repo-auto-update.sh](/home/dennis/beagle-os/scripts/repo-auto-update.sh): neuer Fallback `resolve_installed_commit()` über Commit-Stempel, vorhandenen Status und Git-Checkout; Repo-Update markiert den Host nach `rsync` + Service-Install sofort wieder als `healthy` und stößt `beagle-artifacts-refresh.service` nur noch asynchron an
+  - [scripts/install-beagle-host-services.sh](/home/dennis/beagle-os/scripts/install-beagle-host-services.sh): schreibt bei Git-basierten Installationen automatisch `.beagle-installed-commit`, damit frische Hosts nicht in endlose Re-Updates fallen
+- Regressionen:
+  - [tests/unit/test_repo_auto_update_regressions.py](/home/dennis/beagle-os/tests/unit/test_repo_auto_update_regressions.py)
+  - [tests/unit/test_install_beagle_host_services_regressions.py](/home/dennis/beagle-os/tests/unit/test_install_beagle_host_services_regressions.py)
+- Validierung:
+  - `bash -n scripts/repo-auto-update.sh scripts/install-beagle-host-services.sh`
+  - `python3 -m unittest tests/unit/test_server_settings.py -q`
+  - ad-hoc Python-Runner für `tests/unit/test_repo_auto_update_regressions.py` und `tests/unit/test_install_beagle_host_services_regressions.py`
+  - Ergebnis: alle betroffenen lokalen Regressionen grün; `pytest` war auf diesem Host weiterhin nicht installiert

@@ -59,3 +59,13 @@ def test_kvm_device_permissions_are_persisted_via_udev_rule() -> None:
     assert 'chgrp kvm /dev/kvm >/dev/null 2>&1 || true' in script
     assert 'chmod 0660 /dev/kvm >/dev/null 2>&1 || true' in script
     assert "ensure_kvm_device_permissions" in script
+
+
+def test_install_beagle_host_services_writes_installed_commit_stamp_when_git_checkout_exists() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'INSTALLED_COMMIT_FILE="$INSTALL_DIR/.beagle-installed-commit"' in script
+    assert "write_installed_commit_stamp()" in script
+    assert 'git -C "$ROOT_DIR" rev-parse HEAD' in script
+    assert 'printf \'%s\\n\' "$commit" > "$INSTALLED_COMMIT_FILE"' in script
+    assert 'write_installed_commit_stamp' in script

@@ -47,6 +47,7 @@ USB_TUNNEL_SSHD_DROPIN="/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf"
 USB_TUNNEL_TEST_DROPIN="/etc/ssh/sshd_config.d/91-beagle-tunnel-test.conf"
 USB_TUNNEL_AUTH_COMMAND="/usr/local/libexec/beagle-usb-authorized-keys"
 KVM_UDEV_RULE_FILE="/etc/udev/rules.d/65-beagle-kvm.rules"
+INSTALLED_COMMIT_FILE="$INSTALL_DIR/.beagle-installed-commit"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -87,6 +88,26 @@ install_file_if_needed() {
   fi
 
   install -m "$mode" "$source_file" "$target_file"
+}
+
+write_installed_commit_stamp() {
+  local commit=""
+
+  if ! command -v git >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    return 0
+  fi
+
+  commit="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -z "$commit" ]]; then
+    return 0
+  fi
+
+  printf '%s\n' "$commit" > "$INSTALLED_COMMIT_FILE"
+  chgrp "$BEAGLE_CONTROL_USER" "$INSTALLED_COMMIT_FILE" 2>/dev/null || true
+  chmod 0640 "$INSTALLED_COMMIT_FILE" 2>/dev/null || true
 }
 
 repair_host_runtime_links() {
@@ -1003,5 +1024,7 @@ if [[ -x "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" ]]; then
     BEAGLE_FIREWALL_NO_APPLY=1 "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" --write-only || echo "Warning: Beagle firewall baseline could not be written" >&2
   fi
 fi
+
+write_installed_commit_stamp
 
 echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $WATCHDOG_SERVICE_NAME, $WATCHDOG_TIMER_NAME, $REPO_AUTO_UPDATE_SERVICE_NAME, $REPO_AUTO_UPDATE_TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_CLUSTER_AUTO_JOIN_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER, $BEAGLE_NOVNC_PROXY_SERVICE"
