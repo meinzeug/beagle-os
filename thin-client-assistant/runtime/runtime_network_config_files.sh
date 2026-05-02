@@ -20,6 +20,10 @@ runtime_nm_connection_file() {
   printf '%s\n' "${NM_CONNECTION_FILE:-$connection_dir/beagle-thinclient.nmconnection}"
 }
 
+runtime_nm_no_random_mac_config_file() {
+  printf '%s\n' "${NM_NO_RANDOM_MAC_CONFIG_FILE:-/etc/NetworkManager/conf.d/90-beagle-no-mac-randomization.conf}"
+}
+
 runtime_resolv_conf_path() {
   printf '%s\n' "${RESOLV_CONF:-/etc/resolv.conf}"
 }
@@ -39,6 +43,23 @@ resolve_dns_servers() {
   fi
 
   printf '%s\n' "${PVE_THIN_CLIENT_DEFAULT_DNS_SERVERS:-1.1.1.1 9.9.9.9 8.8.8.8}"
+}
+
+write_networkmanager_no_random_mac_config() {
+  local config_file config_dir
+
+  config_file="$(runtime_nm_no_random_mac_config_file)"
+  config_dir="$(dirname "$config_file")"
+  install -d -m 0755 "$config_dir"
+  {
+    echo "[device]"
+    echo "wifi.scan-rand-mac-address=no"
+    echo
+    echo "[connection]"
+    echo "wifi.cloned-mac-address=permanent"
+    echo "ethernet.cloned-mac-address=permanent"
+  } >"$config_file"
+  chmod 0644 "$config_file"
 }
 
 write_network_file() {
@@ -131,7 +152,9 @@ start_wifi_wpa_supplicant() {
     kill "$(cat "$pid_path" 2>/dev/null || printf '')" >/dev/null 2>&1 || true
     rm -f "$pid_path"
   fi
-  command -v rfkill >/dev/null 2>&1 && rfkill unblock wifi >/dev/null 2>&1 || true
+  if command -v rfkill >/dev/null 2>&1; then
+    rfkill unblock wifi >/dev/null 2>&1 || true
+  fi
   ip link set "$iface" up >/dev/null 2>&1 || true
   wpa_supplicant -B -P "$pid_path" -i "$iface" -c "$conf_path" >/dev/null 2>&1
 }
@@ -162,6 +185,7 @@ write_nmconnection() {
       echo "[wifi]"
       echo "mode=infrastructure"
       echo "ssid=${PVE_THIN_CLIENT_WIFI_SSID:-}"
+      echo "cloned-mac-address=permanent"
       echo
       echo "[wifi-security]"
       if [[ -n "${PVE_THIN_CLIENT_WIFI_PSK:-}" ]]; then
@@ -172,6 +196,7 @@ write_nmconnection() {
       fi
     else
       echo "[ethernet]"
+      echo "cloned-mac-address=permanent"
     fi
     echo
     echo "[ipv4]"

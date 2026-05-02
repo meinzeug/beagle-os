@@ -6,6 +6,7 @@ RUNTIME_BOOTSTRAP_SERVICES_SH="${RUNTIME_BOOTSTRAP_SERVICES_SH:-$SCRIPT_DIR/runt
 RUNTIME_PREPARE_FLOW_SH="${RUNTIME_PREPARE_FLOW_SH:-$SCRIPT_DIR/runtime_prepare_flow.sh}"
 RUNTIME_NETWORK_BACKEND_SH="${RUNTIME_NETWORK_BACKEND_SH:-$SCRIPT_DIR/runtime_network_backend.sh}"
 RUNTIME_NETWORK_RUNTIME_SH="${RUNTIME_NETWORK_RUNTIME_SH:-$SCRIPT_DIR/runtime_network_runtime.sh}"
+RUNTIME_DEBUG_REPORT_SH="${RUNTIME_DEBUG_REPORT_SH:-$SCRIPT_DIR/runtime_debug_report.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 # shellcheck disable=SC1090
@@ -16,6 +17,8 @@ source "$RUNTIME_PREPARE_FLOW_SH"
 source "$RUNTIME_NETWORK_BACKEND_SH"
 # shellcheck disable=SC1090
 source "$RUNTIME_NETWORK_RUNTIME_SH"
+# shellcheck disable=SC1090
+source "$RUNTIME_DEBUG_REPORT_SH"
 
 load_runtime_config_with_retry
 
@@ -24,6 +27,7 @@ main() {
 
   iface="$(pick_interface)" || exit 0
   if have_networkmanager; then
+    write_networkmanager_no_random_mac_config || true
     write_nmconnection "$iface"
     restart_networkmanager
   else
@@ -40,6 +44,7 @@ main() {
   write_resolv_conf || true
   wait_for_default_route "$iface" || true
   wait_for_dns_targets || true
+  write_runtime_debug_report "network-applied" "$iface" || true
 }
 
 main "$@"

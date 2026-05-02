@@ -134,6 +134,14 @@ PY
   fi
 
   install -d -m 0755 "$live_state_dir"
+  install -d -m 0755 "$live_state_dir/debug"
+  cat >"$live_state_dir/debug/README.txt" <<'EOF'
+Beagle OS Live USB runtime debug directory.
+
+The booted thin client writes redacted network, SSH and runtime service reports
+here as latest.log plus timestamped logs. This directory is persistent on Live
+USB media and is safe to inspect after failed boots.
+EOF
 
   MODE="${PVE_THIN_CLIENT_PRESET_DEFAULT_MODE:-MOONLIGHT}"
   if [[ -z "$MODE" && -n "${PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST:-}" ]]; then
@@ -424,19 +432,19 @@ set timeout=5
 
 menuentry 'Beagle OS Live' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.network_tui=1
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Live (safe mode)' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=runtime pve_thin_client.network_tui=1
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
   initrd /live/initrd.img
 }
 
 menuentry 'Beagle OS Live (legacy IRQ mode)' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic pve_thin_client.mode=runtime pve_thin_client.network_tui=1
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=10 ignore_uuid ${runtime_ip_args} loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
   initrd /live/initrd.img
 }
 EOF
@@ -492,7 +500,7 @@ EOF
     --no-nvram
 
   (
-    cd "$live_mount_dir"
+    cd "$live_mount_dir" || exit
     sha256sum -c SHA256SUMS
   )
 

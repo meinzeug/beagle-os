@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_LIST = ROOT / "thin-client-assistant" / "live-build" / "config" / "package-lists" / "pve-thin-client.list.chroot"
 VERIFY_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "011-verify-runtime-deps.hook.chroot"
 PREPARE_RUNTIME = ROOT / "thin-client-assistant" / "runtime" / "prepare-runtime.sh"
+RUNTIME_DEBUG_REPORT = ROOT / "thin-client-assistant" / "runtime" / "runtime_debug_report.sh"
 SYSTEMD_BOOTSTRAP = ROOT / "thin-client-assistant" / "runtime" / "runtime_systemd_bootstrap.sh"
 WIREGUARD_ENROLLMENT = ROOT / "thin-client-assistant" / "runtime" / "enrollment_wireguard.sh"
 MOONLIGHT_RUNTIME_EXEC = ROOT / "thin-client-assistant" / "runtime" / "moonlight_runtime_exec.sh"
@@ -39,6 +40,20 @@ def test_prepare_runtime_does_not_block_enrollment_on_getty_bootstrap_failure() 
     assert prepare_text.index("ip route delete 0.0.0.0/1") < prepare_text.index('"$SCRIPT_DIR/apply-network-config.sh"')
     assert prepare_text.index("ensure_getty_overrides ||") < prepare_text.index("enroll_endpoint_if_needed ||")
     assert prepare_text.index("enroll_endpoint_if_needed ||") < prepare_text.index("enroll_wireguard_if_needed ||")
+
+
+def test_prepare_runtime_persists_redacted_live_usb_debug_reports() -> None:
+    prepare_text = PREPARE_RUNTIME.read_text(encoding="utf-8")
+    debug_text = RUNTIME_DEBUG_REPORT.read_text(encoding="utf-8")
+
+    assert "runtime_debug_live_dir()" in debug_text
+    assert "runtime_debug_redact_env_file()" in debug_text
+    assert "write_runtime_debug_report()" in debug_text
+    assert "PASSWORD|PASS|TOKEN|PRIVATE_KEY|PRESHARED|PIN|PSK|CERT_B64|SECRET" in debug_text
+    assert 'source "$RUNTIME_DEBUG_REPORT_SH"' in prepare_text
+    assert 'write_runtime_debug_report "prepare-start"' in prepare_text
+    assert 'write_runtime_debug_report "after-network"' in prepare_text
+    assert 'write_runtime_debug_report "prepare-ready"' in prepare_text
 
 
 def test_getty_override_bootstrap_tolerates_existing_readonly_dropin_permissions() -> None:

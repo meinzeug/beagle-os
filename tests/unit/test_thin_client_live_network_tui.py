@@ -24,6 +24,7 @@ def test_live_usb_runtime_network_menu_is_gated_to_live_usb_boots() -> None:
     assert "Before=beagle-thin-client-prepare.service pve-thin-client-runtime.service" in unit
     assert "pve_thin_client.mode=installer pve_thin_client.installer_ui=text" in writer
     assert writer.count("pve_thin_client.mode=runtime pve_thin_client.network_tui=1") == 3
+    assert writer.count("pve_thin_client.debug=1") == 3
     assert writer.count("pve_thin_client.mode=installer pve_thin_client.network_tui=1") == 0
 
 
@@ -48,6 +49,21 @@ def test_live_usb_network_menu_supports_wifi_before_runtime_networking() -> None
     assert "type=wifi" in config
     assert 'write_wifi_wpa_supplicant_config' in apply_script
     assert 'start_wifi_wpa_supplicant "$iface"' in apply_script
+
+
+def test_live_usb_network_runtime_disables_mac_randomization_and_writes_debug_report() -> None:
+    config = RUNTIME_CONFIG.read_text(encoding="utf-8")
+    apply_script = APPLY_NETWORK.read_text(encoding="utf-8")
+    writer = WRITE_STAGE.read_text(encoding="utf-8")
+
+    assert "write_networkmanager_no_random_mac_config()" in config
+    assert "wifi.scan-rand-mac-address=no" in config
+    assert "wifi.cloned-mac-address=permanent" in config
+    assert "ethernet.cloned-mac-address=permanent" in config
+    assert "cloned-mac-address=permanent" in config
+    assert "write_networkmanager_no_random_mac_config || true" in apply_script
+    assert 'write_runtime_debug_report "network-applied" "$iface"' in apply_script
+    assert "$live_state_dir/debug/README.txt" in writer
 
 
 def test_network_menu_is_included_before_runtime_services() -> None:

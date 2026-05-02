@@ -12,6 +12,7 @@ RUNTIME_BOOTSTRAP_SERVICES_SH="${RUNTIME_BOOTSTRAP_SERVICES_SH:-$SCRIPT_DIR/runt
 RUNTIME_ENDPOINT_ENROLLMENT_SH="${RUNTIME_ENDPOINT_ENROLLMENT_SH:-$SCRIPT_DIR/runtime_endpoint_enrollment.sh}"
 RUNTIME_PREPARE_FLOW_SH="${RUNTIME_PREPARE_FLOW_SH:-$SCRIPT_DIR/runtime_prepare_flow.sh}"
 RUNTIME_PREPARE_STATUS_SH="${RUNTIME_PREPARE_STATUS_SH:-$SCRIPT_DIR/runtime_prepare_status.sh}"
+RUNTIME_DEBUG_REPORT_SH="${RUNTIME_DEBUG_REPORT_SH:-$SCRIPT_DIR/runtime_debug_report.sh}"
 DEVICE_SYNC_SH="${DEVICE_SYNC_SH:-$SCRIPT_DIR/device_sync.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
@@ -28,11 +29,14 @@ source "$RUNTIME_PREPARE_FLOW_SH"
 # shellcheck disable=SC1090
 source "$RUNTIME_PREPARE_STATUS_SH"
 # shellcheck disable=SC1090
+source "$RUNTIME_DEBUG_REPORT_SH"
+# shellcheck disable=SC1090
 source "$DEVICE_SYNC_SH"
 
 load_runtime_config_with_retry
 BOOT_MODE="${PVE_THIN_CLIENT_BOOT_MODE:-$(detect_runtime_boot_mode)}"
 beagle_log_event "prepare-runtime.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default} mode=${PVE_THIN_CLIENT_MODE:-UNSET}"
+write_runtime_debug_report "prepare-start" || true
 
 plymouth_status "Loading Beagle OS profile..."
 sync_runtime_config_to_system
@@ -55,6 +59,7 @@ if [[ -x "$SCRIPT_DIR/apply-network-config.sh" ]]; then
   plymouth_status "Configuring network..."
   beagle_log_event "prepare-runtime.network" "applying network configuration"
   "$SCRIPT_DIR/apply-network-config.sh" || beagle_log_event "prepare-runtime.network-error" "network configuration failed"
+  write_runtime_debug_report "after-network" || true
 fi
 
 plymouth_status "Connecting device to Beagle Manager..."
@@ -70,6 +75,7 @@ run_optional_runtime_hook "/usr/local/sbin/beagle-egress-apply" "Preparing secur
 sync_device_runtime_state || beagle_log_event "prepare-runtime.device-sync-error" "initial sync failed"
 ensure_beagle_management_units
 beagle_log_event "prepare-runtime.system" "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET} hostname=${PVE_THIN_CLIENT_HOSTNAME:-UNSET}"
+write_runtime_debug_report "prepare-ready" || true
 
 required_binary="$(runtime_required_binary "$BOOT_MODE")"
 binary_available="$(runtime_binary_available "$required_binary" "$BOOT_MODE")"
