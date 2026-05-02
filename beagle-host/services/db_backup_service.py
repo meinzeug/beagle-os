@@ -8,7 +8,7 @@ Usage (from Python):
     svc = DbBackupService(db_path=Path("/var/lib/beagle/state.db"),
                           backup_dir=Path("/var/lib/beagle/backups/db"))
     result = svc.snapshot()
-    print(result)  # {"path": "...", "size_bytes": 12345, "timestamp": "..."}
+    result["path"]  # "/var/lib/beagle/backups/db/state-...db"
 
 """
 

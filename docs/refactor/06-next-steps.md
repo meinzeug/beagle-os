@@ -9,6 +9,7 @@
 - `srv1` Dedicated-Host/KVM-Basis ist belegt: `beagle-control-plane` aktiv, nginx `443`, API `9088`, `/dev/kvm` vorhanden, KVM-Domcaps ok.
 - GPU-R3-Teilpunkte wurden konsolidiert: srv2-GTX-1080-Inventar, VFIO/IOMMU-Status, Gast-Passthrough-Smoke und No-GPU-Pool-Block sind abgehakt; NVENC-Session, VFIO-Reboot-Proof und vGPU/MDEV bleiben offen.
 - Branch-/Ruleset-Protection wurde abgehakt: klassischer Branch-Protection-Endpoint liefert `404`, aber Repository Ruleset `main` ist `active` und Pushes werden als Protected-Ref nur per Admin-Bypass erlaubt.
+- Weitere direkt belegbare Driftpunkte geschlossen und ein echter Code-Slice umgesetzt: service-layer `print()`-Backlog, optionaler OpenTelemetry/OTLP-Log-Adapter, doppelter DHCP-Smoke-TODO, Distributed-Firewall-WebUI, DSGVO-Pilotdoku, Pilot-Runbook und Incident-Response-Prozess.
 
 **Naechste konkrete Schritte**:
 

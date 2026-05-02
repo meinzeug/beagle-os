@@ -188,3 +188,37 @@ def test_event_coerced_to_string():
     log.info(123)
     [rec] = _records(buf)
     assert rec["event"] == "123"
+
+
+def test_sinks_receive_structured_records():
+    received = []
+
+    class Sink:
+        def emit(self, record):
+            received.append(record)
+
+    buf = io.StringIO()
+    log = StructuredLogger(
+        service="test",
+        stream=buf,
+        utcnow=lambda: "2026-04-26T00:00:00.000000Z",
+        sinks=[Sink()],
+    )
+
+    log.info("vm.start", vmid=100)
+
+    assert received == [_records(buf)[0]]
+
+
+def test_sink_failures_do_not_break_logging():
+    class BrokenSink:
+        def emit(self, _record):
+            raise RuntimeError("down")
+
+    buf = io.StringIO()
+    log = StructuredLogger(service="test", stream=buf, sinks=[BrokenSink()])
+
+    log.info("still.logged")
+
+    [rec] = _records(buf)
+    assert rec["event"] == "still.logged"

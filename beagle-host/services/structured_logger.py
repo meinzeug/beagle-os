@@ -36,10 +36,15 @@ import io
 import json
 import sys
 import threading
-from typing import Any, Iterator
+from typing import Any, Iterator, Protocol
 
 
 _VALID_LEVELS = ("debug", "info", "warn", "error")
+
+
+class StructuredLogSink(Protocol):
+    def emit(self, record: dict[str, Any]) -> object:
+        ...
 
 
 def _utcnow_iso() -> str:
@@ -56,6 +61,7 @@ class StructuredLogger:
         stream: io.TextIOBase | None = None,
         utcnow: callable = _utcnow_iso,
         min_level: str = "debug",
+        sinks: list[StructuredLogSink] | None = None,
     ) -> None:
         if not service:
             raise ValueError("service is required")
@@ -65,6 +71,7 @@ class StructuredLogger:
         self._stream = stream if stream is not None else sys.stdout
         self._utcnow = utcnow
         self._min_level_idx = _VALID_LEVELS.index(min_level)
+        self._sinks = list(sinks or [])
         self._lock = threading.Lock()
         self._tls = threading.local()
 
@@ -131,6 +138,11 @@ class StructuredLogger:
             self._stream.write(line + "\n")
             try:
                 self._stream.flush()
+            except Exception:
+                pass
+        for sink in self._sinks:
+            try:
+                sink.emit(record)
             except Exception:
                 pass
 

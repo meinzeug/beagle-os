@@ -19,6 +19,16 @@
   - R1 Clean-Install/Firstboot/Backup-Restore
   - R3 NVENC-/Streaming-Session, VFIO-Reboot-Proof und vGPU/MDEV-Lizenzpfad
 
+## Update (2026-05-02, direkt bearbeitbare Restpunkte geschlossen)
+
+**Scope**: Nach dem grossen Docs-Abgleich weitere direkt belegbare Backlog-/Driftpunkte aus den offenen Checklisten schliessen, ohne externe Abnahmen kuenstlich abzuhaken.
+
+- `beagle-host/services/**/*.py` ist jetzt frei von echten `print()`-Aufrufen; der letzte Treffer war ein Usage-Beispiel im Docstring von `db_backup_service.py` und wurde entfernt.
+- OpenTelemetry-Adapter real umgesetzt: `beagle-host/services/otel_adapter.py` exportiert Structured-Logger-Records als OTLP/HTTP JSON, `StructuredLogger` unterstuetzt fehlertolerante Sinks und `service_registry.structured_logger()` aktiviert den Export per `BEAGLE_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`.
+- Der doppelte offene `test-server-installer-live-smoke.sh`-DHCP-TODO in `08-todo-global.md` wurde konsolidiert; der Code enthaelt bereits 300s DHCP/Health-Wartezeit und ARP-Fallback.
+- Distributed-Firewall-WebUI als erledigt markiert: Settings-Firewall fuer nftables-Baseline/Custom Rules plus Bridge-Detail/Firewall-Profile und Apply-API sind vorhanden.
+- Datenschutz-/Pilot-/Incident-Runbook-Drift geschlossen: DSGVO-Pilotdoku, Pilot-Runbook und Incident-Response-Prozess existieren als aktive Skelett-/Operator-Dokumente.
+
 ## Update (2026-05-02, Release-Versionierung und Ubuntu-Cyberpunk-Seed auf 8.0.9 gehärtet)
 
 **Scope**: Den Drift zwischen GitHub-Release, committed Repo-Version, Host-Update-Anzeige und VM-spezifischen Update-/Provisioning-Daten schließen; zusätzlich den echten `vm100`-Provisioning-Blocker im Plasma-Cyberpunk-Firstboot beheben.

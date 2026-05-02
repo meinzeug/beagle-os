@@ -132,13 +132,13 @@ export function markSessionActivity() {
 export function sanitizeIdentifier(value, label, pattern, minLen, maxLen) {
   const normalized = String(value || '').trim();
   if (!normalized) {
-    throw new Error(label + ' ist erforderlich.');
+    throw new Error(t('validation.required', { label }));
   }
   if (normalized.length < minLen || normalized.length > maxLen) {
-    throw new Error(label + ' muss zwischen ' + String(minLen) + ' und ' + String(maxLen) + ' Zeichen liegen.');
+    throw new Error(t('validation.length_between', { label, min: minLen, max: maxLen }));
   }
   if (!pattern.test(normalized)) {
-    throw new Error(label + ' enthaelt unzulaessige Zeichen.');
+    throw new Error(t('validation.invalid_chars', { label }));
   }
   return normalized;
 }
@@ -146,10 +146,10 @@ export function sanitizeIdentifier(value, label, pattern, minLen, maxLen) {
 export function sanitizePassword(value, label) {
   const password = String(value || '');
   if (!password) {
-    throw new Error(label + ' ist erforderlich.');
+    throw new Error(t('validation.required', { label }));
   }
   if (password.length < MIN_PASSWORD_LEN) {
-    throw new Error(label + ' muss mindestens ' + String(MIN_PASSWORD_LEN) + ' Zeichen lang sein.');
+    throw new Error(t('validation.min_length', { label, min: MIN_PASSWORD_LEN }));
   }
   return password;
 }
@@ -184,7 +184,7 @@ export function clearSessionState(reason, tone) {
   uiHooks.renderClusterPanel();
   uiHooks.disconnectLiveUpdates();
   uiHooks.setAuthMode(false);
-  uiHooks.setBanner(reason || 'Session gesperrt.', tone || 'warn');
+  uiHooks.setBanner(reason || t('auth.session_locked'), tone || 'warn');
 }
 
 export function logoutSession() {
@@ -268,7 +268,7 @@ export function shouldHardLockOnUnauthorized(path) {
 }
 
 export function lockSession(reason) {
-  clearSessionState(reason || 'Session gesperrt.', 'warn');
+  clearSessionState(reason || t('auth.session_locked'), 'warn');
 }
 
 export function checkSessionTimeout() {
@@ -276,7 +276,7 @@ export function checkSessionTimeout() {
     return;
   }
   if ((Date.now() - sessionLastActivityAt) > SESSION_IDLE_TIMEOUT_MS) {
-    lockSession('Session aus Sicherheitsgruenden wegen Inaktivitaet gesperrt.');
+    lockSession(t('auth.idle_timeout_locked'));
   }
 }
 
@@ -344,8 +344,8 @@ export function saveToken() {
 }
 
 export function loginWithCredentials(username, password) {
-  const safeUsername = sanitizeIdentifier(username, 'Benutzername', USERNAME_PATTERN, 1, MAX_USERNAME_LEN);
-  const safePassword = sanitizePassword(password, 'Passwort');
+  const safeUsername = sanitizeIdentifier(username, t('auth.username'), USERNAME_PATTERN, 1, MAX_USERNAME_LEN);
+  const safePassword = sanitizePassword(password, t('auth.password'));
   if (loginInFlight) {
     return loginInFlight;
   }
@@ -379,10 +379,10 @@ export function loginWithCredentials(username, password) {
       state.refreshToken = String(payload.refresh_token || '').trim();
       state.user = payload.user || null;
       if (!state.token) {
-        throw new Error('No access token returned');
+        throw new Error(t('auth.no_access_token'));
       }
       if (!state.refreshToken) {
-        throw new Error('No refresh token returned');
+        throw new Error(t('auth.no_refresh_token'));
       }
       writeStoredToken(state.token);
       writeStoredRefreshToken(state.refreshToken);
@@ -396,7 +396,7 @@ export function loginWithCredentials(username, password) {
       }
     }).catch((error) => {
       if (error && (error.name === 'AbortError' || /aborted/i.test(String(error.message || '')))) {
-        throw new Error('Request timeout');
+        throw new Error(t('error.timeout'));
       }
       throw error;
     });
@@ -424,7 +424,7 @@ function renderIdentityProviderMethods() {
     const enabled = provider.enabled !== false;
     const loginUrl = String(provider.login_url || '').trim();
     const metadataUrl = String(provider.metadata_url || '').trim();
-    const actionLabel = type === 'local' ? 'Lokal' : (enabled && loginUrl ? 'Weiterleiten' : 'Nicht verfuegbar');
+    const actionLabel = type === 'local' ? t('auth.provider.local') : (enabled && loginUrl ? t('auth.provider.redirect') : t('auth.provider.unavailable'));
     const extraAction = type === 'saml' && metadataUrl
       ? '<a class="button ghost auth-method-action" href="' + metadataUrl.replace(/"/g, '&quot;') + '" download="beagle-sp-metadata.xml">SP-Metadata</a>'
       : '';
@@ -432,7 +432,7 @@ function renderIdentityProviderMethods() {
       '<div class="auth-method-item">',
       '<div class="auth-method-copy">',
       '<strong>' + label + '</strong>',
-      '<span>' + (description || 'Login-Methode konfiguriert.') + '</span>',
+      '<span>' + (description || t('auth.provider.configured')) + '</span>',
       '</div>',
       '<div class="auth-method-actions">',
       '<button type="button" class="button ghost auth-method-action" data-provider-id="' + String(provider.id || type || '') + '"',
@@ -468,12 +468,12 @@ export function loadIdentityProviders() {
   }).then((payload) => {
     const providers = payload && Array.isArray(payload.providers)
       ? payload.providers
-      : [{ id: 'local', type: 'local', label: 'Lokaler Account', description: 'Benutzername + Passwort', enabled: true, login_url: '' }];
+      : [{ id: 'local', type: 'local', label: t('auth.local_account'), description: t('auth.username_password'), enabled: true, login_url: '' }];
     state.identityProviders = providers;
     renderIdentityProviderMethods();
     return providers;
   }).catch((error) => {
-    state.identityProviders = [{ id: 'local', type: 'local', label: 'Lokaler Account', description: 'Benutzername + Passwort', enabled: true, login_url: '' }];
+    state.identityProviders = [{ id: 'local', type: 'local', label: t('auth.local_account'), description: t('auth.username_password'), enabled: true, login_url: '' }];
     renderIdentityProviderMethods();
     throw error;
   });

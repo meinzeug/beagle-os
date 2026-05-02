@@ -49,16 +49,16 @@
 
 - [x] strukturierte Log-Helpers (`core/observability/`)
 - [x] Prometheus-Metrics-Endpoint
-- [ ] Massen-Migration aller `print()`-Aufrufe auf strukturierte Logs (Backlog)
+- [x] Massen-Migration aller `print()`-Aufrufe auf strukturierte Logs — `beagle-host/services/**/*.py` ist print-frei; letzter Docstring-Usage-Treffer in `db_backup_service.py` entfernt (2026-05-02)
 - [x] Smoke-Test gegen laufenden Server: alle erwarteten Metric-Familien vorhanden (R3) — `METRICS_FAMILIES_SMOKE=PASS` auf `srv1` (2026-04-30, families_found=7)
-- [ ] OpenTelemetry-Adapter (Phase 2 optional)
+- [x] OpenTelemetry-Adapter (Phase 2 optional) — optionaler OTLP/HTTP-Log-Exporter `otel_adapter.py`, per `BEAGLE_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` aktivierbar, ohne harte SDK-Abhaengigkeit; fokussierte Unit-Tests (2026-05-02)
 
 ## UX / i18n / Accessibility
 
 - [x] i18n-Modul `website/ui/i18n.js` (de/en, 68 Keys, 21 Tests gruen)
 - [x] `website/ui/error-handler.js` standardisiert (showError/Warning/Success/Info, handleFetchError)
 - [x] 5 `alert()`/`console.error()`-Calls migriert
-- [ ] Migration aller hard-coded Strings in UI-Modulen auf `t()` (beginnend `auth_admin.js`, `vms_panel.js`)
+- [ ] Migration aller hard-coded Strings in UI-Modulen auf `t()` — begonnen mit aktuellem Modulzuschnitt `auth.js` (Validation/Auth-Lock/Provider-Fallbacks); historische Startmodule `auth_admin.js`/`vms_panel.js` existieren im aktuellen `website/ui/` nicht mehr
 - [x] axe-core CLI gegen `https://srv1.beagle-os.com` — 0 Critical/Serious (`npx -y @axe-core/cli ... --tags wcag2a,wcag2aa`: 0 violations, 2026-04-30)
 - [ ] Lighthouse Mobile-Score > 90, Accessibility > 90
 - [ ] Mobile-Responsive (Breakpoints 360/600/900/1200, Touch-Targets >= 44px)

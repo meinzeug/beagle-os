@@ -40,7 +40,7 @@
 ## SDN + Firewall
 
 - [x] VLAN + IPAM + nftables (Welle 7.3.1)
-- [ ] Distributed-Firewall-Regeln in WebUI bedienbar (Backlog)
+- [x] Distributed-Firewall-Regeln in WebUI bedienbar — Settings-Firewall verwaltet nftables-Baseline/Custom Rules; Bridge-Detail zeigt Firewall-Profile; `/api/v1/network/firewall/profiles` + `/apply` verdrahtet (2026-05-02)
 
 ## Smart Scheduler / Placement
 

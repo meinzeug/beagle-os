@@ -41,7 +41,7 @@
 - [x] `AuditLogService` + PII-Filter + Export
 - [x] Audit-Report-Builder + Export-Ziele (`audit_report*.py`)
 - [x] Audit-Export mit Redaction fuer Secrets in CSV/JSON validieren (R3) — `AUDIT_EXPORT_REDACTION_SMOKE=PASS` auf `srv1` (2026-04-30, events_checked=262)
-- [ ] Datenschutz-Doku fuer Pilotkunden (DSGVO/Auftragsverarbeitung) (R4)
+- [x] Datenschutz-Doku fuer Pilotkunden (DSGVO/Auftragsverarbeitung) (R4) — `docs/runbooks/dsgvo-avv-pilot.md` deckt Datenarten, TOMs, Betroffenenrechte, Meldepflicht und VVT-Vorlage ab (2026-05-02 Docs-Triage)
 
 ## Console + noVNC Tokens
 

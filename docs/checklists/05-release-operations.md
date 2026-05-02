@@ -51,8 +51,8 @@
 - [ ] Mind. 1 Clean-Install aus Release-Artefakten reproduzierbar
 - [ ] Mind. 1 Update von Vorversion auf Zielversion durchlaufen
 - [ ] Mind. 1 Rollback/Restore erfolgreich
-- [ ] Pilot-Runbook fuer Kunden in `docs/runbooks/pilot.md`
-- [ ] Support-/Incident-Prozess in `docs/runbooks/incident-response.md`
+- [x] Pilot-Runbook fuer Kunden in `docs/runbooks/pilot.md` — Skelett mit Voraussetzungen, Onboarding, Tagesbetrieb, Erfolgskriterien und Produktionsuebergang vorhanden (2026-05-02)
+- [x] Support-/Incident-Prozess in `docs/runbooks/incident-response.md` — Severity-Modell, Sofortmassnahmen, SEV-1-Pfade, Eskalation und Post-Mortem-Template vorhanden (2026-05-02)
 
 ## Operations + Runbooks
 

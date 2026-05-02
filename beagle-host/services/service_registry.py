@@ -90,6 +90,7 @@ from ldap_auth import LdapAuthService
 from prometheus_metrics import PrometheusMetricsService
 from health_aggregator import HealthAggregatorService
 from structured_logger import StructuredLogger
+from otel_adapter import OTelHttpLogAdapter
 from recording_service import RecordingService
 from request_support import RequestSupportService
 from registry import create_provider, list_providers, normalize_provider_kind
@@ -1438,9 +1439,22 @@ def structured_logger() -> StructuredLogger:
     """Singleton JSON-line logger (GoAdvanced Plan 08 Schritt 3)."""
     global STRUCTURED_LOGGER
     if STRUCTURED_LOGGER is None:
+        otel_endpoint = os.environ.get("BEAGLE_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "").strip()
+        sinks = []
+        if otel_endpoint:
+            try:
+                otel_timeout_seconds = float(os.environ.get("BEAGLE_OTEL_EXPORT_TIMEOUT_SECONDS", "1.0") or "1.0")
+            except ValueError:
+                otel_timeout_seconds = 1.0
+            sinks.append(OTelHttpLogAdapter(
+                endpoint=otel_endpoint,
+                service_name=os.environ.get("BEAGLE_OTEL_SERVICE_NAME", "beagle-control-plane").strip() or "beagle-control-plane",
+                timeout_seconds=otel_timeout_seconds,
+            ))
         STRUCTURED_LOGGER = StructuredLogger(
             service="beagle-control-plane",
             min_level=os.environ.get("BEAGLE_LOG_LEVEL", "info").strip().lower() or "info",
+            sinks=sinks,
         )
     return STRUCTURED_LOGGER
 
