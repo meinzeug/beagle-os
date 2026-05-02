@@ -471,7 +471,8 @@ jobs:
       - name: Persist VERSION in main before tagging
         id: persist_version
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BEAGLE_RELEASE_SYNC_TOKEN || secrets.COPILOT_ASSIGNMENT_TOKEN || github.token }}
+          RELEASE_SYNC_TOKEN: ${{ secrets.BEAGLE_RELEASE_SYNC_TOKEN || secrets.COPILOT_ASSIGNMENT_TOKEN || github.token }}
           VERSION: ${{ steps.version.outputs.version }}
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
@@ -487,36 +488,16 @@ jobs:
               git commit -m "release: sync metadata to ${VERSION} [skip release] [skip ci]"
               git fetch origin main
               git rebase origin/main
-              # main is protected; push to a sync branch and open a PR so the
-              # metadata commit lands on main via the normal merge path.
-              sync_branch="fix/release-sync-v${VERSION}"
-              git checkout -b "$sync_branch"
-              git push origin "HEAD:refs/heads/$sync_branch"
-              existing_pr="$(gh pr list --repo "$REPO" --head "$sync_branch" --json number --jq '.[0].number // empty')"
-              if [[ -z "$existing_pr" ]]; then
-                gh pr create \
-                  --repo "$REPO" \
-                  --title "release: sync metadata to ${VERSION} [skip release]" \
-                  --body "Automated metadata sync for release v${VERSION}." \
-                  --base main \
-                  --head "$sync_branch"
-              else
-                echo "PR #${existing_pr} already exists for ${sync_branch}; skipping PR create." >&2
+              # The release tag must point at the commit that contains the synced
+              # metadata. A best-effort PR/branch fallback can silently reintroduce
+              # VERSION drift, so this direct push must either succeed with a
+              # bypass-capable token or fail the release before tagging.
+              git remote set-url origin "https://x-access-token:${RELEASE_SYNC_TOKEN}@github.com/${REPO}.git"
+              if ! git push origin "HEAD:refs/heads/main"; then
+                echo "::error::Could not push release metadata to main. Configure BEAGLE_RELEASE_SYNC_TOKEN or COPILOT_ASSIGNMENT_TOKEN with permission to bypass the main ruleset, then rerun the release." >&2
+                exit 1
               fi
-              # Enable auto-merge so the PR lands on main once checks pass.
-              # Failures are non-fatal: the release tag is cut from the original
-              # trigger commit (already on main) and the metadata sync will land
-              # on main when the PR is eventually merged.
-              if ! gh pr merge "$sync_branch" \
-                --repo "$REPO" \
-                --merge \
-                --auto \
-                --delete-branch; then
-                echo "::warning::Auto-merge could not be enabled for ${sync_branch}; the metadata sync PR will need to be merged manually." >&2
-              fi
-              # release_sha stays as github.sha (the trigger commit, already on
-              # main) so the tag points to a commit that is already on main.
-              release_sha="${{ github.sha }}"
+              release_sha="$(git rev-parse HEAD)"
             fi
           else
             release_sha="$(git rev-list -n 1 "$REF_NAME")"

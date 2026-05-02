@@ -21,7 +21,7 @@ def test_live_usb_runtime_network_menu_is_gated_to_live_usb_boots() -> None:
 
     assert "ConditionKernelCommandLine=pve_thin_client.mode=runtime" in unit
     assert "ConditionKernelCommandLine=pve_thin_client.network_tui=1" in unit
-    assert "Before=pve-thin-client-prepare.service pve-thin-client-runtime.service" in unit
+    assert "Before=beagle-thin-client-prepare.service pve-thin-client-runtime.service" in unit
     assert "pve_thin_client.mode=installer pve_thin_client.installer_ui=text" in writer
     assert writer.count("pve_thin_client.mode=runtime pve_thin_client.network_tui=1") == 3
     assert writer.count("pve_thin_client.mode=installer pve_thin_client.network_tui=1") == 0
