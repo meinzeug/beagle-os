@@ -56,6 +56,6 @@ def test_firstboot_contains_plasma_profile_and_wallpaper_flow() -> None:
     assert '"/var/lib/cloud/seed/nocloud/${DESKTOP_WALLPAPER_FILENAME}"' in script
     assert 'install -m 0644 "$source_path" "$BEAGLE_WALLPAPER_DIR/$DESKTOP_WALLPAPER_FILENAME"' in script
     assert 'configure_plasma_profile() {' in script
-    assert 'plasma-apply-lookandfeel -a "$LOOK_AND_FEEL"' in script
-    assert 'plasma-apply-wallpaperimage "$WALLPAPER_PATH"' in script
+    assert r'plasma-apply-lookandfeel -a "\$LOOK_AND_FEEL"' in script
+    assert r'plasma-apply-wallpaperimage "\$WALLPAPER_PATH"' in script
     assert 'OnlyShowIn=KDE;' in script

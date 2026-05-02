@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-05-02, Runtime-Version/Update-UI auf 8.0.2 synchronisiert)
+
+**Zuletzt erledigt**:
+- `VERSION`, Extension-/Kiosk-Metadaten und WebUI-Cachebuster sind auf `8.0.2` gezogen.
+- Repo-Auto-Update liefert jetzt installierte/remote Versionen an die Updates-WebUI.
+- Der offene Copilot-PR fuer die Plasma-Assertionen wurde lokal integriert und anschliessend samt Issue/Branch bereinigt.
+
+**Naechste konkrete Schritte**:
+
+1. Den Patch auf `srv1` live abnehmen: Sidebar-Version, `/#panel=settings_updates` und `repo-auto-update-status.json` muessen konsistent `8.0.2` zeigen.
+2. Die Release-Versionierungslogik weiter haerten, damit kuenftige Patch-Releases nicht wieder nur als Artefakt-Version erscheinen, waehrend die committed Runtime-Version zurueckbleibt.
+3. Danach den noch offenen echten VM100-Live-USB-/BeagleStream-Broker-Pfad gegen `srv1` weiterfahren.
+
 ## Stand (2026-05-02, BeagleStream Hostless-Enrollment lokal geschlossen)
 
 **Zuletzt erledigt**:

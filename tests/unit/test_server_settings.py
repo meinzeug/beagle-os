@@ -592,6 +592,8 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertEqual(result["config"]["repo_url"], "https://github.com/meinzeug/beagle-os.git")
         self.assertEqual(result["config"]["branch"], "main")
         self.assertEqual(result["config"]["interval_minutes"], 1)
+        self.assertEqual(result["status"]["installed_version"], "")
+        self.assertEqual(result["status"]["remote_version"], "")
 
     def test_update_repo_auto_update_persists_values(self):
         service = self.make_service()

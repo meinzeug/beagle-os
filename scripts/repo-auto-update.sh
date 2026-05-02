@@ -161,6 +161,13 @@ def resolve_installed_commit(commit_file: Path, status: dict, install_dir: Path)
     return ""
 
 
+def read_version_file(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 settings = load_json(settings_path)
 status = load_json(status_path)
 config = {
@@ -180,6 +187,8 @@ payload = {
     "state": "disabled",
     "reaction": "none",
     "message": "Repo-Auto-Update ist deaktiviert.",
+    "installed_version": "",
+    "remote_version": "",
     "current_commit": "",
     "remote_commit": "",
     "update_available": False,
@@ -187,6 +196,7 @@ payload = {
 }
 
 current_commit = resolve_installed_commit(commit_file, status, install_dir)
+payload["installed_version"] = read_version_file(install_dir / "VERSION")
 payload["current_commit"] = current_commit
 force_check = False
 try:
@@ -271,6 +281,9 @@ if remote_commit_proc.returncode != 0:
 
 remote_commit = (remote_commit_proc.stdout or "").strip()
 payload["remote_commit"] = remote_commit
+remote_version_proc = run(["git", "show", f"origin/{config['branch']}:VERSION"], cwd=worktree_dir, timeout=60)
+if remote_version_proc.returncode == 0:
+    payload["remote_version"] = (remote_version_proc.stdout or "").strip()
 
 if current_commit and same_commit(current_commit, remote_commit):
     payload["state"] = "healthy"
@@ -331,6 +344,19 @@ if rsync.returncode != 0:
     payload["message"] = (rsync.stderr or rsync.stdout or "rsync failed").strip()[:400]
     write_status(payload)
     raise SystemExit(1)
+
+sync_web_ui = run(
+    [sys.executable, str(install_dir / "scripts" / "sync-web-ui-version.py"), str(install_dir / "website" / "index.html"), str(payload["installed_version"] or payload["remote_version"] or "")],
+    timeout=120,
+)
+if sync_web_ui.returncode != 0:
+    payload["state"] = "error"
+    payload["reaction"] = "sync_web_ui_version_failed"
+    payload["message"] = (sync_web_ui.stderr or sync_web_ui.stdout or "sync-web-ui-version.py failed").strip()[:400]
+    write_status(payload)
+    raise SystemExit(1)
+if payload["remote_version"]:
+    payload["installed_version"] = payload["remote_version"]
 
 install = None
 for attempt in range(1, 4):

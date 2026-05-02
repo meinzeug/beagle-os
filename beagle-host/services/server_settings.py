@@ -718,6 +718,8 @@ class ServerSettingsService:
         status.setdefault("state", "unknown")
         status.setdefault("checked_at", "")
         status.setdefault("last_update_at", "")
+        status.setdefault("installed_version", "")
+        status.setdefault("remote_version", "")
         status.setdefault("current_commit", "")
         status.setdefault("remote_commit", "")
         status.setdefault("update_available", False)

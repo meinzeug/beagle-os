@@ -52,18 +52,7 @@ PUBLIC_UPDATE_BASE_URL="${PUBLIC_UPDATE_BASE_URL%/}"
 PACKAGE_MIN_FREE_GIB="${BEAGLE_PACKAGE_MIN_FREE_GIB:-}"
 
 sync_web_ui_asset_versions() {
-  python3 - "$ROOT_DIR/website/index.html" "$VERSION" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-path = Path(sys.argv[1])
-version = sys.argv[2]
-content = path.read_text()
-content = re.sub(r'/styles\.css\?v=[^"\']+', f'/styles.css?v={version}', content)
-content = re.sub(r'/main\.js\?v=[^"\']+', f'/main.js?v={version}', content)
-path.write_text(content)
-PY
+  python3 "$ROOT_DIR/scripts/sync-web-ui-version.py" "$ROOT_DIR/website/index.html" "$VERSION"
 }
 
 sync_kiosk_version() {

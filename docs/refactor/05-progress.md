@@ -1,3 +1,19 @@
+## Update (2026-05-02, Runtime-Version und Update-UI auf 8.0.2 geradegezogen)
+
+**Scope**: Der Versions-Drift zwischen GitHub/Public-Release und laufender Host-WebUI wurde reproduzierbar geschlossen, damit `srv1` nicht weiter `8.0.0` anzeigt, waehrend bereits `8.0.2`-Artefakte live sind.
+
+- Repo-Metadaten wurden auf `8.0.2` synchronisiert:
+  - `VERSION`
+  - `extension/manifest.json`
+  - `beagle-kiosk/package.json`
+  - `beagle-kiosk/package-lock.json`
+  - `website/index.html` Cache-Buster
+  - `CHANGELOG.md`
+- `scripts/repo-auto-update.sh` liefert jetzt zusaetzlich `installed_version` und `remote_version` im Status-Payload; damit kann die WebUI lesbare Produktversionen statt nur Commit-Hashes rendern.
+- Neuer Helper `scripts/sync-web-ui-version.py` haertet den Host-/Packaging-Pfad gegen kuenftigen Asset-Cachebuster-Drift; sowohl `scripts/package.sh` als auch Host-Install-/Repo-Update-Pfade nutzen ihn jetzt.
+- `/#panel=settings_updates` zeigt fuer Repo-Updates jetzt die installierte Beagle-OS-Version sichtbar an und verschiebt Commit-Details in den Detailbereich.
+- Der offene Copilot-Fix fuer die Plasma-Firstboot-Regression wurde technisch uebernommen und der zugehoerige PR-/Issue-Zweig anschliessend bereinigt.
+
 ## Update (2026-05-02, BeagleStream Hostless-Enrollment fuer VM-Sticks vervollstaendigt)
 
 **Scope**: Der lokale Thinclient-/Live-USB-Pfad wurde von statischem Direct-Moonlight weiter auf den echten hostless BeagleStream-Broker umgestellt, damit VM-spezifische USB-Sticks nach dem Enrollment nicht mehr an festen `stream_host`/Sunshine-Endpunkten haengen.

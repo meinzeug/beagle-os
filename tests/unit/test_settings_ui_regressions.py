@@ -37,6 +37,17 @@ def test_settings_updates_panel_uses_sse_for_live_status() -> None:
     assert 'id="update-live-state"' in html
 
 
+def test_settings_updates_panel_shows_installed_and_remote_versions() -> None:
+    js = SETTINGS_JS.read_text(encoding="utf-8")
+    html = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert "formatProductVersion(status.installed_version || '')" in js
+    assert "formatProductVersion(status.remote_version || '')" in js
+    assert 'id="repo-update-current"' in html
+    assert 'id="repo-update-current-commit"' in html
+    assert 'id="repo-update-remote-version"' in html
+
+
 def test_artifact_running_build_message_does_not_show_blocked_gate_as_primary() -> None:
     js = SETTINGS_JS.read_text(encoding="utf-8")
 

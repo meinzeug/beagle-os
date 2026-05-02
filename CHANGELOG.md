@@ -1,5 +1,11 @@
 # Changelog
 
+## v8.0.2 - 2026-05-02
+
+- Synced the committed Beagle OS runtime version to `8.0.2` so repo, srv1 runtime and public release artifacts stop drifting apart.
+- Clarified the Updates panel: it now shows the installed Beagle OS version directly and exposes installed/remote commit plus remote version details instead of presenting a commit hash as the primary version field.
+- Extended repo auto-update status payloads with explicit `installed_version` and `remote_version` fields so runtime/UI consumers can render human-readable release state.
+
 ## v8.0 - 2026-04-27
 
 - Added token-scoped installer run logging for generated Linux and Windows USB scripts. VM-specific installer and live-USB downloads now carry a short-lived write-only log token and post lifecycle events to the Beagle Control Plane without embedding admin credentials.

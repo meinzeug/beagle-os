@@ -649,12 +649,16 @@ function renderRepoUpdateStatus(data) {
   const services = repoData.services || {};
   const enabled = Boolean(config.enabled);
   const healthy = String(status.state || '') === 'healthy';
+  const installedVersion = formatProductVersion(status.installed_version || '');
+  const remoteVersion = formatProductVersion(status.remote_version || '');
   setUpdateAutoMode(enabled);
   text('repo-update-state', String(status.state || (config.enabled ? 'unknown' : 'disabled')));
   text('repo-update-checked', formatDate(status.checked_at || ''));
   text('repo-update-last-update', formatDate(status.last_update_at || ''));
   text('repo-update-available', status.update_available ? 'Ja' : 'Nein');
-  text('repo-update-current', shortCommit(status.current_commit));
+  text('repo-update-current', installedVersion);
+  text('repo-update-current-commit', shortCommit(status.current_commit));
+  text('repo-update-remote-version', remoteVersion);
   text('repo-update-remote', shortCommit(status.remote_commit));
   text('repo-update-service', String(services['beagle-repo-auto-update.service'] || 'unknown'));
   text('repo-update-timer', String(services['beagle-repo-auto-update.timer'] || 'unknown'));
@@ -674,13 +678,13 @@ function renderRepoUpdateStatus(data) {
       simpleMessage.textContent = 'Automatische Beagle-Updates sind ausgeschaltet. Updates muessen dann manuell angestossen werden.';
       simpleMessage.className = 'banner subtle';
     } else if (healthy && !status.update_available) {
-      simpleMessage.textContent = 'Automatische Beagle-Updates sind aktiv. Dieser Server ist bereits auf dem neuesten Stand.';
+      simpleMessage.textContent = 'Automatische Beagle-Updates sind aktiv. Dieser Server laeuft auf ' + installedVersion + ' und ist bereits auf dem neuesten Stand.';
       simpleMessage.className = 'banner info';
     } else if (status.state === 'updating') {
       simpleMessage.textContent = 'Der Server verarbeitet gerade ein Beagle-Update aus GitHub.';
       simpleMessage.className = 'banner info';
     } else if (status.update_available) {
-      simpleMessage.textContent = 'Es ist ein neues Beagle-Update verfuegbar oder wird gerade vorbereitet.';
+      simpleMessage.textContent = 'Es ist ein neues Beagle-Update verfuegbar: ' + remoteVersion + ' wartet auf die Installation.';
       simpleMessage.className = 'banner warn';
     } else if (status.state === 'error') {
       simpleMessage.textContent = 'Die automatische GitHub-Pruefung braucht Aufmerksamkeit. Details stehen unten im Status.';
@@ -726,6 +730,14 @@ function renderRepoUpdateStatus(data) {
   if (qs('repo-update-interval')) {
     qs('repo-update-interval').value = String(config.interval_minutes || 1);
   }
+}
+
+function formatProductVersion(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '—';
+  }
+  return normalized.startsWith('v') ? normalized : ('v' + normalized);
 }
 
 function renderArtifactStatus(data) {

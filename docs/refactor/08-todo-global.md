@@ -1,5 +1,8 @@
 # Global TODO
 
+- [x] Runtime-/Public-Release-Versionsdrift schliessen: Repo/Host-WebUI/Repo-Auto-Update auf `8.0.2` synchronisieren, lesbare installierte Version im Updates-Panel anzeigen und Copilot-PR/Issue fuer die fehlgeschlagenen Plasma-Assertions bereinigen.
+- [ ] Release-Versionierungslogik weiter haerten, damit kuenftige Patch-Releases nicht nur auf GitHub/Public-Artefakten entstehen, sondern auch die committed Runtime-Version eindeutig mitziehen.
+
 - [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen.
 
 - [x] R1-VM-Lifecycle ueber API reproduzierbar geschlossen: `scripts/test-vm-lifecycle-r1-smoke.py` fuehrt `create -> start -> snapshot -> reboot -> delete` gegen `srv1` aus (PASS, 2026-04-30, inkl. Cleanup).

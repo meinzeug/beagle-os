@@ -327,6 +327,7 @@ rsync -a --delete \
   --exclude '.git' \
   --exclude '.build' \
   "$ROOT_DIR/" "$INSTALL_DIR/"
+python3 "$INSTALL_DIR/scripts/sync-web-ui-version.py" "$INSTALL_DIR/website/index.html" "$VERSION"
 chown -R root:root "$INSTALL_DIR"
 find "$INSTALL_DIR" -type d -exec chmod 0755 {} +
 
