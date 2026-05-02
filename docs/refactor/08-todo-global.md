@@ -491,5 +491,6 @@
 - [x] BeagleStream Phase A Hostless-Contract haerten: `POST /api/v1/streams/allocate` akzeptiert leeren `user_id` bei gesetzter `device_id` und verwendet intern einen stabilen Device-Lease-Owner.
 - [ ] BeagleStream Phase A Packaging-Abschluss live bestaetigen: Client-AppImage und Server-DEB sind im `beagle-phase-a` Release vorhanden; Thin-Client-Artefaktbuild und VM-Guest-Prep stage'n die eigenen Fork-Artefakte statt der Fallbacks.
 - [x] Release-/Artifact-/Website-Workflows von starrer `8.0.0`-Version auf dynamische SemVer-Aufloesung umstellen.
+- [x] Artifact-Refresh-Doppellaeufe haerten: parallele `prepare-host-downloads`-/Timer-Starts behandeln einen belegten Lock jetzt als benignen Skip statt als roten Fehler.
 - [ ] Nach dem naechsten Main-Push bestaetigen, dass GitHub einen neuen Patch-Tag oberhalb `v8.0.0` erzeugt und beagle-os.com diese Version live anzeigt.
 - [ ] Live-validieren, dass frisch provisionierte Ubuntu-Beagle-VMs standardmäßig mit `Beagle OS Cyberpunk` (KDE Plasma) hochkommen und dass `KDE Plasma Classic` über die WebUI/API reproduzierbar auswählbar bleibt.

@@ -7,7 +7,14 @@ PROVIDER_MODULE_PATH="${BEAGLE_PROVIDER_MODULE_PATH:-$ROOT_DIR/scripts/lib/beagl
 PREPARE_HOST_DOWNLOADS_HELPER="$ROOT_DIR/scripts/lib/prepare_host_downloads.py"
 HOSTED_DOWNLOAD_LAYOUT_HELPER="$ROOT_DIR/scripts/lib/hosted_download_layout.sh"
 source "$ROOT_DIR/scripts/lib/artifact_lock.sh"
-beagle_artifact_lock_acquire "prepare-host-downloads"
+if ! beagle_artifact_lock_acquire "prepare-host-downloads"; then
+  rc=$?
+  if [[ "$rc" -eq 75 ]]; then
+    echo "Skipping duplicate prepare-host-downloads run because another artifact refresh already holds the lock."
+    exit 0
+  fi
+  exit "$rc"
+fi
 DIST_DIR="$ROOT_DIR/dist"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 INSTALLED_COMMIT_FILE="$ROOT_DIR/.beagle-installed-commit"

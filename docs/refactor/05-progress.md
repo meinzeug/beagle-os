@@ -6751,3 +6751,16 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `bash -n scripts/install-beagle-host-services.sh scripts/apply-system-updates.sh`
   - `python3 -m unittest tests.unit.test_server_settings tests.unit.test_settings_ui_regressions`
   - live on `srv1`: `/opt/beagle/VERSION` and `repo-auto-update-status.json` both show `8.0.8`; `POST /api/v1/settings/updates/apply` now returns `200` and starts `beagle-system-updates.service`
+
+## Update (2026-05-02, Artifact refresh duplicate runs no longer fail red)
+
+- Scope:
+  - keep automatic artifact refreshes green when a timer or operator starts `prepare-host-downloads` while another artifact build already holds the lock
+- Changed:
+  - [scripts/lib/artifact_lock.sh](/home/dennis/beagle-os/scripts/lib/artifact_lock.sh): lock helper now supports a non-blocking `BEAGLE_ARTIFACT_LOCK_SKIP_IF_BUSY=1` mode and returns a dedicated busy code instead of only waiting or timing out
+  - [scripts/prepare-host-downloads.sh](/home/dennis/beagle-os/scripts/prepare-host-downloads.sh): duplicate invocations now treat a busy artifact lock as a benign skip and exit successfully with a clear log message
+  - [scripts/refresh-host-artifacts.sh](/home/dennis/beagle-os/scripts/refresh-host-artifacts.sh): the automatic refresh wrapper uses the new skip-if-busy path so concurrent timer runs no longer surface a red failed service on `srv1`
+  - Regression coverage: [tests/unit/test_prepare_host_downloads_status_regressions.py](/home/dennis/beagle-os/tests/unit/test_prepare_host_downloads_status_regressions.py) and [tests/unit/test_refresh_host_artifacts_regressions.py](/home/dennis/beagle-os/tests/unit/test_refresh_host_artifacts_regressions.py)
+- Validation:
+  - `bash -n scripts/lib/artifact_lock.sh scripts/prepare-host-downloads.sh scripts/refresh-host-artifacts.sh`
+  - local Python harness over the affected regression assertions => `HARNESS_OK`

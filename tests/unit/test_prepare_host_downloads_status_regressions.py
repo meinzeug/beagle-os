@@ -99,3 +99,11 @@ def test_iso_bootstrap_fast_path_does_not_mask_thinclient_source_rebuild() -> No
 
     assert '[[ "$packaged_bootstrap" -nt "$iso" ]]' in fast_path
     assert "any_source_newer_than" not in fast_path
+
+
+def test_prepare_host_downloads_treats_busy_artifact_lock_as_duplicate_success() -> None:
+    script = (ROOT / "scripts" / "prepare-host-downloads.sh").read_text(encoding="utf-8")
+
+    assert 'if ! beagle_artifact_lock_acquire "prepare-host-downloads"; then' in script
+    assert 'if [[ "$rc" -eq 75 ]]; then' in script
+    assert "Skipping duplicate prepare-host-downloads run" in script

@@ -274,7 +274,8 @@ export BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 update_refresh_step "prepare-host-downloads" 20 "Host-Downloads, Statusdateien und Installer-Launcher werden abgeglichen ..."
 write_download_status_placeholder
 start_refresh_heartbeat
-"$ROOT_DIR/scripts/prepare-host-downloads.sh"
+BEAGLE_ARTIFACT_LOCK_SKIP_IF_BUSY=1 \
+  "$ROOT_DIR/scripts/prepare-host-downloads.sh"
 stop_refresh_heartbeat
 
 update_refresh_step "finalize" 95 "Artefakte werden abgeschlossen und Statusdateien geschrieben ..."

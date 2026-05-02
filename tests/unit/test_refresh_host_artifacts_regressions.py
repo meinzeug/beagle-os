@@ -14,3 +14,10 @@ def test_refresh_host_artifacts_seeds_download_status_placeholder_when_missing()
     assert "write_download_status_placeholder()" in script
     assert '"status": "refreshing"' in script
     assert 'write_download_status_placeholder' in script.split('update_refresh_step "prepare-host-downloads" 20', 1)[1]
+
+
+def test_refresh_host_artifacts_skips_duplicate_prepare_runs_when_lock_is_busy() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_ARTIFACT_LOCK_SKIP_IF_BUSY=1 \\' in script
+    assert '"$ROOT_DIR/scripts/prepare-host-downloads.sh"' in script

@@ -1350,3 +1350,9 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 3. Die neuen Thinclient-/Live-Build-Artefakte mit dem versionierten Repo-Wallpaper neu bauen und den Plymouth-/Session-Splash auf echter Hardware bzw. Thinclient-VM smoke-testen.
 4. Den Broker-Preset-Fix jetzt live gegen den echten `vm100`-Stick abnehmen: neuen USB-Stick bauen, Thinclient booten, verifizieren dass `CONNECTION_METHOD=broker` gesetzt wird, Enrollment/WireGuard laufen und kein statischer `46.4.96.80`-Direktpfad mehr auftaucht.
 5. Nach dem Asset-Fix die Live-USB-Artefakte neu bauen und den echten Bootpfad nochmals auf Hardware pruefen: GRUB-/Plymouth-/TTY-/Session-Hintergrund muessen ueber den gesamten Bildschirm sauber skaliert sein.
+
+## Naechster Schritt (2026-05-02, duplicate artifact refresh auto-heal)
+
+1. Den neuen Lock-Skip-Pfad auf `srv1` live bestaetigen: ein zweiter `beagle-artifacts-refresh.service`-Start waehrend laufendem Build darf nicht mehr mit `failed`/`143` enden.
+2. Nach dem automatischen Repo-Update verifizieren, dass `/opt/beagle/dist/beagle-downloads-status.json` auf `8.0.9` springt und die VM-Update-Karte nicht mehr auf `8.0.8` stehenbleibt.
+3. Danach `vm100` mit `10 vCPU`, `56 GiB` RAM und `5 TB` Disk auf dem grossen `local`-Pool (`/var/lib/beagle/libvirt/images`) neu erstellen und den Firstboot-/Stream-Pfad abnehmen.
