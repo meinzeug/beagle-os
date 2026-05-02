@@ -1,5 +1,32 @@
 # Security Findings
 
+Stand: 2026-05-02 (ergaenzt: S-042 BeagleStream hostless Enrollment/Endpoint-Auth gehaertet)
+
+## S-042 — VM-spezifische Thinclient-Sticks konnten nach Enrollment auf statischen Direct-Streaming-Zustand zurueckfallen (PATCHED)
+
+- Status: **gepatcht** (2026-05-02)
+- Risiko: **Hoch**
+- Betroffene Dateien:
+  - `beagle-host/services/request_handler_mixin.py`
+  - `beagle-host/services/control_plane_handler.py`
+  - `beagle-host/services/stream_http_surface.py`
+  - `beagle-host/services/endpoint_enrollment.py`
+  - `beagle-host/services/installer_script.py`
+  - `beagle-host/services/thin_client_preset.py`
+  - `thin-client-assistant/runtime/apply_enrollment_config.py`
+  - `thin-client-assistant/runtime/runtime_endpoint_enrollment.sh`
+- Beschreibung:
+  - VM-spezifische Live-/Installer-Sticks konnten trotz vorhandenem BeagleStream-Wrapper nach dem Enrollment wieder im Legacy-Direct-Modus landen, weil der Broker-Zustand nicht nach `/etc/beagle/enrollment.conf` persistiert wurde.
+  - Gleichzeitig waren `/api/v1/streams/*` fuer Endpoint-Tokens nicht vollstaendig freigeschaltet; ein hostless Thinclient konnte den Broker damit nicht sauber selbst bedienen und war praktisch wieder auf statische `moonlight_host`-/Sunshine-Ziele angewiesen.
+- Fix:
+  - Endpoint-Tokens werden jetzt auf den Stream-Routen akzeptiert, inklusive `X-Beagle-Token`.
+  - `POST /api/v1/streams/allocate` unterstuetzt dedizierte VM-Ziele als `vm-<id>` ohne normalen Pool-User.
+  - Enrollment und USB-Presets markieren VM-Sticks explizit als Broker-Clients; die Runtime schreibt den Zustand persistent nach `/etc/beagle/enrollment.conf` und entfernt dabei alte Direct-Stream-Ziele aus der aktiven Config.
+- Verifikation:
+  - `tests/unit/test_apply_enrollment_config.py` PASS
+  - `tests/unit/test_beagle_stream_client_broker.py` PASS
+  - `tests/integration/test_endpoint_boot_to_streaming.py` PASS
+
 Stand: 2026-05-01 (ergaenzt: S-041 Thinclient-WireGuard/Moonlight-Drift repariert)
 
 ## S-041 — Thinclient-Live-USB konnte WireGuard nicht zuverlaessig enrollen und fiel auf Public-Streaming zurueck (PATCHED)
@@ -1098,3 +1125,9 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - Keine Beispiel- oder Klartext-Tokens wurden in versionierte Dateien geschrieben.
   - Sunshine-TLS-Verifikation bleibt standardmaessig aktiv; `BEAGLE_TLS_INSECURE=1` ist nur ein expliziter lokaler Test-Opt-out.
   - Beagle-Erweiterungen sind nicht-fatal: fehlende Config faellt auf Vanilla-Verhalten zurueck statt Credentials oder unsichere Defaults zu erraten.
+- 2026-05-02: Removed the operator-home wallpaper dependency from managed desktop provisioning.
+  - Previous risk: a desktop default that required `/home/dennis/Downloads/...` would leak workstation-specific assumptions into runtime provisioning and could break or silently drift on real Beagle hosts.
+  - Fix: the cyberpunk wallpaper is now versioned under `assets/branding/beagle-cyberpunk-wallpaper.png`; provisioning reads only that repo asset (or an explicit env override), validates its presence and embeds it into the seed ISO.
+  - Files:
+    - `beagle-host/services/service_registry.py`
+    - `beagle-host/services/ubuntu_beagle_provisioning.py`

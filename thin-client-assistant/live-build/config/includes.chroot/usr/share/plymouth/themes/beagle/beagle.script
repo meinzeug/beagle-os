@@ -1,11 +1,11 @@
-Window.SetBackgroundTopColor(1.0, 1.0, 1.0);
-Window.SetBackgroundBottomColor(1.0, 1.0, 1.0);
+Window.SetBackgroundTopColor(0.04, 0.05, 0.08);
+Window.SetBackgroundBottomColor(0.02, 0.03, 0.06);
 
-logo.image = Image("beagleos.png");
-logo.sprite = Sprite(logo.image);
-logo.sprite.SetZ(100);
-logo.sprite.SetX((Window.GetWidth() - logo.image.GetWidth()) / 2);
-logo.sprite.SetY((Window.GetHeight() - logo.image.GetHeight()) / 2 - 60);
+background.image = Image("beagleos.png");
+background.sprite = Sprite(background.image);
+background.sprite.SetZ(10);
+background.sprite.SetX((Window.GetWidth() - background.image.GetWidth()) / 2);
+background.sprite.SetY((Window.GetHeight() - background.image.GetHeight()) / 2);
 
 spinner.frames[0] = Image("/usr/share/plymouth/themes/spinner/throbber-0001.png");
 spinner.frames[1] = Image("/usr/share/plymouth/themes/spinner/throbber-0002.png");
@@ -43,14 +43,14 @@ spinner.tick = 0;
 spinner.sprite = Sprite(spinner.frames[0]);
 spinner.sprite.SetZ(90);
 spinner.sprite.SetX((Window.GetWidth() - spinner.frames[0].GetWidth()) / 2);
-spinner.sprite.SetY(logo.sprite.GetY() + logo.image.GetHeight() + 28);
+spinner.sprite.SetY(Window.GetHeight() - 132);
 
 fun set_message(text)
 {
   if (!text || text == "")
     text = "Starting Beagle OS...";
 
-  message.image = Image.Text(text, 0.18, 0.22, 0.28, 1.0);
+  message.image = Image.Text(text, 0.80, 0.92, 0.98, 1.0);
 
   if (!message.sprite)
     message.sprite = Sprite(message.image);
@@ -59,7 +59,7 @@ fun set_message(text)
 
   message.sprite.SetZ(95);
   message.sprite.SetX((Window.GetWidth() - message.image.GetWidth()) / 2);
-  message.sprite.SetY(spinner.sprite.GetY() + spinner.frames[0].GetHeight() + 18);
+  message.sprite.SetY(spinner.sprite.GetY() + spinner.frames[0].GetHeight() + 22);
 }
 
 fun refresh_callback()

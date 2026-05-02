@@ -1,3 +1,17 @@
+## Update (2026-05-02, BeagleStream Hostless-Enrollment fuer VM-Sticks vervollstaendigt)
+
+**Scope**: Der lokale Thinclient-/Live-USB-Pfad wurde von statischem Direct-Moonlight weiter auf den echten hostless BeagleStream-Broker umgestellt, damit VM-spezifische USB-Sticks nach dem Enrollment nicht mehr an festen `stream_host`/Sunshine-Endpunkten haengen.
+
+- `StreamHttpSurfaceService` akzeptiert jetzt Endpoint-Tokens auf `/api/v1/streams/*` inklusive `X-Beagle-Token`, und `POST /api/v1/streams/allocate` kann dedizierte VM-Ziele als `pool_id=vm-<id>` direkt aufloesen.
+- `EndpointEnrollmentService` liefert fuer VM-Sticks jetzt explizit `beagle_stream_mode=broker` plus `beagle_stream_allocation_id=vm-<id>`.
+- VM-spezifische USB-Presets starten mit `beagle-stream` statt statischem `moonlight`-Host und tragen nur noch Broker-/Fallback-Metadaten.
+- `apply_enrollment_config.py` schreibt den Broker-Zustand jetzt persistent nach `/etc/beagle/enrollment.conf`, leert im Broker-Modus alte Direct-Moonlight-/Sunshine-Werte und setzt den Runtime-Bin-Pfad auf `beagle-stream`.
+- Fokussierte Regressionen sind gruen:
+  - `tests/unit/test_apply_enrollment_config.py`
+  - `tests/unit/test_beagle_stream_client_broker.py`
+  - `tests/integration/test_endpoint_boot_to_streaming.py`
+  - gesamt: `24 passed`
+
 ## Update (2026-05-01, Public Website wieder im Cyberpunk-Theme)
 
 **Scope**: Die oeffentliche Website auf `beagle-os.com` wurde optisch wieder an die dunkle Startseiten-Optik angeglichen; `/download/`, `/about/`, `/docs/` und der private Lizenzpfad folgen jetzt derselben Produktfamilie.
@@ -6567,3 +6581,37 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - [.github/workflows/build-iso.yml](/home/dennis/beagle-os/.github/workflows/build-iso.yml): Artifact-Builds nutzen dieselbe dynamische Versionsauflösung.
 - [.github/workflows/public-website.yml](/home/dennis/beagle-os/.github/workflows/public-website.yml): Website-Deploys rendern gegen die aufgeloeste Version statt hart gegen `8.0.0`.
 - Validierung: `bash -n scripts/resolve-release-version.sh`, manuelle Version/Tag-Aufloesung, PyYAML-Syntaxcheck fuer die drei Workflows und `git diff --check`.
+
+## Update (2026-05-02, BeagleStream hostless allocate contract)
+
+**Scope**: Der vorhandene Control-Plane-Brokerpfad akzeptiert jetzt den in `fork.md` dokumentierten hostless Allocate-Request ohne festen `user_id`, ohne den bestehenden Pool-Allocator oder den Pairing-/WireGuard-Pfad zu brechen.
+
+- Backend:
+  - [beagle-host/services/stream_http_surface.py](/home/dennis/beagle-os/beagle-host/services/stream_http_surface.py): `POST /api/v1/streams/allocate` verlangt nicht mehr zwangsläufig `user_id`; wenn nur `device_id` vorliegt, wird ein stabiler interner Lease-Owner `device:<device_id>` verwendet.
+  - Der API-Contract bleibt nach aussen hostless-faehig: `user_id` darf leer sein; als zusaetzliche Diagnose liefert die Response jetzt `lease_user_id`.
+  - Hard-Fail statt Kollision: wenn weder `user_id` noch `device_id` gesetzt sind, liefert der Endpoint reproduzierbar `400`.
+- Regression:
+  - [tests/unit/test_beagle_stream_client_broker.py](/home/dennis/beagle-os/tests/unit/test_beagle_stream_client_broker.py): neuer Hostless-Fall ohne `user_id`, Guard gegen fehlende Identitaet und bestehender Benutzerfall mit unveraendertem Pairing-Token/Lease-Pfad.
+- Validierung:
+  - `python3 -m py_compile beagle-host/services/stream_http_surface.py`
+  - isolierte Test-venv unter `/tmp/beagle-os-test-venv`
+  - `/tmp/beagle-os-test-venv/bin/python -m pytest -q tests/unit/test_beagle_stream_client_broker.py tests/unit/test_beagle_stream_server_api.py tests/unit/test_stream_http_surface.py` => `17 passed`
+## Update (2026-05-02, KDE Plasma becomes the managed desktop default)
+
+- Scope:
+  - switch newly provisioned Ubuntu desktop VMs from the old mixed desktop default to a dedicated Plasma-first profile model
+  - add two operator-visible desktop variants: `Beagle OS Cyberpunk` and `KDE Plasma Classic`
+  - bundle the cyberpunk wallpaper as a versioned repo asset instead of referencing `/home/dennis/...`
+  - align thinclient/live boot splash assets with the same Beagle wallpaper
+- Changed:
+  - `beagle-host/services/service_registry.py`: default desktop changed to `plasma-cyberpunk`; visible provisioning catalog reduced to the two supported Plasma variants; wallpaper source now points at `assets/branding/beagle-cyberpunk-wallpaper.png`
+  - `beagle-host/services/ubuntu_beagle_provisioning.py`: desktop-profile metadata now carries `theme_variant`; provisioning validates required wallpaper assets and embeds the wallpaper file into the guest seed ISO
+  - `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`: Plasma-aware firstboot flow, wallpaper import from the seed, LightDM branding, lock/power defaults and one-shot Plasma profile apply script
+  - `website/index.html`: provisioning form label clarified to `Desktop-Design`
+  - `beagle-os/overlay/usr/share/plymouth/themes/beagle/*` and `thin-client-assistant/live-build/config/includes.chroot/usr/share/plymouth/themes/beagle/*`: splash switched to the new fullscreen wallpaper flow
+  - `beagle-os/overlay/usr/local/share/beagle-os/*` plus thinclient session wrappers: desktop/live runtime background switched to the same Beagle wallpaper and dark base color
+  - `tests/unit/test_ubuntu_beagle_desktop_profiles.py` added; `tests/unit/test_ubuntu_beagle_firstboot_regressions.py` extended
+- Validation:
+  - `python3 -m py_compile beagle-host/services/ubuntu_beagle_provisioning.py beagle-host/services/service_registry.py beagle-host/services/ubuntu_beagle_inputs.py`
+  - `bash -n beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`
+  - `python3 -m unittest tests.unit.test_ubuntu_beagle_desktop_profiles tests.unit.test_ubuntu_beagle_firstboot_regressions tests.unit.test_ubuntu_beagle_provisioning_quota tests.unit.test_vm_api_regressions`

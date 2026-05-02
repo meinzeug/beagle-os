@@ -46,3 +46,16 @@ def test_firstboot_disables_display_idle_and_lockers_for_streaming() -> None:
     assert '"/home/$GUEST_USER/.config/autostart/xfce4-power-manager.desktop"' in script
     assert '"/home/$GUEST_USER/.config/autostart/xfce4-screensaver.desktop"' in script
     assert '"/home/$GUEST_USER/.xprofile"' in script
+
+
+def test_firstboot_contains_plasma_profile_and_wallpaper_flow() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'DESKTOP_THEME_VARIANT="__DESKTOP_THEME_VARIANT__"' in script
+    assert 'DESKTOP_WALLPAPER_FILENAME="__DESKTOP_WALLPAPER_FILENAME__"' in script
+    assert '"/var/lib/cloud/seed/nocloud/${DESKTOP_WALLPAPER_FILENAME}"' in script
+    assert 'install -m 0644 "$source_path" "$BEAGLE_WALLPAPER_DIR/$DESKTOP_WALLPAPER_FILENAME"' in script
+    assert 'configure_plasma_profile() {' in script
+    assert 'plasma-apply-lookandfeel -a "$LOOK_AND_FEEL"' in script
+    assert 'plasma-apply-wallpaperimage "$WALLPAPER_PATH"' in script
+    assert 'OnlyShowIn=KDE;' in script

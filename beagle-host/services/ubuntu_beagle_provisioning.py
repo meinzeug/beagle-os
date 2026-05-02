@@ -10,6 +10,7 @@ leaves the entrypoint.
 from __future__ import annotations
 
 import base64
+import os
 import secrets
 import shlex
 import shutil
@@ -62,6 +63,7 @@ class UbuntuBeagleProvisioningService:
         template_dir: Path,
         time_now_epoch: Callable[[], float],
         ubuntu_beagle_autoinstall_url_ttl_seconds: int,
+        ubuntu_beagle_cyberpunk_wallpaper_source: Path,
         ubuntu_beagle_default_bridge: str,
         ubuntu_beagle_default_cores: int,
         ubuntu_beagle_default_desktop: str,
@@ -126,6 +128,7 @@ class UbuntuBeagleProvisioningService:
         self._template_dir = Path(template_dir)
         self._time_now_epoch = time_now_epoch
         self._ubuntu_beagle_autoinstall_url_ttl_seconds = int(ubuntu_beagle_autoinstall_url_ttl_seconds)
+        self._ubuntu_beagle_cyberpunk_wallpaper_source = Path(ubuntu_beagle_cyberpunk_wallpaper_source)
         self._ubuntu_beagle_default_bridge = str(ubuntu_beagle_default_bridge or "")
         self._ubuntu_beagle_default_cores = int(ubuntu_beagle_default_cores)
         self._ubuntu_beagle_default_desktop = str(ubuntu_beagle_default_desktop or "")
@@ -154,6 +157,8 @@ class UbuntuBeagleProvisioningService:
     def provisioning_desktop_profiles(self) -> list[dict[str, Any]]:
         profiles: list[dict[str, Any]] = []
         for desktop in self._ubuntu_beagle_desktops.values():
+            if not bool(desktop.get("visible_in_ui")):
+                continue
             profiles.append(
                 {
                     "id": str(desktop.get("id", "")).strip(),
@@ -161,6 +166,7 @@ class UbuntuBeagleProvisioningService:
                     "session": str(desktop.get("session", "")).strip(),
                     "packages": list(desktop.get("packages", []) or []),
                     "features": list(desktop.get("features", []) or []),
+                    "theme_variant": str(desktop.get("theme_variant", "")).strip(),
                 }
             )
         return profiles
@@ -560,6 +566,29 @@ class UbuntuBeagleProvisioningService:
             return prefix.rstrip()
         return "\n".join(f"{prefix}{line}" if line else prefix.rstrip() for line in lines)
 
+    def resolve_desktop_wallpaper_asset(self, desktop_id: str) -> dict[str, str]:
+        desktop = self._resolve_ubuntu_beagle_desktop(desktop_id or self._ubuntu_beagle_default_desktop)
+        wallpaper_required = bool(desktop.get("wallpaper_required"))
+        configured_source = str(
+            desktop.get("wallpaper_source")
+            or (self._ubuntu_beagle_cyberpunk_wallpaper_source if str(desktop.get("theme_variant", "")) == "cyberpunk" else "")
+        ).strip()
+        if not configured_source:
+            if wallpaper_required:
+                raise FileNotFoundError(
+                    f"desktop profile '{desktop['id']}' requires a wallpaper source but none is configured"
+                )
+            return {}
+        source = Path(os.path.expanduser(configured_source))
+        if not source.is_file():
+            raise FileNotFoundError(
+                f"desktop profile '{desktop['id']}' requires wallpaper file '{source}', but it was not found"
+            )
+        return {
+            "filename": self._safe_slug(source.name, "beagle-wallpaper.png"),
+            "source": str(source),
+        }
+
     def openssl_password_hash(self, password: str) -> str:
         salt = self._random_secret(16).lower()
         return self._run_checked(["openssl", "passwd", "-6", "-salt", salt, password]).strip()
@@ -588,6 +617,7 @@ class UbuntuBeagleProvisioningService:
             f"beagle-desktop: {desktop['label']}",
             f"beagle-desktop-id: {desktop['id']}",
             f"beagle-desktop-session: {desktop['session']}",
+            f"beagle-desktop-theme: {desktop.get('theme_variant', desktop['id'])}",
             f"beagle-streaming: {self._ubuntu_beagle_profile_streaming}",
             f"sunshine-guest-user: {guest_user}",
             "sunshine-app: Desktop",
@@ -643,6 +673,10 @@ class UbuntuBeagleProvisioningService:
     ) -> Path:
         if not self._template_dir.exists():
             raise FileNotFoundError(f"missing ubuntu-beagle templates: {self._template_dir}")
+        desktop = self._resolve_ubuntu_beagle_desktop(desktop_id or self._ubuntu_beagle_default_desktop)
+        wallpaper_asset = self.resolve_desktop_wallpaper_asset(desktop["id"])
+        wallpaper_filename = str(wallpaper_asset.get("filename", "")).strip()
+        desktop_theme_variant = str(desktop.get("theme_variant", desktop["id"])).strip()
 
         firstboot_script = self.render_template_file(
             self._template_dir / "firstboot-provision.sh.tpl",
@@ -658,8 +692,10 @@ class UbuntuBeagleProvisioningService:
                 "__IDENTITY_LANGUAGE__": self.locale_language(identity_locale),
                 "__IDENTITY_KEYMAP__": identity_keymap,
                 "__DESKTOP_ID__": desktop_id,
+                "__DESKTOP_THEME_VARIANT__": desktop_theme_variant,
                 "__DESKTOP_SESSION__": desktop_session,
                 "__DESKTOP_PACKAGES__": " ".join(desktop_packages),
+                "__DESKTOP_WALLPAPER_FILENAME__": wallpaper_filename,
                 "__SOFTWARE_PACKAGES__": " ".join(software_packages),
                 "__PACKAGE_PRESETS__": ",".join(package_presets),
                 "__NETWORK_MAC__": network_mac,
@@ -719,25 +755,27 @@ class UbuntuBeagleProvisioningService:
         work_dir.mkdir(parents=True, exist_ok=True)
         (work_dir / "user-data").write_text(user_data, encoding="utf-8")
         (work_dir / "meta-data").write_text(meta_data, encoding="utf-8")
+        if wallpaper_filename:
+            shutil.copy2(Path(wallpaper_asset["source"]), work_dir / wallpaper_filename)
         seed_name = f"beagle-ubuntu-autoinstall-vm{vmid}.iso"
         seed_path = self.local_iso_storage_dir() / seed_name
         seed_path.unlink(missing_ok=True)
-        self._run_checked(
-            [
-                "xorriso",
-                "-as",
-                "mkisofs",
-                "-volid",
-                "CIDATA",
-                "-joliet",
-                "-rock",
-                "-output",
-                str(seed_path),
-                str(work_dir / "user-data"),
-                str(work_dir / "meta-data"),
-            ],
-            timeout=None,
-        )
+        iso_command = [
+            "xorriso",
+            "-as",
+            "mkisofs",
+            "-volid",
+            "CIDATA",
+            "-joliet",
+            "-rock",
+            "-output",
+            str(seed_path),
+            str(work_dir / "user-data"),
+            str(work_dir / "meta-data"),
+        ]
+        if wallpaper_filename:
+            iso_command.append(str(work_dir / wallpaper_filename))
+        self._run_checked(iso_command, timeout=None)
         return seed_path
 
     def finalize_ubuntu_beagle_install(self, state: dict[str, Any], *, restart: bool = True) -> dict[str, Any]:

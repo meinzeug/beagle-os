@@ -18,7 +18,7 @@ export FONTCONFIG_FILE="${FONTCONFIG_FILE:-/etc/fonts/fonts.conf}"
 export FONTCONFIG_CACHE="$FONTCONFIG_CACHE_DIR"
 
 if command -v xsetroot >/dev/null 2>&1; then
-  xsetroot -solid "#ffffff" >/dev/null 2>&1 || true
+  xsetroot -solid "#050816" >/dev/null 2>&1 || true
 fi
 
 background_image="/usr/local/share/beagle-os/beagleos.png"

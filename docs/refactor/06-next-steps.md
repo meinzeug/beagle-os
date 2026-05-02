@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-05-02, BeagleStream Hostless-Enrollment lokal geschlossen)
+
+**Zuletzt erledigt**:
+- VM-spezifische Live-/Installer-Presets schalten nach Enrollment jetzt reproduzierbar in den hostless Broker-Modus.
+- Endpoint-Tokens duerfen `/api/v1/streams/allocate` direkt fuer `vm-<id>` nutzen.
+- Die Runtime persistiert den Broker-Zustand in `/etc/beagle/enrollment.conf` statt nach dem ersten Enroll wieder auf statisches Direct-Moonlight zurueckzufallen.
+
+**Naechste konkrete Schritte**:
+
+1. Den Patch auf `srv1` deployen und den lokalen VM100-Live-USB-Stick mit dem frischen `pve-thin-client-live-usb-vm-100.sh` neu bauen.
+2. Den Thinclient damit booten und den echten Pfad gegen `srv1` pruefen: Enrollment -> WireGuard -> `/api/v1/streams/allocate` (`pool_id=vm-100`) -> `beagle-stream`-Desktop.
+3. Den Live-Status auf `srv1` verifizieren und alte Direct-Stream-Reste (`public-streams.json`, Endpoint-Launchstatus, Legacy-Hostfelder) fuer VM100 bereinigen, falls der Broker-Pfad noch Legacy-State mitschleppt.
+
 ## Stand (2026-05-01, Public Website wieder konsistent im Dark Theme)
 
 **Zuletzt erledigt**:
@@ -1266,3 +1279,13 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 2. Den `public-website`-Workflow gegen dieselbe Version beobachten; Website und `/beagle-updates/beagle-downloads-status.json` muessen denselben Release-Tag anzeigen.
 3. Die `beagle-stream-client`- und `beagle-stream-server`-Workflows erneut beobachten, bis `BeagleStream-latest-x86_64.AppImage` und `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` im Release `beagle-phase-a` verfuegbar sind.
 4. Danach auf `srv1` einen echten Thin-Client-Artefakt-Vollbuild starten und verifizieren, dass keine Fallback-Artefakte mehr gestaged werden.
+
+## Naechster Schritt (2026-05-02, BeagleStream hostless runtime)
+
+1. Den jetzt hostless-faehigen Allocate-Contract live auf `srv1` mit einem echten Thin-Client gegen `POST /api/v1/streams/allocate` pruefen; der Request darf nur `pool_id` + `device_id` senden.
+2. Im separaten `beagle-stream-client`-Fork denselben Contract auf WireGuard-Aktivierung + Token-als-PIN-Pairing gegen eine echte VM durchexerzieren.
+3. Danach den kompletten Live-Pfad `thinclient -> allocate -> WireGuard -> pair token -> desktop stream` mit `vm100` oder einer frischen Test-VM auf `srv1` abnehmen.
+4. Wenn der Live-Pfad gruen ist, kann der verbleibende Fallback-Code fuer alte statische Moonlight-/Sunshine-Defaults weiter reduziert werden.
+1. Auf `srv1.beagle-os.com` den neuen Plasma-Provisioning-Pfad live gegen eine frische Ubuntu-Beagle-VM abnehmen: `plasma-cyberpunk` als Default, automatischer Reboot nach Firstboot, Desktop-Login, Wallpaper, LightDM-Greeter und Sunshine-Stream.
+2. Danach denselben Flow einmal mit `plasma-classic` über die WebUI erstellen und prüfen, dass kein Cyberpunk-Wallpaper/Branding in der Session erzwungen wird.
+3. Die neuen Thinclient-/Live-Build-Artefakte mit dem versionierten Repo-Wallpaper neu bauen und den Plymouth-/Session-Splash auf echter Hardware bzw. Thinclient-VM smoke-testen.

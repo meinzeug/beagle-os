@@ -420,7 +420,16 @@ UBUNTU_BEAGLE_DEFAULT_DISK_GB = int(os.environ.get("BEAGLE_UBUNTU_DEFAULT_DISK_G
 UBUNTU_BEAGLE_DEFAULT_GUEST_USER = os.environ.get("BEAGLE_UBUNTU_DEFAULT_GUEST_USER", "beagle").strip() or "beagle"
 UBUNTU_BEAGLE_DEFAULT_LOCALE = os.environ.get("BEAGLE_UBUNTU_DEFAULT_LOCALE", "de_DE.UTF-8").strip() or "de_DE.UTF-8"
 UBUNTU_BEAGLE_DEFAULT_KEYMAP = os.environ.get("BEAGLE_UBUNTU_DEFAULT_KEYMAP", "de").strip() or "de"
-UBUNTU_BEAGLE_DEFAULT_DESKTOP = os.environ.get("BEAGLE_UBUNTU_DEFAULT_DESKTOP", "xfce").strip().lower() or "xfce"
+UBUNTU_BEAGLE_DEFAULT_DESKTOP = (
+    os.environ.get("BEAGLE_UBUNTU_DEFAULT_DESKTOP", "plasma-cyberpunk").strip().lower() or "plasma-cyberpunk"
+)
+UBUNTU_BEAGLE_CYBERPUNK_WALLPAPER_SOURCE = Path(
+    os.environ.get(
+        "BEAGLE_UBUNTU_CYBERPUNK_WALLPAPER_SOURCE",
+        str(ROOT_DIR / "assets" / "branding" / "beagle-cyberpunk-wallpaper.png"),
+    ).strip()
+    or str(ROOT_DIR / "assets" / "branding" / "beagle-cyberpunk-wallpaper.png")
+)
 UBUNTU_BEAGLE_PROFILE_ID = "ubuntu-24.04-desktop-sunshine"
 UBUNTU_BEAGLE_PROFILE_LEGACY_IDS = {
     "ubuntu-24.04-xfce-sunshine": "xfce",
@@ -445,6 +454,38 @@ UBUNTU_BEAGLE_AUTOINSTALL_STALE_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_AUTO
 UBUNTU_BEAGLE_FIRSTBOOT_POWERDOWN_WAIT_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_FIRSTBOOT_POWERDOWN_WAIT_SECONDS", "600"))
 UBUNTU_BEAGLE_FIRSTBOOT_STALE_SECONDS = int(os.environ.get("BEAGLE_UBUNTU_FIRSTBOOT_STALE_SECONDS", "900"))
 UBUNTU_BEAGLE_DESKTOPS: dict[str, dict[str, Any]] = {
+    "plasma-cyberpunk": {
+        "id": "plasma-cyberpunk",
+        "label": "Beagle OS Cyberpunk",
+        "session": "plasma",
+        "packages": ["plasma-desktop", "plasma-nm", "konsole", "dolphin", "kate", "systemsettings"],
+        "features": [
+            "KDE Plasma shell",
+            "Beagle OS cyberpunk branding",
+            "Dark neon profile",
+            "Beagle wallpaper",
+        ],
+        "aliases": ["beagle-cyberpunk", "cyberpunk", "beagle-os-cyberpunk"],
+        "visible_in_ui": True,
+        "theme_variant": "cyberpunk",
+        "wallpaper_required": True,
+        "wallpaper_source": str(UBUNTU_BEAGLE_CYBERPUNK_WALLPAPER_SOURCE),
+    },
+    "plasma-classic": {
+        "id": "plasma-classic",
+        "label": "KDE Plasma Classic",
+        "session": "plasma",
+        "packages": ["plasma-desktop", "plasma-nm", "konsole", "dolphin", "kate", "systemsettings"],
+        "features": [
+            "KDE Plasma shell",
+            "Classic Breeze defaults",
+            "Neutral desktop profile",
+        ],
+        "aliases": ["plasma", "kde", "kde-plasma", "classic", "plasma-classic"],
+        "visible_in_ui": True,
+        "theme_variant": "classic",
+        "wallpaper_required": False,
+    },
     "xfce": {
         "id": "xfce",
         "label": "XFCE",
@@ -452,6 +493,7 @@ UBUNTU_BEAGLE_DESKTOPS: dict[str, dict[str, Any]] = {
         "packages": ["xfce4", "xfce4-goodies"],
         "features": ["Lightweight desktop", "Thunar", "XFCE panel"],
         "aliases": ["xfce", "xubuntu"],
+        "visible_in_ui": False,
     },
     "gnome": {
         "id": "gnome",
@@ -460,14 +502,7 @@ UBUNTU_BEAGLE_DESKTOPS: dict[str, dict[str, Any]] = {
         "packages": ["ubuntu-desktop-minimal"],
         "features": ["Ubuntu GNOME shell", "Activities overview", "Files app"],
         "aliases": ["gnome", "ubuntu", "ubuntu-desktop"],
-    },
-    "plasma": {
-        "id": "plasma",
-        "label": "KDE Plasma",
-        "session": "plasma",
-        "packages": ["plasma-desktop", "konsole", "dolphin"],
-        "features": ["KDE Plasma shell", "Dolphin", "Konsole"],
-        "aliases": ["kde", "plasma", "kde-plasma"],
+        "visible_in_ui": False,
     },
     "mate": {
         "id": "mate",
@@ -476,6 +511,7 @@ UBUNTU_BEAGLE_DESKTOPS: dict[str, dict[str, Any]] = {
         "packages": ["mate-desktop-environment-core", "mate-terminal", "caja"],
         "features": ["Traditional desktop", "Caja", "MATE terminal"],
         "aliases": ["mate", "ubuntu-mate"],
+        "visible_in_ui": False,
     },
     "lxqt": {
         "id": "lxqt",
@@ -484,6 +520,7 @@ UBUNTU_BEAGLE_DESKTOPS: dict[str, dict[str, Any]] = {
         "packages": ["lxqt", "qterminal", "pcmanfm-qt"],
         "features": ["Very lightweight", "PCManFM-Qt", "Qt desktop"],
         "aliases": ["lxqt", "lubuntu"],
+        "visible_in_ui": False,
     },
 }
 UBUNTU_BEAGLE_SOFTWARE_PRESETS: dict[str, dict[str, Any]] = {
@@ -2673,6 +2710,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             template_dir=UBUNTU_BEAGLE_TEMPLATE_DIR,
             time_now_epoch=lambda: datetime.now(timezone.utc).timestamp(),
             ubuntu_beagle_autoinstall_url_ttl_seconds=UBUNTU_BEAGLE_AUTOINSTALL_URL_TTL_SECONDS,
+            ubuntu_beagle_cyberpunk_wallpaper_source=UBUNTU_BEAGLE_CYBERPUNK_WALLPAPER_SOURCE,
             ubuntu_beagle_default_bridge=UBUNTU_BEAGLE_DEFAULT_BRIDGE,
             ubuntu_beagle_default_cores=UBUNTU_BEAGLE_DEFAULT_CORES,
             ubuntu_beagle_default_desktop=UBUNTU_BEAGLE_DEFAULT_DESKTOP,

@@ -1,5 +1,7 @@
 # Global TODO
 
+- [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen.
+
 - [x] R1-VM-Lifecycle ueber API reproduzierbar geschlossen: `scripts/test-vm-lifecycle-r1-smoke.py` fuehrt `create -> start -> snapshot -> reboot -> delete` gegen `srv1` aus (PASS, 2026-04-30, inkl. Cleanup).
 
 - [x] VM102-Provider-State auf `srv1` repariert und Dual-VM-Readiness neu gefahren: `beagle-102` als zweite VM aufgebaut, eigene Guest-IP `192.168.123.116` gesetzt, `ensure-vm-stream-ready.sh --vmid 102 --node beagle-0` auf `RC=0` stabilisiert.
@@ -475,6 +477,8 @@
 - [x] BeagleStream Phase A Thin-Client-Runtime vorbereiten: hostless Enrollment startet `beagle-stream stream <App>`, Build kann BeagleStream-AppImage stage'n und Healthcheck meldet fehlenden `beagle-stream` bei Broker-Modus.
 - [ ] BeagleStream Phase A Runtime-Abnahme auf `srv1`: Server-Fork registriert VM, Client-Fork alloziert Session, aktiviert WireGuard-Peer und paired per HMAC-Token-als-PIN.
 - [x] BeagleStream Phase A Packaging-Hooks: Thin-Client-Build und VM-Guest-Prep versuchen standardmaessig die `beagle-phase-a` Releases von `beagle-stream-client`/`beagle-stream-server` und fallen bei fehlendem Asset auf upstream Moonlight/Sunshine zurueck.
+- [x] BeagleStream Phase A Hostless-Contract haerten: `POST /api/v1/streams/allocate` akzeptiert leeren `user_id` bei gesetzter `device_id` und verwendet intern einen stabilen Device-Lease-Owner.
 - [ ] BeagleStream Phase A Packaging-Abschluss live bestaetigen: Client-AppImage und Server-DEB sind im `beagle-phase-a` Release vorhanden; Thin-Client-Artefaktbuild und VM-Guest-Prep stage'n die eigenen Fork-Artefakte statt der Fallbacks.
 - [x] Release-/Artifact-/Website-Workflows von starrer `8.0.0`-Version auf dynamische SemVer-Aufloesung umstellen.
 - [ ] Nach dem naechsten Main-Push bestaetigen, dass GitHub einen neuen Patch-Tag oberhalb `v8.0.0` erzeugt und beagle-os.com diese Version live anzeigt.
+- [ ] Live-validieren, dass frisch provisionierte Ubuntu-Beagle-VMs standardmäßig mit `Beagle OS Cyberpunk` (KDE Plasma) hochkommen und dass `KDE Plasma Classic` über die WebUI/API reproduzierbar auswählbar bleibt.

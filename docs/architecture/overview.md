@@ -58,6 +58,26 @@ The profile dialog exposes:
 - exported endpoint environment data for reproducible rollouts
 - direct jump points to the hosted installer and control-plane health
 
+## Managed desktop VM defaults
+
+New managed Ubuntu desktop VMs now default to KDE Plasma with the desktop profile `plasma-cyberpunk` (`Beagle OS Cyberpunk`).
+The provisioning stack keeps the older desktop families available for compatibility, but the operator-facing WebUI catalog is intentionally narrowed to the two supported Plasma variants:
+
+- `plasma-cyberpunk` (`Beagle OS Cyberpunk`) — default dark Beagle-branded Plasma profile with the bundled cyberpunk wallpaper
+- `plasma-classic` (`KDE Plasma Classic`) — neutral Breeze-style Plasma profile without the branded neon treatment
+
+Selection flow:
+
+- WebUI: `Provisioning -> Neue Beagle VM erstellen -> Desktop-Design`
+- API: `POST /api/v1/provisioning/vms` with the field `desktop`
+- legacy API aliases such as `plasma` still resolve to the classic Plasma profile for backward compatibility
+
+Implementation notes:
+
+- the guest firstboot path still provisions the desktop through `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`
+- the cyberpunk wallpaper is a versioned repo asset at `assets/branding/beagle-cyberpunk-wallpaper.png`
+- the guest seed ISO embeds that wallpaper so provisioning does not depend on an operator home directory or ad-hoc local files
+
 ## Beagle host integration
 
 The host-side installation path adds four operational pieces:

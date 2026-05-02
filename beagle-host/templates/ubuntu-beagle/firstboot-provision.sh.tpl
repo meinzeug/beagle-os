@@ -8,9 +8,11 @@ IDENTITY_LOCALE="__IDENTITY_LOCALE__"
 IDENTITY_LANGUAGE="__IDENTITY_LANGUAGE__"
 IDENTITY_KEYMAP="__IDENTITY_KEYMAP__"
 DESKTOP_ID="__DESKTOP_ID__"
+DESKTOP_THEME_VARIANT="__DESKTOP_THEME_VARIANT__"
 DESKTOP_SESSION="__DESKTOP_SESSION__"
 DESKTOP_SESSION_EFFECTIVE="${DESKTOP_SESSION}"
 DESKTOP_PACKAGES="__DESKTOP_PACKAGES__"
+DESKTOP_WALLPAPER_FILENAME="__DESKTOP_WALLPAPER_FILENAME__"
 SOFTWARE_PACKAGES="__SOFTWARE_PACKAGES__"
 PACKAGE_PRESETS="__PACKAGE_PRESETS__"
 NETWORK_MAC="__NETWORK_MAC__"
@@ -26,6 +28,8 @@ FAILED_CALLBACK_URL="${CALLBACK_URL%/complete}/failed"
 DONE_FILE="/var/lib/beagle/ubuntu-firstboot.done"
 CALLBACK_DONE_FILE="/var/lib/beagle/ubuntu-firstboot-callback.done"
 TMPDIR_WORK=""
+BEAGLE_WALLPAPER_DIR="/usr/local/share/beagle/wallpapers"
+BEAGLE_WALLPAPER_PATH=""
 
 cleanup_tmpdir() {
   if [[ -n "$TMPDIR_WORK" && -d "$TMPDIR_WORK" ]]; then
@@ -298,6 +302,12 @@ resolve_desktop_session() {
     elif [[ -f /usr/share/xsessions/xfce4.desktop ]]; then
       session="xfce4"
     fi
+  elif [[ "${DESKTOP_ID}" == plasma* || "${DESKTOP_SESSION:-}" == "plasma" ]]; then
+    if [[ -f /usr/share/xsessions/plasma.desktop ]]; then
+      session="plasma"
+    elif [[ -f /usr/share/xsessions/plasmawayland.desktop ]]; then
+      session="plasma"
+    fi
   fi
 
   if [[ -z "$session" ]]; then
@@ -381,6 +391,44 @@ Language=${locale}
 Session=${DESKTOP_SESSION_EFFECTIVE}
 EOF
   chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.dmrc"
+}
+
+find_seed_wallpaper() {
+  local candidate=""
+  local discovered=""
+
+  [[ -n "$DESKTOP_WALLPAPER_FILENAME" ]] || return 1
+  for candidate in \
+    "/var/lib/cloud/seed/nocloud/${DESKTOP_WALLPAPER_FILENAME}" \
+    "/var/lib/cloud/seed/nocloud-net/${DESKTOP_WALLPAPER_FILENAME}" \
+    "/var/lib/cloud/instance/${DESKTOP_WALLPAPER_FILENAME}"
+  do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  discovered="$(find /var/lib/cloud -maxdepth 5 -type f -name "$DESKTOP_WALLPAPER_FILENAME" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$discovered" && -f "$discovered" ]]; then
+    printf '%s\n' "$discovered"
+    return 0
+  fi
+
+  return 1
+}
+
+install_desktop_wallpaper() {
+  local source_path=""
+
+  [[ -n "$DESKTOP_WALLPAPER_FILENAME" ]] || return 0
+  source_path="$(find_seed_wallpaper)" || {
+    echo "Required wallpaper asset '${DESKTOP_WALLPAPER_FILENAME}' is missing from the provisioning seed." >&2
+    return 1
+  }
+  install -d -m 0755 "$BEAGLE_WALLPAPER_DIR"
+  install -m 0644 "$source_path" "$BEAGLE_WALLPAPER_DIR/$DESKTOP_WALLPAPER_FILENAME"
+  BEAGLE_WALLPAPER_PATH="$BEAGLE_WALLPAPER_DIR/$DESKTOP_WALLPAPER_FILENAME"
 }
 
 configure_keyboard_layout() {
@@ -478,7 +526,6 @@ EOF
 Type=Application
 Name=Beagle vkms xrandr setup
 Exec=/usr/local/bin/beagle-vkms-xrandr-setup
-OnlyShowIn=XFCE;
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
 EOF
@@ -489,18 +536,21 @@ EOF
 
 configure_default_browser() {
   install -d -m 0700 -o "$GUEST_USER" -g "$GUEST_USER" \
-    "/home/$GUEST_USER/.config" \
-    "/home/$GUEST_USER/.config/xfce4"
+    "/home/$GUEST_USER/.config"
   update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/bin/google-chrome-stable 200 >/dev/null 2>&1 || true
   update-alternatives --install /usr/bin/gnome-www-browser gnome-www-browser /usr/bin/google-chrome-stable 200 >/dev/null 2>&1 || true
   update-alternatives --set x-www-browser /usr/bin/google-chrome-stable >/dev/null 2>&1 || true
   update-alternatives --set gnome-www-browser /usr/bin/google-chrome-stable >/dev/null 2>&1 || true
-  cat > "/home/$GUEST_USER/.config/xfce4/helpers.rc" <<'EOF'
+  if [[ "$DESKTOP_ID" == "xfce" ]]; then
+    install -d -m 0700 -o "$GUEST_USER" -g "$GUEST_USER" "/home/$GUEST_USER/.config/xfce4"
+    cat > "/home/$GUEST_USER/.config/xfce4/helpers.rc" <<'EOF'
 WebBrowser=google-chrome
 MailReader=thunderbird
 TerminalEmulator=xfce4-terminal
 FileManager=thunar
 EOF
+    chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config/xfce4/helpers.rc"
+  fi
   cat > "/home/$GUEST_USER/.config/mimeapps.list" <<'EOF'
 [Default Applications]
 x-scheme-handler/http=google-chrome.desktop
@@ -510,9 +560,157 @@ application/xhtml+xml=google-chrome.desktop
 x-scheme-handler/about=google-chrome.desktop
 x-scheme-handler/unknown=google-chrome.desktop
 EOF
+  chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config/mimeapps.list"
+}
+
+configure_lightdm_greeter() {
+  local theme_name="Adwaita"
+
+  install -d -m 0755 /etc/lightdm/lightdm-gtk-greeter.conf.d
+  if [[ "$DESKTOP_THEME_VARIANT" == "cyberpunk" ]]; then
+    theme_name="Adwaita-dark"
+  fi
+  cat > /etc/lightdm/lightdm-gtk-greeter.conf.d/60-beagle-branding.conf <<EOF
+[greeter]
+theme-name=${theme_name}
+icon-theme-name=breeze
+font-name=DejaVu Sans 11
+clock-format=%H:%M
+panel-position=top
+EOF
+  if [[ -n "$BEAGLE_WALLPAPER_PATH" && -f "$BEAGLE_WALLPAPER_PATH" ]]; then
+    printf 'background=%s\n' "$BEAGLE_WALLPAPER_PATH" >> /etc/lightdm/lightdm-gtk-greeter.conf.d/60-beagle-branding.conf
+  fi
+}
+
+configure_plasma_profile() {
+  local autostart_file=""
+  local apply_script=""
+  local look_and_feel="org.kde.breeze.desktop"
+
+  [[ "$DESKTOP_ID" == plasma* ]] || return 0
+  if [[ "$DESKTOP_THEME_VARIANT" == "cyberpunk" ]]; then
+    look_and_feel="org.kde.breezedark.desktop"
+  fi
+
+  install -d -m 0755 /etc/xdg/autostart "$BEAGLE_WALLPAPER_DIR" /usr/local/lib/beagle
+  install -d -m 0700 -o "$GUEST_USER" -g "$GUEST_USER" \
+    "/home/$GUEST_USER/.config" \
+    "/home/$GUEST_USER/.config/autostart" \
+    "/home/$GUEST_USER/.local/bin" \
+    "/home/$GUEST_USER/.local/state/beagle"
+
+  cat > "/home/$GUEST_USER/.config/kscreenlockerrc" <<'EOF'
+[Daemon]
+Autolock=false
+LockOnResume=false
+Timeout=0
+EOF
+
+  cat > "/home/$GUEST_USER/.config/powermanagementprofilesrc" <<'EOF'
+[AC][DPMSControl]
+idleTime=0
+
+[AC][SuspendSession]
+idleTime=0
+suspendThenHibernate=false
+suspendType=0
+
+[Battery][DPMSControl]
+idleTime=0
+
+[Battery][SuspendSession]
+idleTime=0
+suspendThenHibernate=false
+suspendType=0
+
+[LowBattery][DPMSControl]
+idleTime=0
+
+[LowBattery][SuspendSession]
+idleTime=0
+suspendThenHibernate=false
+suspendType=0
+EOF
+
+  if [[ "$DESKTOP_THEME_VARIANT" == "cyberpunk" ]]; then
+    cat > "/home/$GUEST_USER/.config/kdeglobals" <<'EOF'
+[General]
+ColorScheme=BreezeDark
+
+[KDE]
+LookAndFeelPackage=org.kde.breezedark.desktop
+widgetStyle=Breeze
+EOF
+  else
+    cat > "/home/$GUEST_USER/.config/kdeglobals" <<'EOF'
+[General]
+ColorScheme=BreezeLight
+
+[KDE]
+LookAndFeelPackage=org.kde.breeze.desktop
+widgetStyle=Breeze
+EOF
+  fi
+
   chown "$GUEST_USER:$GUEST_USER" \
-    "/home/$GUEST_USER/.config/xfce4/helpers.rc" \
-    "/home/$GUEST_USER/.config/mimeapps.list"
+    "/home/$GUEST_USER/.config/kscreenlockerrc" \
+    "/home/$GUEST_USER/.config/powermanagementprofilesrc" \
+    "/home/$GUEST_USER/.config/kdeglobals"
+
+  apply_script="/usr/local/lib/beagle/beagle-plasma-profile-apply"
+  cat > "$apply_script" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+MARKER="\$HOME/.local/state/beagle/plasma-profile-applied"
+WALLPAPER_PATH="${BEAGLE_WALLPAPER_PATH}"
+LOOK_AND_FEEL="${look_and_feel}"
+THEME_VARIANT="${DESKTOP_THEME_VARIANT}"
+KWRITECONFIG_BIN=""
+
+if [[ -f "\$MARKER" ]]; then
+  exit 0
+fi
+
+KWRITECONFIG_BIN="\$(command -v kwriteconfig6 || command -v kwriteconfig5 || true)"
+
+if command -v plasma-apply-lookandfeel >/dev/null 2>&1; then
+  plasma-apply-lookandfeel -a "\$LOOK_AND_FEEL" >/dev/null 2>&1 || true
+fi
+
+if command -v plasma-apply-wallpaperimage >/dev/null 2>&1 && [[ -n "\$WALLPAPER_PATH" && -f "\$WALLPAPER_PATH" ]]; then
+  plasma-apply-wallpaperimage "\$WALLPAPER_PATH" >/dev/null 2>&1 || true
+fi
+
+if [[ -n "\$KWRITECONFIG_BIN" ]]; then
+  if [[ "\$THEME_VARIANT" == "cyberpunk" ]]; then
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key ColorScheme BreezeDark >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key LookAndFeelPackage org.kde.breezedark.desktop >/dev/null 2>&1 || true
+  else
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key ColorScheme BreezeLight >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key LookAndFeelPackage org.kde.breeze.desktop >/dev/null 2>&1 || true
+  fi
+  "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key Autolock false >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key LockOnResume false >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key Timeout 0 >/dev/null 2>&1 || true
+fi
+
+mkdir -p "\$(dirname "\$MARKER")"
+touch "\$MARKER"
+EOF
+  chmod 0755 "$apply_script"
+
+  autostart_file="/etc/xdg/autostart/beagle-plasma-profile.desktop"
+  cat > "$autostart_file" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Beagle Plasma Profile
+Exec=${apply_script}
+OnlyShowIn=KDE;
+X-GNOME-Autostart-enabled=true
+NoDisplay=false
+EOF
 }
 
 post_completion_callback() {
@@ -611,8 +809,10 @@ if [[ ! -f "$DONE_FILE" ]]; then
   repair_interrupted_dpkg
   configure_system_locale
   configure_keyboard_layout
+  install_desktop_wallpaper
   configure_virtual_display_vkms
   install_google_chrome
+  configure_lightdm_greeter
 
   install -d -m 0755 /etc/lightdm/lightdm.conf.d
   cat > /etc/lightdm/lightdm.conf.d/60-beagle.conf <<EOF
@@ -729,6 +929,7 @@ EOF
   chown -R "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config"
   chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.xprofile"
   configure_default_browser
+  configure_plasma_profile
 
   cat > /etc/systemd/system/beagle-sunshine.service <<EOF
 [Unit]
