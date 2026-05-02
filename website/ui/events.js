@@ -192,60 +192,61 @@ export function bindEvents() {
   const tokenField = qs('api-token');
   const usernameField = qs('auth-username');
   const passwordField = qs('auth-password');
+  const authForm = qs('auth-form');
   const onboardingPasswordField = qs('onboarding-password');
   const onboardingPasswordConfirmField = qs('onboarding-password-confirm');
+
+  function submitAuthLogin() {
+    markSessionActivity();
+    if (state.onboarding && state.onboarding.pending) {
+      openOnboardingModal();
+      return Promise.resolve();
+    }
+    const username = String(usernameField ? usernameField.value : '').trim();
+    const password = String(passwordField ? passwordField.value : '');
+    if (username || password) {
+      if (!username || !password) {
+        eventHooks.setBanner('Benutzername und Passwort erforderlich.', 'warn');
+        return Promise.resolve();
+      }
+      return loginWithCredentials(username, password)
+        .then(() => {
+          return loadDashboard().catch((error) => {
+            eventHooks.setBanner('Anmeldung erfolgreich, aber das Dashboard konnte nicht geladen werden: ' + error.message, 'warn');
+          });
+        })
+        .catch((error) => {
+          eventHooks.setBanner('Login fehlgeschlagen: ' + error.message, 'warn');
+        });
+    }
+    saveToken();
+    return loadDashboard().catch((error) => {
+      eventHooks.setBanner('Token gespeichert, aber das Dashboard konnte nicht geladen werden: ' + error.message, 'warn');
+    });
+  }
 
   if (tokenField) {
     tokenField.value = state.token;
     tokenField.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
+        event.preventDefault();
         saveToken();
         loadDashboard();
       }
     });
   }
 
-  if (passwordField) {
-    passwordField.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        const username = String(usernameField ? usernameField.value : '').trim();
-        const password = String(passwordField.value || '');
-        if (!username || !password) {
-          eventHooks.setBanner('Benutzername und Passwort erforderlich.', 'warn');
-          return;
-        }
-        loginWithCredentials(username, password)
-          .then(() => loadDashboard())
-          .catch((error) => {
-            eventHooks.setBanner('Login fehlgeschlagen: ' + error.message, 'warn');
-          });
-      }
+  if (authForm) {
+    authForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void submitAuthLogin();
     });
   }
 
   if (qs('connect-button')) {
-    qs('connect-button').addEventListener('click', () => {
-      markSessionActivity();
-      if (state.onboarding && state.onboarding.pending) {
-        openOnboardingModal();
-        return;
-      }
-      const username = String(usernameField ? usernameField.value : '').trim();
-      const password = String(passwordField ? passwordField.value : '');
-      if (username || password) {
-        if (!username || !password) {
-          eventHooks.setBanner('Benutzername und Passwort erforderlich.', 'warn');
-          return;
-        }
-        loginWithCredentials(username, password)
-          .then(() => loadDashboard())
-          .catch((error) => {
-            eventHooks.setBanner('Login fehlgeschlagen: ' + error.message, 'warn');
-          });
-        return;
-      }
-      saveToken();
-      loadDashboard();
+    qs('connect-button').addEventListener('click', (event) => {
+      event.preventDefault();
+      void submitAuthLogin();
     });
   }
 

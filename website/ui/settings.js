@@ -657,8 +657,10 @@ function renderRepoUpdateStatus(data) {
   text('repo-update-last-update', formatDate(status.last_update_at || ''));
   text('repo-update-available', status.update_available ? 'Ja' : 'Nein');
   text('repo-update-current', installedVersion);
+  text('update-center-installed-version', installedVersion);
   text('repo-update-current-commit', shortCommit(status.current_commit));
   text('repo-update-remote-version', remoteVersion);
+  text('update-center-remote-version', remoteVersion);
   text('repo-update-remote', shortCommit(status.remote_commit));
   text('repo-update-service', String(services['beagle-repo-auto-update.service'] || 'unknown'));
   text('repo-update-timer', String(services['beagle-repo-auto-update.timer'] || 'unknown'));
