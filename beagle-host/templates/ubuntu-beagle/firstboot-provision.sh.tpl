@@ -1159,7 +1159,7 @@ Environment=HOME=/home/${GUEST_USER}
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/${GUEST_USER}/.Xauthority
 ExecStartPre=/bin/bash -lc 'for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/${GUEST_USER}/.Xauthority ]] && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xrandr --query >/dev/null 2>&1; then exit 0; fi; sleep 1; done; echo "Timed out waiting for X11 session" >&2; exit 1'
-ExecStart=/usr/bin/x11vnc -display :0 -rfbport 5901 -forever -nopw -auth /home/${GUEST_USER}/.Xauthority -shared -noxdamage -xkb
+ExecStart=/usr/bin/x11vnc -display :0 -rfbport 5901 -forever -nopw -auth /home/${GUEST_USER}/.Xauthority -shared -noxdamage -xkb -noxfixes -noxrecord -nosel -cursor arrow
 Restart=always
 RestartSec=5
 TimeoutStartSec=210

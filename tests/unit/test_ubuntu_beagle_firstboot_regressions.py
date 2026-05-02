@@ -94,6 +94,14 @@ def test_firstboot_contains_plasma_profile_and_wallpaper_flow() -> None:
     assert 'OnlyShowIn=KDE;' in script
 
 
+def test_firstboot_uses_stable_x11vnc_runtime_flags() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "cat > /etc/systemd/system/beagle-x11vnc.service <<EOF" in script
+    assert "ExecStart=/usr/bin/x11vnc -display :0 -rfbport 5901" in script
+    assert "-noxfixes -noxrecord -nosel -cursor arrow" in script
+
+
 def test_user_data_template_embeds_wallpaper_asset_via_write_files() -> None:
     template = (ROOT / "beagle-host" / "templates" / "ubuntu-beagle" / "user-data.tpl").read_text(encoding="utf-8")
 
