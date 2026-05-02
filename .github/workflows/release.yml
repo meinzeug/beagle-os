@@ -470,6 +470,8 @@ jobs:
             if [[ "$repo_version" != "$VERSION" ]] || ! git diff --quiet -- VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html; then
               git add VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html
               git commit -m "release: sync metadata to ${VERSION} [skip release] [skip ci]"
+              git fetch origin main
+              git rebase origin/main
               git push origin HEAD:main
               release_sha="$(git rev-parse HEAD)"
             fi
