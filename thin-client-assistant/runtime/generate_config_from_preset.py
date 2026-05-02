@@ -124,6 +124,14 @@ def build_installer_env(*, preset: dict[str, str], runtime_user: str) -> dict[st
             continue
         default_value = defaults.get(output_key, "")
         if preset_key is None:
+            if output_key == "CONNECTION_METHOD":
+                explicit_value = str(preset.get("PVE_THIN_CLIENT_PRESET_CONNECTION_METHOD", "") or "").strip()
+                if explicit_value:
+                    env[output_key] = explicit_value
+                    continue
+                stream_mode = str(preset.get("PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_MODE", "") or "").strip().lower()
+                env[output_key] = "broker" if stream_mode == "broker" else default_value
+                continue
             env[output_key] = default_value
             continue
         env[output_key] = str(preset.get(preset_key, default_value) or default_value)

@@ -1315,3 +1315,4 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 1. Auf `srv1.beagle-os.com` den neuen Plasma-Provisioning-Pfad live gegen eine frische Ubuntu-Beagle-VM abnehmen: `plasma-cyberpunk` als Default, automatischer Reboot nach Firstboot, Desktop-Login, Wallpaper, LightDM-Greeter und Sunshine-Stream.
 2. Danach denselben Flow einmal mit `plasma-classic` über die WebUI erstellen und prüfen, dass kein Cyberpunk-Wallpaper/Branding in der Session erzwungen wird.
 3. Die neuen Thinclient-/Live-Build-Artefakte mit dem versionierten Repo-Wallpaper neu bauen und den Plymouth-/Session-Splash auf echter Hardware bzw. Thinclient-VM smoke-testen.
+4. Den Broker-Preset-Fix jetzt live gegen den echten `vm100`-Stick abnehmen: neuen USB-Stick bauen, Thinclient booten, verifizieren dass `CONNECTION_METHOD=broker` gesetzt wird, Enrollment/WireGuard laufen und kein statischer `46.4.96.80`-Direktpfad mehr auftaucht.

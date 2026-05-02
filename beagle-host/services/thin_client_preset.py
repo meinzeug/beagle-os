@@ -72,7 +72,10 @@ def build_runtime_extension_fields(
     moonlight_host: str = "",
     sunshine_api_url: str = "",
 ) -> dict[str, str]:
+    stream_mode_value = _string(beagle_stream_mode).strip().lower()
+    connection_method = "broker" if stream_mode_value == "broker" else "direct"
     return {
+        "PVE_THIN_CLIENT_PRESET_CONNECTION_METHOD": connection_method,
         "PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_ADDRESS": _string(network_static_address),
         "PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_PREFIX": _string(network_static_prefix),
         "PVE_THIN_CLIENT_PRESET_NETWORK_GATEWAY": _string(network_gateway),

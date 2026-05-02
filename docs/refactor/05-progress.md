@@ -6651,3 +6651,19 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `python3 -m py_compile beagle-host/services/ubuntu_beagle_provisioning.py beagle-host/services/service_registry.py beagle-host/services/ubuntu_beagle_inputs.py`
   - `bash -n beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`
   - `python3 -m unittest tests.unit.test_ubuntu_beagle_desktop_profiles tests.unit.test_ubuntu_beagle_firstboot_regressions tests.unit.test_ubuntu_beagle_provisioning_quota tests.unit.test_vm_api_regressions`
+
+## Update (2026-05-02, Thinclient broker presets stop falling back to direct mode)
+
+- Scope:
+  - fix VM-specific live/install USB presets so `beagle_stream_mode=broker` really boots into the broker/enrollment path instead of silently defaulting back to direct Moonlight mode
+  - ensure already-enrolled clients also rewrite their runtime connection method to `broker`
+- Changed:
+  - [beagle-host/services/thin_client_preset.py](/home/dennis/beagle-os/beagle-host/services/thin_client_preset.py): broker presets now emit `PVE_THIN_CLIENT_PRESET_CONNECTION_METHOD=broker`
+  - [thin-client-assistant/runtime/generate_config_from_preset.py](/home/dennis/beagle-os/thin-client-assistant/runtime/generate_config_from_preset.py): installer-env generation derives `CONNECTION_METHOD=broker` from `PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_MODE=broker` even when old presets do not carry the explicit field yet
+  - [thin-client-assistant/usb/usb_writer_write_stage.sh](/home/dennis/beagle-os/thin-client-assistant/usb/usb_writer_write_stage.sh): live USB writer no longer defaults broker presets back to `direct`
+  - [thin-client-assistant/runtime/apply_enrollment_config.py](/home/dennis/beagle-os/thin-client-assistant/runtime/apply_enrollment_config.py): successful enrollment now persists `PVE_THIN_CLIENT_CONNECTION_METHOD=broker` together with `beagle-stream` and the pool allocation config
+  - Regression coverage: [tests/unit/test_apply_enrollment_config.py](/home/dennis/beagle-os/tests/unit/test_apply_enrollment_config.py) plus new [tests/unit/test_thin_client_broker_preset_regressions.py](/home/dennis/beagle-os/tests/unit/test_thin_client_broker_preset_regressions.py)
+- Validation:
+  - `bash -n thin-client-assistant/usb/usb_writer_write_stage.sh`
+  - `python3 -m py_compile thin-client-assistant/runtime/generate_config_from_preset.py thin-client-assistant/runtime/apply_enrollment_config.py beagle-host/services/thin_client_preset.py`
+  - local Python harness over broker preset generation + enrollment rewrite => `THINCLIENT_BROKER_FIX_OK`
