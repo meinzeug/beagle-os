@@ -5,6 +5,10 @@
 Diese Datei beantwortet in 30 Sekunden: *Wo stehen wir auf dem Weg zu einem
 firmentauglichen, Enterprise-Niveau Produkt?*
 
+Der komprimierte Enterprise-GA-Steuerplan fuer die naechsten Abnahmen liegt in
+[`lasthope/README.md`](lasthope/README.md). Die fuenf Checklisten unter
+[`checklists/`](checklists/) bleiben die operative Aufgabenquelle.
+
 ---
 
 ## Ampel pro Bereich
@@ -58,8 +62,8 @@ Aktuell blockierend fuer Pilot/Production:
 
 ## Naechste konkrete Schritte (top 5)
 
-1. Frische ISO-Installation auf leerem Hetzner-Host live durchfuehren + [`runbooks/installation.md`](runbooks/installation.md) auf **Validiert** heben
-2. Cluster-Smoke auf `srv1`+`srv2` (Join + Drain + Failover) abnehmen
-3. Backup/Restore auf realer 2-Node-Konstellation testen, [`runbooks/backup-restore.md`](runbooks/backup-restore.md) validieren
-4. R3-GPU-Rest abnehmen: NVENC-/Streaming-Session mit Messwerten, VFIO-Reboot-Proof, vGPU/MDEV nur mit echter Lizenz/Hardware
-5. Externes Pen-Test-Engagement vorbereiten (Scope, Termin, Vertrag)
+1. `srv1`/`vm100` stabilisieren: Provisioning bis Reboot/Desktop, Update-Versionen und Artefaktstatus widerspruchsfrei.
+2. BeagleStream-End-to-End abnehmen: Thinclient bootet, WireGuard aktiv, Broker-Allocate, sichtbarer Desktop-Stream ohne manuelle PIN.
+3. Frische ISO-Installation auf leerem Host live durchfuehren + [`runbooks/installation.md`](runbooks/installation.md) auf **Validiert** heben.
+4. Backup/Restore auf realer 2-Node-Konstellation testen, [`runbooks/backup-restore.md`](runbooks/backup-restore.md) validieren.
+5. R3/R4 vorbereiten: Cluster-Smoke `srv1`+`srv2`, GPU-Rest, externe Security-Review.

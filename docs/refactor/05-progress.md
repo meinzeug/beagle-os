@@ -1,3 +1,24 @@
+## Update (2026-05-02, Enterprise-GA-Doku in `docs/lasthope` konsolidiert)
+
+**Scope**: Verstreute Enterprise-/Release-/Security-/Streaming-Restpunkte aus
+`fork.md`, `docs/checklists/*`, `docs/STATUS.md`, `docs/refactor/*` und
+historischen Planquellen zu einem finalen, kurzen Firmen-Readiness-Plan
+zusammenfuehren.
+
+- Neues Verzeichnis `docs/lasthope/` eingefuehrt:
+  - `README.md` als Enterprise-GA-Steuerplan
+  - `01-enterprise-gap-list.md` als priorisierte P0/P1/P2/P3-Lueckenliste
+  - `02-execution-order.md` als konkrete Abarbeitungsreihenfolge
+  - `03-commercial-readiness.md` als Go/No-Go-Sicht fuer Firmenangebote
+  - `04-validation-matrix.md` als Nachweis-/Gate-Matrix
+- `docs/README.md`, `docs/MASTER-PLAN.md` und `docs/STATUS.md` auf Version
+  `8.0.9` und die neue `lasthope`-Navigation aktualisiert.
+- Architekturentscheidung D-062 dokumentiert: `docs/lasthope/` ist die
+  Enterprise-GA-Sicht, die fuenf Checklisten bleiben operative Aufgabenquelle.
+- Die naechsten Top-Prioritaeten sind jetzt explizit: `srv1`/`vm100`
+  stabilisieren, BeagleStream-E2E abnehmen, R1-Clean-Install, Backup/Restore,
+  danach Cluster/GPU/Security-Review.
+
 ## Update (2026-05-02, UX-State-Slice Sessions/Audit + i18n-Fortschritt)
 
 **Scope**: Direkt codierbaren UX-/i18n-Restpfad aus `docs/checklists/04-quality-ci.md` weiter schließen, ohne Hardware-/Runtime-Gates künstlich als erledigt zu markieren.

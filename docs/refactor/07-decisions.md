@@ -1,6 +1,26 @@
 # Beagle OS Refactor - Decisions
 
-Stand: 2026-04-13
+Stand: 2026-05-02
+
+## D-062: `docs/lasthope` ist Enterprise-GA-Steuerplan (2026-05-02)
+
+Kontext: Die vorhandenen Checklisten und Statusdateien beschreiben den technischen
+Backlog, aber es fehlte eine kurze, finale Sicht auf die Frage: Was muss noch
+passieren, bevor Beagle OS Firmen angeboten werden kann?
+
+Entscheidung:
+
+- `docs/lasthope/` ist die kanonische Enterprise-GA-Sicht mit Gap-Liste,
+  Ausfuehrungsreihenfolge, Commercial-Readiness und Validierungsmatrix.
+- Die fuenf aktiven Checklisten unter `docs/checklists/` bleiben die operative
+  Aufgabenquelle. `docs/lasthope/` darf keine zweite, abweichende Detailplanung
+  aufbauen.
+- `docs/MASTER-PLAN.md`, `docs/STATUS.md` und `docs/README.md` verweisen auf
+  `docs/lasthope/`, damit neue Agents den Firmen-/Enterprise-Pfad sofort finden.
+
+Grund: Enterprise-Faehigkeit braucht harte Gates und Nachweise statt verstreuter
+Wunschlisten. Die Trennung haelt die Detailarbeit in den Checklisten und die
+Go/No-Go-Steuerung in einem kompakten Plan.
 
 ## D-061: Doku auf 5 thematische Checklisten konsolidiert (2026-04-29)
 

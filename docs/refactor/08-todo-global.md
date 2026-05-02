@@ -1,5 +1,7 @@
 # Global TODO
 
+- [x] Enterprise-GA-Plan finalisieren: `docs/lasthope/` mit Gap-Liste, Ausfuehrungsreihenfolge, Commercial-Readiness und Validierungsmatrix anlegen; `README`, `MASTER-PLAN`, `STATUS`, Decisions und Next-Steps darauf ausrichten.
+- [ ] Lasthope Welle 0 abarbeiten: `srv1` Runtime/Repo-Version/Artefakte/failed-units gruen halten und `vm100` bis Desktop/Stream-Ready stabilisieren.
 - [x] BeagleStream-first in VM-/Thinclient-Builds vervollstaendigen: Provisioning-Texte auf `BeagleStream Server` umstellen, `scripts/build-beagle-os.sh` und den Live-Build-Hook standardmaessig auf `beagle-stream-client` ziehen und den offenen Copilot-CI-Fix fuer `test_ubuntu_beagle_stale_runtime.py` integrieren.
 - [x] Runtime-/Public-Release-Versionsdrift schliessen: Repo/Host-WebUI/Repo-Auto-Update auf `8.0.2` synchronisieren, lesbare installierte Version im Updates-Panel anzeigen und Copilot-PR/Issue fuer die fehlgeschlagenen Plasma-Assertions bereinigen.
 - [x] Release-Versionierungslogik weiter haerten: zentralen Release-Metadaten-Sync (`VERSION`, Extension, Kiosk, WebUI-Cache-Buster) einfuehren und `release.yml` so fixen, dass Versionsspruenge wirklich nach `main` committed werden statt nur im Workflow-Workspace.

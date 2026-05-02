@@ -1,15 +1,18 @@
 # Beagle OS — Master Plan (vereinheitlichter Gesamtplan)
 
-Stand: 2026-04-29
-Aktuelle Version (`VERSION`): **8.0**
+Stand: 2026-05-02
+Aktuelle Version (`VERSION`): **8.0.9**
 Quelle der Wahrheit: **dieses Dokument**.
 
 Dieses Dokument konsolidiert alle bisherigen Teilplaene zu einer einzigen,
 widerspruchsfreien Sicht. Die historischen Plan-Verzeichnisse
 (`docs/archive/refactorv2/`, `docs/archive/gofuture/`, `docs/archive/goenterprise/`, `docs/archive/goadvanced/`,
 `docs/archive/gorelease/`) sind nach `docs/archive/` verschoben und dienen nur noch als
-Hintergrundmaterial. Aktive Auftraege leben ausschliesslich in den fuenf
+Hintergrundmaterial. Operative Aufgaben leben ausschliesslich in den fuenf
 Checklisten unter [`docs/checklists/`](checklists/) (siehe Abschnitt 2).
+Der konsolidierte Enterprise-GA-Steuerplan liegt unter
+[`docs/lasthope/`](lasthope/) und fasst die offenen Gates fuer ein
+firmentaugliches Angebot zusammen, ohne eigene Detail-Backlogs zu ersetzen.
 
 Wenn ein archivierter Teilplan diesem Dokument widerspricht, gilt dieses Dokument.
 
@@ -41,7 +44,7 @@ existieren nicht mehr im Repo (verifiziert 2026-04-29).
 
 ## 2. Operatives Backlog — 5 Checklisten
 
-**Stand 2026-04-29:** Saemtliche aktive Arbeit lebt in genau **fuenf** Checklisten
+**Stand 2026-05-02:** Saemtliche aktive Arbeit lebt in genau **fuenf** Checklisten
 unter [`docs/checklists/`](checklists/). Die historischen Mehrfach-Plaene
 (`refactorv2`, `gofuture`, `goenterprise`, `goadvanced`, `gorelease`) sind als
 Hintergrundmaterial nach [`docs/archive/`](archive/) verschoben — sie sind
@@ -56,7 +59,8 @@ Hintergrundmaterial nach [`docs/archive/`](archive/) verschoben — sie sind
 | 05 | [checklists/05-release-operations.md](checklists/05-release-operations.md) | Release-Gates R0..R4, Runbooks, Operations |
 
 Pro Aufgabe gilt: **eine** Checkliste, **ein** `[ ]`/`[x]`-Eintrag. Keine neuen
-Plan-Dateien anlegen.
+Detail-Plan-Dateien anlegen. `docs/lasthope/` ist die feste Enterprise-GA-
+Sicht auf dieselben offenen Gates, nicht ein zweites Backlog.
 
 Logbuecher:
 
@@ -64,6 +68,8 @@ Logbuecher:
 - `docs/refactor/06-next-steps.md` — letzte "Stand"-Eintraege ganz oben.
 - `docs/refactor/08-todo-global.md` — globaler Checklisten-Stand.
 - `docs/refactor/11-security-findings.md` — Security-Funde + Restrisiken.
+- `docs/lasthope/README.md` — finale Enterprise-GA-Sicht fuer Firmenangebot,
+  Gates und Reihenfolge.
 
 Diese Logbuecher bleiben die Quelle fuer "was wurde wann gemacht"; dieses
 Master-Dokument fasst Status pro Themengebiet zusammen.

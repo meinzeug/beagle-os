@@ -1,6 +1,6 @@
 # Beagle OS — Dokumentation
 
-**Stand**: 2026-04-29 · **Version**: 8.0 · **Quelle der Wahrheit**: [`MASTER-PLAN.md`](MASTER-PLAN.md)
+**Stand**: 2026-05-02 · **Version**: 8.0.9 · **Quelle der Wahrheit**: [`MASTER-PLAN.md`](MASTER-PLAN.md)
 
 Beagle OS ist eine Open-Source Desktop-Virtualisierungs- und Streaming-Plattform
 auf KVM/libvirt-Basis. Diese Dokumentation ist **bewusst klein gehalten**: wenige
@@ -26,7 +26,9 @@ Genau **5 Dateien**. Jede Aufgabe lebt nur in einer dieser Listen.
 
 | Datei | Inhalt |
 |---|---|
+| [lasthope/README.md](lasthope/README.md) | Enterprise-GA-Steuerplan: offene Pflichtluecken, Reihenfolge, Firmen-Go/No-Go |
 | [MASTER-PLAN.md](MASTER-PLAN.md) | Kanonische Gesamtsicht (Vision, Layer-Modell, Themen-Zuordnung) |
+| [STATUS.md](STATUS.md) | 30-Sekunden Enterprise-Readiness-Snapshot |
 | [architecture/overview.md](architecture/overview.md) | System-Architektur (Bestand) |
 | [architecture/endpoint-update.md](architecture/endpoint-update.md) | Endpoint-Update-Architektur |
 
@@ -61,7 +63,7 @@ Hinweis: `refactor/00-09-*.md` sind historisch und werden nicht mehr aktiv gepfl
 
 ## Archiv
 
-`docs/archive/` enthaelt die historischen Mehrfach-Pl?ne (`gofuture/`, `goenterprise/`,
+`docs/archive/` enthaelt die historischen Mehrfach-Plaene (`gofuture/`, `goenterprise/`,
 `goadvanced/`, `gorelease/`, `refactorv2/`). Sie sind **nicht aktive Auftraege**,
 sondern Hintergrund-/Recherchematerial. Wenn ein Punkt aus dem Archiv noch relevant
 ist, gehoert er in eine der 5 Checklisten — sonst bleibt er archiviert.
@@ -70,8 +72,9 @@ ist, gehoert er in eine der 5 Checklisten — sonst bleibt er archiviert.
 
 ## Regeln fuer Aenderungen
 
-1. Neue Aufgaben kommen in **eine** der 5 Checklisten — niemals in eine neue Datei.
+1. Neue Umsetzungsaufgaben kommen in **eine** der 5 Checklisten.
 2. Erledigte Aufgaben werden auf `[x]` gesetzt, nicht geloescht.
 3. Chronologische Notizen kommen in `refactor/05-progress.md`.
 4. Architektur-/Arbeitsregel-Entscheidungen in `refactor/07-decisions.md`.
-5. Wenn ein Bereich keine offenen `[ ]`-Items mehr hat, bleibt die Datei leer-aber-existent.
+5. `docs/lasthope/` bleibt die verdichtete Enterprise-GA-Sicht und darf keine Detail-Checklisten duplizieren.
+6. Wenn ein Bereich keine offenen `[ ]`-Items mehr hat, bleibt die Datei leer-aber-existent.

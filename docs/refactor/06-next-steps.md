@@ -1,5 +1,24 @@
 # Next Steps
 
+## Stand (2026-05-02, Enterprise-GA-Plan `docs/lasthope` angelegt)
+
+**Zuletzt erledigt**:
+- Die verstreuten Enterprise-/Release-/Security-/Streaming-Restpunkte wurden in
+  `docs/lasthope/` zu einer finalen Firmen-Readiness-Sicht konsolidiert.
+- `docs/README.md`, `docs/MASTER-PLAN.md`, `docs/STATUS.md` und
+  `docs/refactor/07-decisions.md` verweisen jetzt konsistent auf diesen Plan.
+
+**Naechste konkrete Schritte**:
+
+1. Welle 0 aus `docs/lasthope/02-execution-order.md` abarbeiten:
+   `srv1` Runtime/Version/Artefakte/failed-units widerspruchsfrei gruen halten.
+2. `vm100`-Provisioning bis automatischem Reboot, KDE-Desktop und Stream-Ready
+   abschliessen.
+3. BeagleStream-End-to-End mit echtem Thinclient beweisen: Enrollment,
+   WireGuard, Broker-Allocate und sichtbarer Desktop-Stream ohne manuelle PIN.
+4. Danach R1-Clean-Install und Backup/Restore als erste Firmen-Pilot-Gates
+   validieren.
+
 ## Stand (2026-05-02, UX-State-Slice Sessions/Audit real umgesetzt)
 
 **Zuletzt erledigt**:
