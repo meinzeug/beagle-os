@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-TEXT_SUFFIXES = {".html", ".css", ".js", ".json", ".txt"}
+TEXT_SUFFIXES = {".html", ".css", ".js", ".json", ".php", ".txt"}
 
 
 def main() -> None:
