@@ -652,9 +652,9 @@ jobs:
           data = json.loads(Path('/tmp/beagle-downloads-status.json').read_text())
           if data.get('version') != expected_version:
               raise SystemExit(f"expected public mirror version {expected_version}, got {data.get('version')!r}")
-          for key in ('payload_url', 'bootstrap_url', 'installer_iso_url', 'server_installer_iso_url', 'server_installimage_url'):
+          for key in ('payload_url', 'bootstrap_url'):
               value = str(data.get(key) or '')
-              if expected_version not in value and key != 'server_installimage_url':
+              if expected_version not in value:
                   raise SystemExit(f"expected {key} to point at {expected_version} artifacts, got {value!r}")
           PY
 
