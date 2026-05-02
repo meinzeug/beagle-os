@@ -2,9 +2,7 @@ import { resolveApiTarget } from './api.js';
 import { state } from './state.js';
 
 const liveHooks = {
-  loadDashboard() {
-    return Promise.resolve();
-  },
+  applyLiveSnapshot(_snapshot) {},
   loadAuditReport() {
     return Promise.resolve();
   },
@@ -15,10 +13,6 @@ const liveHooks = {
 let source = null;
 let reconnectTimer = null;
 let reconnectDelayMs = 1500;
-const LIVE_DASHBOARD_REFRESH_INTERVAL_MS = 20000;
-const LIVE_AUDIT_REFRESH_INTERVAL_MS = 20000;
-let lastDashboardRefreshAt = 0;
-let lastAuditRefreshAt = 0;
 
 export function configureLive(nextHooks) {
   Object.assign(liveHooks, nextHooks || {});
@@ -41,20 +35,21 @@ function onTickEvent() {
   if (!state.token || document.hidden) {
     return;
   }
-  const now = Date.now();
   if (state.activePanel === 'audit') {
-    if (now - lastAuditRefreshAt < LIVE_AUDIT_REFRESH_INTERVAL_MS) {
-      return;
-    }
-    lastAuditRefreshAt = now;
     liveHooks.loadAuditReport();
+  }
+}
+
+function onSnapshotEvent(evt) {
+  if (!evt || !evt.data) {
     return;
   }
-  if (now - lastDashboardRefreshAt < LIVE_DASHBOARD_REFRESH_INTERVAL_MS) {
-    return;
+  try {
+    const payload = JSON.parse(evt.data);
+    liveHooks.applyLiveSnapshot(payload);
+  } catch (error) {
+    void error;
   }
-  lastDashboardRefreshAt = now;
-  liveHooks.loadDashboard();
 }
 
 function closeSource() {
@@ -94,6 +89,7 @@ export function connectLiveUpdates() {
   });
 
   source.addEventListener('tick', onTickEvent);
+  source.addEventListener('snapshot', onSnapshotEvent);
 
   source.onerror = () => {
     state.liveFeedConnected = false;

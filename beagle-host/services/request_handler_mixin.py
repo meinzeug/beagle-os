@@ -567,6 +567,168 @@ class HandlerMixin:
         self.wfile.write(body)
         self.wfile.flush()
 
+    def _live_can_read(self, principal: dict[str, Any], route: str) -> bool:
+        role = str((principal or {}).get("role") or "viewer").strip().lower() or "viewer"
+        permission = authz_policy_service().required_permission("GET", route)
+        if permission is None:
+            return True
+        return authz_policy_service().is_allowed(
+            role,
+            permission,
+            auth_session_service().role_permissions(role),
+        )
+
+    @staticmethod
+    def _live_extract_payload(response: Any) -> Any:
+        if not isinstance(response, dict):
+            return None
+        status = int(response.get("status") or 0)
+        if status >= 400:
+            return None
+        return response.get("payload")
+
+    def _build_live_snapshot(self, principal: dict[str, Any]) -> dict[str, Any]:
+        snapshot: dict[str, Any] = {
+            "ok": True,
+            "ts": utcnow(),
+            "service": "beagle-control-plane",
+            "version": VERSION,
+        }
+
+        # Core health
+        try:
+            health_payload = build_health_payload()
+            aggregated = health_aggregator_service().run()
+            health_payload["status"] = aggregated.get("status", "healthy")
+            health_payload["components"] = aggregated.get("components", {})
+            if "error" in aggregated:
+                health_payload.setdefault("warnings", []).append(aggregated["error"])
+            snapshot["health"] = health_payload
+        except Exception:
+            pass
+
+        # Inventory + endpoints + policies
+        try:
+            if self._live_can_read(principal, "/api/v1/vms"):
+                vm_payload = self._live_extract_payload(vm_http_surface_service().route_get("/api/v1/vms"))
+                if isinstance(vm_payload, dict):
+                    snapshot["vms"] = list(vm_payload.get("vms") or [])
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/endpoints"):
+                ep_payload = self._live_extract_payload(control_plane_read_surface_service().route_get("/api/v1/endpoints", query={}))
+                if isinstance(ep_payload, dict):
+                    snapshot["endpoints"] = list(ep_payload.get("endpoints") or [])
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/policies"):
+                policies_payload = self._live_extract_payload(control_plane_read_surface_service().route_get("/api/v1/policies", query={}))
+                if isinstance(policies_payload, dict):
+                    snapshot["policies"] = list(policies_payload.get("policies") or [])
+        except Exception:
+            pass
+
+        # Virtualization + cluster
+        try:
+            if self._live_can_read(principal, "/api/v1/virtualization/overview"):
+                virt_payload = self._live_extract_payload(virtualization_read_surface_service().route_get("/api/v1/virtualization/overview"))
+                if isinstance(virt_payload, dict):
+                    snapshot["virtualization_overview"] = virt_payload
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/ha/status"):
+                ha_payload = self._live_extract_payload(self._cluster_surface().route_get("/api/v1/ha/status"))
+                if isinstance(ha_payload, dict):
+                    snapshot["ha_status"] = ha_payload
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/cluster/status"):
+                cluster_payload = self._live_extract_payload(self._cluster_surface().route_get("/api/v1/cluster/status"))
+                if isinstance(cluster_payload, dict):
+                    snapshot["cluster_status"] = cluster_payload
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/nodes/install-checks"):
+                snapshot["install_checks"] = node_install_check_service().list_payload()
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/provisioning/catalog"):
+                provisioning_payload = self._live_extract_payload(
+                    control_plane_read_surface_service().route_get("/api/v1/provisioning/catalog", query={})
+                )
+                if isinstance(provisioning_payload, dict):
+                    snapshot["provisioning_catalog"] = provisioning_payload.get("catalog")
+        except Exception:
+            pass
+
+        # Identity data (only for roles that can read auth scope)
+        try:
+            if self._live_can_read(principal, "/api/v1/auth/users"):
+                requester_tenant = (principal or {}).get("tenant_id") or None
+                users_resp = auth_http_surface_service().route_get(
+                    "/api/v1/auth/users",
+                    requester_tenant_id=requester_tenant,
+                    query_params={},
+                )
+                users_payload = self._live_extract_payload(users_resp)
+                if isinstance(users_payload, list):
+                    snapshot["auth_users"] = users_payload
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/auth/roles"):
+                requester_tenant = (principal or {}).get("tenant_id") or None
+                roles_resp = auth_http_surface_service().route_get(
+                    "/api/v1/auth/roles",
+                    requester_tenant_id=requester_tenant,
+                    query_params={},
+                )
+                roles_payload = self._live_extract_payload(roles_resp)
+                if isinstance(roles_payload, list):
+                    snapshot["auth_roles"] = roles_payload
+        except Exception:
+            pass
+
+        # Pools + sessions
+        try:
+            if self._live_can_read(principal, "/api/v1/pools"):
+                pools_payload = self._live_extract_payload(self._pools_surface().route_get("/api/v1/pools"))
+                if isinstance(pools_payload, dict):
+                    snapshot["pools"] = list(pools_payload.get("pools") or [])
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/pool-templates"):
+                templates_payload = self._live_extract_payload(self._pools_surface().route_get("/api/v1/pool-templates"))
+                if isinstance(templates_payload, dict):
+                    snapshot["pool_templates"] = list(templates_payload.get("templates") or [])
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/sessions"):
+                sessions_payload = self._live_extract_payload(self._pools_surface().route_get("/api/v1/sessions"))
+                if isinstance(sessions_payload, dict):
+                    snapshot["sessions"] = list(sessions_payload.get("sessions") or [])
+        except Exception:
+            pass
+
+        return snapshot
+
     def _stream_live_events(self, principal: dict[str, Any]) -> None:
         try:
             self.send_response(HTTPStatus.OK)
@@ -587,9 +749,11 @@ class HandlerMixin:
                     "ts": utcnow(),
                 },
             )
+            self._write_sse_event("snapshot", self._build_live_snapshot(principal))
 
             # Keep stream bounded so EventSource reconnects and refreshes auth state.
-            for _ in range(0, 180):
+            # Every 20s also push a data snapshot for UI state reconciliation.
+            for i in range(0, 180):
                 time.sleep(5)
                 self._write_sse_event(
                     "tick",
@@ -599,6 +763,8 @@ class HandlerMixin:
                         "manager_status": "online",
                     },
                 )
+                if i % 4 == 3:
+                    self._write_sse_event("snapshot", self._build_live_snapshot(principal))
         except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
             return
 

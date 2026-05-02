@@ -542,6 +542,75 @@ function bootstrapHashState() {
   }
 }
 
+function applyLiveSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return;
+  }
+
+  if (Array.isArray(snapshot.vms)) {
+    state.inventory = snapshot.vms;
+  }
+  if (Array.isArray(snapshot.endpoints)) {
+    state.endpointReports = snapshot.endpoints;
+  }
+  if (Array.isArray(snapshot.policies)) {
+    state.policies = snapshot.policies;
+  }
+  if (snapshot.virtualization_overview && typeof snapshot.virtualization_overview === 'object') {
+    state.virtualizationOverview = snapshot.virtualization_overview;
+  }
+  if (snapshot.cluster_status && typeof snapshot.cluster_status === 'object') {
+    state.clusterStatus = snapshot.cluster_status;
+  }
+  if (snapshot.ha_status && typeof snapshot.ha_status === 'object') {
+    state.haStatus = snapshot.ha_status;
+  }
+  if (snapshot.install_checks && typeof snapshot.install_checks === 'object') {
+    state.installChecks = snapshot.install_checks;
+  }
+  if (Object.prototype.hasOwnProperty.call(snapshot, 'provisioning_catalog')) {
+    state.provisioningCatalog = snapshot.provisioning_catalog || null;
+  }
+  if (Array.isArray(snapshot.auth_users)) {
+    state.authUsers = snapshot.auth_users;
+  }
+  if (Array.isArray(snapshot.auth_roles)) {
+    state.authRoles = snapshot.auth_roles;
+  }
+  if (Array.isArray(snapshot.pools)) {
+    state.desktopPools = snapshot.pools;
+  }
+  if (Array.isArray(snapshot.pool_templates)) {
+    state.poolTemplates = snapshot.pool_templates;
+  }
+  if (Array.isArray(snapshot.sessions)) {
+    state.sessions = snapshot.sessions;
+  }
+
+  // Render from fresh SSE state without full dashboard reload requests.
+  renderInventory();
+  renderEndpointsOverview();
+  renderVirtualizationOverview();
+  renderPolicies();
+  renderIam();
+  renderVirtualizationPanel();
+  renderClusterPanel();
+  renderSessionsPanel();
+  renderFleetHealth();
+  renderSchedulerInsights();
+  renderCostDashboard();
+  renderEnergyDashboard();
+  renderProvisioningWorkspace();
+
+  // Keep detail context alive when selected VM still exists.
+  if (state.selectedVmid) {
+    const exists = state.inventory.some((v) => Number(profileOf(v).vmid) === state.selectedVmid);
+    if (!exists) {
+      closeDetail();
+    }
+  }
+}
+
 export function bootstrapApp() {
   if (!browserCommon) {
     throw new Error('BeagleBrowserCommon must be loaded before website/main.js');
@@ -668,7 +737,7 @@ export function bootstrapApp() {
     setBanner
   });
   configureLive({
-    loadDashboard,
+    applyLiveSnapshot,
     loadAuditReport,
     addToActivityLog,
     setBanner
