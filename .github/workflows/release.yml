@@ -29,7 +29,6 @@ concurrency:
 jobs:
   detect-artifact-changes:
     name: Detect artifact rebuild scope
-    if: ${{ github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-latest
     outputs:
       rebuild_server_release: ${{ steps.resolve.outputs.rebuild_server_release }}
@@ -85,7 +84,10 @@ jobs:
   build-installimage:
     name: Build server installimage tarball
     needs: [detect-artifact-changes]
-    if: ${{ github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]') }}
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.ref_type == 'tag' ||
+      needs.detect-artifact-changes.outputs.rebuild_server_release == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -151,7 +153,10 @@ jobs:
   build-iso:
     name: Build live-build ISO
     needs: [detect-artifact-changes]
-    if: ${{ github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]') }}
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.ref_type == 'tag' ||
+      needs.detect-artifact-changes.outputs.rebuild_server_release == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -219,7 +224,10 @@ jobs:
   build-thin-client:
     name: Build thin-client installer
     needs: [detect-artifact-changes]
-    if: ${{ github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]') }}
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.ref_type == 'tag' ||
+      needs.detect-artifact-changes.outputs.rebuild_thin_client == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -297,7 +305,12 @@ jobs:
 
   sbom:
     name: Generate SBOM for release
-    if: ${{ github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]') }}
+    needs: [detect-artifact-changes]
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.ref_type == 'tag' ||
+      needs.detect-artifact-changes.outputs.rebuild_server_release == 'true' ||
+      needs.detect-artifact-changes.outputs.rebuild_thin_client == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -364,7 +377,6 @@ jobs:
   assemble-release-package:
     name: Assemble public release package
     needs: [build-installimage, build-iso, build-thin-client]
-    if: ${{ github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -438,7 +450,6 @@ jobs:
   create-release:
     name: Create GitHub Release
     needs: [assemble-release-package, sbom]
-    if: ${{ github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-latest
 
     steps:
