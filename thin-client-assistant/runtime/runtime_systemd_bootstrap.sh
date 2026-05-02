@@ -44,16 +44,20 @@ EOF
 }
 
 normalize_boot_services() {
-  local boot_mode systemctl_bin boot_mode_cmd
+  local boot_mode systemctl_bin boot_mode_cmd prepare_unit
 
   systemctl_bin="$(runtime_systemctl_bin)"
   boot_mode_cmd="$(runtime_boot_mode_bin)"
   boot_mode="$("$boot_mode_cmd" 2>/dev/null || printf 'runtime')"
+  prepare_unit="beagle-thin-client-prepare.service"
+  if ! "$systemctl_bin" list-unit-files "$prepare_unit" >/dev/null 2>&1; then
+    prepare_unit="pve-thin-client-prepare.service"
+  fi
 
   case "$boot_mode" in
     runtime)
-      "$systemctl_bin" list-unit-files pve-thin-client-prepare.service >/dev/null 2>&1 && \
-        "$systemctl_bin" enable pve-thin-client-prepare.service >/dev/null 2>&1 || true
+      "$systemctl_bin" list-unit-files "$prepare_unit" >/dev/null 2>&1 && \
+        "$systemctl_bin" enable "$prepare_unit" >/dev/null 2>&1 || true
       "$systemctl_bin" list-unit-files pve-thin-client-runtime.service >/dev/null 2>&1 && \
         "$systemctl_bin" enable pve-thin-client-runtime.service >/dev/null 2>&1 || true
       "$systemctl_bin" list-unit-files pve-thin-client-installer-menu.service >/dev/null 2>&1 && \
@@ -61,8 +65,8 @@ normalize_boot_services() {
       "$systemctl_bin" disable getty@tty1.service >/dev/null 2>&1 || true
       ;;
     installer)
-      "$systemctl_bin" list-unit-files pve-thin-client-prepare.service >/dev/null 2>&1 && \
-        "$systemctl_bin" enable pve-thin-client-prepare.service >/dev/null 2>&1 || true
+      "$systemctl_bin" list-unit-files "$prepare_unit" >/dev/null 2>&1 && \
+        "$systemctl_bin" enable "$prepare_unit" >/dev/null 2>&1 || true
       "$systemctl_bin" list-unit-files pve-thin-client-installer-menu.service >/dev/null 2>&1 && \
         "$systemctl_bin" enable pve-thin-client-installer-menu.service >/dev/null 2>&1 || true
       "$systemctl_bin" list-unit-files pve-thin-client-runtime.service >/dev/null 2>&1 && \

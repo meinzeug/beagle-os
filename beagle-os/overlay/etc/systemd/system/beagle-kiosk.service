@@ -1,8 +1,8 @@
 [Unit]
 Description=Beagle OS Gaming kiosk session
-After=local-fs.target dbus.service systemd-logind.service systemd-user-sessions.service plymouth-quit-wait.service getty-pre.target network-online.target ssh.service pve-thin-client-prepare.service
-Wants=dbus.service systemd-logind.service systemd-user-sessions.service plymouth-quit-wait.service network-online.target ssh.service pve-thin-client-prepare.service
-Requires=pve-thin-client-prepare.service
+After=local-fs.target dbus.service systemd-logind.service systemd-user-sessions.service plymouth-quit-wait.service getty-pre.target network-online.target ssh.service beagle-thin-client-prepare.service
+Wants=dbus.service systemd-logind.service systemd-user-sessions.service plymouth-quit-wait.service network-online.target ssh.service beagle-thin-client-prepare.service
+Requires=beagle-thin-client-prepare.service
 ConditionPathExists=/usr/local/bin/beagle-start-x11
 ConditionKernelCommandLine=pve_thin_client.mode=runtime
 ConditionKernelCommandLine=systemd.unit=beagle-kiosk.target

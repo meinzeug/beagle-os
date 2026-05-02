@@ -173,6 +173,7 @@ install_runtime_assets() {
   copy_file "$ROOT_DIR/runtime/apply-network-config.sh" "$INSTALL_ROOT/apply-network-config.sh"
   copy_file "$ROOT_DIR/installer/setup-menu.sh" "$INSTALL_ROOT/setup-menu.sh"
   copy_file "$ROOT_DIR/installer/write-config.sh" "$INSTALL_ROOT/write-config.sh"
+  copy_readonly "$ROOT_DIR/systemd/beagle-thin-client-prepare.service" "$SYSTEMD_DIR/beagle-thin-client-prepare.service"
   copy_readonly "$ROOT_DIR/systemd/pve-thin-client-prepare.service" "$SYSTEMD_DIR/pve-thin-client-prepare.service"
   copy_readonly "$ROOT_DIR/templates/pve-thin-client.desktop" "$AUTOSTART_DIR/pve-thin-client.desktop"
   install -d -m 0755 "$BIN_DIR"
@@ -245,7 +246,11 @@ install_packages_hint() {
 
 enable_services() {
   systemctl daemon-reload
-  systemctl enable pve-thin-client-prepare.service >/dev/null
+  if systemctl list-unit-files beagle-thin-client-prepare.service >/dev/null 2>&1; then
+    systemctl enable beagle-thin-client-prepare.service >/dev/null
+  else
+    systemctl enable pve-thin-client-prepare.service >/dev/null
+  fi
 }
 
 print_summary() {

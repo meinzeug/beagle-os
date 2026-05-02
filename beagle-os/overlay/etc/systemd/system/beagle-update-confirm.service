@@ -1,7 +1,7 @@
 [Unit]
 Description=Confirm active Beagle OS update slot after boot
-After=local-fs.target pve-thin-client-prepare.service
-Wants=pve-thin-client-prepare.service
+After=local-fs.target beagle-thin-client-prepare.service
+Wants=beagle-thin-client-prepare.service
 
 [Service]
 Type=oneshot

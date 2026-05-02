@@ -3,8 +3,8 @@ Description=Thinclient Runtime Session
 Documentation=file:///usr/local/lib/pve-thin-client/README.md
 ConditionKernelCommandLine=pve_thin_client.mode=runtime
 ConditionPathExists=/usr/local/bin/pve-thin-client-start-x11
-After=local-fs.target systemd-user-sessions.service plymouth-quit-wait.service getty-pre.target network.target pve-thin-client-network-menu.service pve-thin-client-prepare.service
-Wants=plymouth-quit-wait.service network.target pve-thin-client-network-menu.service pve-thin-client-prepare.service
+After=local-fs.target systemd-user-sessions.service plymouth-quit-wait.service getty-pre.target network.target pve-thin-client-network-menu.service beagle-thin-client-prepare.service
+Wants=plymouth-quit-wait.service network.target pve-thin-client-network-menu.service beagle-thin-client-prepare.service
 Conflicts=getty@tty1.service
 Before=getty@tty1.service
 

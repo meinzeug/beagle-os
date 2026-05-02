@@ -399,7 +399,7 @@ install_thin_client_runtime() {
   install -m 0755 "$ROOT_DIR/thin-client-assistant/runtime/common.sh" "$install_root/common.sh"
   install -m 0755 "$ROOT_DIR/thin-client-assistant/runtime/apply-network-config.sh" "$install_root/apply-network-config.sh"
   install -m 0755 "$ROOT_DIR/thin-client-assistant/installer/write-config.sh" "$install_root/installer/write-config.sh"
-  # TODO: rename to beagle-thin-client-prepare.service once the unit file itself is renamed
+  install -m 0644 "$ROOT_DIR/thin-client-assistant/systemd/beagle-thin-client-prepare.service" "$ROOTFS_DIR/etc/systemd/system/beagle-thin-client-prepare.service"
   install -m 0644 "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-prepare.service" "$ROOTFS_DIR/etc/systemd/system/pve-thin-client-prepare.service"
 }
 
@@ -530,7 +530,7 @@ enable_rootfs_services() {
   chroot_run_rootfs "systemctl enable beagle-endpoint-dispatch.timer"
   chroot_run_rootfs "systemctl enable beagle-endpoint-report.timer"
   chroot_run_rootfs "systemctl enable beagle-usb-tunnel.service >/dev/null 2>&1 || true"
-  chroot_run_rootfs "systemctl enable pve-thin-client-prepare.service"
+  chroot_run_rootfs "systemctl enable beagle-thin-client-prepare.service"
   chroot_run_rootfs "systemctl enable beagle-autologin.service"
   chroot_run_rootfs "systemctl enable beagle-kiosk.service"
   chroot_run_rootfs "systemctl disable lightdm.service >/dev/null 2>&1 || true"

@@ -101,7 +101,7 @@ capture_command journal-beagle-update-scan journalctl -u beagle-update-scan.serv
 capture_command journal-beagle-update-confirm journalctl -u beagle-update-confirm.service -b --no-pager
 capture_command journal-beagle-runtime-heartbeat journalctl -u beagle-runtime-heartbeat.service -b --no-pager
 capture_command journal-beagle-usb-tunnel journalctl -u beagle-usb-tunnel.service -b --no-pager
-capture_command journal-prepare-runtime journalctl -u pve-thin-client-prepare.service -b --no-pager
+capture_command journal-prepare-runtime journalctl -u beagle-thin-client-prepare.service -u pve-thin-client-prepare.service -b --no-pager
 capture_command journal-kernel journalctl -k -b --no-pager
 capture_command process-list ps -ef
 

@@ -195,6 +195,9 @@ prepare_rootfs_stage() {
     "$ROOT_DIR/thin-client-assistant/templates/" \
     "$ROOTFS_STAGE_DIR/usr/local/lib/pve-thin-client/templates/"
   install -D -m 0644 \
+    "$ROOT_DIR/thin-client-assistant/systemd/beagle-thin-client-prepare.service" \
+    "$ROOTFS_STAGE_DIR/etc/systemd/system/beagle-thin-client-prepare.service"
+  install -D -m 0644 \
     "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-prepare.service" \
     "$ROOTFS_STAGE_DIR/etc/systemd/system/pve-thin-client-prepare.service"
   install -D -m 0644 \
@@ -272,7 +275,7 @@ EOF
     beagle-runtime-heartbeat.timer \
     beagle-usb-tunnel.service \
     pve-thin-client-network-menu.service \
-    pve-thin-client-prepare.service \
+    beagle-thin-client-prepare.service \
     pve-thin-client-runtime.service \
     pve-thin-client-installer-menu.service \
     pve-thin-client-installer-menu-serial.service \
@@ -281,7 +284,7 @@ EOF
     ssh.service \
     getty@tty1.service
 
-  ensure_rootfs_wants_link pve-thin-client-prepare.service multi-user.target
+  ensure_rootfs_wants_link beagle-thin-client-prepare.service multi-user.target
   ensure_rootfs_wants_link pve-thin-client-runtime.service multi-user.target
   ensure_rootfs_wants_link pve-thin-client-installer-menu.service multi-user.target
   ensure_rootfs_wants_link pve-thin-client-installer-menu-serial.service multi-user.target

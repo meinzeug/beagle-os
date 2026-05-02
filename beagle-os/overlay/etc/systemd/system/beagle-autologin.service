@@ -1,6 +1,6 @@
 [Unit]
 Description=Beagle OS autologin on tty1
-After=systemd-user-sessions.service network-online.target pve-thin-client-prepare.service
+After=systemd-user-sessions.service network-online.target beagle-thin-client-prepare.service
 Wants=network-online.target
 Conflicts=getty@tty1.service
 
