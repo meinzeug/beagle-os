@@ -354,14 +354,17 @@ jobs:
     name: Assemble public release package
     needs: [build-installimage, build-iso, build-thin-client]
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Resolve VERSION
+        id: version
         run: |
           BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
-            bash scripts/resolve-release-version.sh --write VERSION
+            bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -427,6 +430,8 @@ jobs:
     name: Create GitHub Release
     needs: [assemble-release-package, sbom]
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -434,7 +439,7 @@ jobs:
       - name: Read VERSION
         id: version
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+          BEAGLE_RELEASE_VERSION="${{ needs.assemble-release-package.outputs.version }}" \
             bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Download release package artifacts
@@ -609,7 +614,7 @@ jobs:
 
       - name: Resolve VERSION
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+          BEAGLE_RELEASE_VERSION="${{ needs.create-release.outputs.version }}" \
             bash scripts/resolve-release-version.sh --write VERSION
 
       - name: Download release package artifacts
