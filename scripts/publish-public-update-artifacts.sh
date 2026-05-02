@@ -8,6 +8,7 @@ PUBLIC_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-u
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 STATUS_JSON="$DIST_DIR/beagle-downloads-status.json"
 SERVER_INSTALLIMAGE_FILENAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
+PUBLISH_STAGE_DIR="${PUBLISH_STAGE_DIR:-$DIST_DIR/public-update-stage}"
 
 require_file() {
   local path="$1"
@@ -15,6 +16,18 @@ require_file() {
     echo "Missing required artifact: $path" >&2
     exit 1
   }
+}
+
+copy_publish_file() {
+  local source="$1"
+  local dest_name="$2"
+  local mode="0644"
+  case "$dest_name" in
+    *.sh)
+      mode="0755"
+      ;;
+  esac
+  install -D -m "$mode" "$source" "$PUBLISH_STAGE_DIR/$dest_name"
 }
 
 checksum_for() {
@@ -135,6 +148,36 @@ status_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 PY
 }
 
+prepare_publish_stage() {
+  rm -rf "$PUBLISH_STAGE_DIR"
+  install -d -m 0755 "$PUBLISH_STAGE_DIR"
+
+  copy_publish_file "$DIST_DIR/SHA256SUMS" "SHA256SUMS"
+  copy_publish_file "$STATUS_JSON" "beagle-downloads-status.json"
+  copy_publish_file "$DIST_DIR/beagle-os-v${VERSION}.tar.gz" "beagle-os-v${VERSION}.tar.gz"
+  copy_publish_file "$DIST_DIR/beagle-os-latest.tar.gz" "beagle-os-latest.tar.gz"
+  copy_publish_file "$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz" "pve-thin-client-usb-payload-v${VERSION}.tar.gz"
+  copy_publish_file "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" "pve-thin-client-usb-payload-latest.tar.gz"
+  copy_publish_file "$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" "pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
+  copy_publish_file "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" "pve-thin-client-usb-bootstrap-latest.tar.gz"
+  copy_publish_file "$DIST_DIR/pve-thin-client-usb-installer-v${VERSION}.sh" "pve-thin-client-usb-installer-v${VERSION}.sh"
+  copy_publish_file "$DIST_DIR/pve-thin-client-usb-installer-latest.sh" "pve-thin-client-usb-installer-latest.sh"
+  copy_publish_file "$DIST_DIR/pve-thin-client-usb-installer-v${VERSION}.ps1" "pve-thin-client-usb-installer-v${VERSION}.ps1"
+  copy_publish_file "$DIST_DIR/pve-thin-client-usb-installer-latest.ps1" "pve-thin-client-usb-installer-latest.ps1"
+  copy_publish_file "$DIST_DIR/pve-thin-client-live-usb-v${VERSION}.sh" "pve-thin-client-live-usb-v${VERSION}.sh"
+  copy_publish_file "$DIST_DIR/pve-thin-client-live-usb-latest.sh" "pve-thin-client-live-usb-latest.sh"
+  copy_publish_file "$DIST_DIR/pve-thin-client-live-usb-v${VERSION}.ps1" "pve-thin-client-live-usb-v${VERSION}.ps1"
+  copy_publish_file "$DIST_DIR/pve-thin-client-live-usb-latest.ps1" "pve-thin-client-live-usb-latest.ps1"
+  copy_publish_file "$DIST_DIR/beagle-os-installer.iso" "beagle-os-installer.iso"
+  copy_publish_file "$DIST_DIR/beagle-os-installer-amd64.iso" "beagle-os-installer-amd64.iso"
+  copy_publish_file "$DIST_DIR/beagle-os-server-installer.iso" "beagle-os-server-installer.iso"
+  copy_publish_file "$DIST_DIR/beagle-os-server-installer-amd64.iso" "beagle-os-server-installer-amd64.iso"
+  copy_publish_file "$DIST_DIR/$SERVER_INSTALLIMAGE_FILENAME" "$SERVER_INSTALLIMAGE_FILENAME"
+  copy_publish_file "$DIST_DIR/beagle-kiosk-v${VERSION}-linux-x64.AppImage" "beagle-kiosk-v${VERSION}-linux-x64.AppImage"
+  copy_publish_file "$DIST_DIR/kiosk-release.json" "kiosk-release.json"
+  copy_publish_file "$DIST_DIR/kiosk-release-hash.txt" "kiosk-release-hash.txt"
+}
+
 require_file "$DIST_DIR/SHA256SUMS"
 require_file "$DIST_DIR/beagle-os-v${VERSION}.tar.gz"
 require_file "$DIST_DIR/beagle-os-latest.tar.gz"
@@ -153,24 +196,11 @@ require_file "$DIST_DIR/kiosk-release-hash.txt"
   exit 1
 }
 write_public_status_json
+prepare_publish_stage
 
-rsync -av --progress \
-  "$DIST_DIR/SHA256SUMS" \
-  "$STATUS_JSON" \
-  "$DIST_DIR/beagle-os-v${VERSION}.tar.gz" \
-  "$DIST_DIR/beagle-os-latest.tar.gz" \
-  "$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz" \
-  "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz" \
-  "$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" \
-  "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz" \
-  "$DIST_DIR/beagle-os-installer.iso" \
-  "$DIST_DIR/beagle-os-installer-amd64.iso" \
-  "$DIST_DIR/beagle-os-server-installer.iso" \
-  "$DIST_DIR/beagle-os-server-installer-amd64.iso" \
-  "$DIST_DIR/$SERVER_INSTALLIMAGE_FILENAME" \
-  "$DIST_DIR/beagle-kiosk-v${VERSION}-linux-x64.AppImage" \
-  "$DIST_DIR/kiosk-release.json" \
-  "$DIST_DIR/kiosk-release-hash.txt" \
-  "$REMOTE_TARGET"
+rsync -av --progress --delete \
+  --exclude '.htaccess' \
+  "$PUBLISH_STAGE_DIR/" \
+  "$REMOTE_TARGET/"
 
 echo "Published public update artifacts to $REMOTE_TARGET"
