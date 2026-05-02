@@ -35,6 +35,12 @@ jobs:
           BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
             bash scripts/resolve-release-version.sh --write VERSION
 
+      - name: Checkout public website repository
+        uses: actions/checkout@v4
+        with:
+          repository: meinzeug/beagle-os.com
+          path: beagle-os.com
+
       - name: Setup SSH
         env:
           BEAGLE_PUBLIC_DEPLOY_SSH_KEY: ${{ secrets.BEAGLE_PUBLIC_DEPLOY_SSH_KEY }}
@@ -53,6 +59,7 @@ jobs:
 
       - name: Publish website
         env:
+          BEAGLE_PUBLIC_SITE_DIR: ${{ github.workspace }}/beagle-os.com
           BEAGLE_PUBLIC_SITE_TARGET: ${{ secrets.BEAGLE_PUBLIC_SITE_TARGET }}
         run: bash scripts/deploy-public-website.sh
 
@@ -64,7 +71,7 @@ jobs:
           PUBLIC_UPDATE_BASE_URL="https://beagle-os.com/beagle-updates"
           render_dir="$(mktemp -d)"
           trap 'rm -rf "${render_dir}"' EXIT
-          rsync -a --delete public-site/ "${render_dir}/"
+          rsync -a --delete beagle-os.com/ "${render_dir}/"
           python3 scripts/render-site-templates.py \
             "${render_dir}" "${RELEASE_TAG}" "${GITHUB_RELEASE_URL}" "${PUBLIC_UPDATE_BASE_URL}"
           grep -q 'Beagle OS' "${render_dir}/index.html"

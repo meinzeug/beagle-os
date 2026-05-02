@@ -658,8 +658,15 @@ jobs:
                   raise SystemExit(f"expected {key} to point at {expected_version} artifacts, got {value!r}")
           PY
 
+      - name: Checkout public website repository
+        uses: actions/checkout@v4
+        with:
+          repository: meinzeug/beagle-os.com
+          path: beagle-os.com
+
       - name: Publish public website
         env:
+          BEAGLE_PUBLIC_SITE_DIR: ${{ github.workspace }}/beagle-os.com
           BEAGLE_PUBLIC_SITE_TARGET: ${{ secrets.BEAGLE_PUBLIC_SITE_TARGET }}
         run: bash scripts/deploy-public-website.sh
 
