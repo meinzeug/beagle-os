@@ -178,12 +178,37 @@ function buildDetailActionsHtml(status) {
   return html;
 }
 
+function streamRuntimeVariantLabel(profile) {
+  const runtime = profile && profile.stream_runtime ? profile.stream_runtime : {};
+  const variant = String(runtime.variant || '').trim().toLowerCase();
+  if (variant === 'beagle-stream-server') {
+    return 'BeagleStream Server';
+  }
+  if (variant === 'sunshine-fallback') {
+    return 'Sunshine Fallback';
+  }
+  return 'Unbekannt';
+}
+
+function streamRuntimeVariantBanner(profile) {
+  const runtime = profile && profile.stream_runtime ? profile.stream_runtime : {};
+  const variant = String(runtime.variant || '').trim().toLowerCase();
+  if (variant === 'beagle-stream-server') {
+    return '<div class="banner ok">Diese VM nutzt bereits den echten BeagleStream-Server-Fork.</div>';
+  }
+  if (variant === 'sunshine-fallback') {
+    return '<div class="banner warn">Diese VM laeuft noch im Sunshine-Fallback. Der echte BeagleStream-Server-Fork ist hier noch nicht aktiv.</div>';
+  }
+  return '<div class="banner subtle">Der Stream-Runtime-Status dieser VM wurde noch nicht erkannt.</div>';
+}
+
 function buildSummaryPanelHtml(vmid, profile) {
   if (!profile) {
     return '<div class="banner warn">VM ' + vmid + ': Kein Profil verfuegbar.</div>';
   }
   const role = String(profile.beagle_role || 'n/a').toUpperCase();
   return (
+    streamRuntimeVariantBanner(profile) +
     '<div class="detail-section">' +
     '<h3>Endpoint Profil</h3>' +
     '<div class="detail-grid">' +
@@ -194,6 +219,8 @@ function buildSummaryPanelHtml(vmid, profile) {
     fieldBlock('Rolle', role) +
     fieldBlock('Stream-Host', profile.stream_host || 'n/a') +
     fieldBlock('Moonlight-Port', profile.moonlight_port ? String(profile.moonlight_port) : 'n/a') +
+    fieldBlock('Stream-Runtime', streamRuntimeVariantLabel(profile)) +
+    fieldBlock('Stream-Paket', profile.stream_runtime && profile.stream_runtime.package_url ? profile.stream_runtime.package_url : 'n/a') +
     fieldBlock('Installer geeignet', profile.installer_target_eligible ? 'Ja' : 'Nein') +
     fieldBlock('Letzte Aenderung', formatDate(profile.updated_at || profile.provisioned_at || '')) +
     '</div>' +

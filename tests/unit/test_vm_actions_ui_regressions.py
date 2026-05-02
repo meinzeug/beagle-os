@@ -70,3 +70,15 @@ def test_vm_delete_action_logs_success_and_failure_paths() -> None:
     assert "actionHooks.setBanner('VM ' + vmid + ' geloescht.', 'ok');" in actions
     assert "actionHooks.addToActivityLog('vm-delete', vmid, 'warn', error.message);" in actions
     assert "actionHooks.setBanner('VM konnte nicht geloescht werden: ' + error.message, 'warn');" in actions
+
+
+def test_vm_detail_surfaces_stream_runtime_variant_and_fallback_state() -> None:
+    main = _read(MAIN_JS)
+
+    assert "function streamRuntimeVariantLabel(profile)" in main
+    assert "function streamRuntimeVariantBanner(profile)" in main
+    assert "BeagleStream Server" in main
+    assert "Sunshine Fallback" in main
+    assert "fieldBlock('Stream-Runtime', streamRuntimeVariantLabel(profile))" in main
+    assert "fieldBlock('Stream-Paket', profile.stream_runtime && profile.stream_runtime.package_url ? profile.stream_runtime.package_url : 'n/a')" in main
+    assert "Diese VM laeuft noch im Sunshine-Fallback." in main
