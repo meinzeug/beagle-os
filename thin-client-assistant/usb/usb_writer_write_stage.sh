@@ -411,7 +411,14 @@ write_usb() {
 cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
 insmod part_gpt
 insmod fat
-terminal_output console
+insmod jpeg
+insmod gfxterm
+terminal_output gfxterm
+if [ -f /boot/grub/background.jpg ]; then
+  background_image /boot/grub/background.jpg
+fi
+set color_normal=white/black
+set color_highlight=cyan/black
 set default=0
 set timeout=5
 
@@ -443,7 +450,14 @@ EOF
     fi
 
     cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
-terminal_output console
+insmod jpeg
+insmod gfxterm
+terminal_output gfxterm
+if [ -f /boot/grub/background.jpg ]; then
+  background_image /boot/grub/background.jpg
+fi
+set color_normal=white/black
+set color_highlight=cyan/black
 set default=${grub_default_index}
 set timeout=${grub_timeout}
 set gfxpayload=text

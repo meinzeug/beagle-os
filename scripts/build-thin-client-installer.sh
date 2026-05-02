@@ -128,7 +128,14 @@ build_manual_iso() {
   fi
 
 cat > "$grub_cfg" <<'EOF'
-terminal_output console
+insmod jpeg
+insmod gfxterm
+terminal_output gfxterm
+if [ -f /boot/grub/background.jpg ]; then
+  background_image /boot/grub/background.jpg
+fi
+set color_normal=white/black
+set color_highlight=cyan/black
 set default=0
 set timeout_style=menu
 set timeout=5

@@ -1,11 +1,15 @@
 Window.SetBackgroundTopColor(0.04, 0.05, 0.08);
 Window.SetBackgroundBottomColor(0.02, 0.03, 0.06);
 
+window_max_width = Window.GetX() * 2 + Window.GetWidth();
+window_max_height = Window.GetY() * 2 + Window.GetHeight();
+
 background.image = Image("beagleos.png");
-background.sprite = Sprite(background.image);
+background.scaled = background.image.Scale(window_max_width, window_max_height);
+background.sprite = Sprite(background.scaled);
 background.sprite.SetZ(10);
-background.sprite.SetX((Window.GetWidth() - background.image.GetWidth()) / 2);
-background.sprite.SetY((Window.GetHeight() - background.image.GetHeight()) / 2);
+background.sprite.SetX(Window.GetX() + Window.GetWidth() / 2 - background.scaled.GetWidth() / 2);
+background.sprite.SetY(Window.GetY() + Window.GetHeight() / 2 - background.scaled.GetHeight() / 2);
 
 spinner.frames[0] = Image("/usr/share/plymouth/themes/spinner/throbber-0001.png");
 spinner.frames[1] = Image("/usr/share/plymouth/themes/spinner/throbber-0002.png");

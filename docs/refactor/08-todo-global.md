@@ -483,6 +483,7 @@
 - [x] BeagleStream Phase A Thin-Client-Runtime vorbereiten: hostless Enrollment startet `beagle-stream stream <App>`, Build kann BeagleStream-AppImage stage'n und Healthcheck meldet fehlenden `beagle-stream` bei Broker-Modus.
 - [ ] BeagleStream Phase A Runtime-Abnahme auf `srv1`: Server-Fork registriert VM, Client-Fork alloziert Session, aktiviert WireGuard-Peer und paired per HMAC-Token-als-PIN.
 - [x] Thinclient-Broker-Presets haerten: USB-Live-/Install-Presets und Enrollment-Rewrite setzen `CONNECTION_METHOD=broker`, damit hostless `vm100`-Sticks nicht wieder in den alten Direktmodus zurueckfallen.
+- [x] Thinclient-Live-USB-Bootassets vereinheitlichen: GRUB-/Plymouth-/TTY-/Session-Wallpaper nutzen das versionierte Beagle-Wallpaper und skalieren auf die aktuelle Bildschirmgroesse.
 - [x] BeagleStream Phase A Packaging-Hooks: Thin-Client-Build und VM-Guest-Prep versuchen standardmaessig die `beagle-phase-a` Releases von `beagle-stream-client`/`beagle-stream-server` und fallen bei fehlendem Asset auf upstream Moonlight/Sunshine zurueck.
 - [x] BeagleStream Phase A Hostless-Contract haerten: `POST /api/v1/streams/allocate` akzeptiert leeren `user_id` bei gesetzter `device_id` und verwendet intern einen stabilen Device-Lease-Owner.
 - [ ] BeagleStream Phase A Packaging-Abschluss live bestaetigen: Client-AppImage und Server-DEB sind im `beagle-phase-a` Release vorhanden; Thin-Client-Artefaktbuild und VM-Guest-Prep stage'n die eigenen Fork-Artefakte statt der Fallbacks.

@@ -6667,3 +6667,19 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `bash -n thin-client-assistant/usb/usb_writer_write_stage.sh`
   - `python3 -m py_compile thin-client-assistant/runtime/generate_config_from_preset.py thin-client-assistant/runtime/apply_enrollment_config.py beagle-host/services/thin_client_preset.py`
   - local Python harness over broker preset generation + enrollment rewrite => `THINCLIENT_BROKER_FIX_OK`
+
+## Update (2026-05-02, Live USB splash and wallpaper assets unified)
+
+- Scope:
+  - remove the remaining stale boot/session wallpaper assets from the thin-client live/USB path
+  - make boot/session backgrounds fill the available display area instead of staying centered at the old fixed size
+- Changed:
+  - [thin-client-assistant/usb/assets/grub-background.jpg](/home/dennis/beagle-os/thin-client-assistant/usb/assets/grub-background.jpg): regenerated from the versioned Beagle wallpaper
+  - [thin-client-assistant/live-build/config/includes.chroot/usr/share/plymouth/themes/beagle/beagleos.png](/home/dennis/beagle-os/thin-client-assistant/live-build/config/includes.chroot/usr/share/plymouth/themes/beagle/beagleos.png), [thin-client-assistant/live-build/config/includes.chroot/usr/local/share/beagle-os/beagleos.png](/home/dennis/beagle-os/thin-client-assistant/live-build/config/includes.chroot/usr/local/share/beagle-os/beagleos.png) and [thin-client-assistant/live-build/config/includes.chroot/usr/local/share/beagle-os/beagleos-gaming.png](/home/dennis/beagle-os/thin-client-assistant/live-build/config/includes.chroot/usr/local/share/beagle-os/beagleos-gaming.png): replaced stale low-res assets with the current repo wallpaper
+  - [.artifacts/beaglethinclient.png](/home/dennis/beagle-os/.artifacts/beaglethinclient.png) and [.artifacts/beaglethinclient-tty1.png](/home/dennis/beagle-os/.artifacts/beaglethinclient-tty1.png): aligned with the same wallpaper for generated thinclient visuals
+  - [thin-client-assistant/live-build/config/includes.chroot/usr/share/plymouth/themes/beagle/beagle.script](/home/dennis/beagle-os/thin-client-assistant/live-build/config/includes.chroot/usr/share/plymouth/themes/beagle/beagle.script): background now scales to the current window size
+  - [thin-client-assistant/live-build/config/includes.chroot/usr/local/bin/start-pve-thin-client-session](/home/dennis/beagle-os/thin-client-assistant/live-build/config/includes.chroot/usr/local/bin/start-pve-thin-client-session) and [beagle-os/overlay/usr/local/bin/start-beagle-session](/home/dennis/beagle-os/beagle-os/overlay/usr/local/bin/start-beagle-session): `feh --bg-fill` instead of `--bg-center`
+  - [thin-client-assistant/usb/usb_writer_write_stage.sh](/home/dennis/beagle-os/thin-client-assistant/usb/usb_writer_write_stage.sh), [scripts/build-thin-client-installer.sh](/home/dennis/beagle-os/scripts/build-thin-client-installer.sh) and [beagle-os/overlay/usr/local/sbin/beagle-update-client](/home/dennis/beagle-os/beagle-os/overlay/usr/local/sbin/beagle-update-client): GRUB now actively enables the branded background instead of only copying the file
+- Validation:
+  - `bash -n thin-client-assistant/live-build/config/includes.chroot/usr/local/bin/start-pve-thin-client-session beagle-os/overlay/usr/local/bin/start-beagle-session thin-client-assistant/usb/usb_writer_write_stage.sh scripts/build-thin-client-installer.sh`
+  - `python3 -m py_compile beagle-os/overlay/usr/local/sbin/beagle-update-client`

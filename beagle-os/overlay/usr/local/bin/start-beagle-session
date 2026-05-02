@@ -33,7 +33,7 @@ case "$client_mode_normalized" in
 esac
 
 if command -v feh >/dev/null 2>&1 && [ -f "$background_image" ]; then
-  feh --no-fehbg --image-bg white --bg-center "$background_image" >/dev/null 2>&1 || true
+  feh --no-fehbg --image-bg black --bg-fill "$background_image" >/dev/null 2>&1 || true
 fi
 
 if command -v xset >/dev/null 2>&1; then

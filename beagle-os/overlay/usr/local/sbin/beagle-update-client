@@ -289,7 +289,14 @@ def write_grub_cfg(medium: Path, hostname: str) -> None:
     grub_cfg.parent.mkdir(parents=True, exist_ok=True)
     content = f"""insmod part_gpt
 insmod ext2
-terminal_output console
+insmod jpeg
+insmod gfxterm
+terminal_output gfxterm
+if [ -f /boot/grub/background.jpg ]; then
+  background_image /boot/grub/background.jpg
+fi
+set color_normal=white/black
+set color_highlight=cyan/black
 set default=0
 set timeout=4
 

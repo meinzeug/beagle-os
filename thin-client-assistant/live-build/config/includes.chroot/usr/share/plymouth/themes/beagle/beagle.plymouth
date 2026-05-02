@@ -1,6 +1,6 @@
 [Plymouth Theme]
 Name=Beagle OS
-Description=Beagle OS white splash screen
+Description=Beagle OS branded fullscreen splash screen
 ModuleName=script
 
 [script]
