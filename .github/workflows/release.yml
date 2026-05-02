@@ -491,28 +491,34 @@ jobs:
               # metadata commit lands on main via the normal merge path.
               sync_branch="fix/release-sync-v${VERSION}"
               git checkout -b "$sync_branch"
-              git push origin "HEAD:refs/heads/$sync_branch"
-              existing_pr="$(gh pr list --repo "$REPO" --head "$sync_branch" --json number --jq '.[0].number // empty')"
-              if [[ -z "$existing_pr" ]]; then
-                gh pr create \
+              # Push is non-fatal: if branch creation is restricted by repo rules,
+              # emit a warning and continue. The release tag is cut from the
+              # original trigger commit (already on main) regardless.
+              if git push origin "HEAD:refs/heads/$sync_branch"; then
+                existing_pr="$(gh pr list --repo "$REPO" --head "$sync_branch" --json number --jq '.[0].number // empty')"
+                if [[ -z "$existing_pr" ]]; then
+                  gh pr create \
+                    --repo "$REPO" \
+                    --title "release: sync metadata to ${VERSION} [skip release]" \
+                    --body "Automated metadata sync for release v${VERSION}." \
+                    --base main \
+                    --head "$sync_branch"
+                else
+                  echo "PR #${existing_pr} already exists for ${sync_branch}; skipping PR create." >&2
+                fi
+                # Enable auto-merge so the PR lands on main once checks pass.
+                # Failures are non-fatal: the release tag is cut from the original
+                # trigger commit (already on main) and the metadata sync will land
+                # on main when the PR is eventually merged.
+                if ! gh pr merge "$sync_branch" \
                   --repo "$REPO" \
-                  --title "release: sync metadata to ${VERSION} [skip release]" \
-                  --body "Automated metadata sync for release v${VERSION}." \
-                  --base main \
-                  --head "$sync_branch"
+                  --merge \
+                  --auto \
+                  --delete-branch; then
+                  echo "::warning::Auto-merge could not be enabled for ${sync_branch}; the metadata sync PR will need to be merged manually." >&2
+                fi
               else
-                echo "PR #${existing_pr} already exists for ${sync_branch}; skipping PR create." >&2
-              fi
-              # Enable auto-merge so the PR lands on main once checks pass.
-              # Failures are non-fatal: the release tag is cut from the original
-              # trigger commit (already on main) and the metadata sync will land
-              # on main when the PR is eventually merged.
-              if ! gh pr merge "$sync_branch" \
-                --repo "$REPO" \
-                --merge \
-                --auto \
-                --delete-branch; then
-                echo "::warning::Auto-merge could not be enabled for ${sync_branch}; the metadata sync PR will need to be merged manually." >&2
+                echo "::warning::Could not push sync branch ${sync_branch} (branch creation may be restricted); the metadata sync commit will need to be applied manually." >&2
               fi
               # release_sha stays as github.sha (the trigger commit, already on
               # main) so the tag points to a commit that is already on main.
