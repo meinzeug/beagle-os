@@ -786,30 +786,35 @@ if [[ ! -f "$DONE_FILE" ]]; then
 
   echo 'lightdm shared/default-x-display-manager select lightdm' | debconf-set-selections
   apt_retry apt-get update -o Acquire::Retries=5
-  apt_retry apt-get install -y --fix-missing \
+  apt_retry apt-get install -y --fix-missing --no-install-recommends \
     qemu-guest-agent \
+    openssh-server \
+    curl \
+    ca-certificates \
+    usbutils \
+    xdg-utils
+  repair_interrupted_dpkg
+  systemctl enable --now qemu-guest-agent.service >/dev/null 2>&1 || true
+
+  apt_retry apt-get install -y --fix-missing --no-install-recommends \
     openssh-server \
     xserver-xorg \
     x11-xserver-utils \
     lightdm \
     lightdm-gtk-greeter \
     accountsservice \
-    curl \
-    ca-certificates \
     pipewire \
     pipewire-pulse \
     wireplumber \
     pulseaudio-utils \
-    usbutils \
-    xdg-utils \
     x11vnc
   repair_interrupted_dpkg
   if [[ -n "$DESKTOP_PACKAGES" ]]; then
-    apt_retry apt-get install -y --fix-missing ${DESKTOP_PACKAGES}
+    apt_retry apt-get install -y --fix-missing --no-install-recommends ${DESKTOP_PACKAGES}
     repair_interrupted_dpkg
   fi
   if [[ -n "$SOFTWARE_PACKAGES" ]]; then
-    apt_retry apt-get install -y --fix-missing ${SOFTWARE_PACKAGES}
+    apt_retry apt-get install -y --fix-missing --no-install-recommends ${SOFTWARE_PACKAGES}
     repair_interrupted_dpkg
   fi
   resolve_desktop_session
@@ -823,7 +828,7 @@ if [[ ! -f "$DONE_FILE" ]]; then
     stream_runtime_package_url="$SUNSHINE_URL"
     curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"
   fi
-  apt_retry apt-get install -y "$TMPDIR_WORK/sunshine.deb"
+  apt_retry apt-get install -y --no-install-recommends "$TMPDIR_WORK/sunshine.deb"
   repair_interrupted_dpkg
   write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"
   configure_system_locale

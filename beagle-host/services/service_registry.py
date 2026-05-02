@@ -1810,6 +1810,39 @@ def list_ubuntu_beagle_states(*, include_credentials: bool = False) -> list[dict
     return ubuntu_beagle_state_service().list_all(include_credentials=include_credentials)
 
 
+def _ubuntu_beagle_guest_firstboot_runtime(vmid: int) -> str:
+    command = (
+        "if systemctl is-active --quiet beagle-ubuntu-firstboot.service; then exit 11; fi; "
+        "if [ -f /var/lib/beagle/ubuntu-firstboot.done ] || "
+        "[ -f /var/lib/beagle/ubuntu-firstboot-callback.done ]; then exit 12; fi; "
+        "exit 13"
+    )
+    try:
+        payload = HOST_PROVIDER.guest_exec_bash(int(vmid), command, timeout_seconds=10, request_timeout=15)
+    except Exception:
+        return "unknown"
+    pid = int(payload.get("pid", 0) or 0)
+    if pid <= 0:
+        return "unknown"
+    for _ in range(12):
+        try:
+            status = HOST_PROVIDER.guest_exec_status(int(vmid), pid, timeout=5)
+        except Exception:
+            return "unknown"
+        if not isinstance(status, dict) or not bool(status.get("exited")):
+            time.sleep(0.5)
+            continue
+        exit_code = int(status.get("exitcode", 255) or 255)
+        if exit_code == 11:
+            return "active"
+        if exit_code == 12:
+            return "done"
+        if exit_code == 13:
+            return "inactive"
+        return "unknown"
+    return "unknown"
+
+
 def latest_ubuntu_beagle_state_for_vmid(vmid: int, *, include_credentials: bool = False) -> dict[str, Any] | None:
     latest = ubuntu_beagle_state_service().latest_for_vmid(vmid, include_credentials=False)
     if not isinstance(latest, dict):
@@ -1871,6 +1904,15 @@ def latest_ubuntu_beagle_state_for_vmid(vmid: int, *, include_credentials: bool 
             raw_phase = str((raw_state or {}).get("phase", "")).strip().lower()
             if isinstance(raw_state, dict) and raw_status == "installing" and raw_phase == "firstboot":
                 try:
+                    guest_firstboot_runtime = _ubuntu_beagle_guest_firstboot_runtime(int(vmid))
+                    if guest_firstboot_runtime == "active":
+                        raw_state["updated_at"] = utcnow()
+                        raw_state["message"] = (
+                            "Ubuntu firstboot laeuft weiterhin im Gast; der Host wartet auf den "
+                            "regulaeren Callback- und Reboot-Abschluss."
+                        )
+                        save_ubuntu_beagle_state(token, raw_state)
+                        return ubuntu_beagle_state_service().latest_for_vmid(vmid, include_credentials=include_credentials)
                     cleanup = ubuntu_beagle_provisioning_service().finalize_ubuntu_beagle_install(raw_state, restart=False)
                     cancelled_restart = cancel_scheduled_ubuntu_beagle_vm_restart(raw_state)
                     raw_state["completed_at"] = utcnow()
