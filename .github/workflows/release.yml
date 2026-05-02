@@ -478,7 +478,7 @@ jobs:
               git rebase origin/main
               # main is protected; push to a sync branch and open a PR so the
               # metadata commit lands on main via the normal merge path.
-              sync_branch="release/sync-v${VERSION}"
+              sync_branch="fix/release-sync-v${VERSION}"
               git checkout -b "$sync_branch"
               git push origin "HEAD:refs/heads/$sync_branch"
               existing_pr="$(gh pr list --repo "$REPO" --head "$sync_branch" --json number --jq '.[0].number // empty')"
