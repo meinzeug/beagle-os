@@ -52,11 +52,17 @@ write_launch_status() {
 }
 
 launch_moonlight() {
-  local host app
+  local host app binary target
   host="$(render_template "${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}")"
   app="$(render_template "${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}")"
-  write_launch_status "MOONLIGHT" "sunshine" "${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}" "${host}:${app}"
-  beagle_log_event "launch-session.exec" "binary=${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight} target=${host}:${app}"
+  binary="${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
+  target="${host}:${app}"
+  if [[ -z "$host" && -r /etc/beagle/enrollment.conf ]]; then
+    binary="${PVE_THIN_CLIENT_MOONLIGHT_BIN:-beagle-stream}"
+    target="broker:${app}"
+  fi
+  write_launch_status "MOONLIGHT" "sunshine" "$binary" "$target"
+  beagle_log_event "launch-session.exec" "binary=${binary} target=${target}"
   beagle_launch_moonlight_session
 }
 

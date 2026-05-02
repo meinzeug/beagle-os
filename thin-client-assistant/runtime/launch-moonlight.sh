@@ -42,6 +42,7 @@ have_binary() {
 
 main() {
   local bin host connect_host app resolved_app audio_driver port
+  local hostless_beagle_stream=0
   local session_response_file=""
   local -a args=()
 
@@ -51,7 +52,11 @@ main() {
   port="$(moonlight_port)"
   app="$(moonlight_app)"
 
-  [[ -n "$host" ]] || {
+  if beagle_stream_hostless_enabled; then
+    hostless_beagle_stream=1
+  fi
+
+  [[ -n "$host" || "$hostless_beagle_stream" == "1" ]] || {
     echo "Missing Moonlight host." >&2
     exit 1
   }
@@ -76,76 +81,94 @@ main() {
   configure_graphics_runtime
   record_decoder_choice "$(moonlight_video_decoder)"
 
-  session_response_file="$(mktemp)"
-  if fetch_moonlight_current_session_via_manager "$session_response_file"; then
-    if retarget_moonlight_host_from_session_broker_response "$session_response_file"; then
-      host="$(moonlight_host)"
-      connect_host="$(moonlight_connect_host)"
-      port="$(moonlight_port)"
-      beagle_log_event "moonlight.session-broker" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} current_node=${PVE_THIN_CLIENT_SESSION_CURRENT_NODE:-unknown}"
+  if [[ "$hostless_beagle_stream" != "1" ]]; then
+    session_response_file="$(mktemp)"
+    if fetch_moonlight_current_session_via_manager "$session_response_file"; then
+      if retarget_moonlight_host_from_session_broker_response "$session_response_file"; then
+        host="$(moonlight_host)"
+        connect_host="$(moonlight_connect_host)"
+        port="$(moonlight_port)"
+        beagle_log_event "moonlight.session-broker" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} current_node=${PVE_THIN_CLIENT_SESSION_CURRENT_NODE:-unknown}"
+      fi
     fi
+    rm -f "$session_response_file"
   fi
-  rm -f "$session_response_file"
 
-  wait_for_stream_target || {
-    beagle_log_event "moonlight.unreachable" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
-    echo "Moonlight host '$host' is unreachable from this network." >&2
-    exit 1
-  }
+  if [[ "$hostless_beagle_stream" != "1" ]]; then
+    wait_for_stream_target || {
+      beagle_log_event "moonlight.unreachable" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+      echo "Moonlight host '$host' is unreachable from this network." >&2
+      exit 1
+    }
+  fi
 
   if command -v /usr/local/bin/pve-thin-client-display-init >/dev/null 2>&1; then
     /usr/local/bin/pve-thin-client-display-init >/dev/null 2>&1 || true
   fi
 
-  if ensure_moonlight_local_host_route; then
-    beagle_log_event "moonlight.local-route" "local_host=$(moonlight_local_host) via=${connect_host:-$host}"
-  fi
-
-  bootstrap_moonlight_client || true
-  if ! moonlight_host_configured; then
-    if seed_moonlight_host_from_runtime_config; then
-      beagle_log_event "moonlight.seeded-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
-    elif retarget_moonlight_host_from_runtime_config; then
-      beagle_log_event "moonlight.retargeted-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+  if [[ "$hostless_beagle_stream" != "1" ]]; then
+    if ensure_moonlight_local_host_route; then
+      beagle_log_event "moonlight.local-route" "local_host=$(moonlight_local_host) via=${connect_host:-$host}"
     fi
-  fi
 
-  if moonlight_host_configured; then
-    beagle_log_event "moonlight.cached-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
-  fi
+    bootstrap_moonlight_client || true
+    if ! moonlight_host_configured; then
+      if seed_moonlight_host_from_runtime_config; then
+        beagle_log_event "moonlight.seeded-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+      elif retarget_moonlight_host_from_runtime_config; then
+        beagle_log_event "moonlight.retargeted-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+      fi
+    fi
 
-  if moonlight_list; then
-    beagle_log_event "moonlight.ready" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+    if moonlight_host_configured; then
+      beagle_log_event "moonlight.cached-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+    fi
+
+    if moonlight_list; then
+      beagle_log_event "moonlight.ready" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+    else
+      ensure_paired || {
+        beagle_log_event "moonlight.pairing-failed" "host=${host} port=${port:-default} pin=${PVE_THIN_CLIENT_SUNSHINE_PIN:-unset}"
+        echo "Moonlight pairing failed for host '$host'." >&2
+        exit 1
+      }
+    fi
   else
-    ensure_paired || {
-      beagle_log_event "moonlight.pairing-failed" "host=${host} port=${port:-default} pin=${PVE_THIN_CLIENT_SUNSHINE_PIN:-unset}"
-      echo "Moonlight pairing failed for host '$host'." >&2
-      exit 1
-    }
+    beagle_log_event "moonlight.beagle-stream-hostless" "app=${app} enrollment=$(beagle_stream_enrollment_config)"
   fi
 
-  resolved_app="$(resolve_stream_app_name "$app" 2>/dev/null || printf '%s' "$app")"
-  if [[ -n "$resolved_app" && "$resolved_app" != "$app" ]]; then
-    beagle_log_event "moonlight.app-fallback" "requested=${app} resolved=${resolved_app}"
-    PVE_THIN_CLIENT_MOONLIGHT_APP="$resolved_app"
-    app="$resolved_app"
+  if [[ "$hostless_beagle_stream" != "1" ]]; then
+    resolved_app="$(resolve_stream_app_name "$app" 2>/dev/null || printf '%s' "$app")"
+    if [[ -n "$resolved_app" && "$resolved_app" != "$app" ]]; then
+      beagle_log_event "moonlight.app-fallback" "requested=${app} resolved=${resolved_app}"
+      PVE_THIN_CLIENT_MOONLIGHT_APP="$resolved_app"
+      app="$resolved_app"
+    fi
   fi
 
   local requested_resolution
   requested_resolution="$(moonlight_resolution)"
-  if prepare_moonlight_stream_via_manager "$requested_resolution" "$app"; then
-    beagle_log_event "moonlight.prepare-stream.ok" "resolution=${requested_resolution} app=${app}"
-  else
-    beagle_log_event "moonlight.prepare-stream.skip" "resolution=${requested_resolution} app=${app}"
+  if [[ "$hostless_beagle_stream" != "1" ]]; then
+    if prepare_moonlight_stream_via_manager "$requested_resolution" "$app"; then
+      beagle_log_event "moonlight.prepare-stream.ok" "resolution=${requested_resolution} app=${app}"
+    else
+      beagle_log_event "moonlight.prepare-stream.skip" "resolution=${requested_resolution} app=${app}"
+    fi
   fi
 
   build_stream_args args
-  if [[ -n "$connect_host" && "$connect_host" != "$host" ]]; then
+  if [[ "$hostless_beagle_stream" == "1" ]]; then
+    echo "Starting BeagleStream brokered stream: app=$app resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}" >&2
+  elif [[ -n "$connect_host" && "$connect_host" != "$host" ]]; then
     echo "Starting Moonlight stream: host=$host resolved_ipv4=$connect_host port=${port:-default} app=$app resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}" >&2
   else
     echo "Starting Moonlight stream: host=$host port=${port:-default} app=$app resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}" >&2
   fi
-  beagle_log_event "moonlight.exec" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} app=${app} resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}"
+  if [[ "$hostless_beagle_stream" == "1" ]]; then
+    beagle_log_event "moonlight.exec" "mode=beagle-stream-hostless app=${app} resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}"
+  else
+    beagle_log_event "moonlight.exec" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} app=${app} resolution=$(moonlight_resolution) fps=${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}"
+  fi
   {
     printf '=== %s ===\n' "$(date -Iseconds)"
     printf 'command: '
@@ -155,7 +178,11 @@ main() {
 
   "${args[@]}" >>"$MOONLIGHT_STREAM_LOG" 2>&1
   local stream_exit=$?
-  beagle_log_event "moonlight.exit" "code=${stream_exit} host=${host} connect_host=${connect_host:-$host} port=${port:-default} app=${app}"
+  if [[ "$hostless_beagle_stream" == "1" ]]; then
+    beagle_log_event "moonlight.exit" "code=${stream_exit} mode=beagle-stream-hostless app=${app}"
+  else
+    beagle_log_event "moonlight.exit" "code=${stream_exit} host=${host} connect_host=${connect_host:-$host} port=${port:-default} app=${app}"
+  fi
   if [[ "$stream_exit" -ne 0 ]]; then
     beagle_log_event "moonlight.error" "code=${stream_exit} log=${MOONLIGHT_STREAM_LOG}"
   fi

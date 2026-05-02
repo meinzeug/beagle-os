@@ -41,6 +41,8 @@ update_scan_timer_state="$(systemctl is-active beagle-update-scan.timer 2>/dev/n
 prepare_state="$(systemctl is-active pve-thin-client-prepare.service 2>/dev/null || true)"
 guest_agent_state="$(systemctl is-active qemu-guest-agent.service 2>/dev/null || true)"
 moonlight_binary="0"
+beagle_stream_binary="0"
+beagle_stream_hostless="0"
 moonlight_target_reachable="0"
 sunshine_api_reachable="0"
 external_ip="$(curl -4fsS --connect-timeout 3 --max-time 6 https://api.ipify.org 2>/dev/null || true)"
@@ -55,6 +57,16 @@ kiosk_state="$(systemctl is-active beagle-kiosk.service 2>/dev/null || true)"
 
 if command -v moonlight >/dev/null 2>&1; then
   moonlight_binary="1"
+fi
+if command -v beagle-stream >/dev/null 2>&1; then
+  beagle_stream_binary="1"
+fi
+if [[ -z "$moonlight_host" && -r /etc/beagle/enrollment.conf ]] \
+  && grep -q '^control_plane=' /etc/beagle/enrollment.conf \
+  && grep -q '^enrollment_token=' /etc/beagle/enrollment.conf \
+  && grep -q '^device_id=' /etc/beagle/enrollment.conf \
+  && grep -q '^pool_id=' /etc/beagle/enrollment.conf; then
+  beagle_stream_hostless="1"
 fi
 
 if [[ -n "$moonlight_host" ]]; then
@@ -84,6 +96,8 @@ client_mode=${client_mode:-UNSET}
 moonlight_host=${moonlight_host:-UNSET}
 sunshine_api_url=${sunshine_api_url:-UNSET}
 moonlight_binary=$moonlight_binary
+beagle_stream_binary=$beagle_stream_binary
+beagle_stream_hostless=$beagle_stream_hostless
 moonlight_target_reachable=$moonlight_target_reachable
 sunshine_api_reachable=$sunshine_api_reachable
 networkmanager_state=${network_state:-unknown}
@@ -112,8 +126,11 @@ EOF
 cp "$HEALTH_FILE" "$LOG_DIR/health.status"
 
 health_failure_reasons=()
-if [[ "$moonlight_binary" != "1" ]]; then
+if [[ "$moonlight_binary" != "1" && "$beagle_stream_binary" != "1" ]]; then
   health_failure_reasons+=("moonlight binary missing")
+fi
+if [[ "$beagle_stream_hostless" == "1" && "$beagle_stream_binary" != "1" ]]; then
+  health_failure_reasons+=("beagle-stream binary missing")
 fi
 if [[ -n "$moonlight_host" && "$moonlight_target_reachable" != "1" ]]; then
   health_failure_reasons+=("moonlight target unreachable")

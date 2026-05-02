@@ -442,3 +442,11 @@ Die Fork-Implementierung arbeitet ab jetzt gegen diese beiden Repositories. Doku
 - Grund: Das Moonlight-/GFE-Protokoll bleibt unveraendert; es gibt keinen neuen Pairing-Handshake und keinen Breaking Change.
 - Konsequenz: Vanilla-Moonlight-Clients bleiben kompatibel, waehrend BeagleStream-Clients den Broker-Token vorausgefuellt an den bestehenden Pairing-Pfad senden.
 - Repos: `meinzeug/beagle-stream-server`, `meinzeug/beagle-stream-client`, jeweils Branch `beagle/phase-a`.
+
+## BeagleStream Thin-Client bleibt hostless nur bei Enrollment (2026-05-02)
+
+- Entscheidung: Thin-Clients starten `beagle-stream stream "<App>"` nur, wenn kein statischer `PVE_THIN_CLIENT_MOONLIGHT_HOST` gesetzt ist und `/etc/beagle/enrollment.conf` die Felder `control_plane`, `enrollment_token`, `device_id` und `pool_id` enthaelt.
+- Entscheidung: Der Thin-Client-Build kann ein BeagleStream-AppImage ueber `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL`/`BEAGLE_STREAM_CLIENT_URL` stage'n, faellt aber bis zur veroeffentlichten BeagleStream-Client-Release-Pipeline auf das bestehende upstream Moonlight-AppImage zurueck.
+- Grund: Bestehende Installationen mit statischem Moonlight-Ziel duerfen nicht brechen, waehrend neue BeagleStream-Endpunkte Broker-Allocate, WireGuard und Token-Pairing im Client-Fork ausfuehren.
+- Konsequenz: Ohne gebundelten `beagle-stream` meldet der Endpoint-Healthcheck im hostless Enrollment-Modus einen klaren Health-Failure statt still auf den alten Moonlight-Pfad mit falscher CLI-Signatur zu fallen.
+- Dateien: `scripts/build-thin-client-installer.sh`, `thin-client-assistant/runtime/moonlight_runtime_exec.sh`, `thin-client-assistant/runtime/launch-moonlight.sh`, `thin-client-assistant/runtime/launch-session.sh`, `beagle-os/overlay/usr/local/sbin/beagle-healthcheck`.

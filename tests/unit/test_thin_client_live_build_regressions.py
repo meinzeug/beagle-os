@@ -10,6 +10,9 @@ VERIFY_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks"
 PREPARE_RUNTIME = ROOT / "thin-client-assistant" / "runtime" / "prepare-runtime.sh"
 SYSTEMD_BOOTSTRAP = ROOT / "thin-client-assistant" / "runtime" / "runtime_systemd_bootstrap.sh"
 WIREGUARD_ENROLLMENT = ROOT / "thin-client-assistant" / "runtime" / "enrollment_wireguard.sh"
+MOONLIGHT_RUNTIME_EXEC = ROOT / "thin-client-assistant" / "runtime" / "moonlight_runtime_exec.sh"
+LAUNCH_MOONLIGHT = ROOT / "thin-client-assistant" / "runtime" / "launch-moonlight.sh"
+BUILD_THIN_CLIENT = ROOT / "scripts" / "build-thin-client-installer.sh"
 
 
 def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None:
@@ -48,3 +51,24 @@ def test_wireguard_enrollment_script_is_executable_for_prepare_runtime() -> None
     mode = WIREGUARD_ENROLLMENT.stat().st_mode
 
     assert mode & stat.S_IXUSR
+
+
+def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() -> None:
+    runtime_text = MOONLIGHT_RUNTIME_EXEC.read_text(encoding="utf-8")
+    launcher_text = LAUNCH_MOONLIGHT.read_text(encoding="utf-8")
+
+    assert "beagle_stream_hostless_enabled()" in runtime_text
+    assert 'printf \'%s\\n\' "beagle-stream"' in runtime_text
+    assert 'out_ref=("$(moonlight_bin)" stream "$app")' in runtime_text
+    assert 'hostless_beagle_stream=1' in launcher_text
+    assert "fetch_moonlight_current_session_via_manager" in launcher_text
+    assert 'beagle_log_event "moonlight.beagle-stream-hostless"' in launcher_text
+
+
+def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
+    build_text = BUILD_THIN_CLIENT.read_text(encoding="utf-8")
+
+    assert "BEAGLE_STREAM_CLIENT_URL" in build_text
+    assert "BeagleStream client download failed; falling back to upstream Moonlight AppImage." in build_text
+    assert 'beagle_wrapper_path="$BUILD_DIR/config/includes.chroot/usr/local/bin/beagle-stream"' in build_text
+    assert 'if [[ -x "$target_dir/usr/bin/beagle-stream" ]]; then' in build_text

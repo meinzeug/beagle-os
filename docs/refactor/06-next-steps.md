@@ -1254,7 +1254,7 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 
 ## Naechster Schritt (2026-05-01, BeagleStream Phase A)
 
-1. Branches `beagle/phase-a` in `meinzeug/beagle-stream-server` und `meinzeug/beagle-stream-client` pushen und GitHub-Checks beobachten.
-2. Auf einer VM mit `/etc/beagle/stream-server.env` den Sunshine-Fork mit `BEAGLE_INTEGRATION=ON` starten und `Beagle broker active for VM ...` plus Registrierung gegen `srv1.beagle-os.com:9088` pruefen.
-3. Auf einem Thin-Client mit `/etc/beagle/enrollment.conf` den Client-Fork starten, Broker-Allocate ausfuehren, WireGuard-Peer-Aktivierung pruefen und Token-als-PIN-Pairing gegen die VM verifizieren.
-4. Danach Packaging-Schritt nachziehen: `beagle-stream-client` ins Thin-Client-OS-Image und `beagle-stream-server` in die VM-Image-/Guest-Prep-Pipeline aufnehmen.
+1. Auf einer VM mit `/etc/beagle/stream-server.env` den Sunshine-Fork mit `BEAGLE_INTEGRATION=ON` starten und `Beagle broker active for VM ...` plus Registrierung gegen `srv1.beagle-os.com:9088` pruefen.
+2. Release-/CI-Pipeline fuer `meinzeug/beagle-stream-client` so erweitern, dass ein BeagleStream-AppImage veroeffentlicht wird und `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL` im Thin-Client-Artefaktbuild gesetzt werden kann.
+3. Auf einem Thin-Client mit `/etc/beagle/enrollment.conf` den gebundelten `beagle-stream` starten, Broker-Allocate ausfuehren, WireGuard-Peer-Aktivierung pruefen und Token-als-PIN-Pairing gegen die VM verifizieren.
+4. `beagle-stream-server` in die VM-Image-/Guest-Prep-Pipeline aufnehmen und danach den kompletten srv1-Flow VM -> Stream-Server-Register -> Thin-Client-Allocate -> Desktop-Stream live abnehmen.

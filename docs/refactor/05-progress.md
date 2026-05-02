@@ -6521,5 +6521,24 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - `meinzeug/beagle-stream-server`: `src/beagle/` mit Config-Loader, Broker-Client und Token-Auth, CMake-Option `BEAGLE_INTEGRATION`, Token-als-PIN-Hook im bestehenden Sunshine-Pairing und `.deb`-Skeleton `beagle-stream-server`.
 - `meinzeug/beagle-stream-client`: `app/beagle/` mit Enrollment-Config, Broker-Allocate und WireGuard-Peer-Aktivierung, Session-Start-Integration, Token-als-PIN-Pairing und BeagleStream-Branding.
 - Reproduzierbarkeit: beide Forks enthalten `docs/beagle-phase-a-build.md` mit Build-Host-Paketen, Submodule- und Build-Kommandos.
-- Checkliste: `docs/checklists/02-streaming-endpoint.md` Phase-A-Forkpunkte abgehakt; Thin-Client-OS-Image-Bundling bleibt als separater Packaging-Schritt offen.
+- Checkliste: `docs/checklists/02-streaming-endpoint.md` Phase-A-Forkpunkte abgehakt; Thin-Client-OS-Image-Bundling war zu diesem Zeitpunkt noch der separate naechste Packaging-Schritt.
 - Validierung: lokaler Client-Build ueber `qmake ../moonlight-qt.pro && make -j2` gruen; lokaler Server-Build mit `-DBEAGLE_INTEGRATION=ON` und `cmake --build ... --target sunshine -j2` gruen. Live-Control-Plane-Smoke gegen `srv1` ist der naechste Integrationsschritt.
+
+## Update (2026-05-02, BeagleStream Thin-Client Packaging)
+
+**Scope**: Der BeagleStream-Client-Fork ist im Thin-Client-Buildpfad vorbereitet und der Runtime-Launcher blockiert Enrollment-basierte Broker-Sessions nicht mehr durch die alte statische Moonlight-Host-Pflicht.
+
+- Thin-Client-Build:
+  - [scripts/build-thin-client-installer.sh](/home/dennis/beagle-os/scripts/build-thin-client-installer.sh): optionales `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL`/`BEAGLE_STREAM_CLIENT_URL` staging fuer BeagleStream-AppImages, mit sicherem Fallback auf das bisherige Moonlight-AppImage.
+  - Der Build erzeugt neben `/usr/local/bin/moonlight` auch `/usr/local/bin/beagle-stream`, wenn das extrahierte AppImage den BeagleStream-Binary enthaelt.
+- Runtime:
+  - [thin-client-assistant/runtime/moonlight_runtime_exec.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/moonlight_runtime_exec.sh): erkennt hostless BeagleStream ueber `/etc/beagle/enrollment.conf` und baut `beagle-stream stream "<App>"` statt `moonlight stream <Host> "<App>"`.
+  - [thin-client-assistant/runtime/launch-moonlight.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-moonlight.sh): ueberspringt Legacy-Host-Sync, Reichweitenprobe, manuelles Pairing und Manager-Prepare fuer hostless Broker-Sessions.
+  - [thin-client-assistant/runtime/launch-session.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-session.sh): Launch-Status zeigt bei Enrollment ohne Host `broker:<App>` und `beagle-stream`.
+  - [beagle-os/overlay/usr/local/sbin/beagle-healthcheck](/home/dennis/beagle-os/beagle-os/overlay/usr/local/sbin/beagle-healthcheck): meldet fehlendes `beagle-stream` explizit als Health-Failure, wenn hostless Enrollment aktiv ist.
+- Regression:
+  - [tests/unit/test_thin_client_live_build_regressions.py](/home/dennis/beagle-os/tests/unit/test_thin_client_live_build_regressions.py): Hostless-BeagleStream-Runtime und Build-Wrapper abgesichert.
+- Validierung:
+  - `bash -n` fuer geaenderte Shell-Skripte.
+  - Direkter Python-Runner fuer `tests/unit/test_thin_client_live_build_regressions.py`, weil `pytest` lokal nicht installiert ist.
+  - Manuelle Shell-Probe: hostless Enrollment erzeugt `beagle-stream stream Desktop ...`; statischer Host erzeugt weiter `moonlight stream <host> Desktop ...`.

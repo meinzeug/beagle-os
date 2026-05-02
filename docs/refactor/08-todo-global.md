@@ -472,5 +472,6 @@
 - [x] GoEnterprise Plan 01: `beagle-stream-server` Phase A im separaten Fork implementieren (`src/beagle/*`, `BEAGLE_INTEGRATION`, Debian-Paket).
 - [x] GoEnterprise Plan 01: `beagle-stream-client` Phase A im separaten Fork implementieren (`app/beagle/*`, Broker-Allocate, WireGuard-Peer-Aktivierung, Branding).
 - [x] BeagleStream Phase A Forks unter `meinzeug/*` umsetzen: Sunshine-Server mit Broker-Integration/Token-als-PIN und Moonlight-Qt-Client mit Broker-Allocate/WireGuard/Branding auf Branch `beagle/phase-a`.
+- [x] BeagleStream Phase A Thin-Client-Runtime vorbereiten: hostless Enrollment startet `beagle-stream stream <App>`, Build kann BeagleStream-AppImage stage'n und Healthcheck meldet fehlenden `beagle-stream` bei Broker-Modus.
 - [ ] BeagleStream Phase A Runtime-Abnahme auf `srv1`: Server-Fork registriert VM, Client-Fork alloziert Session, aktiviert WireGuard-Peer und paired per HMAC-Token-als-PIN.
-- [ ] BeagleStream Phase A Packaging-Abschluss: `beagle-stream-server` in VM-Image-/Guest-Prep-Pipeline und `beagle-stream-client` ins Thin-Client-OS-Image aufnehmen.
+- [ ] BeagleStream Phase A Packaging-Abschluss: `beagle-stream-server` in VM-Image-/Guest-Prep-Pipeline aufnehmen und BeagleStream-AppImage-Release-URL im Thin-Client-Artefaktbuild verdrahten.
