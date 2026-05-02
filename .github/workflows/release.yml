@@ -7,6 +7,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Optional SemVer release version, for example 8.0.1'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -81,12 +86,8 @@ jobs:
       - name: Read VERSION
         id: version
         run: |
-          VERSION="$(tr -d ' \n\r' < VERSION)"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must use SemVer core format, for example 8.0.0. Got: $VERSION" >&2
-            exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Reuse published installimage tarball
         id: reuse_installimage
@@ -150,12 +151,8 @@ jobs:
       - name: Read VERSION
         id: version
         run: |
-          VERSION="$(tr -d ' \n\r' < VERSION)"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must use SemVer core format, for example 8.0.0. Got: $VERSION" >&2
-            exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Reuse published server installer ISO
         id: reuse_server_iso
@@ -221,12 +218,8 @@ jobs:
       - name: Read VERSION
         id: version
         run: |
-          VERSION="$(tr -d ' \n\r' < VERSION)"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must use SemVer core format, for example 8.0.0. Got: $VERSION" >&2
-            exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Reuse published thin-client installer ISO
         id: reuse_thin_client
@@ -299,6 +292,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve VERSION
+        run: |
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -359,6 +357,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve VERSION
+        run: |
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -431,12 +434,8 @@ jobs:
       - name: Read VERSION
         id: version
         run: |
-          VERSION="$(tr -d ' \n\r' < VERSION)"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must use SemVer core format, for example 8.0.0. Got: $VERSION" >&2
-            exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Download release package artifacts
         uses: actions/download-artifact@v4
@@ -607,6 +606,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve VERSION
+        run: |
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION
 
       - name: Download release package artifacts
         uses: actions/download-artifact@v4

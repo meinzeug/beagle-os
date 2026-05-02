@@ -476,3 +476,5 @@
 - [ ] BeagleStream Phase A Runtime-Abnahme auf `srv1`: Server-Fork registriert VM, Client-Fork alloziert Session, aktiviert WireGuard-Peer und paired per HMAC-Token-als-PIN.
 - [x] BeagleStream Phase A Packaging-Hooks: Thin-Client-Build und VM-Guest-Prep versuchen standardmaessig die `beagle-phase-a` Releases von `beagle-stream-client`/`beagle-stream-server` und fallen bei fehlendem Asset auf upstream Moonlight/Sunshine zurueck.
 - [ ] BeagleStream Phase A Packaging-Abschluss live bestaetigen: Client-AppImage und Server-DEB sind im `beagle-phase-a` Release vorhanden; Thin-Client-Artefaktbuild und VM-Guest-Prep stage'n die eigenen Fork-Artefakte statt der Fallbacks.
+- [x] Release-/Artifact-/Website-Workflows von starrer `8.0.0`-Version auf dynamische SemVer-Aufloesung umstellen.
+- [ ] Nach dem naechsten Main-Push bestaetigen, dass GitHub einen neuen Patch-Tag oberhalb `v8.0.0` erzeugt und beagle-os.com diese Version live anzeigt.

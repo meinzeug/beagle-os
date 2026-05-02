@@ -13,6 +13,11 @@ on:
       - 'VERSION'
       - '.github/workflows/public-website.yml'
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Optional SemVer website version, for example 8.0.1'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -24,6 +29,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve VERSION
+        run: |
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION
 
       - name: Setup SSH
         env:

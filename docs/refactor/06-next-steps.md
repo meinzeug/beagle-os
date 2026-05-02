@@ -1259,3 +1259,10 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 3. BeagleStream-Server-Release `beagle-phase-a` erzeugen; sobald `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` veroeffentlicht ist, muss die VM-Guest-Prep dieses Paket statt des Fallback-Sunshine-Pakets stage'n.
 4. Auf einem Thin-Client mit `/etc/beagle/enrollment.conf` den gebundelten `beagle-stream` starten, Broker-Allocate ausfuehren, WireGuard-Peer-Aktivierung pruefen und Token-als-PIN-Pairing gegen die VM verifizieren.
 5. Danach den kompletten srv1-Flow VM -> Stream-Server-Register -> Thin-Client-Allocate -> Desktop-Stream live abnehmen.
+
+## Naechster Schritt (2026-05-02, Release-Versionierung und BeagleStream Packaging)
+
+1. Nach dem Push pruefen, dass der `release`-Workflow auf `main` eine neue Patch-Version oberhalb des letzten SemVer-Tags erzeugt und nicht erneut `v8.0.0` ueberschreibt.
+2. Den `public-website`-Workflow gegen dieselbe Version beobachten; Website und `/beagle-updates/beagle-downloads-status.json` muessen denselben Release-Tag anzeigen.
+3. Die `beagle-stream-client`- und `beagle-stream-server`-Workflows erneut beobachten, bis `BeagleStream-latest-x86_64.AppImage` und `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` im Release `beagle-phase-a` verfuegbar sind.
+4. Danach auf `srv1` einen echten Thin-Client-Artefakt-Vollbuild starten und verifizieren, dass keine Fallback-Artefakte mehr gestaged werden.

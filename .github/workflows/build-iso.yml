@@ -14,6 +14,10 @@ on:
     - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
+      release_version:
+        description: 'Optional SemVer artifact version, for example 8.0.1'
+        required: false
+        type: string
       build_target:
         description: 'Which build target to run'
         required: false
@@ -94,7 +98,9 @@ jobs:
 
       - name: Read VERSION
         id: version
-        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Reuse published installimage tarball
         id: reuse_installimage
@@ -162,7 +168,9 @@ jobs:
 
       - name: Read VERSION
         id: version
-        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Reuse published server installer ISO
         id: reuse_server_iso
@@ -229,7 +237,9 @@ jobs:
 
       - name: Read VERSION
         id: version
-        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -305,7 +315,9 @@ jobs:
 
       - name: Read VERSION
         id: version
-        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Reuse published thin-client installer ISO
         id: reuse_thin_client
@@ -391,7 +403,9 @@ jobs:
 
       - name: Read VERSION
         id: version
-        run: echo "version=$(tr -d ' \n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+        run: |
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Download today's build artifact
         uses: actions/download-artifact@v4

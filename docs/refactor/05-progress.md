@@ -6557,3 +6557,13 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `bash -n scripts/configure-sunshine-guest.sh`
   - `python3 -m py_compile beagle-host/services/service_registry.py beagle-host/services/ubuntu_beagle_provisioning.py`
   - Direkter Python-Runner fuer die beiden Regression-Dateien.
+
+## Update (2026-05-02, dynamische Release-Versionierung)
+
+**Scope**: GitHub-Release-, ISO-/Artifact- und Public-Website-Workflows lesen nicht mehr starr die Baseline `VERSION` als finale Release-Version. CI loest die Version reproduzierbar aus manuellem Input, Git-Tag oder automatisch aus dem hoechsten SemVer-Tag plus Patch-Bump auf.
+
+- [scripts/resolve-release-version.sh](/home/dennis/beagle-os/scripts/resolve-release-version.sh): zentrale SemVer-Aufloesung mit `BEAGLE_RELEASE_VERSION`, Tag-Ref-Erkennung, Head-Tag-Wiederverwendung und automatischem Patch-Bump.
+- [.github/workflows/release.yml](/home/dennis/beagle-os/.github/workflows/release.yml): alle Build-/Package-/Deploy-Jobs schreiben vor dem Build die aufgeloeste Version nach `VERSION`; manuelle Runs koennen `release_version` setzen.
+- [.github/workflows/build-iso.yml](/home/dennis/beagle-os/.github/workflows/build-iso.yml): Artifact-Builds nutzen dieselbe dynamische Versionsauflösung.
+- [.github/workflows/public-website.yml](/home/dennis/beagle-os/.github/workflows/public-website.yml): Website-Deploys rendern gegen die aufgeloeste Version statt hart gegen `8.0.0`.
+- Validierung: `bash -n scripts/resolve-release-version.sh`, manuelle Version/Tag-Aufloesung, PyYAML-Syntaxcheck fuer die drei Workflows und `git diff --check`.

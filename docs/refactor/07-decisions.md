@@ -458,3 +458,11 @@ Die Fork-Implementierung arbeitet ab jetzt gegen diese beiden Repositories. Doku
 - Grund: Neue VMs sollen reproduzierbar auf den eigenen BeagleStream-Server wechseln, ohne VM-Provisioning komplett zu blockieren, solange die Server-Fork-Release-Pipeline noch laeuft.
 - Konsequenz: Service-/Metadaten-Namen bleiben vorerst kompatibel (`beagle-sunshine.service`, Sunshine API), waehrend das installierte Binary/Paket aus dem BeagleStream-Fork kommen kann.
 - Dateien: `scripts/configure-sunshine-guest.sh`, `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`, `beagle-host/services/service_registry.py`, `beagle-host/services/ubuntu_beagle_provisioning.py`.
+
+## Release-Versionen werden in CI aufgeloest statt dauerhaft aus `VERSION` kopiert (2026-05-02)
+
+- Entscheidung: `VERSION` bleibt die lokale Baseline, aber Release-/Artifact-/Website-Workflows nutzen `scripts/resolve-release-version.sh`.
+- Entscheidung: Manuelle Workflow-Runs duerfen `BEAGLE_RELEASE_VERSION`/`release_version` setzen; Tag-Runs verwenden exakt den Tag; Main-Runs ohne Tag verwenden den hoechsten vorhandenen SemVer-Tag plus Patch-Bump.
+- Entscheidung: Wenn ein SemVer-Tag bereits auf `HEAD` zeigt, wird dieser Tag wiederverwendet statt erneut hochzuzaehlen. Das verhindert, dass nachgelagerte Deploy-Jobs direkt nach dem Tag-Push auf die naechste Version springen.
+- Grund: Nach `v8.0.0` duerfen weitere Main-Commits nicht dieselbe Release-Version ueberschreiben und Website/Artefakte muessen pro Build eindeutig versioniert sein.
+- Konsequenz: Release-Automation erzeugt kleine Patch-Releases wie `8.0.1`, solange kein Operator manuell eine neue Minor/Major-Baseline setzt.
