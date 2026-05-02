@@ -25,6 +25,7 @@ permissions:
 jobs:
   deploy-public-website:
     name: Deploy beagle-os.com website
+    if: ${{ github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-latest
 
     steps:
