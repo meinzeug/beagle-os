@@ -566,6 +566,22 @@ class UbuntuBeagleProvisioningService:
             return prefix.rstrip()
         return "\n".join(f"{prefix}{line}" if line else prefix.rstrip() for line in lines)
 
+    def build_desktop_wallpaper_write_file_block(self, wallpaper_asset: dict[str, str]) -> str:
+        wallpaper_filename = str(wallpaper_asset.get("filename", "")).strip()
+        wallpaper_source = str(wallpaper_asset.get("source", "")).strip()
+        if not wallpaper_filename or not wallpaper_source:
+            return ""
+        wallpaper_b64 = base64.b64encode(Path(wallpaper_source).read_bytes()).decode("ascii")
+        lines = [
+            "      - path: /var/lib/beagle/seed/" + wallpaper_filename,
+            "        owner: root:root",
+            "        permissions: '0644'",
+            "        encoding: b64",
+            "        content: |",
+            self.indent_block(wallpaper_b64, "          "),
+        ]
+        return "\n".join(lines)
+
     def resolve_desktop_wallpaper_asset(self, desktop_id: str) -> dict[str, str]:
         desktop = self._resolve_ubuntu_beagle_desktop(desktop_id or self._ubuntu_beagle_default_desktop)
         wallpaper_required = bool(desktop.get("wallpaper_required"))
@@ -676,6 +692,7 @@ class UbuntuBeagleProvisioningService:
         desktop = self._resolve_ubuntu_beagle_desktop(desktop_id or self._ubuntu_beagle_default_desktop)
         wallpaper_asset = self.resolve_desktop_wallpaper_asset(desktop["id"])
         wallpaper_filename = str(wallpaper_asset.get("filename", "")).strip()
+        wallpaper_write_file = self.build_desktop_wallpaper_write_file_block(wallpaper_asset)
         desktop_theme_variant = str(desktop.get("theme_variant", desktop["id"])).strip()
 
         firstboot_script = self.render_template_file(
@@ -741,6 +758,7 @@ class UbuntuBeagleProvisioningService:
                 "__FIRSTBOOT_SCRIPT__": self.indent_block(firstboot_script, "          "),
                 "__FIRSTBOOT_SCRIPT_B64__": firstboot_script_b64,
                 "__FIRSTBOOT_SERVICE_B64__": firstboot_service_b64,
+                "__DESKTOP_WALLPAPER_WRITE_FILE__": wallpaper_write_file,
             },
         )
         meta_data = self.render_template_file(

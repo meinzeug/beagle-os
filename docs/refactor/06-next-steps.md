@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-05-02, Release-Version und vm100-Cyberpunk-Seed auf 8.0.9 geradegezogen)
+
+**Zuletzt erledigt**:
+- Der Release-Workflow persistiert Versionssprünge jetzt wirklich nach `main` statt nur im Workflow-Workspace.
+- Repo-Metadaten (`VERSION`, Extension, Kiosk, WebUI-Cache-Buster) werden zentral synchronisiert.
+- Stale VM100-Runtime-/Endpoint-Dateien werden beim Delete/Recreate derselben VMID aktiv bereinigt.
+- Der Plasma-Cyberpunk-Firstboot schreibt das Wallpaper jetzt via cloud-init in den Gast; `vm100` wurde auf `srv1` neu erstellt.
+
+**Naechste konkrete Schritte**:
+
+1. Den laufenden `vm100`-Autoinstall/Firstboot auf `srv1` bis zum erfolgreichen Reboot/Desktop-Abschluss beobachten und verifizieren, dass der Wallpaper-Fehler nicht mehr auftritt.
+2. Nach Push des Commits `repo-auto-update-status.json` und `beagle-downloads-status.json` auf `srv1` gegen `8.0.9` neu abnehmen, damit Host- und VM-Updatekarten dieselbe Versionsquelle zeigen.
+3. Danach den Thinclient-/BeagleStream-End-to-End-Pfad mit der neu installierten `vm100` erneut gegen den Live-USB-Client fahren.
+
 ## Stand (2026-05-02, BeagleStream-first in VM-/Thinclient-Builds verdrahtet)
 
 **Zuletzt erledigt**:

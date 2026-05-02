@@ -1,5 +1,12 @@
 # Changelog
 
+## v8.0.9 - 2026-05-02
+
+- Fixed the GitHub release workflow so release-version bumps are committed back into `main` together with the synced repo metadata (`VERSION`, extension manifest, kiosk metadata and WebUI cache-busters) instead of drifting ahead only in the published release tag.
+- Added a shared release-version sync helper and wired packaging to it so local builds and GitHub releases emit one consistent product version across host runtime, extension, kiosk and WebUI assets.
+- Fixed Ubuntu Beagle Plasma Cyberpunk firstboot provisioning by embedding the required wallpaper asset into cloud-init write-files under `/var/lib/beagle/seed`, so recreated VMs like `vm100` no longer fail when cloud-init does not expose extra seed ISO files through `/var/lib/cloud/*`.
+- Purged stale VM runtime artifacts on delete and explicit recreate (`endpoint` reports, installer-prep state, action queues, VM secrets and old ubuntu-beagle token states) so a deleted/recreated VMID does not inherit stale update/runtime metadata.
+
 ## v8.0.2 - 2026-05-02
 
 - Synced the committed Beagle OS runtime version to `8.0.2` so repo, srv1 runtime and public release artifacts stop drifting apart.

@@ -67,9 +67,17 @@ def test_firstboot_contains_plasma_profile_and_wallpaper_flow() -> None:
 
     assert 'DESKTOP_THEME_VARIANT="__DESKTOP_THEME_VARIANT__"' in script
     assert 'DESKTOP_WALLPAPER_FILENAME="__DESKTOP_WALLPAPER_FILENAME__"' in script
+    assert '"/var/lib/beagle/seed/${DESKTOP_WALLPAPER_FILENAME}"' in script
     assert '"/var/lib/cloud/seed/nocloud/${DESKTOP_WALLPAPER_FILENAME}"' in script
     assert 'install -m 0644 "$source_path" "$BEAGLE_WALLPAPER_DIR/$DESKTOP_WALLPAPER_FILENAME"' in script
     assert 'configure_plasma_profile() {' in script
     assert r'plasma-apply-lookandfeel -a "\$LOOK_AND_FEEL"' in script
     assert r'plasma-apply-wallpaperimage "\$WALLPAPER_PATH"' in script
     assert 'OnlyShowIn=KDE;' in script
+
+
+def test_user_data_template_embeds_wallpaper_asset_via_write_files() -> None:
+    template = (ROOT / "beagle-host" / "templates" / "ubuntu-beagle" / "user-data.tpl").read_text(encoding="utf-8")
+
+    assert "__DESKTOP_WALLPAPER_WRITE_FILE__" in template
+    assert "write_files:" in template

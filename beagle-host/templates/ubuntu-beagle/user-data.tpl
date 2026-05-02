@@ -50,6 +50,7 @@ __FIRSTBOOT_SCRIPT__
 
           [Install]
           WantedBy=multi-user.target
+__DESKTOP_WALLPAPER_WRITE_FILE__
     runcmd:
       - [ systemctl, enable, --now, beagle-ubuntu-firstboot.service ]
   late-commands:

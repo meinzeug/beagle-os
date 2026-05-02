@@ -52,22 +52,7 @@ PUBLIC_UPDATE_BASE_URL="${PUBLIC_UPDATE_BASE_URL%/}"
 PACKAGE_MIN_FREE_GIB="${BEAGLE_PACKAGE_MIN_FREE_GIB:-}"
 
 sync_web_ui_asset_versions() {
-  python3 "$ROOT_DIR/scripts/sync-web-ui-version.py" "$ROOT_DIR/website/index.html" "$VERSION"
-}
-
-sync_kiosk_version() {
-  python3 - "$ROOT_DIR/beagle-kiosk/package.json" "$VERSION" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-version = sys.argv[2]
-data = json.loads(path.read_text())
-if data.get("version") != version:
-    data["version"] = version
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  python3 "$ROOT_DIR/scripts/sync-release-version.py" "$VERSION"
 }
 
 collect_beagle_os_assets() {
@@ -224,7 +209,7 @@ if [[ "$BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS" == "1" ]]; then
 fi
 
 if [[ "$SKIP_KIOSK_BUILD" != "1" ]]; then
-  sync_kiosk_version
+  sync_web_ui_asset_versions
   rm -rf "$KIOSK_DIST_DIR"
   (
     cd "$ROOT_DIR/beagle-kiosk"

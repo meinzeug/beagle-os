@@ -1,3 +1,34 @@
+## Update (2026-05-02, Release-Versionierung und Ubuntu-Cyberpunk-Seed auf 8.0.9 gehärtet)
+
+**Scope**: Den Drift zwischen GitHub-Release, committed Repo-Version, Host-Update-Anzeige und VM-spezifischen Update-/Provisioning-Daten schließen; zusätzlich den echten `vm100`-Provisioning-Blocker im Plasma-Cyberpunk-Firstboot beheben.
+
+- Neuer Helper `scripts/sync-release-version.py` synchronisiert jetzt reproduzierbar:
+  - `VERSION`
+  - `extension/manifest.json`
+  - `beagle-kiosk/package.json`
+  - `beagle-kiosk/package-lock.json`
+  - `website/index.html` Cache-Buster
+- `.github/workflows/release.yml` patched:
+  - Release-Metadaten werden vor dem Persist-Schritt synchronisiert.
+  - Der Workflow vergleicht `HEAD:VERSION` statt der bereits lokal überschriebenen Workspace-Datei.
+  - Der Persist-Commit nimmt jetzt die gesamte Release-Metadatenmenge mit nach `main`, nicht nur `VERSION`.
+- `scripts/package.sh` nutzt denselben Sync-Helper, damit lokale/package-basierte Builds dieselbe Versionsquelle wie GitHub-Releases verwenden.
+- Stale VM-Runtime-Artefakte werden bei Delete und explizitem Recreate derselben VMID jetzt bereinigt:
+  - Endpoint-Reports
+  - Installer-Prep-State/Logs
+  - Action-Queues/-Resultate
+  - VM-Secrets
+  - USB-Tunnel-Snippets
+  - alte `ubuntu-beagle-install`-Tokenzustände
+- `vm100`-Provisioning-Fix:
+  - Das Cyberpunk-Wallpaper wird nicht mehr nur lose ins Seed-ISO gelegt, sondern via cloud-init `write_files` nach `/var/lib/beagle/seed/` im Gast geschrieben.
+  - `firstboot-provision.sh.tpl` sucht den Asset jetzt zuerst dort; damit bricht Plasma-Cyberpunk nicht mehr daran, dass `/var/lib/cloud/*` zusätzliche Seed-Dateien nicht exponiert.
+- Verifiziert:
+  - `python3 -m py_compile scripts/sync-release-version.py beagle-host/services/runtime_cleanup.py beagle-host/services/ubuntu_beagle_provisioning.py beagle-host/services/service_registry.py`
+  - `bash -n beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`
+  - `python3 -m unittest tests.unit.test_release_workflow_regressions tests.unit.test_runtime_cleanup tests.unit.test_ubuntu_beagle_firstboot_regressions tests.unit.test_ubuntu_beagle_desktop_profiles`
+  - Live-Deploy auf `srv1`: Runtime/WebUI bereits auf `8.0.9`, `vm100` wurde mit dem gefixten Seed neu angestoßen.
+
 ## Update (2026-05-02, BeagleStream-first in VM-/Thinclient-Builds und Copilot-CI-Fix uebernommen)
 
 **Scope**: Die verbliebenen Beagle-OS-seitigen Integrationsluecken fuer die neuen `beagle-stream-server`- und `beagle-stream-client`-Forks wurden geschlossen, damit neue VMs und Build-Pfade nicht mehr irrefuehrend als Sunshine/Moonlight-Standard erscheinen.

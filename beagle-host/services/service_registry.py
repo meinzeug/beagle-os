@@ -94,6 +94,7 @@ from recording_service import RecordingService
 from request_support import RequestSupportService
 from registry import create_provider, list_providers, normalize_provider_kind
 from runtime_environment import RuntimeEnvironmentService
+from runtime_cleanup import cleanup_vm_runtime_artifacts
 from runtime_exec import RuntimeExecService
 from runtime_paths import RuntimePathsService
 from runtime_support import RuntimeSupportService
@@ -2794,6 +2795,16 @@ def delete_provisioned_vm(vmid: int) -> dict[str, Any]:
     if vm is None:
         raise ValueError(f"vm not found: {int(vmid)}")
     provider_result = HOST_PROVIDER.delete_vm(int(vmid), timeout=None)
+    cleanup_vm_runtime_artifacts(
+        vmid=int(vmid),
+        actions_dir=actions_dir(),
+        endpoints_dir=endpoints_dir(),
+        installer_prep_dir=installer_prep_dir(),
+        load_json_file=load_json_file,
+        ubuntu_beagle_tokens_dir=ubuntu_beagle_state_service().tokens_dir(),
+        usb_tunnel_auth_dir=vm_secret_bootstrap_service().usb_tunnel_auth_dir(),
+        vm_secrets_dir=vm_secrets_dir(),
+    )
     invalidate_vm_cache(int(vmid), vm.node)
     return {
         "vmid": int(vmid),
@@ -2813,6 +2824,18 @@ def prepare_ubuntu_beagle_firstboot(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def create_ubuntu_beagle_vm(payload: dict[str, Any]) -> dict[str, Any]:
+    vmid_value = payload.get("vmid") if isinstance(payload, dict) else None
+    if str(vmid_value or "").strip():
+        cleanup_vm_runtime_artifacts(
+            vmid=int(vmid_value),
+            actions_dir=actions_dir(),
+            endpoints_dir=endpoints_dir(),
+            installer_prep_dir=installer_prep_dir(),
+            load_json_file=load_json_file,
+            ubuntu_beagle_tokens_dir=ubuntu_beagle_state_service().tokens_dir(),
+            usb_tunnel_auth_dir=vm_secret_bootstrap_service().usb_tunnel_auth_dir(),
+            vm_secrets_dir=vm_secrets_dir(),
+        )
     return ubuntu_beagle_provisioning_service().create_ubuntu_beagle_vm(payload)
 
 

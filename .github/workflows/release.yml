@@ -450,6 +450,11 @@ jobs:
           BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
             bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
+      - name: Sync release metadata
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: python3 scripts/sync-release-version.py "$VERSION"
+
       - name: Persist VERSION in main before tagging
         id: persist_version
         env:
@@ -461,11 +466,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           release_sha="${{ github.sha }}"
           if [[ "$REF_TYPE" != "tag" ]]; then
-            current_version="$(tr -d ' \n\r' < VERSION)"
-            if [[ "$current_version" != "$VERSION" ]]; then
-              printf '%s\n' "$VERSION" > VERSION
-              git add VERSION
-              git commit -m "release: bump VERSION to ${VERSION} [skip release] [skip ci]"
+            repo_version="$(git show HEAD:VERSION 2>/dev/null | tr -d ' \n\r' || true)"
+            if [[ "$repo_version" != "$VERSION" ]] || ! git diff --quiet -- VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html; then
+              git add VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html
+              git commit -m "release: sync metadata to ${VERSION} [skip release] [skip ci]"
               git push origin HEAD:main
               release_sha="$(git rev-parse HEAD)"
             fi

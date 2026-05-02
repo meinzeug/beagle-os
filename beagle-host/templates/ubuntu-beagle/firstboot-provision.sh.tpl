@@ -413,6 +413,7 @@ find_seed_wallpaper() {
 
   [[ -n "$DESKTOP_WALLPAPER_FILENAME" ]] || return 1
   for candidate in \
+    "/var/lib/beagle/seed/${DESKTOP_WALLPAPER_FILENAME}" \
     "/var/lib/cloud/seed/nocloud/${DESKTOP_WALLPAPER_FILENAME}" \
     "/var/lib/cloud/seed/nocloud-net/${DESKTOP_WALLPAPER_FILENAME}" \
     "/var/lib/cloud/instance/${DESKTOP_WALLPAPER_FILENAME}"

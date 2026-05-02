@@ -2,7 +2,9 @@
 
 - [x] BeagleStream-first in VM-/Thinclient-Builds vervollstaendigen: Provisioning-Texte auf `BeagleStream Server` umstellen, `scripts/build-beagle-os.sh` und den Live-Build-Hook standardmaessig auf `beagle-stream-client` ziehen und den offenen Copilot-CI-Fix fuer `test_ubuntu_beagle_stale_runtime.py` integrieren.
 - [x] Runtime-/Public-Release-Versionsdrift schliessen: Repo/Host-WebUI/Repo-Auto-Update auf `8.0.2` synchronisieren, lesbare installierte Version im Updates-Panel anzeigen und Copilot-PR/Issue fuer die fehlgeschlagenen Plasma-Assertions bereinigen.
-- [ ] Release-Versionierungslogik weiter haerten, damit kuenftige Patch-Releases nicht nur auf GitHub/Public-Artefakten entstehen, sondern auch die committed Runtime-Version eindeutig mitziehen.
+- [x] Release-Versionierungslogik weiter haerten: zentralen Release-Metadaten-Sync (`VERSION`, Extension, Kiosk, WebUI-Cache-Buster) einfuehren und `release.yml` so fixen, dass Versionsspruenge wirklich nach `main` committed werden statt nur im Workflow-Workspace.
+- [x] Plasma-Cyberpunk-Wallpaper im Ubuntu-Firstboot robust machen: Asset via cloud-init `write_files` nach `/var/lib/beagle/seed/` schreiben und den Firstboot nicht mehr von zufaellig exponierten `/var/lib/cloud/*`-Seed-Dateien abhaengig machen.
+- [x] Stale VM-Runtime-Artefakte bei Delete/Recreate derselben VMID bereinigen, damit `vm100`-artige Recreates keine alten Endpoint-/Update-/Provisioning-Zustaende mitziehen.
 
 - [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen.
 
