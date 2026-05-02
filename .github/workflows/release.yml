@@ -481,12 +481,17 @@ jobs:
               sync_branch="release/sync-v${VERSION}"
               git checkout -b "$sync_branch"
               git push origin "HEAD:refs/heads/$sync_branch"
-              gh pr create \
-                --repo "$REPO" \
-                --title "release: sync metadata to ${VERSION} [skip release]" \
-                --body "Automated metadata sync for release v${VERSION}." \
-                --base main \
-                --head "$sync_branch"
+              existing_pr="$(gh pr list --repo "$REPO" --head "$sync_branch" --json number --jq '.[0].number // empty')"
+              if [[ -z "$existing_pr" ]]; then
+                gh pr create \
+                  --repo "$REPO" \
+                  --title "release: sync metadata to ${VERSION} [skip release]" \
+                  --body "Automated metadata sync for release v${VERSION}." \
+                  --base main \
+                  --head "$sync_branch"
+              else
+                echo "PR #${existing_pr} already exists for ${sync_branch}; skipping PR create." >&2
+              fi
               # Enable auto-merge so the PR lands on main once checks pass.
               # Failures are non-fatal: the release tag is cut from the original
               # trigger commit (already on main) and the metadata sync will land
