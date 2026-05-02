@@ -8,14 +8,13 @@
 - GitHub/Public-Release-Stand ist belegt: GitHub `Latest` = `v8.0.9`, `beagle-os.com/beagle-updates/beagle-downloads-status.json` meldet `version=8.0.9`.
 - `srv1` Dedicated-Host/KVM-Basis ist belegt: `beagle-control-plane` aktiv, nginx `443`, API `9088`, `/dev/kvm` vorhanden, KVM-Domcaps ok.
 - GPU-R3-Teilpunkte wurden konsolidiert: srv2-GTX-1080-Inventar, VFIO/IOMMU-Status, Gast-Passthrough-Smoke und No-GPU-Pool-Block sind abgehakt; NVENC-Session, VFIO-Reboot-Proof und vGPU/MDEV bleiben offen.
-- Branch-Protection wurde bewusst nicht abgehakt: GitHub API meldet `Branch not protected`.
+- Branch-/Ruleset-Protection wurde abgehakt: klassischer Branch-Protection-Endpoint liefert `404`, aber Repository Ruleset `main` ist `active` und Pushes werden als Protected-Ref nur per Admin-Bypass erlaubt.
 
 **Naechste konkrete Schritte**:
 
 1. R1-Rest schliessen: frische ISO-Installation auf leerem Host plus `scripts/check-beagle-host.sh` nach Clean-Install.
 2. BeagleStream-End-to-End mit VM100 weiterfahren: Thinclient boot -> Broker-Allocate -> WireGuard -> sichtbarer Desktop-Stream.
 3. R3-GPU-Rest auf Hardware fahren: NVENC-/Streaming-Messwerte, VFIO-Reboot-Proof, vGPU/MDEV nur mit realer Lizenz/Hardware.
-4. Branch-Protection auf `main` in GitHub UI aktivieren und danach `docs/checklists/04-quality-ci.md` abhaken.
 
 ## Stand (2026-05-02, Release-Version und vm100-Cyberpunk-Seed auf 8.0.9 geradegezogen)
 

@@ -13,8 +13,8 @@
   - Public/GitHub Release-Status (`v8.0.9`, Public Update JSON `version=8.0.9`)
   - GPU-R3-Teilpunkte mit vorhandenen srv2-/Smoke-Nachweisen (Inventory/VFIO/IOMMU, transienter Gast-Passthrough, No-GPU-Pool-Block)
   - Release-Workflow-Optimierung: Build-Jobs laufen bei normalen `main`-Pushes nur noch bei relevanten Pfadaenderungen; letzter Release-Run `25256444508` erfolgreich.
+  - Branch-/Ruleset-Protection auf `main`: Repository Ruleset `main` ist `active`; Pushes melden Protected-Ref-Bypass.
 - Bewusst offen gelassen:
-  - Branch-Protection auf `main` (GitHub API meldet `Branch not protected`)
   - Runbook-Checklisten fuer konkrete Operator-Einsaetze
   - R1 Clean-Install/Firstboot/Backup-Restore
   - R3 NVENC-/Streaming-Session, VFIO-Reboot-Proof und vGPU/MDEV-Lizenzpfad
