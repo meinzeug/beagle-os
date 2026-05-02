@@ -49,6 +49,15 @@ def test_firstboot_prefers_beaglestream_server_package() -> None:
     assert 'curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"' in script
 
 
+def test_firstboot_bootstraps_vscode_repository() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "install_visual_studio_code_repo() {" in script
+    assert "https://packages.microsoft.com/repos/code stable main" in script
+    assert "install_visual_studio_code_repo" in script
+    assert "packages.microsoft.gpg" in script
+
+
 def test_firstboot_detects_sunshine_exec_path_dynamically() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 

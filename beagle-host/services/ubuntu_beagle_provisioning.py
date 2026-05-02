@@ -71,6 +71,7 @@ class UbuntuBeagleProvisioningService:
         ubuntu_beagle_default_guest_user: str,
         ubuntu_beagle_default_keymap: str,
         ubuntu_beagle_default_locale: str,
+        ubuntu_beagle_default_package_presets: list[str],
         ubuntu_beagle_default_memory_mib: int,
         ubuntu_beagle_desktops: dict[str, dict[str, Any]],
         ubuntu_beagle_disk_storage: str,
@@ -147,6 +148,12 @@ class UbuntuBeagleProvisioningService:
         self._ubuntu_beagle_profile_release = str(ubuntu_beagle_profile_release or "")
         self._ubuntu_beagle_profile_streaming = str(ubuntu_beagle_profile_streaming or "")
         self._ubuntu_beagle_software_presets = dict(ubuntu_beagle_software_presets or {})
+        supported_presets = set(self._ubuntu_beagle_software_presets.keys())
+        self._ubuntu_beagle_default_package_presets = [
+            item
+            for item in [str(value or "").strip().lower() for value in (ubuntu_beagle_default_package_presets or [])]
+            if item and item in supported_presets
+        ]
         self._ubuntu_beagle_stream_server_url = str(ubuntu_beagle_stream_server_url or "")
         self._ubuntu_beagle_sunshine_url = str(ubuntu_beagle_sunshine_url or "")
         self._ubuntu_beagle_tokens_dir = ubuntu_beagle_tokens_dir
@@ -295,7 +302,7 @@ class UbuntuBeagleProvisioningService:
                 "identity_locale": self._ubuntu_beagle_default_locale,
                 "identity_keymap": self._ubuntu_beagle_default_keymap,
                 "desktop": self._resolve_ubuntu_beagle_desktop(self._ubuntu_beagle_default_desktop)["id"],
-                "package_presets": [],
+                "package_presets": list(self._ubuntu_beagle_default_package_presets),
                 "disk_storage": self.resolve_storage(
                     self._ubuntu_beagle_disk_storage,
                     "images",
@@ -334,7 +341,9 @@ class UbuntuBeagleProvisioningService:
         normalized["desktop"] = self._resolve_ubuntu_beagle_desktop(desktop or self._ubuntu_beagle_default_desktop)["id"]
         normalized["identity_locale"] = self._normalize_locale(payload.get("identity_locale", ""))
         normalized["identity_keymap"] = self._normalize_keymap(payload.get("identity_keymap", ""))
-        normalized["package_presets"] = self._normalize_package_presets(payload.get("package_presets", []))
+        normalized["package_presets"] = self._normalize_package_presets(
+            payload.get("package_presets", self._ubuntu_beagle_default_package_presets)
+        )
         normalized["extra_packages"] = self._normalize_package_names(payload.get("extra_packages", []), field_name="extra_packages")
         return self.create_ubuntu_beagle_vm(normalized)
 
@@ -862,7 +871,9 @@ class UbuntuBeagleProvisioningService:
         desktop = self._resolve_ubuntu_beagle_desktop(
             str(payload.get("desktop", "") or payload.get("desktop_id", "") or self._ubuntu_beagle_default_desktop)
         )
-        package_presets = self._normalize_package_presets(payload.get("package_presets", []))
+        package_presets = self._normalize_package_presets(
+            payload.get("package_presets", self._ubuntu_beagle_default_package_presets)
+        )
         extra_packages = self._normalize_package_names(payload.get("extra_packages", []), field_name="extra_packages")
         software_packages = self._expand_software_packages(package_presets, extra_packages)
         node = str(payload.get("node", "")).strip()

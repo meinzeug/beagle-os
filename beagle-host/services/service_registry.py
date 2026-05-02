@@ -424,6 +424,14 @@ UBUNTU_BEAGLE_DEFAULT_KEYMAP = os.environ.get("BEAGLE_UBUNTU_DEFAULT_KEYMAP", "d
 UBUNTU_BEAGLE_DEFAULT_DESKTOP = (
     os.environ.get("BEAGLE_UBUNTU_DEFAULT_DESKTOP", "plasma-cyberpunk").strip().lower() or "plasma-cyberpunk"
 )
+UBUNTU_BEAGLE_DEFAULT_PACKAGE_PRESETS = [
+    item.strip().lower()
+    for item in os.environ.get(
+        "BEAGLE_UBUNTU_DEFAULT_PACKAGE_PRESETS",
+        "libreoffice,thunderbird,gimp,inkscape,vlc,filezilla,remmina,vscode,dev-core,python-dev,nodejs-dev,java-dev",
+    ).split(",")
+    if item.strip()
+]
 UBUNTU_BEAGLE_CYBERPUNK_WALLPAPER_SOURCE = Path(
     os.environ.get(
         "BEAGLE_UBUNTU_CYBERPUNK_WALLPAPER_SOURCE",
@@ -566,6 +574,42 @@ UBUNTU_BEAGLE_SOFTWARE_PRESETS: dict[str, dict[str, Any]] = {
         "label": "GIMP",
         "packages": ["gimp"],
         "description": "Image editing.",
+    },
+    "inkscape": {
+        "id": "inkscape",
+        "label": "Inkscape",
+        "packages": ["inkscape"],
+        "description": "Vector graphics editor.",
+    },
+    "vscode": {
+        "id": "vscode",
+        "label": "Visual Studio Code",
+        "packages": ["code"],
+        "description": "Code editor and IDE.",
+    },
+    "dev-core": {
+        "id": "dev-core",
+        "label": "Developer Core Tools",
+        "packages": ["git", "git-lfs", "curl", "wget", "jq", "unzip", "zip", "build-essential", "cmake"],
+        "description": "Common CLI and build tooling.",
+    },
+    "python-dev": {
+        "id": "python-dev",
+        "label": "Python Toolchain",
+        "packages": ["python3-pip", "python3-venv", "pipx"],
+        "description": "Python virtualenv and package tooling.",
+    },
+    "nodejs-dev": {
+        "id": "nodejs-dev",
+        "label": "Node.js Toolchain",
+        "packages": ["nodejs", "npm"],
+        "description": "Node.js and npm runtime.",
+    },
+    "java-dev": {
+        "id": "java-dev",
+        "label": "OpenJDK",
+        "packages": ["openjdk-17-jdk"],
+        "description": "Java development kit.",
     },
 }
 
@@ -2761,6 +2805,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             ubuntu_beagle_default_guest_user=UBUNTU_BEAGLE_DEFAULT_GUEST_USER,
             ubuntu_beagle_default_keymap=UBUNTU_BEAGLE_DEFAULT_KEYMAP,
             ubuntu_beagle_default_locale=UBUNTU_BEAGLE_DEFAULT_LOCALE,
+            ubuntu_beagle_default_package_presets=UBUNTU_BEAGLE_DEFAULT_PACKAGE_PRESETS,
             ubuntu_beagle_default_memory_mib=UBUNTU_BEAGLE_DEFAULT_MEMORY_MIB,
             ubuntu_beagle_desktops=UBUNTU_BEAGLE_DESKTOPS,
             ubuntu_beagle_disk_storage=UBUNTU_BEAGLE_DISK_STORAGE,

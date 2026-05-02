@@ -47,6 +47,15 @@ def test_configure_sunshine_guest_prefers_beaglestream_server_package() -> None:
     assert 'curl -fsSLo "\\$tmpdir/sunshine.deb" "\\$BEAGLE_STREAM_SERVER_URL"' in content
 
 
+def test_configure_sunshine_guest_bootstraps_vscode_repository() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+
+    assert "install_visual_studio_code_repo()" in content
+    assert "https://packages.microsoft.com/repos/code stable main" in content
+    assert "packages.microsoft.gpg" in content
+    assert "install_visual_studio_code_repo" in content
+
+
 def test_configure_sunshine_guest_detects_sunshine_exec_path_dynamically() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 

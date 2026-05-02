@@ -482,6 +482,19 @@ EOF
   apt_retry apt-get install -y --no-install-recommends google-chrome-stable
 }
 
+install_visual_studio_code_repo() {
+  install -d -m 0755 /etc/apt/keyrings
+  apt_retry apt-get install -y --no-install-recommends gnupg
+  curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+    | gpg --dearmor -o /etc/apt/keyrings/packages.microsoft.gpg.tmp
+  install -m 0644 /etc/apt/keyrings/packages.microsoft.gpg.tmp /etc/apt/keyrings/packages.microsoft.gpg
+  rm -f /etc/apt/keyrings/packages.microsoft.gpg.tmp
+  cat > /etc/apt/sources.list.d/vscode.list <<'EOF'
+deb [arch=amd64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main
+EOF
+  apt_retry apt-get update -o Acquire::Retries=5
+}
+
 configure_virtual_display_vkms() {
   if ! modinfo vkms >/dev/null 2>&1; then
     echo "WARN: vkms module is not available; continuing without virtual display module" >&2
@@ -819,6 +832,7 @@ if [[ ! -f "$DONE_FILE" ]]; then
     repair_interrupted_dpkg
   fi
   resolve_desktop_session
+  install_visual_studio_code_repo
 
   TMPDIR_WORK="$(mktemp -d)"
   stream_runtime_variant="beagle-stream-server"

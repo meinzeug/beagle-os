@@ -65,6 +65,7 @@ def build_inputs() -> UbuntuBeagleInputsService:
 def build_service() -> UbuntuBeagleProvisioningService:
     inputs = build_inputs()
     service = UbuntuBeagleProvisioningService.__new__(UbuntuBeagleProvisioningService)
+    service._ubuntu_beagle_default_package_presets = []
     service._ubuntu_beagle_default_desktop = "plasma-cyberpunk"
     service._ubuntu_beagle_desktops = DESKTOPS
     service._ubuntu_beagle_profile_id = "ubuntu-24.04-desktop-sunshine"
