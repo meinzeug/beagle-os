@@ -37,6 +37,8 @@ def build_runtime_extension_fields(
     beagle_enrollment_url: str = "",
     beagle_manager_token: str = "",
     beagle_enrollment_token: str = "",
+    beagle_stream_mode: str = "",
+    beagle_stream_allocation_id: str = "",
     thinclient_password: str = "",
     beagle_update_enabled: str = "1",
     beagle_update_channel: str = "stable",
@@ -67,6 +69,8 @@ def build_runtime_extension_fields(
     sunshine_server_stream_port: str = "",
     sunshine_server_uniqueid: str = "",
     sunshine_server_cert_b64: str = "",
+    moonlight_host: str = "",
+    sunshine_api_url: str = "",
 ) -> dict[str, str]:
     return {
         "PVE_THIN_CLIENT_PRESET_NETWORK_STATIC_ADDRESS": _string(network_static_address),
@@ -77,6 +81,8 @@ def build_runtime_extension_fields(
         "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_URL": _string(beagle_enrollment_url),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": _string(beagle_manager_token),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN": _string(beagle_enrollment_token),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_MODE": _string(beagle_stream_mode),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_ALLOCATION_ID": _string(beagle_stream_allocation_id),
         "PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD": _string(thinclient_password),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_ENABLED": _string(beagle_update_enabled),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_UPDATE_CHANNEL": _string(beagle_update_channel),
@@ -109,6 +115,8 @@ def build_runtime_extension_fields(
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_STREAM_PORT": _string(sunshine_server_stream_port),
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_UNIQUEID": _string(sunshine_server_uniqueid),
         "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_CERT_B64": _string(sunshine_server_cert_b64),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_FALLBACK_MOONLIGHT_HOST": _string(moonlight_host),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_FALLBACK_SUNSHINE_API_URL": _string(sunshine_api_url),
     }
 
 

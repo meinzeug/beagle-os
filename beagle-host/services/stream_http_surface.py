@@ -215,31 +215,79 @@ class StreamHttpSurfaceService:
             return self._coerce_bool(details.get("wireguard_active"))
         return self._coerce_bool(registration.get("wireguard_active"))
 
-    def route_post(self, path: str, *, json_payload: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    @staticmethod
+    def _resolve_direct_vm_id(pool_id: str) -> int:
+        match = re.match(r"^vm-(?P<vm_id>\d+)$", str(pool_id or "").strip().lower())
+        if match is None:
+            return 0
+        try:
+            return int(match.group("vm_id"))
+        except (TypeError, ValueError):
+            return 0
+
+    @staticmethod
+    def _resolve_allocate_actor_ids(user_id: str, device_id: str) -> tuple[str, str]:
+        requested_user_id = str(user_id or "").strip()
+        resolved_device_id = str(device_id or "").strip()
+        if requested_user_id:
+            return requested_user_id, requested_user_id
+        if not resolved_device_id:
+            return "", ""
+        return "", f"device:{resolved_device_id}"
+
+    def route_post(
+        self,
+        path: str,
+        *,
+        json_payload: dict[str, Any] | None = None,
+        endpoint_identity: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         payload = json_payload or {}
         if path == self._ALLOCATE_ROUTE:
             pool_id = str(payload.get("pool_id") or "").strip()
-            user_id = str(payload.get("user_id") or "").strip()
-            device_id = str(payload.get("device_id") or "").strip() or "unknown-device"
-            if not pool_id or not user_id:
-                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "pool_id and user_id required"})
+            requested_user_id = str(payload.get("user_id") or "").strip()
+            identity = endpoint_identity if isinstance(endpoint_identity, dict) else {}
+            requested_device_id = str(payload.get("device_id") or identity.get("endpoint_id") or "").strip()
+            user_id, lease_user_id = self._resolve_allocate_actor_ids(requested_user_id, requested_device_id)
+            device_id = requested_device_id or "unknown-device"
+            if not pool_id:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "pool_id required"})
+            if not requested_user_id and not requested_device_id:
+                return self._json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"ok": False, "error": "device_id required when user_id is empty"},
+                )
 
-            try:
-                lease = self._pool_manager.allocate_desktop(pool_id, user_id)
-            except Exception as exc:
-                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc) or "allocation failed"})
+            direct_vm_id = self._resolve_direct_vm_id(pool_id)
+            lease = None
+            if direct_vm_id > 0:
+                vm_id = int(direct_vm_id)
+                vm = self._find_vm(vm_id)
+                if vm is None:
+                    return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "allocated vm not found"})
+                session_id = f"{pool_id}:{lease_user_id or device_id or 'device'}"
+            else:
+                try:
+                    lease = self._pool_manager.allocate_desktop(pool_id, lease_user_id or user_id)
+                except Exception as exc:
+                    return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc) or "allocation failed"})
 
-            vm_id = int(getattr(lease, "vm_id", 0) or 0)
-            vm = self._find_vm(vm_id)
-            if vm is None:
-                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "allocated vm not found"})
+                vm_id = int(getattr(lease, "vm_id", 0) or 0)
+                vm = self._find_vm(vm_id)
+                if vm is None:
+                    return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "allocated vm not found"})
+                session_id = str(getattr(lease, "session_id", "") or "")
 
             policy = self._stream_policy.resolve_policy(pool_id)
             network_mode = str(getattr(policy, "network_mode", "vpn_preferred") or "vpn_preferred")
             wg_peer_config = payload.get("wg_peer_config") if isinstance(payload.get("wg_peer_config"), dict) else {}
             if not wg_peer_config and self._build_wireguard_peer_config is not None:
                 try:
-                    wg_peer_config = self._build_wireguard_peer_config(device_id, pool_id, user_id) or {}
+                    wg_peer_config = self._build_wireguard_peer_config(
+                        device_id,
+                        pool_id,
+                        lease_user_id or user_id,
+                    ) or {}
                 except Exception:
                     wg_peer_config = {}
 
@@ -254,7 +302,9 @@ class StreamHttpSurfaceService:
             pairing_token = ""
             if self._issue_pairing_token is not None:
                 try:
-                    pairing_token = str(self._issue_pairing_token(vm_id, user_id, device_id) or "").strip()
+                    pairing_token = str(
+                        self._issue_pairing_token(vm_id, lease_user_id or user_id, device_id) or ""
+                    ).strip()
                 except Exception:
                     pairing_token = ""
 
@@ -262,9 +312,10 @@ class StreamHttpSurfaceService:
             allocation = {
                 "pool_id": pool_id,
                 "user_id": user_id,
+                "lease_user_id": lease_user_id or user_id,
                 "device_id": device_id,
                 "vm_id": vm_id,
-                "session_id": str(getattr(lease, "session_id", "") or ""),
+                "session_id": session_id,
                 "host_ip": str(vm_profile.get("stream_host") or "").strip(),
                 "port": int(vm_profile.get("moonlight_port") or 47984),
                 "token": pairing_token,
@@ -278,6 +329,7 @@ class StreamHttpSurfaceService:
                 vm_id=vm_id,
                 pool_id=pool_id,
                 user_id=user_id,
+                lease_user_id=lease_user_id or user_id,
                 device_id=device_id,
                 network_mode=network_mode,
                 wireguard_profile=bool(allocation["wg_peer_config"]),
@@ -394,7 +446,14 @@ class StreamHttpSurfaceService:
             },
         )
 
-    def route_get(self, path: str, *, query: dict[str, list[str]] | None = None) -> dict[str, Any] | None:
+    def route_get(
+        self,
+        path: str,
+        *,
+        query: dict[str, list[str]] | None = None,
+        endpoint_identity: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        del endpoint_identity
         match = self._CONFIG_ROUTE.match(str(path or ""))
         if match is None:
             return None

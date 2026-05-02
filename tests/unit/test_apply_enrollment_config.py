@@ -16,13 +16,16 @@ def test_apply_enrollment_config_persists_device_id(tmp_path: Path) -> None:
     response = tmp_path / "response.json"
     config = tmp_path / "thinclient.conf"
     credentials = tmp_path / "credentials.env"
+    enrollment_conf = tmp_path / "enrollment.conf"
     response.write_text(
         json.dumps(
             {
                 "config": {
                     "device_id": "endpoint-001",
                     "beagle_manager_token": "manager-token",
-                    "moonlight_host": "srv1.beagle-os.com",
+                    "beagle_manager_url": "https://srv1.beagle-os.com",
+                    "beagle_stream_mode": "broker",
+                    "beagle_stream_allocation_id": "vm-100",
                 }
             }
         ),
@@ -31,7 +34,15 @@ def test_apply_enrollment_config_persists_device_id(tmp_path: Path) -> None:
     config.write_text("", encoding="utf-8")
     credentials.write_text("", encoding="utf-8")
 
-    apply_enrollment_config(response, config, credentials)
+    apply_enrollment_config(response, config, credentials, enrollment_conf)
 
     config_text = config.read_text(encoding="utf-8")
     assert 'PVE_THIN_CLIENT_BEAGLE_DEVICE_ID="endpoint-001"' in config_text
+    assert 'PVE_THIN_CLIENT_MOONLIGHT_HOST=""' in config_text
+    assert 'PVE_THIN_CLIENT_MOONLIGHT_BIN="beagle-stream"' in config_text
+    assert enrollment_conf.read_text(encoding="utf-8").splitlines() == [
+        'control_plane="https://srv1.beagle-os.com"',
+        'enrollment_token="manager-token"',
+        'device_id="endpoint-001"',
+        'pool_id="vm-100"',
+    ]

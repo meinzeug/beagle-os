@@ -98,6 +98,7 @@ class InstallerScriptService:
         beagle_realm = meta.get("beagle-realm", "pam")
         beagle_verify_tls = meta.get("beagle-verify-tls", "1")
         expected_profile_name = str(profile.get("expected_profile_name") or f"vm-{vm.vmid}")
+        stream_allocation_id = str(profile.get("stream_allocation_id", f"vm-{vm.vmid}") or f"vm-{vm.vmid}")
         moonlight_host = str(profile.get("stream_host", "") or "")
         moonlight_local_host = str(profile.get("moonlight_local_host", "") or "")
         moonlight_port = str(profile.get("moonlight_port", "") or "")
@@ -140,7 +141,7 @@ class InstallerScriptService:
             vm_name=vm_name,
             hostname_value=self._safe_hostname(vm_name, vm.vmid),
             autostart=meta.get("thinclient-autostart", "1"),
-            default_mode="MOONLIGHT" if moonlight_host else "",
+            default_mode="MOONLIGHT",
             network_mode=meta.get("thinclient-network-mode", "dhcp"),
             network_interface=meta.get("thinclient-network-interface", "eth0"),
             beagle_scheme=beagle_scheme,
@@ -151,10 +152,10 @@ class InstallerScriptService:
             beagle_realm=beagle_realm,
             beagle_verify_tls=beagle_verify_tls,
             beagle_manager_url=self._public_manager_url,
-            moonlight_host=moonlight_host,
+            moonlight_host="",
             moonlight_local_host=moonlight_local_host,
             moonlight_app=str(profile.get("moonlight_app", "Desktop") or "Desktop"),
-            moonlight_bin=meta.get("moonlight-bin", "moonlight"),
+            moonlight_bin=meta.get("moonlight-bin", "beagle-stream"),
             moonlight_resolution=str(profile.get("moonlight_resolution", "auto") or "auto"),
             moonlight_fps=str(profile.get("moonlight_fps", "60") or "60"),
             moonlight_bitrate=str(profile.get("moonlight_bitrate", "20000") or "20000"),
@@ -175,6 +176,8 @@ class InstallerScriptService:
                 beagle_manager_pinned_pubkey=self._manager_pinned_pubkey,
                 beagle_enrollment_url=f"{self._public_manager_url}/api/v1/endpoints/enroll",
                 beagle_enrollment_token=enrollment_token,
+                beagle_stream_mode="broker",
+                beagle_stream_allocation_id=stream_allocation_id,
                 thinclient_password=thinclient_password,
                 beagle_update_enabled="1" if bool(profile.get("update_enabled", True)) else "0",
                 beagle_update_channel=str(profile.get("update_channel", "stable") or "stable"),
@@ -209,6 +212,8 @@ class InstallerScriptService:
                 sunshine_server_stream_port=str(sunshine_server.get("stream_port", "") or moonlight_port or ""),
                 sunshine_server_uniqueid=str(sunshine_server.get("uniqueid", "") or ""),
                 sunshine_server_cert_b64=sunshine_server_cert_b64,
+                moonlight_host=moonlight_host,
+                sunshine_api_url=sunshine_api_url,
             ),
         )
 

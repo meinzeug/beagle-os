@@ -41,8 +41,14 @@ class _PoolManager:
         return []
 
 
-def _service(tmp_path: Path, *, network_mode: str, wg_config: dict | None = None) -> StreamHttpSurfaceService:
+def _service(
+    tmp_path: Path,
+    *,
+    network_mode: str,
+    wg_config: dict | None = None,
+) -> tuple[StreamHttpSurfaceService, _PoolManager]:
     vm = _Vm(303)
+    pool_manager = _PoolManager()
     policy_service = StreamPolicyService(state_file=tmp_path / "stream-policies.json")
     policy_service.create_policy(
         StreamPolicy(
@@ -61,18 +67,18 @@ def _service(tmp_path: Path, *, network_mode: str, wg_config: dict | None = None
         state_file=tmp_path / "streams" / "servers.json",
         build_vm_profile=lambda _vm: {"stream_host": "10.10.10.5", "moonlight_port": 47984},
         find_vm=lambda vmid: vm if int(vmid) == 303 else None,
-        pool_manager_service=_PoolManager(),
+        pool_manager_service=pool_manager,
         stream_policy_service=policy_service,
         build_wireguard_peer_config=lambda _device_id, _pool_id, _user_id: dict(wg_config or {}),
         issue_pairing_token=lambda vm_id, user_id, device_id: f"tok-{vm_id}-{user_id}-{device_id}",
         requester_identity=lambda: "alice",
         utcnow=lambda: "2026-04-28T13:00:00Z",
         version="test",
-    )
+    ), pool_manager
 
 
 def test_stream_allocate_returns_broker_payload(tmp_path: Path) -> None:
-    service = _service(tmp_path, network_mode="vpn_preferred", wg_config={"peer": "wg0"})
+    service, pool_manager = _service(tmp_path, network_mode="vpn_preferred", wg_config={"peer": "wg0"})
 
     response = service.route_post(
         "/api/v1/streams/allocate",
@@ -93,10 +99,74 @@ def test_stream_allocate_returns_broker_payload(tmp_path: Path) -> None:
     assert allocation["port"] == 47984
     assert allocation["token"].startswith("tok-303-carol")
     assert allocation["wg_peer_config"]["peer"] == "wg0"
+    assert pool_manager._allocated == [("gaming-1", "carol")]
+
+
+def test_stream_allocate_accepts_hostless_device_without_user_id(tmp_path: Path) -> None:
+    service, pool_manager = _service(tmp_path, network_mode="vpn_preferred", wg_config={"peer": "wg0"})
+
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={
+            "pool_id": "gaming-1",
+            "user_id": "",
+            "device_id": "thin-99",
+        },
+    )
+
+    assert response is not None
+    assert response["status"] == 200
+    allocation = response["payload"]["allocation"]
+    assert allocation["user_id"] == ""
+    assert allocation["lease_user_id"] == "device:thin-99"
+    assert allocation["token"] == "tok-303-device:thin-99-thin-99"
+    assert pool_manager._allocated == [("gaming-1", "device:thin-99")]
+
+
+def test_stream_allocate_accepts_direct_vm_id_with_endpoint_identity(tmp_path: Path) -> None:
+    service, pool_manager = _service(tmp_path, network_mode="vpn_preferred", wg_config={"peer": "wg0"})
+
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={
+            "pool_id": "vm-303",
+            "user_id": "",
+        },
+        endpoint_identity={"endpoint_id": "thin-303"},
+    )
+
+    assert response is not None
+    assert response["status"] == 200
+    allocation = response["payload"]["allocation"]
+    assert allocation["pool_id"] == "vm-303"
+    assert allocation["vm_id"] == 303
+    assert allocation["user_id"] == ""
+    assert allocation["lease_user_id"] == "device:thin-303"
+    assert allocation["session_id"] == "vm-303:device:thin-303"
+    assert allocation["token"] == "tok-303-device:thin-303-thin-303"
+    assert pool_manager._allocated == []
+
+
+def test_stream_allocate_rejects_missing_user_and_device_identity(tmp_path: Path) -> None:
+    service, pool_manager = _service(tmp_path, network_mode="vpn_preferred", wg_config={"peer": "wg0"})
+
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={
+            "pool_id": "gaming-1",
+            "user_id": "",
+            "device_id": "",
+        },
+    )
+
+    assert response is not None
+    assert response["status"] == 400
+    assert "device_id required" in response["payload"]["error"]
+    assert pool_manager._allocated == []
 
 
 def test_stream_allocate_rejects_when_vpn_required_and_no_wg(tmp_path: Path) -> None:
-    service = _service(tmp_path, network_mode="vpn_required", wg_config={})
+    service, _pool_manager = _service(tmp_path, network_mode="vpn_required", wg_config={})
 
     response = service.route_post(
         "/api/v1/streams/allocate",

@@ -100,7 +100,8 @@ class EndpointEnrollmentService:
             updated_secret["sunshine_pinned_pubkey"] = sunshine_pinned_pubkey
             secret = self._save_vm_secret(vm.node, vm.vmid, updated_secret)
 
-        profile = self._build_profile(vm)
+        profile = dict(self._build_profile(vm) or {})
+        profile.setdefault("stream_allocation_id", f"vm-{int(vm.vmid)}")
         endpoint_token = self._token_urlsafe(32)
         endpoint_payload = self._store_endpoint_token(
             endpoint_token,
@@ -149,6 +150,8 @@ class EndpointEnrollmentService:
             "beagle_manager_url": self._public_manager_url,
             "beagle_manager_token": endpoint_token,
             "beagle_manager_pinned_pubkey": self._manager_pinned_pubkey,
+            "beagle_stream_mode": "broker",
+            "beagle_stream_allocation_id": str(profile.get("stream_allocation_id", "") or ""),
             "update_enabled": bool(profile.get("update_enabled", True)),
             "update_channel": str(profile.get("update_channel", "stable") or "stable"),
             "update_behavior": str(profile.get("update_behavior", "prompt") or "prompt"),

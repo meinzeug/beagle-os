@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -29,11 +30,35 @@ def _json_env(value: Any) -> str:
     return json.dumps(str(value or ""))
 
 
-def apply_enrollment_config(response_path: Path, config_path: Path, credentials_path: Path) -> None:
+def _write_enrollment_file(path: Path, payload: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(f'{key}="{value}"\n' for key, value in payload.items()), encoding="utf-8")
+    path.chmod(0o600)
+
+
+def _remove_file_if_exists(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return
+
+
+def apply_enrollment_config(
+    response_path: Path,
+    config_path: Path,
+    credentials_path: Path,
+    enrollment_conf_path: Path | None = None,
+) -> None:
     payload = json.loads(response_path.read_text(encoding="utf-8"))
     config = payload.get("config", {}) if isinstance(payload, dict) else {}
     if not isinstance(config, dict):
         config = {}
+    enrollment_conf = enrollment_conf_path or Path(
+        os.environ.get("BEAGLE_STREAM_ENROLLMENT_CONF", "/etc/beagle/enrollment.conf")
+    )
+    stream_mode = str(config.get("beagle_stream_mode", "") or "").strip().lower()
+    broker_enabled = stream_mode == "broker"
+    stream_allocation_id = str(config.get("beagle_stream_allocation_id", "") or "").strip()
 
     credentials = _load_env_file(credentials_path)
     for key, value in (
@@ -52,11 +77,12 @@ def apply_enrollment_config(response_path: Path, config_path: Path, credentials_
     config_existing = _load_env_file(config_path)
     for key, value in (
         ("PVE_THIN_CLIENT_BEAGLE_DEVICE_ID", config.get("device_id", "")),
-        ("PVE_THIN_CLIENT_MOONLIGHT_HOST", config.get("moonlight_host", "")),
+        ("PVE_THIN_CLIENT_MOONLIGHT_HOST", "" if broker_enabled else config.get("moonlight_host", "")),
         ("PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST", config.get("moonlight_local_host", "")),
         ("PVE_THIN_CLIENT_MOONLIGHT_PORT", config.get("moonlight_port", "")),
         ("PVE_THIN_CLIENT_MOONLIGHT_APP", config.get("moonlight_app", "Desktop")),
-        ("PVE_THIN_CLIENT_SUNSHINE_API_URL", config.get("sunshine_api_url", "")),
+        ("PVE_THIN_CLIENT_MOONLIGHT_BIN", "beagle-stream" if broker_enabled else config_existing.get("PVE_THIN_CLIENT_MOONLIGHT_BIN", '"moonlight"').strip('"')),
+        ("PVE_THIN_CLIENT_SUNSHINE_API_URL", "" if broker_enabled else config.get("sunshine_api_url", "")),
         ("PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE", config.get("egress_mode", "full")),
         ("PVE_THIN_CLIENT_BEAGLE_EGRESS_TYPE", config.get("egress_type", "wireguard")),
         ("PVE_THIN_CLIENT_BEAGLE_EGRESS_INTERFACE", config.get("egress_interface", "wg-beagle")),
@@ -101,14 +127,28 @@ def apply_enrollment_config(response_path: Path, config_path: Path, credentials_
         known_hosts_path.write_text(usb_known_host.rstrip() + "\n", encoding="utf-8")
         known_hosts_path.chmod(0o644)
 
+    if broker_enabled:
+        _write_enrollment_file(
+            enrollment_conf,
+            {
+                "control_plane": str(config.get("beagle_manager_url", "") or "").strip(),
+                "enrollment_token": str(config.get("beagle_manager_token", "") or "").strip(),
+                "device_id": str(config.get("device_id", "") or "").strip(),
+                "pool_id": stream_allocation_id,
+            },
+        )
+    else:
+        _remove_file_if_exists(enrollment_conf)
+
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    if len(args) != 3:
+    if len(args) not in {3, 4}:
         raise SystemExit(
-            "usage: apply_enrollment_config.py <response_json> <thinclient_conf> <credentials_env>"
+            "usage: apply_enrollment_config.py <response_json> <thinclient_conf> <credentials_env> [enrollment_conf]"
         )
-    apply_enrollment_config(Path(args[0]), Path(args[1]), Path(args[2]))
+    enrollment_conf = Path(args[3]) if len(args) == 4 else None
+    apply_enrollment_config(Path(args[0]), Path(args[1]), Path(args[2]), enrollment_conf)
     return 0
 
 

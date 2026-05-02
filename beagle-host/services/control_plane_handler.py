@@ -261,9 +261,15 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             return
 
         if stream_http_surface_service().handles_get(path):
-            if not self._authorize_or_respond("GET", path):
-                return
-            response = stream_http_surface_service().route_get(path, query=query)
+            endpoint_identity = self._endpoint_identity()
+            if endpoint_identity is None:
+                if not self._authorize_or_respond("GET", path):
+                    return
+            response = stream_http_surface_service().route_get(
+                path,
+                query=query,
+                endpoint_identity=endpoint_identity,
+            )
             if response is not None:
                 self._write_json(response["status"], response["payload"])
             return
@@ -786,17 +792,22 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             return
 
         if stream_http_surface_service().handles_post(path):
-            if not self._is_authenticated():
+            endpoint_identity = self._endpoint_identity()
+            if not self._is_authenticated() and endpoint_identity is None:
                 self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
                 return
-            if not self._authorize_or_respond("POST", path):
+            if endpoint_identity is None and not self._authorize_or_respond("POST", path):
                 return
             try:
                 json_payload = self._read_json_body() if int(self.headers.get("Content-Length", "0") or "0") > 0 else {}
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
                 return
-            response = stream_http_surface_service().route_post(path, json_payload=json_payload)
+            response = stream_http_surface_service().route_post(
+                path,
+                json_payload=json_payload,
+                endpoint_identity=endpoint_identity,
+            )
             if response is not None:
                 self._write_json(response["status"], response["payload"])
             return

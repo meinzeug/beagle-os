@@ -527,6 +527,8 @@ class HandlerMixin:
         if not token:
             token = self.headers.get("X-Beagle-Endpoint-Token", "").strip()
         if not token:
+            token = self.headers.get("X-Beagle-Token", "").strip()
+        if not token:
             return None
         payload = load_endpoint_token(token)
         return payload if isinstance(payload, dict) else None

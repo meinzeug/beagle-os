@@ -20,6 +20,10 @@ runtime_thinclient_config_file() {
   printf '%s\n' "${CONFIG_FILE:-${CONFIG_DIR:-${PVE_THIN_CLIENT_SYSTEM_CONFIG_DIR:-/etc/pve-thin-client}}/thinclient.conf}"
 }
 
+runtime_enrollment_config_file() {
+  printf '%s\n' "${BEAGLE_STREAM_ENROLLMENT_CONF:-/etc/beagle/enrollment.conf}"
+}
+
 runtime_wireguard_enrollment_script() {
   printf '%s\n' "${RUNTIME_WIREGUARD_ENROLLMENT_SH:-$SCRIPT_DIR/enrollment_wireguard.sh}"
 }
@@ -97,7 +101,8 @@ enroll_endpoint_if_needed() {
   "$python_bin" "$APPLY_ENROLLMENT_CONFIG_PY" \
     "$response_file" \
     "$(runtime_thinclient_config_file)" \
-    "$credentials_file"
+    "$credentials_file" \
+    "$(runtime_enrollment_config_file)"
   rm -f "$response_file"
 
   reload_runtime_enrollment_config
