@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/trace-guard.sh"
+beagle_trace_guard_disable_xtrace_if_sensitive
 INSTALL_DIR="${INSTALL_DIR:-/opt/beagle}"
 HOST_RUNTIME_DIR="$INSTALL_DIR/beagle-host"
 LEGACY_HOST_RUNTIME_DIR="$INSTALL_DIR/beagle_host"

@@ -335,6 +335,7 @@ OIDC_REDIRECT_URI = os.environ.get("BEAGLE_OIDC_REDIRECT_URI", "").strip() or f"
 OIDC_AUTHORIZATION_ENDPOINT = os.environ.get("BEAGLE_OIDC_AUTHORIZATION_ENDPOINT", "").strip() or OIDC_AUTH_URL
 OIDC_TOKEN_ENDPOINT = os.environ.get("BEAGLE_OIDC_TOKEN_ENDPOINT", "").strip()
 OIDC_USERINFO_ENDPOINT = os.environ.get("BEAGLE_OIDC_USERINFO_ENDPOINT", "").strip()
+OIDC_JWKS_URI = os.environ.get("BEAGLE_OIDC_JWKS_URI", "").strip()
 OIDC_SCOPE = os.environ.get("BEAGLE_OIDC_SCOPE", "openid profile email").strip() or "openid profile email"
 SAML_ENABLED = os.environ.get("BEAGLE_SAML_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
 SAML_ENTITY_ID = os.environ.get("BEAGLE_SAML_ENTITY_ID", "").strip() or f"{PUBLIC_MANAGER_URL.rstrip('/')}/api/v1/auth/saml/metadata"
@@ -717,6 +718,31 @@ def _bootstrap_secret(name: str, env_value: str, *, generate: bool = True) -> st
         name, sv.version, name,
     )
     return sv.value
+
+
+def scim_secret_name() -> str:
+    return "scim-bearer-token"
+
+
+def scim_bearer_token_enabled() -> bool:
+    if SCIM_BEARER_TOKEN:
+        return True
+    try:
+        return _secret_store().has_secret(scim_secret_name())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def is_scim_bearer_token_valid(token: str) -> bool:
+    candidate = str(token or "").strip()
+    if not candidate:
+        return False
+    if SCIM_BEARER_TOKEN and secrets.compare_digest(candidate, SCIM_BEARER_TOKEN):
+        return True
+    try:
+        return _secret_store().is_valid(scim_secret_name(), candidate)
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def resolve_public_stream_host(host: str) -> str:
@@ -1115,6 +1141,7 @@ def oidc_service() -> OidcService:
             authorization_endpoint=OIDC_AUTHORIZATION_ENDPOINT,
             token_endpoint=OIDC_TOKEN_ENDPOINT,
             userinfo_endpoint=OIDC_USERINFO_ENDPOINT,
+            jwks_uri=OIDC_JWKS_URI,
             scope=OIDC_SCOPE,
             utcnow=utcnow,
             load_json_file=load_json_file,

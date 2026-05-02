@@ -278,6 +278,8 @@ class HandlerMixin:
             permission_catalog=PERMISSION_CATALOG,
             auth_bootstrap_username=AUTH_BOOTSTRAP_USERNAME,
             auth_bootstrap_disabled=AUTH_BOOTSTRAP_DISABLE,
+            scim_enabled=_svc_registry.scim_bearer_token_enabled,
+            public_manager_url=_svc_registry.PUBLIC_MANAGER_URL,
             auth_principal=self._auth_principal,
             remote_addr=self._client_addr,
             user_agent=lambda: str(self.headers.get("User-Agent") or "")[:256],
@@ -539,12 +541,10 @@ class HandlerMixin:
         return self._endpoint_identity() is not None
 
     def _is_scim_authenticated(self) -> bool:
-        if not _svc_registry.SCIM_BEARER_TOKEN:
-            return False
         token = extract_bearer_token(self.headers.get("Authorization", ""))
         if not token:
             return False
-        return secrets.compare_digest(token, _svc_registry.SCIM_BEARER_TOKEN)
+        return bool(getattr(_svc_registry, "is_scim_bearer_token_valid", lambda _token: False)(token))
 
     def _stream_principal(self, parsed) -> dict[str, Any] | None:
         # EventSource cannot send custom Authorization headers, so accept

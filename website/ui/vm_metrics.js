@@ -43,8 +43,20 @@ function buildPanelHtml() {
         <h3>Live Metriken</h3>
         <span class="chip muted" id="vdp-metrics-status">Verbinde…</span>
       </div>
+      <div class="banner info" id="vdp-metrics-banner">Live-SSE wird aufgebaut.</div>
 
       <div class="vm-metrics-grid">
+        <div class="vm-metric-card">
+          <div class="vm-metric-label">VM Status</div>
+          <div class="vm-metric-value" id="vdp-m-domain-state">—</div>
+          <div class="vm-metric-sub" id="vdp-m-agent-state">Gast-Agent: —</div>
+        </div>
+
+        <div class="vm-metric-card">
+          <div class="vm-metric-label">vCPU</div>
+          <div class="vm-metric-value" id="vdp-m-vcpu">—</div>
+          <div class="vm-metric-sub" id="vdp-m-sample-interval">Intervall: —</div>
+        </div>
 
         <div class="vm-metric-card">
           <div class="vm-metric-label">CPU</div>
@@ -74,6 +86,7 @@ function buildPanelHtml() {
             &nbsp;/&nbsp;
             <span id="vdp-m-disk-wr">↓ 0 B/s</span>
           </div>
+          <div class="vm-metric-sub" id="vdp-m-disk-total-io">Σ —</div>
         </div>
 
         <div class="vm-metric-card">
@@ -84,6 +97,7 @@ function buildPanelHtml() {
             &nbsp;/&nbsp;
             <span id="vdp-m-net-tx">↑ 0 B/s</span>
           </div>
+          <div class="vm-metric-sub" id="vdp-m-net-total-io">Σ —</div>
         </div>
 
         <div class="vm-metric-card">
@@ -119,6 +133,13 @@ function updateText(id, value) {
   if (el) el.textContent = String(value);
 }
 
+function setBanner(message, tone) {
+  const el = document.getElementById('vdp-metrics-banner');
+  if (!el) return;
+  el.textContent = String(message || '');
+  el.className = 'banner ' + String(tone || 'info');
+}
+
 // -------------------------------------------------------------------------
 // Core SSE logic
 // -------------------------------------------------------------------------
@@ -127,10 +148,25 @@ function applyMetrics(data) {
   const cpu  = Number(data.cpu_pct  || 0);
   const ram  = Number(data.ram_pct  || 0);
   const disk = Number(data.disk_used_pct || 0);
+  const domainState = String(data.status || 'unknown');
+  const guestAgentAvailable = Boolean(data.guest_agent_available);
 
   // CPU
   updateText('vdp-m-cpu-pct', fmtPct(cpu));
   updateBar('vdp-m-cpu-bar', cpu);
+
+  updateText('vdp-m-domain-state', domainState === 'running' ? 'Running' : domainState || 'unknown');
+  updateText('vdp-m-agent-state', guestAgentAvailable ? 'Gast-Agent: aktiv' : 'Gast-Agent: keine Daten');
+  updateText(
+    'vdp-m-vcpu',
+    data.vcpu_current > 0
+      ? String(data.vcpu_current) + (data.vcpu_max > 0 ? ' / ' + String(data.vcpu_max) : '')
+      : '—'
+  );
+  updateText(
+    'vdp-m-sample-interval',
+    Number(data.sample_interval_seconds || 0) > 0 ? 'Intervall: ' + Number(data.sample_interval_seconds).toFixed(1) + ' s' : 'Intervall: —'
+  );
 
   // RAM
   updateText('vdp-m-ram-pct', fmtPct(ram));
@@ -152,6 +188,7 @@ function applyMetrics(data) {
   updateText('vdp-m-disk-io', fmtBps(rdBps + wrBps));
   updateText('vdp-m-disk-rd', '↑ ' + fmtBps(rdBps));
   updateText('vdp-m-disk-wr', '↓ ' + fmtBps(wrBps));
+  updateText('vdp-m-disk-total-io', 'Σ ' + fmtBytes(Number(data.disk_read_bytes || 0) + Number(data.disk_write_bytes || 0)));
 
   // Network I/O
   const rxBps = Number(data.net_rx_bps || 0);
@@ -159,9 +196,11 @@ function applyMetrics(data) {
   updateText('vdp-m-net-io', fmtBps(rxBps + txBps));
   updateText('vdp-m-net-rx', '↓ ' + fmtBps(rxBps));
   updateText('vdp-m-net-tx', '↑ ' + fmtBps(txBps));
+  updateText('vdp-m-net-total-io', 'Σ ' + fmtBytes(Number(data.net_rx_bytes || 0) + Number(data.net_tx_bytes || 0)));
 
   // Timestamp
   updateText('vdp-m-ts', String(data.ts || '').replace('T', ' ').replace('Z', ' UTC'));
+  setBanner(guestAgentAvailable ? 'Live-Metriken aktiv.' : 'Live-Metriken aktiv. Dateisystemdaten warten auf den Gast-Agenten.', guestAgentAvailable ? 'ok' : 'info');
 }
 
 /**
@@ -193,19 +232,31 @@ export function startVmMetrics(vmid, containerEl, token) {
         statusEl.textContent = 'Live';
         statusEl.className = 'chip ok';
       }
+      setBanner('Live-SSE verbunden. Erste Metriken werden geladen.', 'info');
     });
 
     es.addEventListener('metrics', (evt) => {
       try {
         const data = JSON.parse(evt.data);
         applyMetrics(data);
+        if (statusEl) {
+          statusEl.textContent = 'Live';
+          statusEl.className = 'chip ok';
+        }
       } catch (err) {
         void err;
       }
     });
 
     es.addEventListener('error', (evt) => {
-      void evt;
+      try {
+        const payload = evt && evt.data ? JSON.parse(evt.data) : null;
+        if (payload && payload.error) {
+          setBanner('Live-Metriken nicht verfuegbar: ' + payload.error, 'warn');
+        }
+      } catch (err) {
+        void err;
+      }
       if (statusEl) {
         statusEl.textContent = 'Unterbrochen';
         statusEl.className = 'chip warn';
@@ -213,6 +264,7 @@ export function startVmMetrics(vmid, containerEl, token) {
     });
 
     es.onerror = () => {
+      setBanner('Live-SSE unterbrochen. Browser versucht die Verbindung erneut.', 'warn');
       if (statusEl) {
         statusEl.textContent = 'Unterbrochen';
         statusEl.className = 'chip warn';

@@ -40,7 +40,8 @@ def test_iam_js_contains_idp_scim_tenant_empty_states() -> None:
     js = IAM_JS.read_text(encoding="utf-8")
 
     assert "Keine Identity Provider konfiguriert. Nur lokale Anmeldung aktiv." in js
-    assert "Bearer Token wird ueber <code>BEAGLE_SCIM_BEARER_TOKEN</code> gesetzt." in js
+    assert "SCIM nutzt den SecretStore-Key <code>scim-bearer-token</code>." in js
+    assert "beaglectl secret rotate scim-bearer-token" in js
     assert "Tenants konnten nicht geladen werden." in js
     assert "Keine Tenants konfiguriert." in js
     assert "SCIM deaktiviert" in js

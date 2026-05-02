@@ -176,7 +176,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             return
 
         if scim_service().handles_path(path):
-            if not SCIM_BEARER_TOKEN:
+            if not scim_bearer_token_enabled():
                 self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": "scim disabled"})
                 return
             if not self._is_scim_authenticated():
@@ -548,7 +548,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             return
 
         if scim_service().handles_path(path):
-            if not SCIM_BEARER_TOKEN:
+            if not scim_bearer_token_enabled():
                 self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": "scim disabled"})
                 return
             if not self._is_scim_authenticated():
@@ -953,7 +953,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
 
         if scim_service().handles_path(path):
-            if not SCIM_BEARER_TOKEN:
+            if not scim_bearer_token_enabled():
                 self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": "scim disabled"})
                 return
             if not self._is_scim_authenticated():
@@ -1125,7 +1125,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
 
         if scim_service().handles_path(path):
-            if not SCIM_BEARER_TOKEN:
+            if not scim_bearer_token_enabled():
                 self._write_json(HTTPStatus.NOT_IMPLEMENTED, {"ok": False, "error": "scim disabled"})
                 return
             if not self._is_scim_authenticated():

@@ -2,6 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/lib/trace-guard.sh"
+beagle_trace_guard_disable_xtrace_if_sensitive
 source "$SCRIPT_DIR/env-defaults.sh"
 apply_installer_env_defaults
 BEAGLE_HOST="${BEAGLE_HOST:-beagle.example.internal}"

@@ -41,6 +41,13 @@ def test_get_missing_raises(tmp_path: Path) -> None:
         svc.get_secret("nonexistent")
 
 
+def test_has_secret_tracks_presence(tmp_path: Path) -> None:
+    svc = make_store(tmp_path)
+    assert svc.has_secret("api_token") is False
+    svc.set_secret("api_token", "supersecret")
+    assert svc.has_secret("api_token") is True
+
+
 def test_secret_name_invalid_raises(tmp_path: Path) -> None:
     svc = make_store(tmp_path)
     with pytest.raises(ValueError):

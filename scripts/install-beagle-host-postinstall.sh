@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/trace-guard.sh"
+beagle_trace_guard_disable_xtrace_if_sensitive
 INSTALL_DIR="${INSTALL_DIR:-/opt/beagle}"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 SERVER_NAME="${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}"

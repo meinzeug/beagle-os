@@ -637,15 +637,17 @@ export function renderIamScimStatus(data) {
   container.innerHTML = '<div class="scim-status-row">' +
     '<span class="' + (enabled ? 'status-chip ok' : 'status-chip off') + '">' + (enabled ? 'SCIM aktiv' : 'SCIM deaktiviert') + '</span>' +
     (enabled ? '<div class="scim-endpoint">Endpoint: <code>' + url + 'scim/v2/</code></div>' +
-      '<div class="scim-hint">Bearer Token wird ueber <code>BEAGLE_SCIM_BEARER_TOKEN</code> gesetzt. Token-Rotation: neuen Wert setzen, Dienst neustarten.</div>' : '') +
+      '<div class="scim-hint">SCIM nutzt den SecretStore-Key <code>scim-bearer-token</code>. Rotation: <code>beaglectl secret rotate scim-bearer-token</code>, danach Dienst neu laden.</div>' : '') +
     '</div>';
 }
 
 export function loadIamScimStatus() {
   return request('/auth/me').then((data) => {
-    // Derive SCIM status from /auth/me (has server_url) and onboarding status
-    const serverUrl = escapeHtml(String((data && data.server_url) || window.location.origin + '/api/v1/'));
-    renderIamScimStatus({ scim_enabled: true, scim_base_url: serverUrl });
+    const serverUrl = escapeHtml(String((data && data.scim_base_url) || (data && data.server_url) || window.location.origin + '/api/v1/'));
+    renderIamScimStatus({
+      scim_enabled: Boolean(data && data.scim_enabled),
+      scim_base_url: serverUrl,
+    });
   }).catch(() => {
     renderIamScimStatus(null);
   });

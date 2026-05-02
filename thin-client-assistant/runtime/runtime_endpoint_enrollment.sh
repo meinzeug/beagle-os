@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib/trace-guard.sh"
+beagle_trace_guard_disable_xtrace_if_sensitive
+
 runtime_python_bin() {
   printf '%s\n' "${BEAGLE_PYTHON_BIN:-python3}"
 }

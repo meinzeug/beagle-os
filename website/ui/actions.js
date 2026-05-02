@@ -124,14 +124,14 @@ export function executeAction(action, sourceButton) {
     postJson('/vms/' + vmid + '/beagle-stream-server-access', {}).then((payload) => {
       const url = payload && payload.beagle_stream_server_access ? payload.beagle_stream_server_access.url : '';
       if (!url) {
-        throw new Error('No Beagle Stream Server URL received');
+        throw new Error('Keine BeagleStream-URL erhalten.');
       }
       if (!isSafeExternalUrl(url)) {
-        throw new Error('Unsafe Beagle Stream Server URL blocked');
+        throw new Error('Unsichere BeagleStream-URL blockiert.');
       }
       window.open(url, '_blank', 'noopener');
     }).catch((error) => {
-      actionHooks.setBanner('Beagle Stream Server access failed: ' + error.message, 'warn');
+      actionHooks.setBanner('BeagleStream-Zugriff fehlgeschlagen: ' + error.message, 'warn');
     });
     return;
   }

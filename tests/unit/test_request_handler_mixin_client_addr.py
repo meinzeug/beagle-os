@@ -11,11 +11,13 @@ sys.path.insert(0, str(SERVICES_DIR))
 sys.path.insert(0, str(BEAGLE_HOST_DIR / "bin"))
 
 service_registry_stub = types.ModuleType("service_registry")
-service_registry_stub.__all__ = ["API_V1_DEPRECATED_ENDPOINTS", "API_V1_DEPRECATION_SUNSET", "AUTH_REFRESH_TTL_SECONDS", "API_TOKEN", "SCIM_BEARER_TOKEN"]
+service_registry_stub.__all__ = ["API_V1_DEPRECATED_ENDPOINTS", "API_V1_DEPRECATION_SUNSET", "AUTH_REFRESH_TTL_SECONDS", "API_TOKEN", "SCIM_BEARER_TOKEN", "extract_bearer_token", "is_scim_bearer_token_valid"]
 service_registry_stub.normalized_origin = lambda v: v
 service_registry_stub.cors_allowed_origins = lambda: []
 service_registry_stub.API_TOKEN = None
 service_registry_stub.SCIM_BEARER_TOKEN = None
+service_registry_stub.extract_bearer_token = lambda value: str(value).split(" ", 1)[1] if str(value).startswith("Bearer ") else ""
+service_registry_stub.is_scim_bearer_token_valid = lambda token: token == "scim-secret"
 service_registry_stub.API_V1_DEPRECATED_ENDPOINTS = set()
 service_registry_stub.API_V1_DEPRECATION_SUNSET = ""
 service_registry_stub.AUTH_REFRESH_TTL_SECONDS = 300
@@ -107,3 +109,9 @@ def test_write_json_treats_broken_pipe_as_client_disconnect() -> None:
     assert handler.response_status == 200
     assert handler.close_connection is True
     assert handler.logged_status is None
+
+
+def test_scim_auth_uses_service_registry_validator() -> None:
+    handler = DummyHandler("127.0.0.1", {"Authorization": "Bearer scim-secret"})
+
+    assert handler._is_scim_authenticated() is True

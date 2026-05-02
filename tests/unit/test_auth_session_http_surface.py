@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -8,7 +9,12 @@ SERVICES_DIR = Path(__file__).resolve().parents[2] / "beagle-host" / "services"
 if str(SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(SERVICES_DIR))
 
-from auth_session_http_surface import AuthSessionHttpSurfaceService
+MODULE_PATH = SERVICES_DIR / "auth_session_http_surface.py"
+SPEC = importlib.util.spec_from_file_location("beagle_auth_session_http_surface_real", MODULE_PATH)
+module = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(module)
+AuthSessionHttpSurfaceService = module.AuthSessionHttpSurfaceService
 
 
 class _AuthSessionStub:
@@ -55,6 +61,8 @@ def _service(principal, *, auth_session=None, read_json_body=None):
         permission_catalog={},
         auth_bootstrap_username="admin",
         auth_bootstrap_disabled=False,
+        scim_enabled=lambda: True,
+        public_manager_url="https://srv1.example.test/beagle-api",
         auth_principal=lambda: principal,
         remote_addr=lambda: "127.0.0.1",
         user_agent=lambda: "pytest",
@@ -88,6 +96,8 @@ def test_auth_me_includes_effective_permissions() -> None:
     assert user["username"] == "kiosk-op"
     assert user["role"] == "kiosk_operator"
     assert sorted(user["permissions"]) == ["kiosk:operate", "vm:power", "vm:read"]
+    assert response["payload"]["scim_enabled"] is True
+    assert response["payload"]["server_url"] == "https://srv1.example.test/beagle-api"
 
 
 def test_auth_login_returns_invalid_totp_when_code_missing() -> None:

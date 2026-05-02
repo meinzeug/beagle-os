@@ -206,6 +206,15 @@ class SecretStoreService:
                 continue
         return result
 
+    def has_secret(self, name: str) -> bool:
+        """Return True when the named secret has at least one known version."""
+        self._validate_name(name)
+        store = self._store(name)
+        if not store.exists():
+            return False
+        data = store.load()
+        return bool(data.get("versions"))
+
     def is_valid(self, name: str, value: str, *, version: int | None = None) -> bool:
         """Return True if *value* matches an active or within-grace-period superseded version.
 

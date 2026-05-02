@@ -63,6 +63,8 @@ class AuthSessionHttpSurfaceService:
         bearer_token: Callable[[], str],
         read_raw_body: Callable[[int], bytes],
         audit_event: Callable[..., None],
+        scim_enabled: Callable[[], bool] | None = None,
+        public_manager_url: str = "",
     ) -> None:
         self._auth_session = auth_session
         self._idp_registry = identity_provider_registry
@@ -71,6 +73,8 @@ class AuthSessionHttpSurfaceService:
         self._permission_catalog = permission_catalog
         self._bootstrap_username = auth_bootstrap_username
         self._bootstrap_disabled = auth_bootstrap_disabled
+        self._scim_enabled = scim_enabled or (lambda: False)
+        self._public_manager_url = str(public_manager_url or "").strip()
         # Per-request
         self._auth_principal = auth_principal
         self._remote_addr = remote_addr
@@ -219,6 +223,9 @@ class AuthSessionHttpSurfaceService:
             HTTPStatus.OK,
             {
                 "ok": True,
+                "server_url": self._public_manager_url,
+                "scim_enabled": bool(self._scim_enabled()),
+                "scim_base_url": self._public_manager_url,
                 "user": {
                     "username": str(principal.get("username") or ""),
                     "role": role,

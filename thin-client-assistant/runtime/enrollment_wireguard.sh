@@ -19,6 +19,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/lib/trace-guard.sh"
+beagle_trace_guard_disable_xtrace_if_sensitive
 # shellcheck source=common.sh
 source "${SCRIPT_DIR}/common.sh" 2>/dev/null || true
 PERSIST_WIREGUARD_CONFIG_PY="${PERSIST_WIREGUARD_CONFIG_PY:-$SCRIPT_DIR/persist_wireguard_runtime_config.py}"

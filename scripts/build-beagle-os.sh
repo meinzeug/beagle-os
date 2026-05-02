@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/trace-guard.sh"
+beagle_trace_guard_disable_xtrace_if_sensitive
 WORK_DIR="${BEAGLE_OS_WORK_DIR:-$ROOT_DIR/.build/beagle-os}"
 OUT_DIR="${BEAGLE_OS_OUT_DIR:-$ROOT_DIR/dist/beagle-os}"
 ROOTFS_DIR="$WORK_DIR/rootfs"

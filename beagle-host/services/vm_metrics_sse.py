@@ -14,7 +14,9 @@ Events emitted every ~3 s while the connection is open:
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import subprocess
 import time
 from typing import Any
@@ -27,8 +29,18 @@ _MAX_EVENTS   = 600    # hard cap: ~30 min per connection
 class VmMetricsSseService:
     """Collect and yield SSE-formatted metric events for a single VM."""
 
-    def __init__(self, *, virsh_connect: str = "qemu:///system") -> None:
+    def __init__(
+        self,
+        *,
+        virsh_connect: str = "qemu:///system",
+        virsh_bin: str = "",
+        sleep_fn=time.sleep,
+        monotonic_ns_fn=time.monotonic_ns,
+    ) -> None:
         self._connect = virsh_connect
+        self._virsh_bin = self._resolve_virsh_bin(virsh_bin)
+        self._sleep = sleep_fn
+        self._monotonic_ns = monotonic_ns_fn
 
     # ------------------------------------------------------------------
     # Public generator
@@ -44,14 +56,14 @@ class VmMetricsSseService:
         yield self._encode("hello", {"ok": True, "vmid": int(vmid), "ts": _ts()})
 
         prev_cpu_ns: int | None = None
-        prev_time_ns: int | None = None
         prev_disk: dict[str, int] = {}
         prev_net: dict[str, int] = {}
         prev_ts_ns: int = 0
 
         for _ in range(_MAX_EVENTS):
-            time.sleep(_POLL_INTERVAL)
-            now_ns = time.monotonic_ns()
+            self._sleep(_POLL_INTERVAL)
+            now_ns = self._monotonic_ns()
+            delta_s = max(0.001, (now_ns - prev_ts_ns) / 1e9) if prev_ts_ns > 0 else 0.0
 
             try:
                 raw = self._run_virsh("domstats", "--raw",
@@ -59,7 +71,7 @@ class VmMetricsSseService:
                                       "--block", "--interface",
                                       domain)
             except RuntimeError as exc:
-                yield self._encode("error", {"ok": False, "error": str(exc)})
+                yield self._encode("error", {"ok": False, "code": "metrics_unavailable", "error": str(exc), "ts": _ts()})
                 return
 
             stats = _parse_domstats(raw)
@@ -74,7 +86,6 @@ class VmMetricsSseService:
                 vcpus = max(1, int(stats.get("vcpu.maximum", stats.get("vcpu.current", 1)) or 1))
                 cpu_pct = round(min(100.0, (delta_cpu / (delta_wall * vcpus)) * 100.0), 1)
             prev_cpu_ns = int(cpu_ns) if cpu_ns is not None else prev_cpu_ns
-            prev_ts_ns = now_ns
 
             # ---- RAM ----
             ram_used: int = 0
@@ -100,7 +111,6 @@ class VmMetricsSseService:
             disk_rd_bps = 0
             disk_wr_bps = 0
             if prev_disk and prev_ts_ns > 0:
-                delta_s = max(0.001, (now_ns - prev_ts_ns) / 1e9)
                 disk_rd_bps = int(max(0, disk_rd_bytes - prev_disk.get("rd", 0)) / delta_s)
                 disk_wr_bps = int(max(0, disk_wr_bytes - prev_disk.get("wr", 0)) / delta_s)
             prev_disk = {"rd": disk_rd_bytes, "wr": disk_wr_bytes}
@@ -118,33 +128,46 @@ class VmMetricsSseService:
             net_rx_bps = 0
             net_tx_bps = 0
             if prev_net and prev_ts_ns > 0:
-                delta_s = max(0.001, (now_ns - prev_ts_ns) / 1e9)
                 net_rx_bps = int(max(0, net_rx_bytes - prev_net.get("rx", 0)) / delta_s)
                 net_tx_bps = int(max(0, net_tx_bytes - prev_net.get("tx", 0)) / delta_s)
             prev_net = {"rx": net_rx_bytes, "tx": net_tx_bytes}
 
             # ---- Disk usage from guest agent ----
             disk_used_bytes, disk_total_bytes = self._guest_df(domain)
+            guest_agent_available = disk_total_bytes > 0
             disk_used_pct = (
                 round(disk_used_bytes / disk_total_bytes * 100, 1)
                 if disk_total_bytes > 0
                 else 0.0
             )
+            vcpu_current = int(stats.get("vcpu.current", 0) or 0)
+            vcpu_max = int(stats.get("vcpu.maximum", vcpu_current or 0) or 0)
+            state_value = int(stats.get("state.state", 0) or 0)
 
             payload = {
                 "ts": _ts(),
+                "status": self._domain_state_label(state_value),
+                "vcpu_current": vcpu_current,
+                "vcpu_max": vcpu_max,
+                "guest_agent_available": guest_agent_available,
+                "sample_interval_seconds": round(delta_s, 3) if delta_s > 0 else 0.0,
                 "cpu_pct": cpu_pct,
                 "ram_used": ram_used,
                 "ram_total": ram_total,
                 "ram_pct": round(ram_used / ram_total * 100, 1) if ram_total > 0 else 0.0,
+                "disk_read_bytes": disk_rd_bytes,
+                "disk_write_bytes": disk_wr_bytes,
                 "disk_read_bps": disk_rd_bps,
                 "disk_write_bps": disk_wr_bps,
+                "net_rx_bytes": net_rx_bytes,
+                "net_tx_bytes": net_tx_bytes,
                 "net_rx_bps": net_rx_bps,
                 "net_tx_bps": net_tx_bps,
                 "disk_used_bytes": disk_used_bytes,
                 "disk_total_bytes": disk_total_bytes,
                 "disk_used_pct": disk_used_pct,
             }
+            prev_ts_ns = now_ns
             yield self._encode("metrics", payload)
 
     # ------------------------------------------------------------------
@@ -152,13 +175,26 @@ class VmMetricsSseService:
     # ------------------------------------------------------------------
 
     def _run_virsh(self, *args: str) -> str:
-        cmd = ["virsh", "--connect", self._connect] + list(args)
+        cmd = [self._virsh_bin, "--connect", self._connect] + list(args)
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         if result.returncode != 0:
             raise RuntimeError(
                 f"virsh {' '.join(args[:2])} failed: {result.stderr.strip()}"
             )
         return result.stdout
+
+    @staticmethod
+    def _resolve_virsh_bin(configured: str) -> str:
+        candidate = str(configured or os.environ.get("BEAGLE_VIRSH_BIN", "") or "").strip()
+        if candidate:
+            return candidate
+        discovered = shutil.which("virsh")
+        if discovered:
+            return discovered
+        for fallback in ("/usr/bin/virsh", "/bin/virsh", "/usr/sbin/virsh"):
+            if os.path.exists(fallback):
+                return fallback
+        return "virsh"
 
     def _guest_df(self, domain: str) -> tuple[int, int]:
         """Return (used_bytes, total_bytes) of the root filesystem via QEMU guest agent.
@@ -215,6 +251,20 @@ class VmMetricsSseService:
             f"data: {json.dumps(payload, ensure_ascii=True, separators=(',', ':'))}\n\n"
         ).encode("utf-8")
 
+    @staticmethod
+    def _domain_state_label(state_value: int) -> str:
+        mapping = {
+            0: "unknown",
+            1: "running",
+            2: "blocked",
+            3: "paused",
+            4: "shutdown",
+            5: "shutoff",
+            6: "crashed",
+            7: "pmsuspended",
+        }
+        return mapping.get(int(state_value or 0), "unknown")
+
 
 # ------------------------------------------------------------------
 # Module helpers
@@ -222,7 +272,7 @@ class VmMetricsSseService:
 
 def _ts() -> str:
     import datetime
-    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _parse_domstats(raw: str) -> dict[str, Any]:
