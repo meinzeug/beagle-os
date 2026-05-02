@@ -32,6 +32,10 @@ class BeagleHostProvider:
         self._state_dir = Path(
             str(configured_state_dir).strip() or "/var/lib/beagle/providers/beagle"
         ).expanduser()
+        configured_images_dir = os.environ.get("BEAGLE_LIBVIRT_IMAGES_DIR", "")
+        self._libvirt_images_dir = Path(
+            str(configured_images_dir).strip() or "/var/lib/libvirt/images"
+        ).expanduser()
         self._default_node_name = str(os.environ.get("BEAGLE_BEAGLE_PROVIDER_DEFAULT_NODE", "beagle-0")).strip() or "beagle-0"
         self._cpu_stat_prev: tuple[float, float] | None = None  # (idle_time, total_time)
         self._vm_repo: VmRepository | None = vm_repository
@@ -645,7 +649,7 @@ class BeagleHostProvider:
     def _ensure_local_pool(self) -> bool:
         if self._libvirt_pool_exists("local"):
             return True
-        local_path = Path("/var/lib/libvirt/images")
+        local_path = self._libvirt_images_dir
         local_path.mkdir(parents=True, exist_ok=True)
         try:
             self._run_virsh("pool-define-as", "local", "dir", "--target", str(local_path))
@@ -757,7 +761,7 @@ class BeagleHostProvider:
                 return m.group(1).strip()
         except Exception:
             pass
-        return "/var/lib/libvirt/images"
+        return str(self._libvirt_images_dir)
 
     @staticmethod
     def _parse_storage_spec(spec: str) -> tuple[str, str]:

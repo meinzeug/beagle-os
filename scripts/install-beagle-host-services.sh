@@ -51,6 +51,7 @@ USB_TUNNEL_TEST_DROPIN="/etc/ssh/sshd_config.d/91-beagle-tunnel-test.conf"
 USB_TUNNEL_AUTH_COMMAND="/usr/local/libexec/beagle-usb-authorized-keys"
 KVM_UDEV_RULE_FILE="/etc/udev/rules.d/65-beagle-kvm.rules"
 INSTALLED_COMMIT_FILE="$INSTALL_DIR/.beagle-installed-commit"
+BEAGLE_LIBVIRT_IMAGES_DIR="${BEAGLE_LIBVIRT_IMAGES_DIR:-}"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -119,6 +120,76 @@ write_installed_commit_stamp() {
   printf '%s\n' "$commit" > "$INSTALLED_COMMIT_FILE"
   chgrp "$BEAGLE_CONTROL_USER" "$INSTALLED_COMMIT_FILE" 2>/dev/null || true
   chmod 0640 "$INSTALLED_COMMIT_FILE" 2>/dev/null || true
+}
+
+path_avail_bytes() {
+  local target="$1"
+  df -B1 --output=avail "$target" 2>/dev/null | tail -n 1 | tr -d '[:space:]'
+}
+
+detect_default_libvirt_images_dir() {
+  local root_default="/var/lib/libvirt/images"
+  local beagle_default="/var/lib/beagle/libvirt/images"
+  local root_avail="0"
+  local beagle_avail="0"
+
+  root_avail="$(path_avail_bytes / 2>/dev/null || printf '0')"
+  if [[ -d /var/lib/beagle ]]; then
+    beagle_avail="$(path_avail_bytes /var/lib/beagle 2>/dev/null || printf '0')"
+  fi
+
+  if [[ "${beagle_avail:-0}" =~ ^[0-9]+$ ]] && [[ "${root_avail:-0}" =~ ^[0-9]+$ ]] && (( beagle_avail > root_avail )); then
+    printf '%s\n' "$beagle_default"
+    return 0
+  fi
+  printf '%s\n' "$root_default"
+}
+
+resolve_libvirt_images_dir() {
+  local configured="${BEAGLE_LIBVIRT_IMAGES_DIR:-}"
+  if [[ -n "$configured" ]]; then
+    printf '%s\n' "$configured"
+    return 0
+  fi
+  detect_default_libvirt_images_dir
+}
+
+libvirt_pool_target_path() {
+  local pool_name="$1"
+  local dump_xml=""
+  dump_xml="$(virsh --connect qemu:///system pool-dumpxml "$pool_name" 2>/dev/null || true)"
+  if [[ "$dump_xml" =~ \<path\>([^<]+)\</path\> ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+sync_local_storage_pool() {
+  local target_dir="$1"
+  local current_dir=""
+
+  mkdir -p "$target_dir"
+  chown root:libvirt "$target_dir"
+  chmod 0771 "$target_dir"
+
+  if virsh --connect qemu:///system pool-info local >/dev/null 2>&1; then
+    current_dir="$(libvirt_pool_target_path local || true)"
+    if [[ -n "$current_dir" && "$current_dir" != "$target_dir" ]]; then
+      mkdir -p "$current_dir"
+      rsync -a "$current_dir"/ "$target_dir"/ 2>/dev/null || true
+      virsh --connect qemu:///system pool-destroy local >/dev/null 2>&1 || true
+      virsh --connect qemu:///system pool-undefine local >/dev/null 2>&1 || true
+    fi
+  fi
+
+  if ! virsh --connect qemu:///system pool-info local >/dev/null 2>&1; then
+    virsh --connect qemu:///system pool-define-as local dir --target "$target_dir" >/dev/null
+    virsh --connect qemu:///system pool-build local >/dev/null 2>&1 || true
+  fi
+  virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
+  virsh --connect qemu:///system pool-autostart local >/dev/null
+  virsh --connect qemu:///system pool-refresh local >/dev/null 2>&1 || true
 }
 
 repair_host_runtime_links() {
@@ -752,12 +823,13 @@ fi
 # When running with the beagle (libvirt/KVM) provider, set storage paths and
 # ensure libvirt + OVMF are installed.
 if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
-  BEAGLE_LIBVIRT_IMAGES_DIR="${BEAGLE_LIBVIRT_IMAGES_DIR:-/var/lib/libvirt/images}"
+  BEAGLE_LIBVIRT_IMAGES_DIR="$(resolve_libvirt_images_dir)"
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_LOCAL_ISO_DIR" "\"$BEAGLE_LIBVIRT_IMAGES_DIR\""
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_DISK_STORAGE" '"local"'
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_ISO_STORAGE" '"local"'
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_UBUNTU_DEFAULT_BRIDGE" '"beagle"'
   set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_PUBLIC_STREAM_LAN_IF" '"virbr10"'
+  set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_LIBVIRT_IMAGES_DIR" "\"$BEAGLE_LIBVIRT_IMAGES_DIR\""
 
   if ! standalone_runtime_tools_ready; then
     qemu_system_package="$(resolve_qemu_system_package)"
@@ -819,21 +891,7 @@ NETEOF
       set_env_value "$BEAGLE_CONTROL_ENV_FILE" "BEAGLE_PUBLIC_STREAM_LAN_IF" "\"$detected_beagle_bridge_iface\""
     fi
 
-    # Create local storage pool if missing
-    if ! virsh --connect qemu:///system pool-info local >/dev/null 2>&1; then
-      mkdir -p "$BEAGLE_LIBVIRT_IMAGES_DIR"
-      virsh --connect qemu:///system pool-define-as local dir --target "$BEAGLE_LIBVIRT_IMAGES_DIR" >/dev/null
-      virsh --connect qemu:///system pool-build local >/dev/null 2>&1 || true
-      virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
-      virsh --connect qemu:///system pool-autostart local >/dev/null
-    else
-      virsh --connect qemu:///system pool-start local >/dev/null 2>&1 || true
-      virsh --connect qemu:///system pool-autostart local >/dev/null
-    fi
-    # Ensure beagle-manager (in the libvirt group) can write ISOs and disk images
-    # into the libvirt images directory. libvirt sets this dir to 0711 by default.
-    chown root:libvirt "$BEAGLE_LIBVIRT_IMAGES_DIR"
-    chmod 0771 "$BEAGLE_LIBVIRT_IMAGES_DIR"
+    sync_local_storage_pool "$BEAGLE_LIBVIRT_IMAGES_DIR"
     virsh --connect qemu:///system pool-info local >/dev/null
   else
     echo "Skipping libvirt network/storage bootstrap during offline/chroot install" >&2
