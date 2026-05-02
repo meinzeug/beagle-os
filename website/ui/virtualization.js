@@ -343,7 +343,7 @@ export function renderVirtualizationPanel() {
   }
   if (!overview || !state.token) {
     nodesGrid.innerHTML = '<div class="empty-card">' + escapeHtml(t('vm.connect_first')) + '</div>';
-    storageBody.innerHTML = '<tr><td colspan="8" class="empty-cell">Keine Daten verfuegbar.</td></tr>';
+    storageBody.innerHTML = '<tr><td colspan="8" class="empty-cell">' + escapeHtml(t('empty.no_data')) + '</td></tr>';
     return;
   }
   const nodes = Array.isArray(overview.nodes) ? overview.nodes : [];
@@ -383,7 +383,7 @@ export function renderVirtualizationPanel() {
   }
 
   if (!nodes.length) {
-    nodesGrid.innerHTML = '<div class="empty-card">Keine Nodes gefunden.</div>';
+    nodesGrid.innerHTML = '<div class="empty-card">' + escapeHtml(t('virt.no_nodes')) + '</div>';
   } else {
     nodesGrid.innerHTML = nodes.map((node) => {
       const statusTone = node.status === 'online' ? 'ok' : 'warn';
@@ -416,7 +416,7 @@ export function renderVirtualizationPanel() {
     }).join('');
   }
   if (!storage.length) {
-    storageBody.innerHTML = '<tr><td colspan="8" class="empty-cell">Kein Storage gefunden.</td></tr>';
+    storageBody.innerHTML = '<tr><td colspan="8" class="empty-cell">' + escapeHtml(t('virt.no_storage')) + '</td></tr>';
   } else {
     storageBody.innerHTML = storage.map((item) => {
       const quotaBytes = Number(item.quota_bytes || 0);
@@ -495,10 +495,10 @@ function storageImageTone(kind) {
 export function openStoragePoolDetail(poolName) {
   const pool = String(poolName || '').trim();
   if (!pool) {
-    virtualizationHooks.setBanner('Storage-Pool fehlt.', 'warn');
+    virtualizationHooks.setBanner(t('virt.storage_pool_missing'), 'warn');
     return;
   }
-  virtualizationHooks.setBanner('Lade Storage-Inhalt fuer ' + pool + ' ...', 'info');
+  virtualizationHooks.setBanner(t('virt.loading_storage_content', { pool }), 'info');
   request('/storage/pools/' + encodeURIComponent(pool) + '/files').then((payload) => {
     const files = Array.isArray(payload && payload.files) ? payload.files : [];
     const modal = document.createElement('div');
@@ -627,7 +627,7 @@ export function loadVmConfig(vmid) {
   if (configPanel.getAttribute('data-loaded') === String(vmid)) {
     return;
   }
-  configPanel.innerHTML = '<div class="banner banner-info">Lade VM-Konfiguration...</div>';
+  configPanel.innerHTML = '<div class="banner banner-info">' + escapeHtml(t('virt.loading_vm_config')) + '</div>';
   Promise.all([
     request('/virtualization/vms/' + vmid + '/config'),
     request('/virtualization/vms/' + vmid + '/interfaces').catch(() => null)
@@ -806,10 +806,10 @@ export function setVirtualizationNodeFilter(nodeName) {
 export function openVirtualizationNodeDetail(nodeName) {
   const node = String(nodeName || '').trim();
   if (!node) {
-    virtualizationHooks.setBanner('Node-Name fehlt.', 'warn');
+    virtualizationHooks.setBanner(t('virt.node_name_missing'), 'warn');
     return;
   }
-  virtualizationHooks.setBanner('Lade Node-Details fuer ' + node + ' ...', 'info');
+  virtualizationHooks.setBanner(t('virt.loading_node_detail', { node }), 'info');
   request('/virtualization/nodes/' + encodeURIComponent(node) + '/detail').then((payload) => {
     const detail = payload || {};
     const nodeData = detail.node || {};
@@ -950,10 +950,10 @@ export function createIpamZoneForBridge(bridgeName, bridgeCidr) {
 export function openVirtualizationBridgeDetail(bridgeName) {
   const bridge = String(bridgeName || '').trim();
   if (!bridge) {
-    virtualizationHooks.setBanner('Bridge-Name fehlt.', 'warn');
+    virtualizationHooks.setBanner(t('virt.bridge_name_missing'), 'warn');
     return;
   }
-  virtualizationHooks.setBanner('Lade Bridge-Details fuer ' + bridge + ' ...', 'info');
+  virtualizationHooks.setBanner(t('virt.loading_bridge_detail', { bridge }), 'info');
   request('/virtualization/bridges/' + encodeURIComponent(bridge) + '/detail').then((payload) => {
     const detail = payload || {};
     const bridgeData = detail.bridge || {};
@@ -1062,36 +1062,36 @@ export function renderVirtualizationInspector() {
     return;
   }
   if (!state.token) {
-    summary.innerHTML = '<div class="kv"><div class="kv-label">Status</div><div class="kv-value">Bitte anmelden, um VM-Details zu laden.</div></div>';
-    configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Nicht angemeldet.</td></tr>';
-    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Nicht angemeldet.</td></tr>';
-    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Nicht angemeldet.</td></tr>';
-    ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Nicht angemeldet.</td></tr>';
+    summary.innerHTML = '<div class="kv"><div class="kv-label">' + escapeHtml(t('virt.inspector.status_label')) + '</div><div class="kv-value">' + escapeHtml(t('virt.inspector.login_required')) + '</div></div>';
+    configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.not_logged_in')) + '</td></tr>';
+    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.not_logged_in')) + '</td></tr>';
+    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.not_logged_in')) + '</td></tr>';
+    ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">' + escapeHtml(t('virt.inspector.not_logged_in')) + '</td></tr>';
     return;
   }
   const inspector = state.virtualizationInspector || {};
   if (inspector.loading) {
-    summary.innerHTML = '<div class="kv"><div class="kv-label">Status</div><div class="kv-value">Lade VM-Inspector ...</div></div>';
-    configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Lade Konfiguration ...</td></tr>';
-    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Lade Disk-Daten ...</td></tr>';
-    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Lade Netzwerk-Config ...</td></tr>';
-    ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Lade Interfaces ...</td></tr>';
+    summary.innerHTML = '<div class="kv"><div class="kv-label">' + escapeHtml(t('virt.inspector.status_label')) + '</div><div class="kv-value">' + escapeHtml(t('virt.inspector.loading')) + '</div></div>';
+    configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.loading_config')) + '</td></tr>';
+    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.loading_disks')) + '</td></tr>';
+    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.loading_netcfg')) + '</td></tr>';
+    ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">' + escapeHtml(t('virt.inspector.loading_ifaces')) + '</td></tr>';
     return;
   }
   if (inspector.error) {
-    summary.innerHTML = '<div class="kv"><div class="kv-label">Fehler</div><div class="kv-value">' + escapeHtml(inspector.error) + '</div></div>';
-    configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Keine Config verfuegbar.</td></tr>';
-    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Keine Disk-Daten verfuegbar.</td></tr>';
-    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Keine Netzwerk-Config verfuegbar.</td></tr>';
-    ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Keine Interface-Daten verfuegbar.</td></tr>';
+    summary.innerHTML = '<div class="kv"><div class="kv-label">' + escapeHtml(t('status.error')) + '</div><div class="kv-value">' + escapeHtml(inspector.error) + '</div></div>';
+    configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.no_config')) + '</td></tr>';
+    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.no_disks')) + '</td></tr>';
+    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.no_netcfg')) + '</td></tr>';
+    ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">' + escapeHtml(t('virt.inspector.no_ifaces')) + '</td></tr>';
     return;
   }
   if (!inspector.vmid || !inspector.config) {
-    summary.innerHTML = '<div class="kv"><div class="kv-label">Status</div><div class="kv-value">Noch keine VM geladen.</div></div>';
-    configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Noch keine Config geladen.</td></tr>';
-    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Noch keine Disk-Daten geladen.</td></tr>';
-    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">Noch keine Netzwerk-Config geladen.</td></tr>';
-    ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">Noch keine Interfaces geladen.</td></tr>';
+    summary.innerHTML = '<div class="kv"><div class="kv-label">' + escapeHtml(t('virt.inspector.status_label')) + '</div><div class="kv-value">' + escapeHtml(t('virt.inspector.none_loaded')) + '</div></div>';
+    configBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.none_config')) + '</td></tr>';
+    disksBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.none_disks')) + '</td></tr>';
+    netcfgBody.innerHTML = '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.none_netcfg')) + '</td></tr>';
+    ifaceBody.innerHTML = '<tr><td colspan="3" class="empty-cell">' + escapeHtml(t('virt.inspector.none_ifaces')) + '</td></tr>';
     return;
   }
   const config = inspector.config || {};
@@ -1109,7 +1109,7 @@ export function renderVirtualizationInspector() {
   ].join('');
   configBody.innerHTML = generalKeys.length ? generalKeys.map((key) => {
     return '<tr><td>' + escapeHtml(key) + '</td><td class="storage-content">' + escapeHtml(String(config[key])) + '</td></tr>';
-  }).join('') : '<tr><td colspan="2" class="empty-cell">Keine Config-Werte verfuegbar.</td></tr>';
+  }).join('') : '<tr><td colspan="2" class="empty-cell">' + escapeHtml(t('virt.inspector.no_config_values')) + '</td></tr>';
   disksBody.innerHTML = diskKeys.length ? diskKeys.map((key) => {
     return '<tr><td>' + escapeHtml(key) + '</td><td class="storage-content">' + escapeHtml(String(config[key] || '')) + '</td></tr>';
   }).join('') : '<tr><td colspan="2" class="empty-cell">Keine Disk-Config vorhanden.</td></tr>';
@@ -1124,7 +1124,7 @@ export function renderVirtualizationInspector() {
       return ip ? ip + (prefix ? '/' + prefix : '') : '';
     }).filter(Boolean).join(', ');
     return '<tr><td>' + escapeHtml(String(iface.name || iface.ifname || '-')) + '</td><td>' + escapeHtml(String(iface['hardware-address'] || iface.mac || '-')) + '</td><td>' + escapeHtml(addresses || '-') + '</td></tr>';
-  }).join('') : '<tr><td colspan="3" class="empty-cell">Keine Guest-Interface-Daten verfuegbar.</td></tr>';
+  }).join('') : '<tr><td colspan="3" class="empty-cell">' + escapeHtml(t('virt.inspector.no_guest_ifaces')) + '</td></tr>';
 }
 
 export function loadVirtualizationInspector(vmid) {
