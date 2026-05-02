@@ -33,7 +33,7 @@
 ## GPU Plane
 
 - [x] GPU Passthrough + vGPU Surface (Welle 7.1.2)
-- [ ] GPU-Pool Inventory + Auslastung in WebUI auf echter Hardware abgenommen (R3)
+- [x] GPU-Pool Inventory + Auslastung in WebUI auf echter Hardware abgenommen (R3) — srv2 GTX 1080 live erkannt (`PLAN12_GPU_SMOKE=PASS`), WebUI-GPU-Plane ausgerollt, GPU-Auslastung pro Session im Kiosk-/Gaming-Metrics-Pfad sichtbar (2026-05-02 Docs-Triage)
 - [ ] Reboot-Proof: VFIO-Konfiguration ueberlebt Host-Reboot auf Hardware (R3)
 - [ ] vGPU/MDEV nur als bestanden markieren wenn Hardware + Lizenz real vorliegen
 

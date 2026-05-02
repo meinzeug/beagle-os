@@ -27,8 +27,9 @@
 
 - [x] `build-iso.yml`: `workflow_dispatch` + push-Trigger + nightly cron + SBOM (CycloneDX) + Reproduzibilitaets-Check
 - [x] `release.yml`: Tag-Trigger, GPG-Signatur (SHA256SUMS.sig), Cosign keyless, SBOM-Bundling
+- [x] `release.yml` baut ISO/installimage/thin-client bei normalen `main`-Pushes nur noch bei relevanten Pfadaenderungen; letzter Push-Run `25256444508` erfolgreich ohne Full-Release-Fallthrough (2026-05-02)
 - [x] Frontend-Provisioning-Smoke (`webui-provisioning-smoke` Playwright Job)
-- [ ] Branch-Protection auf `main` aktiv (manuelle GitHub-UI-Konfig, deferred bis Multi-Maintainer)
+- [ ] Branch-Protection auf `main` aktiv (manuelle GitHub-UI-Konfig; GitHub API 2026-05-02: `Branch not protected`, bleibt offen)
 
 ## Datenintegritaet
 

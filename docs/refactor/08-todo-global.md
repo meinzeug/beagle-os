@@ -8,7 +8,7 @@
 
 - [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen.
 
-- [ ] BeagleStream Runtime-Status in der WebUI sichtbar machen: `stream_runtime.variant` fuer VM-/Installer-Readiness und spaeter analog fuer Thin-Client-Artefakte/Health verwenden.
+- [x] BeagleStream Runtime-Status in der WebUI sichtbar machen: `stream_runtime.variant` fuer VM-/Installer-Readiness verwenden; `website/main.js` rendert BeagleStream-Server vs. Sunshine-Fallback inkl. Paketstatus (2026-05-02 Docs-Triage). Thin-Client-Artefakt-/Health-Paritaet bleibt als separater Restpfad in `06-next-steps.md`.
 - [ ] BeagleStream End-to-End-Abnahme fuer VM100 auf `srv1` reproduzierbar abschliessen: Thinclient boot -> Broker-Allocate -> WireGuard -> sichtbarer Desktop-Stream.
 
 - [x] R1-VM-Lifecycle ueber API reproduzierbar geschlossen: `scripts/test-vm-lifecycle-r1-smoke.py` fuehrt `create -> start -> snapshot -> reboot -> delete` gegen `srv1` aus (PASS, 2026-04-30, inkl. Cleanup).
@@ -298,8 +298,8 @@
 - [x] Execute GoFuture Plan 18 Schritt 1: implement route-scanning OpenAPI generator (`scripts/generate-openapi-v1.py`) and publish generated artifacts (`docs/api/openapi.v1.generated.yaml`, `docs/api/openapi-v1-coverage.md`) plus breaking-change policy (`docs/api/breaking-change-policy.md`) (2026-04-21).
 - [x] Execute GoFuture Plan 18 Schritt 3: add `scripts/beaglectl.py` CLI with required subcommands (`vm`, `pool`, `user`, `node`, `backup`, `session`, `config`) and JSON output support (2026-04-21).
 
-- [ ] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports.
-- [ ] Verify KVM availability on the new dedicated host (`/dev/kvm`, `virsh domcapabilities --virttype kvm`) and re-run VM provisioning smoke through Beagle API/UI.
+- [x] Complete dedicated-host bootstrap validation on new Hetzner server `46.4.96.80` (`srv1.beagle-os.com`) and verify Beagle core services/ports — `beagle-control-plane` active, nginx `443` and local API `9088` listening (2026-05-02 Docs-Triage).
+- [x] Verify KVM availability on the new dedicated host (`/dev/kvm`, `virsh domcapabilities --virttype kvm`) and re-run VM provisioning smoke through Beagle API/UI — `/dev/kvm` present, KVM domcaps OK, R1 VM lifecycle/provisioning smokes already green on srv1 (2026-05-02 Docs-Triage).
 - [x] Add release-publication preflight that blocks installimage deployment when required `v${VERSION}` and `latest` thin-client artifacts are missing on `beagle-os.com/beagle-updates`.
 
 - [x] Add a reproducible Hetzner `installimage` tarball builder for Beagle server and wire it into package/release/public-download metadata.
@@ -492,5 +492,5 @@
 - [ ] BeagleStream Phase A Packaging-Abschluss live bestaetigen: Client-AppImage und Server-DEB sind im `beagle-phase-a` Release vorhanden; Thin-Client-Artefaktbuild und VM-Guest-Prep stage'n die eigenen Fork-Artefakte statt der Fallbacks.
 - [x] Release-/Artifact-/Website-Workflows von starrer `8.0.0`-Version auf dynamische SemVer-Aufloesung umstellen.
 - [x] Artifact-Refresh-Doppellaeufe haerten: parallele `prepare-host-downloads`-/Timer-Starts behandeln einen belegten Lock jetzt als benignen Skip statt als roten Fehler.
-- [ ] Nach dem naechsten Main-Push bestaetigen, dass GitHub einen neuen Patch-Tag oberhalb `v8.0.0` erzeugt und beagle-os.com diese Version live anzeigt.
+- [x] Nach dem naechsten Main-Push bestaetigen, dass GitHub einen neuen Patch-Tag oberhalb `v8.0.0` erzeugt und beagle-os.com diese Version live anzeigt — GitHub `Latest` = `v8.0.9`, `beagle-os.com/beagle-updates/beagle-downloads-status.json` meldet `version=8.0.9` (2026-05-02).
 - [ ] Live-validieren, dass frisch provisionierte Ubuntu-Beagle-VMs standardmäßig mit `Beagle OS Cyberpunk` (KDE Plasma) hochkommen und dass `KDE Plasma Classic` über die WebUI/API reproduzierbar auswählbar bleibt.

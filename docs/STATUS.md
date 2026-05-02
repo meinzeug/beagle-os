@@ -1,6 +1,6 @@
 # Beagle OS — Enterprise-Readiness Snapshot
 
-**Stand**: 2026-04-29 · **Version**: 8.0
+**Stand**: 2026-05-02 · **Version**: 8.0.9
 
 Diese Datei beantwortet in 30 Sekunden: *Wo stehen wir auf dem Weg zu einem
 firmentauglichen, Enterprise-Niveau Produkt?*
@@ -25,12 +25,12 @@ firmentauglichen, Enterprise-Niveau Produkt?*
 | HA Manager + Fencing (Hardware) | gelb | [`checklists/01-platform.md`](checklists/01-platform.md) |
 | VDI Pools + Templates | gelb | [`checklists/01-platform.md`](checklists/01-platform.md) |
 | Live Session Handover | gelb | [`checklists/02-streaming-endpoint.md`](checklists/02-streaming-endpoint.md) |
-| GPU Pools + vGPU | rot (braucht Hardware) | [`checklists/01-platform.md`](checklists/01-platform.md) |
+| GPU Pools + vGPU | gelb (srv2-Hardware validiert, NVENC/Reboot/vGPU-Rest offen) | [`checklists/01-platform.md`](checklists/01-platform.md) |
 | SDN + Distributed Firewall | gelb | [`checklists/01-platform.md`](checklists/01-platform.md) |
 | Audit-Export + Compliance | gelb | [`checklists/03-security.md`](checklists/03-security.md) |
 | Backup/DR auf 2 Hosts validiert | gelb | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
 | Operations-Runbooks | gelb (Skelette vorhanden, ungetestet) | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
-| Hardware-Abnahme R3 | rot (kein GPU-Server gebucht) | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
+| Hardware-Abnahme R3 | gelb (srv2-GPU-Smokes gruen, NVENC/Reboot/vGPU-Rest offen) | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
 | Externer Pen-Test R4 | rot | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
 
 Legende: **gruen** = produktiv und verifiziert · **gelb** = Code/Plan vorhanden,
@@ -51,7 +51,7 @@ Live-/Hardware-Validation offen · **rot** = blockiert, externe Voraussetzung.
 Aktuell blockierend fuer Pilot/Production:
 
 1. Runbooks sind Skelette — mind. 1 Validierung auf realer Hardware noch offen
-2. Kein GPU-Server gebucht → R3 nicht startbar
+2. GPU-Server-Basis ist validiert, aber NVENC-/Streaming-Session, VFIO-Reboot-Proof und vGPU/MDEV-Lizenzpfad sind noch offen
 3. Externer Security-Review nicht beauftragt → R4 nicht abschliessbar
 
 ---
@@ -61,5 +61,5 @@ Aktuell blockierend fuer Pilot/Production:
 1. Frische ISO-Installation auf leerem Hetzner-Host live durchfuehren + [`runbooks/installation.md`](runbooks/installation.md) auf **Validiert** heben
 2. Cluster-Smoke auf `srv1`+`srv2` (Join + Drain + Failover) abnehmen
 3. Backup/Restore auf realer 2-Node-Konstellation testen, [`runbooks/backup-restore.md`](runbooks/backup-restore.md) validieren
-4. GPU-Server bei Hetzner buchen, R3-Block freischalten
+4. R3-GPU-Rest abnehmen: NVENC-/Streaming-Session mit Messwerten, VFIO-Reboot-Proof, vGPU/MDEV nur mit echter Lizenz/Hardware
 5. Externes Pen-Test-Engagement vorbereiten (Scope, Termin, Vertrag)

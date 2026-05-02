@@ -9,7 +9,7 @@
 
 - [x] Server-Installer-ISO baut reproduzierbar (`build-iso.yml`)
 - [x] Installimage-Tarball baut reproduzierbar
-- [x] `latest`-Release zeigt auf aktuelle Zielversion (8.0)
+- [x] `latest`-Release zeigt auf aktuelle Zielversion — GitHub `Latest` = `v8.0.9`, `beagle-os.com/beagle-updates/beagle-downloads-status.json` meldet `version=8.0.9` (2026-05-02)
 - [x] `8443` aus allen Pfaden entfernt
 - [x] Public Download-Skripte ohne Admin-/Manager-Credentials (CI-Guard `security-secrets-check.yml`)
 
@@ -35,12 +35,12 @@
 
 ## R3 — Hardware-Abnahme (Bare-Metal + GPU)
 
-- [ ] GPU-Server bei Hetzner gebucht, IOMMU/VFIO/libvirt verifiziert
-- [ ] GPU-Inventory: Karte, Treiber, IOMMU-Gruppe, Passthrough-Faehigkeit korrekt
-- [ ] Passthrough-VM sieht GPU + Audio
+- [x] GPU-Server bei Hetzner gebucht, IOMMU/VFIO/libvirt verifiziert — srv2 GTX 1080 + Audiofunktion an `vfio-pci`, libvirt/API-Inventar vorhanden (2026-05-02 Docs-Triage)
+- [x] GPU-Inventory: Karte, Treiber, IOMMU-Gruppe, Passthrough-Faehigkeit korrekt — `PLAN12_GPU_SMOKE=PASS`, Status bewusst `not-isolatable` wegen IOMMU-Gruppe mit Root Port (2026-05-02)
+- [x] Passthrough-VM sieht GPU + Audio — transienter `beagle-gpu-smoke` sah `10de:1b80` + `10de:10f0` im Gast (srv2, dokumentiert 2026-04-27)
 - [ ] NVENC-/Streaming-Pfad mit echter Session, Latenz-Messwerten
 - [ ] Reboot-Proof: VFIO-Konfiguration ueberlebt Host-Reboot
-- [ ] Gaming-Pool blockiert sauber wenn keine GPU verfuegbar
+- [x] Gaming-Pool blockiert sauber wenn keine GPU verfuegbar — `GPU_POOL_NO_GPU_SMOKE=PASS` auf srv1 (`pending-gpu`, allocation blocked, 2026-04-30)
 - [ ] vGPU/MDEV nur als bestanden markieren wenn Hardware + Lizenz real vorliegen
 - [ ] GPU-Server unmittelbar nach Abnahme gekuendigt (Kosten)
 

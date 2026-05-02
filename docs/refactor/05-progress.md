@@ -1,3 +1,24 @@
+## Update (2026-05-02, Docs-Triage gegen Repo, GitHub und Runtime)
+
+**Scope**: Offene Doku-Checkboxen in den aktiven Checklisten und im historischen `08-todo-global.md` gegen aktuellen Repo-/Runtime-Stand pruefen und nur belegte Punkte abhaken.
+
+- Geprueft:
+  - aktive Checklisten `docs/checklists/01-05-*.md`
+  - historischer Restbestand `docs/refactor/08-todo-global.md`
+  - aktueller Stand in `docs/refactor/06-next-steps.md`
+  - GitHub Releases/Workflow-Runs und `srv1` Runtime/KVM-Preflight
+- Abgehakt/aktualisiert:
+  - BeagleStream Runtime-Status in der WebUI (`stream_runtime.variant` in `website/main.js`)
+  - dedicated-host Bootstrap/KVM-Basis fuer `srv1` (`beagle-control-plane` active, `443`/`9088`, `/dev/kvm`, KVM-Domcaps)
+  - Public/GitHub Release-Status (`v8.0.9`, Public Update JSON `version=8.0.9`)
+  - GPU-R3-Teilpunkte mit vorhandenen srv2-/Smoke-Nachweisen (Inventory/VFIO/IOMMU, transienter Gast-Passthrough, No-GPU-Pool-Block)
+  - Release-Workflow-Optimierung: Build-Jobs laufen bei normalen `main`-Pushes nur noch bei relevanten Pfadaenderungen; letzter Release-Run `25256444508` erfolgreich.
+- Bewusst offen gelassen:
+  - Branch-Protection auf `main` (GitHub API meldet `Branch not protected`)
+  - Runbook-Checklisten fuer konkrete Operator-Einsaetze
+  - R1 Clean-Install/Firstboot/Backup-Restore
+  - R3 NVENC-/Streaming-Session, VFIO-Reboot-Proof und vGPU/MDEV-Lizenzpfad
+
 ## Update (2026-05-02, Release-Versionierung und Ubuntu-Cyberpunk-Seed auf 8.0.9 gehärtet)
 
 **Scope**: Den Drift zwischen GitHub-Release, committed Repo-Version, Host-Update-Anzeige und VM-spezifischen Update-/Provisioning-Daten schließen; zusätzlich den echten `vm100`-Provisioning-Blocker im Plasma-Cyberpunk-Firstboot beheben.
