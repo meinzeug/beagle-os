@@ -144,7 +144,8 @@ const eventHooks = {
   },
   openProvisionModal() {
     openProvisioningWorkspace();
-  }
+  },
+  onDetailPanelChange(_panelName) {}
 };
 
 export function configureEvents(nextHooks) {
@@ -623,6 +624,7 @@ export function bindEvents() {
       }
       const panelName = trigger.getAttribute('data-detail-panel');
       setActiveDetailPanel(panelName);
+      eventHooks.onDetailPanelChange(panelName);
       if (panelName === 'config' && state.selectedVmid) {
         loadVmConfig(state.selectedVmid);
       }

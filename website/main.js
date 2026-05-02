@@ -132,6 +132,7 @@ import {
   disconnectLiveUpdates
 } from './ui/live.js';
 import { request } from './ui/api.js';
+import { startVmMetrics } from './ui/vm_metrics.js';
 import {
   actionButton,
   escapeHtml,
@@ -360,7 +361,28 @@ function showDetailPage(show) {
   }
 }
 
+// Cleanup function for the currently active metrics SSE stream.
+// Called when the user leaves the metrics tab or closes the detail view.
+let _metricsCleanup = null;
+
+function stopMetrics() {
+  if (_metricsCleanup) {
+    _metricsCleanup();
+    _metricsCleanup = null;
+  }
+}
+
+function startMetricsIfNeeded(vmid) {
+  const stackEl = document.getElementById('detail-stack');
+  if (!stackEl) return;
+  const panel = stackEl.querySelector('[data-detail-panel="metrics"]');
+  if (!panel) return;
+  stopMetrics();
+  _metricsCleanup = startVmMetrics(vmid, panel, state.token);
+}
+
 function closeDetail() {
+  stopMetrics();
   state.selectedVmid = null;
   showDetailPage(false);
   renderInventory();
@@ -427,6 +449,7 @@ function loadDetail(vmid) {
   if (stackEl) {
     stackEl.innerHTML =
       '<div class="detail-panel" data-detail-panel="summary">' + buildSummaryPanelHtml(numericVmid, profile) + '</div>' +
+      '<div class="detail-panel" data-detail-panel="metrics"></div>' +
       '<div class="detail-panel" data-detail-panel="updates"><div class="banner info">Wird geladen...</div></div>' +
       '<div class="detail-panel" data-detail-panel="tasks"><div class="banner info">Wird geladen...</div></div>' +
       '<div class="detail-panel" data-detail-panel="usb"><div class="banner info">Wird geladen...</div></div>' +
@@ -602,7 +625,14 @@ export function bootstrapApp() {
     loadAuditFailureQueue,
     replayAuditFailures,
     runAuditReportBuilder,
-    testAuditExportTarget
+    testAuditExportTarget,
+    onDetailPanelChange(panelName) {
+      if (panelName === 'metrics' && state.selectedVmid) {
+        startMetricsIfNeeded(state.selectedVmid);
+      } else {
+        stopMetrics();
+      }
+    }
   });
   configurePanels({
     loadSettingsForPanel,

@@ -336,6 +336,25 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 return
             self._write_json(HTTPStatus.OK, node_install_check_service().list_payload())
             return
+        # Live metrics SSE stream — must be checked before the generic vms/* handler
+        _metrics_match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/metrics-stream$", path)
+        if _metrics_match:
+            _msse_principal = self._stream_principal(parsed)
+            if _msse_principal is None:
+                self._stream_auth_error(HTTPStatus.UNAUTHORIZED)
+                return
+            _msse_role = str(_msse_principal.get("role") or "viewer").strip().lower() or "viewer"
+            _msse_perm = authz_policy_service().required_permission("GET", path)
+            if _msse_perm is not None and not authz_policy_service().is_allowed(
+                _msse_role, _msse_perm, auth_session_service().role_permissions(_msse_role)
+            ):
+                self._stream_auth_error(HTTPStatus.FORBIDDEN)
+                return
+            _msse_vmid = int(_metrics_match.group("vmid"))
+            from vm_metrics_sse import VmMetricsSseService as _VmMetricsSse
+            self._stream_sse_job(_VmMetricsSse().stream(_msse_vmid))
+            return
+
         if path.startswith("/api/v1/vms/"):
             response = vm_http_surface_service().route_get(path)
             if response["kind"] == "bytes":

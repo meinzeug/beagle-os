@@ -23,5 +23,6 @@
 @import url("/styles/panels/_scope-switcher.css");
 @import url("/styles/panels/_sessions.css");
 @import url("/styles/panels/_jobs.css");
+@import url("/styles/panels/_vm_metrics.css");
 @import url("/styles/_responsive.css");
 @import url("/styles/_reduced-motion.css");

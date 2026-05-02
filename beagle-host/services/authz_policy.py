@@ -260,6 +260,8 @@ class AuthzPolicyService:
                 return "kiosk:operate"
             if route == "/api/v1/gaming/metrics":
                 return "vm:read"
+            if re.match(r"^/api/v1/vms/\d+/metrics-stream$", route):
+                return "vm:read"
             if route == "/api/v1/pools" or re.match(r"^/api/v1/pools/[A-Za-z0-9._-]+(/.*)?$", route):
                 return "pool:read"
             if route == "/api/v1/pool-templates" or re.match(r"^/api/v1/pool-templates/[A-Za-z0-9._-]+$", route):
