@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MOONLIGHT_RUNTIME_ENVIRONMENT_SH="${MOONLIGHT_RUNTIME_ENVIRONMENT_SH:-$SCRIPT_DIR/moonlight_runtime_environment.sh}"
-MOONLIGHT_STREAM_PROFILE_SH="${MOONLIGHT_STREAM_PROFILE_SH:-$SCRIPT_DIR/moonlight_stream_profile.sh}"
+BEAGLE_STREAM_CLIENT_RUNTIME_ENVIRONMENT_SH="${BEAGLE_STREAM_CLIENT_RUNTIME_ENVIRONMENT_SH:-$SCRIPT_DIR/beagle_stream_client_runtime_environment.sh}"
+BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH="${BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH:-$SCRIPT_DIR/beagle_stream_client_stream_profile.sh}"
 # shellcheck disable=SC1090
-source "$MOONLIGHT_RUNTIME_ENVIRONMENT_SH"
+source "$BEAGLE_STREAM_CLIENT_RUNTIME_ENVIRONMENT_SH"
 # shellcheck disable=SC1090
-source "$MOONLIGHT_STREAM_PROFILE_SH"
+source "$BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH"
 
-moonlight_bin() {
-  if [[ "${PVE_THIN_CLIENT_MOONLIGHT_BIN:-}" == "" ]] && beagle_stream_hostless_enabled; then
+beagle_stream_client_bin() {
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN:-}" == "" ]] && beagle_stream_hostless_enabled; then
     printf '%s\n' "beagle-stream"
     return 0
   fi
 
-  printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
+  printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN:-beagle-stream-client}"
 }
 
-moonlight_app() {
-  render_template "${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}"
+beagle_stream_client_app() {
+  render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP:-Desktop}"
 }
 
 beagle_stream_enrollment_config() {
@@ -50,7 +50,7 @@ beagle_stream_enrollment_value() {
 beagle_stream_hostless_enabled() {
   local host control_plane token device_id pool_id
 
-  host="$(moonlight_host 2>/dev/null || true)"
+  host="$(beagle_stream_client_host 2>/dev/null || true)"
   [[ -z "$host" ]] || return 1
 
   control_plane="$(beagle_stream_enrollment_value control_plane 2>/dev/null || true)"
@@ -65,22 +65,22 @@ build_stream_args() {
   local resolution fps bitrate codec decoder audio_config app host connect_host port target
   local -n out_ref="$1"
 
-  host="$(moonlight_host)"
-  connect_host="$(moonlight_connect_host)"
-  port="$(moonlight_port)"
-  app="$(moonlight_app)"
-  resolution="$(moonlight_resolution)"
-  fps="${PVE_THIN_CLIENT_MOONLIGHT_FPS:-60}"
-  bitrate="${PVE_THIN_CLIENT_MOONLIGHT_BITRATE:-20000}"
-  codec="${PVE_THIN_CLIENT_MOONLIGHT_VIDEO_CODEC:-H.264}"
-  decoder="$(moonlight_video_decoder)"
-  audio_config="${PVE_THIN_CLIENT_MOONLIGHT_AUDIO_CONFIG:-stereo}"
+  host="$(beagle_stream_client_host)"
+  connect_host="$(beagle_stream_client_connect_host)"
+  port="$(beagle_stream_client_port)"
+  app="$(beagle_stream_client_app)"
+  resolution="$(beagle_stream_client_resolution)"
+  fps="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}"
+  bitrate="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE:-20000}"
+  codec="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC:-H.264}"
+  decoder="$(beagle_stream_client_video_decoder)"
+  audio_config="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG:-stereo}"
 
   if beagle_stream_hostless_enabled; then
-    out_ref=("$(moonlight_bin)" stream "$app")
+    out_ref=("$(beagle_stream_client_bin)" stream "$app")
   else
-    target="$(format_moonlight_target "${connect_host:-$host}" "$port")"
-    out_ref=("$(moonlight_bin)" stream "$target" "$app")
+    target="$(format_beagle_stream_client_target "${connect_host:-$host}" "$port")"
+    out_ref=("$(beagle_stream_client_bin)" stream "$target" "$app")
   fi
 
   case "$resolution" in
@@ -100,10 +100,10 @@ build_stream_args() {
 
   out_ref+=(--display-mode fullscreen --frame-pacing --keep-awake --no-hdr --no-yuv444)
 
-  if [[ "${PVE_THIN_CLIENT_MOONLIGHT_ABSOLUTE_MOUSE:-1}" == "1" ]]; then
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE:-1}" == "1" ]]; then
     out_ref+=(--absolute-mouse)
   fi
-  if [[ "${PVE_THIN_CLIENT_MOONLIGHT_QUIT_AFTER:-0}" == "1" ]]; then
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_QUIT_AFTER:-0}" == "1" ]]; then
     out_ref+=(--quit-after)
   fi
 }

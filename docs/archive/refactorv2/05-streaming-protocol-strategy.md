@@ -4,10 +4,10 @@ Stand: 2026-04-20
 
 ## Stand heute (6.7.0)
 
-- Sunshine wird per `services/sunshine_integration.py` und `templates/ubuntu-beagle/firstboot-provision.sh.tpl` in jede Desktop-VM gesetzt.
-- Pairing erfolgt heute teils interaktiv, teils ueber `services/public_sunshine_surface.py`.
+- Beagle Stream Server wird per `services/beagle_stream_server_integration.py` und `templates/ubuntu-beagle/firstboot-provision.sh.tpl` in jede Desktop-VM gesetzt.
+- Pairing erfolgt heute teils interaktiv, teils ueber `services/public_beagle_stream_server_surface.py`.
 - noVNC-Fallback ueber `services/vm_console_access.py` mit guest-side x11vnc.
-- Endpoint-Runtime nutzt Moonlight-Embedded und Beagle-Endpoint-OS-Wrapper (`beagle-os/`, `thin-client-assistant/runtime/`).
+- Endpoint-Runtime nutzt Beagle Stream Client-Embedded und Beagle-Endpoint-OS-Wrapper (`beagle-os/`, `thin-client-assistant/runtime/`).
 
 ## Lueckenliste vs Konkurrenz
 
@@ -15,8 +15,8 @@ Stand: 2026-04-20
 - **HDR**: F.
 - **Multi-Monitor (>=2)**: F.
 - **4:4:4 Chroma**: F (heute 4:2:0 default).
-- **Hardware-Encoder-Auswahl pro Profil** (NVENC/QSV/VAAPI/AMF/Software): T (Sunshine-Default), kein Pool-Profil.
-- **Audio-Input + Mikro + Wacom + Gamepad-Redirect**: T (Moonlight-Stack faehig, nicht durchgaengig getestet/aktiviert).
+- **Hardware-Encoder-Auswahl pro Profil** (NVENC/QSV/VAAPI/AMF/Software): T (Beagle Stream Server-Default), kein Pool-Profil.
+- **Audio-Input + Mikro + Wacom + Gamepad-Redirect**: T (Beagle Stream Client-Stack faehig, nicht durchgaengig getestet/aktiviert).
 - **Auto-Pairing per signiertem Token**: F (heute PIN-zentriert).
 - **Watermark / Session-Recording im Stream**: F.
 - **Stream-Health-Telemetrie ins Session-Object**: F.
@@ -25,16 +25,16 @@ Stand: 2026-04-20
 
 ### Backend-Strategie
 
-Beagle OS 7.0 setzt auf **Apollo** als bevorzugten Sunshine-Fork. Begruendung:
+Beagle OS 7.0 setzt auf **Apollo** als bevorzugten Beagle Stream Server-Fork. Begruendung:
 
 - Built-in Virtual Display mit auto-resolution + HDR.
 - Per-Client-Permission-Modell.
 - Auto-pause/resume Hooks.
-- Aktive Maintenance, Sunshine ist verfuegbar als Fallback.
+- Aktive Maintenance, Beagle Stream Server ist verfuegbar als Fallback.
 
 Implementierung:
 
-- `services/streaming_backend.py` (neu): Backend-Selector (apollo|sunshine).
+- `services/streaming_backend.py` (neu): Backend-Selector (apollo|beagle-stream-server).
 - `templates/ubuntu-beagle/streaming/apollo.service.tpl`: systemd-Service fuer Apollo im Guest.
 - `services/streaming_pairing.py` (neu): Auto-Pairing per signiertem Token.
 
@@ -55,7 +55,7 @@ Provider-Neutralitaet: kein direkter Apollo-Code im HTTP-Layer; nur Service-Laye
 User klickt in Web Console "Connect to my desktop"
   -> Control Plane signiert kurzlebigen Pairing-Token (JWT, 60 s, scope: vm-id, user)
   -> Token wird mit dem Endpoint via HTTPS-API ausgeliefert
-  -> Endpoint Moonlight-Wrapper benutzt Token gegen Beagle-Streaming-Pairing-Endpoint
+  -> Endpoint Beagle Stream Client-Wrapper benutzt Token gegen Beagle-Streaming-Pairing-Endpoint
   -> Beagle Streaming-Service ruft Apollo-Pairing-API mit serverseitig erzeugtem PIN auf
   -> Pairing erfolgreich, Stream-Session wird im Session-Store eroeffnet
 ```
@@ -100,21 +100,21 @@ streaming:
 
 ### Telemetrie
 
-- Apollo/Sunshine schreiben Stats; Beagle-Service liest periodisch und schreibt in `Session.health`.
+- Apollo/Beagle Stream Server schreiben Stats; Beagle-Service liest periodisch und schreibt in `Session.health`.
 - Web Console zeigt Live-Stats (RTT, FPS, dropped frames, bitrate).
 - Prometheus-Export `beagle_stream_*`.
 
 ### Migration heute -> 7.0
 
-- 6.7.0-Provisionierung bleibt funktionsfaehig (Sunshine + manuelles Pairing).
-- 7.1.1 fuegt Apollo-Backend hinzu, Pool-Profile entscheiden, ob Apollo oder Sunshine.
+- 6.7.0-Provisionierung bleibt funktionsfaehig (Beagle Stream Server + manuelles Pairing).
+- 7.1.1 fuegt Apollo-Backend hinzu, Pool-Profile entscheiden, ob Apollo oder Beagle Stream Server.
 - Bestehende VMs koennen per Migration-Skript auf Apollo umgestellt werden.
 
 ## Endpoint-Seite
 
 Beagle Endpoint OS und der Browser-Client sollen **denselben Pairing-Flow** beherrschen:
 
-- Beagle Endpoint OS: Moonlight-Embedded mit Beagle-Pairing-Plug-in.
-- Browser: Moonlight-Web-Client (WebRTC-Bridge) als Fallback.
+- Beagle Endpoint OS: Beagle Stream Client-Embedded mit Beagle-Pairing-Plug-in.
+- Browser: Beagle Stream Client-Web-Client (WebRTC-Bridge) als Fallback.
 
 Beide muessen mindestens HEVC-Decoding und WebRTC-Audio (Opus) unterstuetzen.

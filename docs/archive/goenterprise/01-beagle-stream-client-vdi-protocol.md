@@ -1,4 +1,4 @@
-# 01 — BeagleStream: Eigenes Streaming-Protokoll (Sunshine/Moonlight Fork)
+# 01 — BeagleStream: Eigenes Streaming-Protokoll (Beagle Stream Server/Beagle Stream Client Fork)
 
 Stand: 2026-04-24 (überarbeitet: Fork-Strategie + WireGuard-Latenztest)  
 Priorität: 8.0.0 (SOFORT)
@@ -7,17 +7,17 @@ Priorität: 8.0.0 (SOFORT)
 
 ## Kann Beagle ein eigenes Streaming-Protokoll haben?
 
-**Ja. Beide Projekte (Sunshine + Moonlight) sind GPL v3 — Forking ist explizit erlaubt.**
+**Ja. Beide Projekte (Beagle Stream Server + Beagle Stream Client) sind GPL v3 — Forking ist explizit erlaubt.**
 
 ### Lizenz-Analyse
 
 | Projekt | Lizenz | Forken? | Verändern? | Open-Source-Pflicht? |
 |---|---|---|---|---|
-| **Sunshine** (Server) | GPL v3 | ✅ | ✅ | ✅ Modifikationen müssen offen bleiben |
-| **Moonlight-qt** (Client) | GPL v3 | ✅ | ✅ | ✅ |
+| **Beagle Stream Server** (Server) | GPL v3 | ✅ | ✅ | ✅ Modifikationen müssen offen bleiben |
+| **Beagle Stream Client-qt** (Client) | GPL v3 | ✅ | ✅ | ✅ |
 | Beagle Control Plane (Python) | MIT/proprietär möglich | — | — | Beagle-Entscheidung |
 
-**Plan**: Sunshine forken → `meinzeug/beagle-stream-server`. Moonlight-qt forken → `meinzeug/beagle-stream-client`.
+**Plan**: Beagle Stream Server forken → `meinzeug/beagle-stream-server`. Beagle Stream Client-qt forken → `meinzeug/beagle-stream-client`.
 Beides bleibt GPL v3. Der Python-Broker/Management-Layer ist separat und kann kommerziell lizenziert werden.
 
 ---
@@ -38,7 +38,7 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
 |---|---|---|---|
 | LAN (1Gbps) | 1-3ms | 1.003-3.003ms | **+0.003ms** |
 | WAN (100Mbps) | 15-25ms | 15.1-25.1ms | **+0.1ms** |
-| Citrix HDX | 20-80ms | — | **Moonlight+WG ist 6-26x schneller** |
+| Citrix HDX | 20-80ms | — | **Beagle Stream Client+WG ist 6-26x schneller** |
 
 **Fazit: WireGuard ändert nichts an der Latenz-Führerschaft. VPN ist kostenlos.**
 
@@ -46,7 +46,7 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
 
 ## Warum forken statt weiternutzen?
 
-| Heute (vanilla Sunshine/Moonlight) | BeagleStream (Fork) |
+| Heute (vanilla Beagle Stream Server/Beagle Stream Client) | BeagleStream (Fork) |
 |---|---|
 | PIN-Pairing manuell | Token-basiertes Zero-Touch-Pairing via Broker |
 | Keine Broker-Integration | Direkte API-Kommunikation mit Beagle Control Plane |
@@ -78,16 +78,16 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
 | Omnissa Horizon | BLAST Extreme (H.264/VP9) | 20-60ms | Adaptiv |
 | Azure VD / RDP | RDP 10 (H.264) | 40-150ms | Gut, aber hoher CPU-Overhead |
 | AWS WorkSpaces | NICE DCV | 20-50ms | Gut für CAD/3D |
-| **Beagle BeagleStream** | Moonlight-Fork + WireGuard | **1-5ms LAN, ~15ms WAN** | H.264/H.265/AV1, GPU-accelerated |
+| **Beagle BeagleStream** | Beagle Stream Client-Fork + WireGuard | **1-5ms LAN, ~15ms WAN** | H.264/H.265/AV1, GPU-accelerated |
 
 **BeagleStream ist das schnellste VDI-Protokoll der Welt — und das einzige mit integriertem Zero-Trust VPN.**
 
 ### Was heute fehlt (wird mit GoEnterprise gebaut)
 
-- Kein Fork: Upstream-Sunshine/Moonlight ohne Beagle-Broker-Integration
+- Kein Fork: Externe Stream-Komponenten ohne Beagle-Broker-Integration
 - Kein automatisches Pairing ohne PIN für Enterprise-Deployments
 - Keine Policy-Engine für Stream-Parameter per User/Pool
-- Kein Fallback auf RDP wenn Moonlight-UDP geblockt ist
+- Kein Fallback auf RDP wenn Beagle Stream Client-UDP geblockt ist
 - Keine Session-Broker-Integration (verbindet direkt, kein Redirect via Control Plane)
 - Kein WireGuard-Mesh: Stream ist unverschlüsselt bei direkter LAN-Verbindung
 
@@ -95,9 +95,9 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
 
 ## Schritte
 
-### Schritt 1 — Fork: beagle-stream-server (Sunshine-Fork)
+### Schritt 1 — Fork: beagle-stream-server (Beagle Stream Server-Fork)
 
-- [x] GitHub: Fork von `LizardByte/Sunshine` → `meinzeug/beagle-stream-server`
+- [x] GitHub: Fork von `meinzeug/beagle-stream-server` → `meinzeug/beagle-stream-server`
 - [ ] `src/beagle/BeagleBrokerClient.cpp`: Neue Komponente:
   - Beim Start: registriert sich beim Beagle Control Plane (`POST /api/v1/streams/register`)
   - Holt Config dynamisch: `GET /api/v1/streams/{vm_id}/config` (FPS, Bitrate, Codec, Policy)
@@ -105,12 +105,12 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
 - [ ] `src/beagle/BeagleAuth.cpp`: Token-basiertes Pairing:
   - Akzeptiert HMAC-Token statt PIN (Token vom Broker, 60s gültig, einmal-verwendbar)
   - Verwirft Verbindung wenn `network_mode=vpn_required` und kein WireGuard-Interface aktiv
-- [ ] Build: `.deb`-Paket `beagle-stream-server` (ersetzt `sunshine.deb` in VM-Images)
+- [ ] Build: `.deb`-Paket `beagle-stream-server` (ersetzt `beagle-stream-server.deb` in VM-Images)
 - [x] Tests: `tests/unit/test_beagle_stream_server_api.py`
 
-### Schritt 2 — Fork: beagle-stream-client (Moonlight-Fork)
+### Schritt 2 — Fork: beagle-stream-client (Beagle Stream Client-Fork)
 
-- [x] GitHub: Fork von `moonlight-stream/moonlight-qt` → `meinzeug/beagle-stream-client`
+- [x] GitHub: Fork von `meinzeug/beagle-stream-client` → `meinzeug/beagle-stream-client`
 - [ ] `src/beagle/BeagleBroker.cpp`: Broker-Discovery statt manuellem Host-Eingabe:
   - Liest Broker-URL aus Enrollment-Config (`/etc/beagle/enrollment.conf`)
   - `POST /api/v1/streams/allocate` → bekommt `{host_ip, port, token, wg_peer_config}`
@@ -120,7 +120,7 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
   - Stream läuft durch WireGuard-Tunnel (verschlüsselt, Ende-zu-Ende)
   - Fallback: wenn WireGuard-Setup fehlschlägt + Policy erlaubt → direkter Stream
 - [ ] Beagle-Branding: App-Name, Icons, About-Dialog
-- [ ] Build: Teil des Thin-Client-OS-Images (ersetzt vanilla `moonlight-qt`)
+- [ ] Build: Teil des Thin-Client-OS-Images (ersetzt vanilla `beagle-stream-client-qt`)
 - [x] Tests: `tests/unit/test_beagle_stream_client_broker.py`
 
 ### Schritt 3 — WireGuard Mesh für BeagleStream
@@ -151,14 +151,14 @@ Hardware: AMD mit `aes` + `avx2` + `vaes` + `vpclmulqdq` — vollständig hardwa
 
 ### Schritt 5 — BeagleStream v2: Protokoll-Roadmap (Langfristig)
 
-Das NVIDIA-GameStream-Protokoll (Basis von Sunshine/Moonlight) kann schrittweise ersetzt werden:
+Das NVIDIA-GameStream-Protokoll (Basis von Beagle Stream Server/Beagle Stream Client) kann schrittweise ersetzt werden:
 
 - [ ] **Phase A (8.0.x)**: Fork + Broker + WireGuard — alle Schritte 1-4 oben
 - [ ] **Phase B (8.1.x)**: Custom Codec-Pipeline — NVENC/VAAPI/QSV optimal tunen, AV1 default
 - [ ] **Phase C (8.2.x)**: **WebRTC-Modus** — Stream auch via Browser (kein Client-Install nötig)
   - GStreamer-WebRTC auf Server-Seite
   - HTML5-Frontend im Browser als vollwertiger Stream-Client
-  - Latenz: 10-30ms (höher als Moonlight, aber zero-install für den User)
+  - Latenz: 10-30ms (höher als Beagle Stream Client, aber zero-install für den User)
 - [ ] **Phase D (9.0.x)**: **BeagleStream Native Protocol**
   - QUIC-basiert (HTTP/3 Stack) — zuverlässig + geringe Latenz
   - Integriertes FEC (Forward Error Correction) für schlechte WAN-Links
@@ -208,9 +208,9 @@ Das NVIDIA-GameStream-Protokoll (Basis von Sunshine/Moonlight) kann schrittweise
   - aktueller zusammenhaengender Enterprise-Block: `121 passed`
 
 Wichtig:
-- Das ist die harte Schranke im heutigen Beagle-Control-Plane-/Moonlight-Broker-Pfad.
+- Das ist die harte Schranke im heutigen Beagle-Control-Plane-/Beagle Stream Client-Broker-Pfad.
 - Der spaetere Fork-Schritt `beagle-stream-server` aus Schritt 1/4 bleibt trotzdem offen; die Policy sitzt
-  heute noch nicht in einem separaten Sunshine-Fork, sondern im Beagle-Broker selbst.
+  heute noch nicht in einem separaten Beagle Stream Server-Fork, sondern im Beagle-Broker selbst.
 
 ---
 
@@ -219,7 +219,7 @@ Wichtig:
 - [x] Fork-Server: `beagle-stream-server` startet auf VM, registriert sich beim Control Plane.
 - [x] Token-Pairing: Client verbindet ohne PIN-Dialog via HMAC-Token (60s gültig).
 - [ ] WireGuard-Mesh: Thin-Client und VM-Node im Mesh, Ping ≤ raw + 0.01ms.
-- [ ] WireGuard-Stream: Moonlight-Stream durch WireGuard-Tunnel, Latenz ≤ direct + 0.1ms.
+- [ ] WireGuard-Stream: Beagle Stream Client-Stream durch WireGuard-Tunnel, Latenz ≤ direct + 0.1ms.
 - [x] Policy `vpn_required`: Direktverbindung ohne WireGuard vom Server abgelehnt (403).
 - [x] Policy `vpn_preferred`: WireGuard-Fehler → direkter Fallback funktioniert.
 - [x] Audit-Log: Session-Start/Stop erscheinen als Audit-Events im Control Plane.
@@ -229,7 +229,7 @@ Wichtig:
 - Reproduzierbare `srv1`-Smokes erneut gefahren:
   - `STREAM_HEALTH_ACTIVE_RESULT=PASS`
   - `STREAM_INPUT_MATRIX_RESULT=PASS`
-  - `MOONLIGHT_AUTO_PAIR_RESULT=PASS` im Headless-Degraded-Modus (`MOONLIGHT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT`)
+  - `BEAGLE_STREAM_CLIENT_AUTO_PAIR_RESULT=PASS` im Headless-Degraded-Modus (`BEAGLE_STREAM_CLIENT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT`)
   - `PLAN01_STREAM_VM_REGISTER=PASS` (`register_http=201`, `config_http=200`, `events_http=200`)
   - `test-streaming-quality-smoke.py` jetzt `result=pass_with_4k_limit` nach Guest-User-/Xauthority-Fix
 - Readiness-Rerun:
@@ -241,7 +241,7 @@ Wichtig:
 
 ## Update (2026-04-28, Plan 01: Control-Plane-API fuer kuenftigen beagle-stream-server umgesetzt)
 
-- Der repo-realisierbare erste Fork-Slice ist jetzt im Control Plane verdrahtet, obwohl die eigentlichen Sunshine-/Moonlight-Forks noch nicht in diesem Workspace existieren.
+- Der repo-realisierbare erste Fork-Slice ist jetzt im Control Plane verdrahtet, obwohl die eigentlichen Beagle Stream Server-/Beagle Stream Client-Forks noch nicht in diesem Workspace existieren.
 - Neue Control-Plane-Endpunkte:
   - `POST /api/v1/streams/register`
   - `GET /api/v1/streams/{vm_id}/config`
@@ -258,7 +258,7 @@ Wichtig:
 
 Wichtig:
 - Dieser Schritt schliesst bewusst die Control-Plane-Seite fuer den spaeteren `beagle-stream-server`.
-- Offen bleiben weiterhin der echte Sunshine-Fork, Token-Pairing im Fork, Paketbau und die Live-Abnahme gegen einen real gestarteten Stream-Server auf einer VM.
+- Offen bleiben weiterhin der echte Beagle Stream Server-Fork, Token-Pairing im Fork, Paketbau und die Live-Abnahme gegen einen real gestarteten Stream-Server auf einer VM.
 
 ## Update (2026-04-28, Plan 01: Testpflicht-Teil fuer Policy/Audit auf Control-Plane-Slice geschlossen)
 
@@ -303,7 +303,7 @@ Wichtig:
 ## Update (2026-04-28, Plan 01: Allocate-Runtime-Wiring an echte Pairing-/WireGuard-Quellen)
 
 - Der vorhandene Endpoint `POST /api/v1/streams/allocate` ist jetzt im Registry-Runtime-Pfad an echte Service-Quellen angebunden.
-- Pairing-Token-Ausstellung laeuft fuer Allocate ueber den vorhandenen Pairing-Flow (`issue_moonlight_pairing_token`).
+- Pairing-Token-Ausstellung laeuft fuer Allocate ueber den vorhandenen Pairing-Flow (`issue_beagle_stream_client_pairing_token`).
 - `wg_peer_config` wird aus dem WireGuard-Mesh-Zustand (`wireguard_mesh_service`) befuellt.
 - Damit ist der Allocate-Contract im Runtime-Pfad nicht mehr nur testbar, sondern auch produktionsnah verdrahtet.
 - Validierung:
@@ -349,12 +349,12 @@ Wichtig:
 ```
 WireGuard-Overhead loopback:  +0.003ms
 WireGuard-Overhead WAN:       +0.1ms (geschätzt)
-Moonlight LAN + WireGuard:    1.003 – 5.003ms  ✅
-Moonlight WAN + WireGuard:    15.1  – 25.1ms   ✅
+Beagle Stream Client LAN + WireGuard:    1.003 – 5.003ms  ✅
+Beagle Stream Client WAN + WireGuard:    15.1  – 25.1ms   ✅
 Citrix HDX (Vergleich):       20    – 80ms      ❌ (6-26x langsamer)
 ```
 
-**VPN hat keinen messbaren Einfluss auf die Moonlight-Latenz.**
+**VPN hat keinen messbaren Einfluss auf die Beagle Stream Client-Latenz.**
 
 ---
 

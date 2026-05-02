@@ -1,7 +1,7 @@
 # BeagleStream Phase A — Prompt für Coding-AI
 
 Du implementierst **Phase A des BeagleStream-Plans** in zwei geforkten GitHub-Repos.
-Lies zuerst `docs/archive/goenterprise/01-moonlight-vdi-protocol.md` und
+Lies zuerst `docs/archive/goenterprise/01-beagle-stream-client-vdi-protocol.md` und
 `docs/checklists/02-streaming-endpoint.md` für den vollständigen Hintergrund.
 
 ---
@@ -80,7 +80,7 @@ Gültige `event_type`: `session.start`, `session.stop`, `session.timeout`, `sess
 ```
 
 **Auth:** Header `X-Beagle-Token: <token>` — Token steht in `/etc/beagle/stream-server.env`
-als `BEAGLE_STREAM_TOKEN=<wert>`. Diese Datei legt `configure-sunshine-guest.sh` an.
+als `BEAGLE_STREAM_TOKEN=<wert>`. Diese Datei legt `configure-beagle-stream-server-guest.sh` an.
 
 **Enrollment-Config des Thin-Clients** (`/etc/beagle/enrollment.conf`, Key=Value):
 ```
@@ -90,18 +90,18 @@ device_id=<stabile-geraete-id>
 pool_id=pool-desktop
 ```
 
-**Sunshine-Pairing-Mechanismus:** Vanilla Sunshine wartet auf einen 4-stelligen PIN
+**Beagle Stream Server-Pairing-Mechanismus:** Vanilla Beagle Stream Server wartet auf einen 4-stelligen PIN
 über `POST /api/pin` mit `{"pin":"1234","name":"client-name"}`. Der Hook-Punkt ist
 `nvhttp::pin(token, name)` in `src/nvhttp.cpp`. BeagleStream ersetzt den PIN durch
 den HMAC-Token aus dem Broker — vollständig protokollkompatibel, kein Breaking Change.
 
 ---
 
-## Aufgabe 1 — beagle-stream-server (Sunshine-Fork)
+## Aufgabe 1 — beagle-stream-server (Beagle Stream Server-Fork)
 
 **Voraussetzung (einmalig manuell vom Operator):**
 ```bash
-gh repo fork LizardByte/Sunshine --fork-name beagle-stream-server --clone
+gh repo fork LizardByte/Beagle Stream Server --fork-name beagle-stream-server --clone
 cd beagle-stream-server && git checkout -b beagle/phase-a
 ```
 
@@ -186,7 +186,7 @@ private:
   std::thread refresh_thread_;
   std::atomic<bool> stop_refresh_{false};
 
-  // libcurl (bereits Sunshine-Dependency)
+  // libcurl (bereits Beagle Stream Server-Dependency)
   // Header: X-Beagle-Token, Content-Type: application/json
   // tls_insecure=true → CURLOPT_SSL_VERIFYPEER=0, CURLOPT_SSL_VERIFYHOST=0
   std::string http_get(const std::string &path);
@@ -200,7 +200,7 @@ extern BeagleBrokerClient *g_broker;  // nullptr wenn nicht konfiguriert
 
 #### `src/beagle/BeagleBrokerClient.cpp`
 
-Nutzt `libcurl` und `nlohmann/json` (beide bereits Sunshine-Dependencies).
+Nutzt `libcurl` und `nlohmann/json` (beide bereits Beagle Stream Server-Dependencies).
 
 - `http_get` / `http_post`: `curl_easy_init()`, Header setzen, Response-Buffer lesen
 - **API-Token niemals loggen** — nur `"[redacted]"` in Debug-Ausgaben
@@ -279,7 +279,7 @@ In `cmake/prep/options.cmake`:
 option(BEAGLE_INTEGRATION "Enable Beagle Control Plane integration" OFF)
 if(BEAGLE_INTEGRATION)
   add_compile_definitions(BEAGLE_INTEGRATION)
-  target_sources(sunshine PRIVATE
+  target_sources(beagle-stream-server PRIVATE
     src/beagle/beagle_config.cpp
     src/beagle/BeagleBrokerClient.cpp
     src/beagle/BeagleAuth.cpp
@@ -296,11 +296,11 @@ Beagle-Build: `cmake -DBEAGLE_INTEGRATION=ON ..`
 ```
 Package: beagle-stream-server
 Version: 1.0.0
-Conflicts: sunshine
-Provides: sunshine
-Replaces: sunshine
+Conflicts: beagle-stream-server
+Provides: beagle-stream-server
+Replaces: beagle-stream-server
 Architecture: amd64
-Description: BeagleStream Server — Sunshine fork with Beagle Control Plane integration
+Description: BeagleStream Server — Beagle Stream Server fork with Beagle Control Plane integration
 ```
 
 `packaging/linux/deb/beagle-stream-server/lib/systemd/system/beagle-stream-server.service`:
@@ -313,7 +313,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=-/etc/beagle/stream-server.env
-ExecStart=/usr/bin/sunshine
+ExecStart=/usr/bin/beagle-stream-server
 Restart=on-failure
 RestartSec=5s
 
@@ -323,11 +323,11 @@ WantedBy=graphical.target
 
 ---
 
-## Aufgabe 2 — beagle-stream-client (Moonlight-Qt-Fork)
+## Aufgabe 2 — beagle-stream-client (Beagle Stream Client-Qt-Fork)
 
 **Voraussetzung (einmalig manuell):**
 ```bash
-gh repo fork moonlight-stream/moonlight-qt --fork-name beagle-stream-client --clone
+gh repo fork beagle-stream-client-stream/beagle-stream-client-qt --fork-name beagle-stream-client --clone
 cd beagle-stream-client && git checkout -b beagle/phase-a
 ```
 
@@ -376,7 +376,7 @@ struct AllocateResult {
   QString error;
   QString host_ip;
   int port = 47984;
-  QString token;    // HMAC-Token — als PIN an Moonlight-Pairing übergeben
+  QString token;    // HMAC-Token — als PIN an Beagle Stream Client-Pairing übergeben
   WgPeer wg_peer;
 };
 
@@ -401,7 +401,7 @@ private:
 
 Implementierung:
 - `QNetworkAccessManager` POST
-- SSL-Fehler ignorieren wie vanilla Moonlight (selbst-signierte Certs von Sunshine)
+- SSL-Fehler ignorieren wie vanilla Beagle Stream Client (selbst-signierte Certs von Beagle Stream Server)
 - Parse `QJsonDocument` aus Response, befülle `AllocateResult`
 - `allocated(result)` in jedem Fall emittieren
 
@@ -439,18 +439,18 @@ Wenn `EnrollmentConfig::valid` und `pool_id` gesetzt:
 2. Im `allocated`-Slot:
    - Bei `!result.success`: Fehler anzeigen, abbrechen
    - `BeagleVPN::activatePeer(result.wg_peer)` wenn `result.wg_peer.valid`
-   - Moonlight-Session mit `result.host_ip : result.port` starten
+   - Beagle Stream Client-Session mit `result.host_ip : result.port` starten
    - `result.token` als vorausgefüllten PIN in den Pairing-Dialog einsetzen
-     (Moonlight sendet den Token als PIN an Sunshine → `nvhttp::pin()` dort)
+     (Beagle Stream Client sendet den Token als PIN an Beagle Stream Server → `nvhttp::pin()` dort)
 3. Nach Stream-Ende: `BeagleVPN::deactivatePeer(wg_peer.public_key)`
 
-Falls `EnrollmentConfig` nicht vorhanden (`valid = false`): Vanilla-Moonlight-Verhalten,
+Falls `EnrollmentConfig` nicht vorhanden (`valid = false`): Vanilla-Beagle Stream Client-Verhalten,
 kein Unterschied zum Upstream.
 
 ### Branding
 
 - `app/CMakeLists.txt`: `set(CMAKE_PROJECT_NAME "BeagleStream")`
-- About-Dialog: "BeagleStream Client — powered by Moonlight (GPL v3)"
+- About-Dialog: "BeagleStream Client — powered by Beagle Stream Client (GPL v3)"
 - App-Icon Placeholder: `app/res/beagle-stream.png` (64×64, blau-weiß)
 - Taskbar-Titel: "BeagleStream"
 
@@ -463,11 +463,11 @@ Nach vollständiger Implementierung der Forks:
 ### `docs/checklists/02-streaming-endpoint.md` — Phase-A-Checkboxen auf `[x]` setzen:
 
 ```
-- [x] Fork LizardByte/Sunshine → meinzeug/beagle-stream-server
+- [x] Fork LizardByte/Beagle Stream Server → meinzeug/beagle-stream-server
   - [x] src/beagle/BeagleBrokerClient.cpp
   - [x] src/beagle/BeagleAuth.cpp
-  - [x] .deb-Paket beagle-stream-server (Conflicts: sunshine)
-- [x] Fork moonlight-stream/moonlight-qt → meinzeug/beagle-stream-client
+  - [x] .deb-Paket beagle-stream-server (Conflicts: beagle-stream-server)
+- [x] Fork beagle-stream-client-stream/beagle-stream-client-qt → meinzeug/beagle-stream-client
   - [x] app/beagle/BeagleBroker.cpp
   - [x] app/beagle/BeagleVPN.cpp
   - [x] Beagle-Branding
@@ -477,8 +477,8 @@ Nach vollständiger Implementierung der Forks:
 
 ```
 ## BeagleStream Phase A: Token-als-PIN (2026-05-01)
-BeagleAuth nutzt nvhttp::pin() aus Sunshine unverändert.
-HMAC-Token wird als PIN-String übergeben — Moonlight-Protokoll bleibt unverändert.
+BeagleAuth nutzt nvhttp::pin() aus Beagle Stream Server unverändert.
+HMAC-Token wird als PIN-String übergeben — Beagle Stream Client-Protokoll bleibt unverändert.
 Kein Protokollbruch, kein neuer Pairing-Handshake, kein Breaking Change.
 ```
 
@@ -496,11 +496,11 @@ Kein Protokollbruch, kein neuer Pairing-Handshake, kein Breaking Change.
 
 ## Constraints
 
-- **Kein Breaking Change am GFE/Moonlight-Protokoll.** Token als PIN-String —
-  Vanilla-Moonlight-Clients funktionieren weiterhin.
-- **Alle Beagle-Erweiterungen sind nicht-fatal.** Fehlende Config → Sunshine/Moonlight
+- **Kein Breaking Change am GFE/Beagle Stream Client-Protokoll.** Token als PIN-String —
+  Vanilla-Beagle Stream Client-Clients funktionieren weiterhin.
+- **Alle Beagle-Erweiterungen sind nicht-fatal.** Fehlende Config → Beagle Stream Server/Beagle Stream Client
   laufen exakt wie Upstream.
-- **Keine neuen Build-Dependencies.** libcurl (Sunshine) und Qt Network (Moonlight)
+- **Keine neuen Build-Dependencies.** libcurl (Beagle Stream Server) und Qt Network (Beagle Stream Client)
   sind bereits vorhanden.
 - **Kein Proxmox-Code.** Keine Referenzen auf `pvesh`, `qm`, `/api2/json`, `PVEAuthCookie`.
 - **Security:** API-Token nie loggen (`"[redacted]"` stattdessen). TLS-Verify standardmäßig
@@ -525,7 +525,7 @@ curl -s -X POST -H "X-Beagle-Token: $TOKEN" -H "Content-Type: application/json" 
 
 # beagle-stream-server Build:
 cmake -DBEAGLE_INTEGRATION=ON -DCMAKE_BUILD_TYPE=Release ..
-make -j$(nproc) sunshine
+make -j$(nproc) beagle-stream-server
 
 # Erwartetes Log beim Start (wenn /etc/beagle/stream-server.env konfiguriert):
 # "Beagle broker active for VM 100"

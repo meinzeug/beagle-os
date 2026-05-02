@@ -326,7 +326,7 @@ HTML = """<!doctype html>
 
   <script>
     const MODE_META = {
-      MOONLIGHT: "Sunshine-Streaming mit dem vorkonfigurierten Ziel.",
+      BEAGLE_STREAM_CLIENT: "Beagle Stream Server-Streaming mit dem vorkonfigurierten Ziel.",
       SPICE: "Klassische Beagle- oder SPICE-Konsole.",
       NOVNC: "Browserbasierte Konsole fuer Notfaelle.",
       DCV: "Low-latency Streaming mit DCV."
@@ -370,7 +370,7 @@ HTML = """<!doctype html>
         `VMID: ${preset.beagle_vmid || "n/a"}`,
         `Modi: ${(preset.available_modes || []).join(" ") || "keine"}`,
         `Default: ${preset.default_mode || "n/a"}`,
-        `Moonlight Host: ${preset.moonlight_host || "n/a"}`,
+        `Beagle Stream Client Host: ${preset.beagle_stream_client_host || "n/a"}`,
         `Preset Quelle: ${debug.preset_source || "n/a"}`,
         `Preset Datei: ${debug.preset_file || "n/a"}`,
         `Live Medium: ${debug.live_medium || "n/a"}`,
@@ -381,7 +381,7 @@ HTML = """<!doctype html>
     function renderModeCards(modes) {
       const grid = document.getElementById("mode-grid");
       grid.innerHTML = "";
-      ["MOONLIGHT", "SPICE", "NOVNC", "DCV"].forEach((mode) => {
+      ["BEAGLE_STREAM_CLIENT", "SPICE", "NOVNC", "DCV"].forEach((mode) => {
         const available = modes.includes(mode);
         const button = document.createElement("button");
         button.type = "button";
@@ -564,7 +564,7 @@ def spawn_terminal(command, title):
 
 
 def install_target(mode, disk):
-    if mode not in {"MOONLIGHT", "SPICE", "NOVNC", "DCV"}:
+    if mode not in {"BEAGLE_STREAM_CLIENT", "SPICE", "NOVNC", "DCV"}:
         raise RuntimeError(f"unsupported mode: {mode}")
     if not disk.startswith("/dev/"):
         raise RuntimeError(f"invalid disk: {disk}")

@@ -714,7 +714,7 @@ def stage_update(feed: dict, config: dict[str, str], *, force: bool = False) -> 
 
 def is_idle_for_reboot() -> bool:
     checks = [
-        ["pgrep", "-x", "moonlight"],
+        ["pgrep", "-x", "beagle-stream-client"],
         ["pgrep", "-f", "launch-session.sh"],
     ]
     for command in checks:

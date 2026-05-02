@@ -121,18 +121,18 @@ else:
 PY
 }
 
-check_sunshine_api() {
-  local sunshine_api_url="$1"
+check_beagle_stream_server_api() {
+  local beagle_stream_server_api_url="$1"
   local wait_sec="$2"
   local fallback_url="${3:-}"
   local deadline=$((SECONDS + wait_sec))
   local code="000"
-  local url_in_use="$sunshine_api_url"
+  local url_in_use="$beagle_stream_server_api_url"
 
   while (( SECONDS < deadline )); do
-    code="$(curl -sk --max-time 6 -o /dev/null -w '%{http_code}' "${url_in_use%/}/api/apps" 2>/dev/null || echo '000')" # tls-bypass-allowlist: persistence smoke probes local Sunshine API over self-signed TLS
+    code="$(curl -sk --max-time 6 -o /dev/null -w '%{http_code}' "${url_in_use%/}/api/apps" 2>/dev/null || echo '000')" # tls-bypass-allowlist: persistence smoke probes local Beagle Stream Server API over self-signed TLS
     if [[ "$code" == "200" || "$code" == "401" ]]; then
-      echo "[OK]  Sunshine API reachable after check (HTTP $code, url=${url_in_use%/}/api/apps)"
+      echo "[OK]  Beagle Stream Server API reachable after check (HTTP $code, url=${url_in_use%/}/api/apps)"
       return 0
     fi
     if [[ -n "$fallback_url" && "$url_in_use" != "$fallback_url" ]]; then
@@ -141,7 +141,7 @@ check_sunshine_api() {
     sleep "$POLL_SEC"
   done
 
-  echo "[ERROR] Sunshine API did not recover (tried ${sunshine_api_url%/}/api/apps${fallback_url:+ and ${fallback_url%/}/api/apps}) within ${wait_sec}s (last HTTP $code)" >&2
+  echo "[ERROR] Beagle Stream Server API did not recover (tried ${beagle_stream_server_api_url%/}/api/apps${fallback_url:+ and ${fallback_url%/}/api/apps}) within ${wait_sec}s (last HTTP $code)" >&2
   return 1
 }
 
@@ -179,39 +179,39 @@ main() {
   echo ""
 
   echo "[1] Loading VM stream profile ..."
-  local vm_payload sunshine_api_url sunshine_api_url_fallback stream_host moonlight_port moonlight_local_host egress_mode egress_type
+  local vm_payload beagle_stream_server_api_url beagle_stream_server_api_url_fallback stream_host beagle_stream_client_port beagle_stream_client_local_host egress_mode egress_type
   vm_payload="$(api_get "/api/v1/vms/${VMID}")"
   if [[ "$(json_get "$vm_payload" "profile.status")" != "running" ]]; then
     echo "[ERROR] VM ${VMID} is not running before reboot" >&2
     exit 1
   fi
-  sunshine_api_url="$(json_get "$vm_payload" "profile.sunshine_api_url")"
+  beagle_stream_server_api_url="$(json_get "$vm_payload" "profile.beagle_stream_server_api_url")"
   stream_host="$(json_get "$vm_payload" "profile.stream_host")"
-  moonlight_port="$(json_get "$vm_payload" "profile.moonlight_port")"
-  moonlight_local_host="$(json_get "$vm_payload" "profile.moonlight_local_host")"
+  beagle_stream_client_port="$(json_get "$vm_payload" "profile.beagle_stream_client_port")"
+  beagle_stream_client_local_host="$(json_get "$vm_payload" "profile.beagle_stream_client_local_host")"
   egress_mode="$(json_get "$vm_payload" "profile.egress_mode")"
   egress_type="$(json_get "$vm_payload" "profile.egress_type")"
 
-  if [[ -z "$sunshine_api_url" ]]; then
-    echo "[ERROR] profile.sunshine_api_url missing for VM ${VMID}" >&2
+  if [[ -z "$beagle_stream_server_api_url" ]]; then
+    echo "[ERROR] profile.beagle_stream_server_api_url missing for VM ${VMID}" >&2
     exit 1
   fi
-  if [[ -n "$moonlight_local_host" ]]; then
-    local sunshine_port
-    sunshine_port="$(python3 - "$sunshine_api_url" <<'PY'
+  if [[ -n "$beagle_stream_client_local_host" ]]; then
+    local beagle_stream_server_port
+    beagle_stream_server_port="$(python3 - "$beagle_stream_server_api_url" <<'PY'
 from urllib.parse import urlparse
 import sys
 u = urlparse(sys.argv[1])
 print(str(u.port or 50001))
 PY
 )"
-    sunshine_api_url_fallback="https://${moonlight_local_host}:${sunshine_port}"
+    beagle_stream_server_api_url_fallback="https://${beagle_stream_client_local_host}:${beagle_stream_server_port}"
   fi
 
   echo "[OK]  profile egress_mode=$egress_mode egress_type=$egress_type"
 
-  echo "[2] Validating Sunshine API before reboot ..."
-  check_sunshine_api "$sunshine_api_url" 30 "$sunshine_api_url_fallback"
+  echo "[2] Validating Beagle Stream Server API before reboot ..."
+  check_beagle_stream_server_api "$beagle_stream_server_api_url" 30 "$beagle_stream_server_api_url_fallback"
 
   echo "[3] Rebooting VM ${VMID} ..."
   beagle_provider_reboot_vm "$VMID"
@@ -220,7 +220,7 @@ PY
   wait_for_vm_running "$VMID"
 
   echo "[5] Waiting for stream API recovery after reboot ..."
-  check_sunshine_api "$sunshine_api_url" "$WAIT_STREAM_SEC" "$sunshine_api_url_fallback"
+  check_beagle_stream_server_api "$beagle_stream_server_api_url" "$WAIT_STREAM_SEC" "$beagle_stream_server_api_url_fallback"
 
   echo "[6] Verifying stream profile stability after reboot ..."
   vm_payload="$(api_get "/api/v1/vms/${VMID}")"
@@ -228,8 +228,8 @@ PY
     echo "[ERROR] VM ${VMID} is not running after reboot" >&2
     exit 1
   fi
-  if [[ "$(json_get "$vm_payload" "profile.sunshine_api_url")" != "$sunshine_api_url" ]]; then
-    echo "[ERROR] sunshine_api_url changed unexpectedly across reboot" >&2
+  if [[ "$(json_get "$vm_payload" "profile.beagle_stream_server_api_url")" != "$beagle_stream_server_api_url" ]]; then
+    echo "[ERROR] beagle_stream_server_api_url changed unexpectedly across reboot" >&2
     exit 1
   fi
   if [[ "$(json_get "$vm_payload" "profile.egress_mode")" != "$egress_mode" ]]; then
@@ -245,8 +245,8 @@ PY
   echo ""
   echo "STREAM_REBOOT_PERSISTENCE_SMOKE=PASS"
   echo "  vmid=$VMID node=$NODE"
-  echo "  stream_host=$stream_host moonlight_port=$moonlight_port"
-  echo "  sunshine_api_url=$sunshine_api_url"
+  echo "  stream_host=$stream_host beagle_stream_client_port=$beagle_stream_client_port"
+  echo "  beagle_stream_server_api_url=$beagle_stream_server_api_url"
 }
 
 main "$@"

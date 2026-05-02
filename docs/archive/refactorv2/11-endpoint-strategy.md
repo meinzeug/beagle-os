@@ -15,9 +15,9 @@ Stand: 2026-04-20
 
 | Profil | Use Case | Default-UI |
 |---|---|---|
-| `desktop-thin-client` | Office-Desktop ueber Streaming | Beagle Endpoint OS + Moonlight Wrapper |
+| `desktop-thin-client` | Office-Desktop ueber Streaming | Beagle Endpoint OS + Beagle Stream Client Wrapper |
 | `gaming-kiosk` | Spielelobby (heutiges `beagle-kiosk`) | Electron Kiosk |
-| `engineering-station` | GPU-/Wacom-tauglich, Multi-Monitor | Beagle Endpoint OS + Moonlight + Tablet-Stack |
+| `engineering-station` | GPU-/Wacom-tauglich, Multi-Monitor | Beagle Endpoint OS + Beagle Stream Client + Tablet-Stack |
 
 Alle drei teilen denselben Beagle-Endpoint-Kern; Profile aktivieren spezifische Pakete und systemd-Targets.
 
@@ -42,7 +42,7 @@ Alle drei teilen denselben Beagle-Endpoint-Kern; Profile aktivieren spezifische 
 ### Pairing- und Streaming-Pfad
 
 - Endpoint nutzt **denselben Pairing-Token-Flow** wie der Browser (siehe [05-streaming-protocol-strategy.md](05-streaming-protocol-strategy.md)).
-- Moonlight-Embedded mit Beagle-Pairing-Plug-in oder beagle-eigener Wrapper.
+- Beagle Stream Client-Embedded mit Beagle-Pairing-Plug-in oder beagle-eigener Wrapper.
 - Stream-Health wird zurueckgemeldet -> Session-Object.
 
 ### Offline / Edge
@@ -58,7 +58,7 @@ Alle drei teilen denselben Beagle-Endpoint-Kern; Profile aktivieren spezifische 
 
 ### Web-Endpoint-Variante
 
-- Beagle Web Portal kann Streaming auch im Browser anbieten (WebRTC + Moonlight-Web-Client).
+- Beagle Web Portal kann Streaming auch im Browser anbieten (WebRTC + Beagle Stream Client-Web-Client).
 - Sinnvoll fuer BYOD/Gast-Zugang.
 - Pairing-Flow identisch.
 

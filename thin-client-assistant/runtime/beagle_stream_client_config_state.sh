@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MOONLIGHT_HOST_SYNC_SH="${MOONLIGHT_HOST_SYNC_SH:-$SCRIPT_DIR/moonlight_host_sync.sh}"
+BEAGLE_STREAM_CLIENT_HOST_SYNC_SH="${BEAGLE_STREAM_CLIENT_HOST_SYNC_SH:-$SCRIPT_DIR/beagle_stream_client_host_sync.sh}"
 
-moonlight_client_config_path() {
+beagle_stream_client_config_path() {
   local candidate
   for candidate in \
-    "${PVE_THIN_CLIENT_MOONLIGHT_CONFIG:-}" \
-    "${HOME:-/home/thinclient}/.config/Moonlight Game Streaming Project/Moonlight.conf" \
-    "/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}/.config/Moonlight Game Streaming Project/Moonlight.conf"
+    "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_CONFIG:-}" \
+    "${HOME:-/home/thinclient}/.config/Beagle Stream Client Game Streaming Project/Beagle Stream Client.conf" \
+    "/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}/.config/Beagle Stream Client Game Streaming Project/Beagle Stream Client.conf"
   do
     [[ -n "$candidate" ]] || continue
     if [[ -r "$candidate" ]]; then
@@ -19,9 +19,9 @@ moonlight_client_config_path() {
   return 1
 }
 
-extract_moonlight_certificate_pem() {
+extract_beagle_stream_client_certificate_pem() {
   local config_path
-  config_path="$(moonlight_client_config_path 2>/dev/null || true)"
+  config_path="$(beagle_stream_client_config_path 2>/dev/null || true)"
   [[ -n "$config_path" && -r "$config_path" ]] || return 1
   python3 - "$config_path" <<'PY'
 from pathlib import Path
@@ -42,4 +42,4 @@ PY
 }
 
 # shellcheck disable=SC1090
-source "$MOONLIGHT_HOST_SYNC_SH"
+source "$BEAGLE_STREAM_CLIENT_HOST_SYNC_SH"

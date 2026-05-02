@@ -25,7 +25,7 @@ class EndpointEnrollmentService:
         mark_enrollment_token_used: Callable[[str, dict[str, Any], str], None],
         public_manager_url: str,
         public_server_name: str,
-        resolve_vm_sunshine_pinned_pubkey: Callable[[Any], str],
+        resolve_vm_beagle_stream_server_pinned_pubkey: Callable[[Any], str],
         save_vm_secret: Callable[[str, int, dict[str, Any]], dict[str, Any]],
         service_name: str,
         store_endpoint_token: Callable[[str, dict[str, Any]], dict[str, Any]],
@@ -48,7 +48,7 @@ class EndpointEnrollmentService:
         self._mark_enrollment_token_used = mark_enrollment_token_used
         self._public_manager_url = str(public_manager_url or "")
         self._public_server_name = str(public_server_name or "")
-        self._resolve_vm_sunshine_pinned_pubkey = resolve_vm_sunshine_pinned_pubkey
+        self._resolve_vm_beagle_stream_server_pinned_pubkey = resolve_vm_beagle_stream_server_pinned_pubkey
         self._save_vm_secret = save_vm_secret
         self._service_name = str(service_name or "")
         self._store_endpoint_token = store_endpoint_token
@@ -94,10 +94,10 @@ class EndpointEnrollmentService:
             raise LookupError("vm not found")
 
         secret = self._ensure_vm_secret(vm)
-        sunshine_pinned_pubkey = str(self._resolve_vm_sunshine_pinned_pubkey(vm) or "").strip()
-        if sunshine_pinned_pubkey and sunshine_pinned_pubkey != str(secret.get("sunshine_pinned_pubkey", "")):
+        beagle_stream_server_pinned_pubkey = str(self._resolve_vm_beagle_stream_server_pinned_pubkey(vm) or "").strip()
+        if beagle_stream_server_pinned_pubkey and beagle_stream_server_pinned_pubkey != str(secret.get("beagle_stream_server_pinned_pubkey", "")):
             updated_secret = dict(secret)
-            updated_secret["sunshine_pinned_pubkey"] = sunshine_pinned_pubkey
+            updated_secret["beagle_stream_server_pinned_pubkey"] = beagle_stream_server_pinned_pubkey
             secret = self._save_vm_secret(vm.node, vm.vmid, updated_secret)
 
         profile = dict(self._build_profile(vm) or {})
@@ -157,11 +157,11 @@ class EndpointEnrollmentService:
             "update_behavior": str(profile.get("update_behavior", "prompt") or "prompt"),
             "update_feed_url": str(profile.get("update_feed_url", f"{self._public_manager_url}/api/v1/endpoints/update-feed") or ""),
             "update_version_pin": str(profile.get("update_version_pin", "") or ""),
-            "sunshine_api_url": str(profile.get("sunshine_api_url", "") or ""),
-            "sunshine_username": str(secret.get("sunshine_username", "")),
-            "sunshine_password": str(secret.get("sunshine_password", "")),
-            "sunshine_pin": str(secret.get("sunshine_pin", "")),
-            "sunshine_pinned_pubkey": str(secret.get("sunshine_pinned_pubkey", "")),
+            "beagle_stream_server_api_url": str(profile.get("beagle_stream_server_api_url", "") or ""),
+            "beagle_stream_server_username": str(secret.get("beagle_stream_server_username", "")),
+            "beagle_stream_server_password": str(secret.get("beagle_stream_server_password", "")),
+            "beagle_stream_server_pin": str(secret.get("beagle_stream_server_pin", "")),
+            "beagle_stream_server_pinned_pubkey": str(secret.get("beagle_stream_server_pinned_pubkey", "")),
             "usb_enabled": True,
             "usb_tunnel_host": self._public_server_name,
             "usb_tunnel_user": self._usb_tunnel_user,
@@ -169,10 +169,10 @@ class EndpointEnrollmentService:
             "usb_tunnel_attach_host": self._usb_tunnel_attach_host,
             "usb_tunnel_private_key": str(secret.get("usb_tunnel_private_key", "")),
             "usb_tunnel_known_host": self._usb_tunnel_known_host_line(),
-            "moonlight_host": str(profile.get("stream_host", "") or ""),
-            "moonlight_local_host": str(profile.get("moonlight_local_host", "") or ""),
-            "moonlight_port": str(profile.get("moonlight_port", "") or ""),
-            "moonlight_app": str(profile.get("moonlight_app", "Desktop") or "Desktop"),
+            "beagle_stream_client_host": str(profile.get("stream_host", "") or ""),
+            "beagle_stream_client_local_host": str(profile.get("beagle_stream_client_local_host", "") or ""),
+            "beagle_stream_client_port": str(profile.get("beagle_stream_client_port", "") or ""),
+            "beagle_stream_client_app": str(profile.get("beagle_stream_client_app", "Desktop") or "Desktop"),
             "egress_mode": profile_egress_mode,
             "egress_type": profile_egress_type,
             "egress_interface": profile_egress_interface or "wg-beagle",

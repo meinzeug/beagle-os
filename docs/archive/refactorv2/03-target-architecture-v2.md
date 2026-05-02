@@ -41,7 +41,7 @@ Erweitert die Zielarchitektur aus `docs/refactor/02-target-architecture.md` um C
         +---------------------+      +---------------------+
         |   Beagle Endpoint   |      |   Beagle Endpoint   |
         |   OS (Thin Client)  | ...  |   OS (Thin Client)  |
-        |   Moonlight + Auto- |      |   Moonlight + Auto- |
+        |   Beagle Stream Client + Auto- |      |   Beagle Stream Client + Auto- |
         |   Pairing           |      |   Pairing           |
         +---------------------+      +---------------------+
 ```
@@ -229,7 +229,7 @@ Neuer first-class Domain-Type. Schema (vereinfacht):
 DesktopPool:
   id: pool-engineering
   tenant: acme
-  template: tmpl-ubuntu-2404-xfce-sunshine
+  template: tmpl-ubuntu-2404-xfce-beagle-stream-server
   mode: persistent | floating | dedicated
   capacity:
     min: 1
@@ -276,7 +276,7 @@ Session:
   desktop_vm: 142
   pool: pool-engineering
   endpoint: thin-client-7c2a
-  protocol: moonlight
+  protocol: beagle-stream-client
   encoder: nvenc
   resolution: 3840x2160@60
   hdr: true

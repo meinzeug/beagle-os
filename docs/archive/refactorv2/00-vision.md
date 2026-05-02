@@ -8,8 +8,8 @@ Beagle OS 7.0 ist die **erste Open-Source-Plattform**, die in einer einzigen, ei
 
 1. einen **Hypervisor-Stack** auf KVM/QEMU + libvirt mit Cluster-, HA- und Live-Migration
 2. eine **Desktop-Virtualisierungs-Plane** (VDI) mit Pools, Templates, Persistent- und Non-Persistent-Desktops
-3. eine **Streaming-Plane pro Desktop-VM** auf Sunshine/Apollo + Moonlight (HDR, multi-monitor, virtual display)
-4. ein **Endpoint-OS** fuer Thin Clients (Linux + Moonlight + Kiosk)
+3. eine **Streaming-Plane pro Desktop-VM** auf Beagle Stream Server/Apollo + Beagle Stream Client (HDR, multi-monitor, virtual display)
+4. ein **Endpoint-OS** fuer Thin Clients (Linux + Beagle Stream Client + Kiosk)
 5. eine **eigene Web Console** als einzige Operator-/User-Oberflaeche
 6. ein **Bare-Metal-Installer** fuer Standalone- und Hybrid-mit-Beagle host-Mode
 7. eine **API-/IaC-Schicht** mit Terraform-Provider, OpenAPI und Webhooks
@@ -21,7 +21,7 @@ Beagle OS 7.0 ist **nicht**:
 
 - ein reines Hypervisor-Produkt (Beagle host, XCP-ng, Harvester) — es ist mehr.
 - ein reines VDI-Brokering-Produkt (Omnissa Horizon, Citrix DaaS) — es bringt den Hypervisor mit.
-- ein reines Streaming-Produkt (Parsec, Sunshine, Moonlight) — Streaming ist Teil des VM-Lifecycles, nicht ein angeflanschter Daemon.
+- ein reines Streaming-Produkt (Parsec, Beagle Stream Server, Beagle Stream Client) — Streaming ist Teil des VM-Lifecycles, nicht ein angeflanschter Daemon.
 - ein reines Cloud-PC-Produkt (Windows 365, Shadow, Vagon) — laeuft on-prem und edge ohne Cloud-Abhaengigkeit.
 
 Beagle OS 7.0 ist die **Konvergenz** dieser vier Welten:
@@ -34,7 +34,7 @@ Beagle OS 7.0 ist die **Konvergenz** dieser vier Welten:
 +--------------------------------------------------------------+
 | VDI Plane: Pools, Templates, Profiles, Entitlements          |
 +--------------------------------------------------------------+
-| Streaming Plane: Sunshine/Apollo/Moonlight, HDR, vDisplay    |
+| Streaming Plane: Beagle Stream Server/Apollo/Beagle Stream Client, HDR, vDisplay    |
 +--------------------------------------------------------------+
 | Compute Plane: KVM/QEMU + libvirt + clustering + HA          |
 +--------------------------------------------------------------+
@@ -55,7 +55,7 @@ Ein Operator soll innerhalb von **30 Minuten** vom Bare-Metal-Server zu einem er
 
 1. ISO booten, Beagle Server OS installieren (10 min).
 2. Web Console oeffnen, Admin anlegen, optional OIDC verbinden (5 min).
-3. Golden-Image-Template anlegen oder Beispiel-Profil "Ubuntu 24.04 + XFCE + Sunshine" waehlen (2 min).
+3. Golden-Image-Template anlegen oder Beispiel-Profil "Ubuntu 24.04 + XFCE + Beagle Stream Server" waehlen (2 min).
 4. Desktop-Pool von 1 - N Plaetzen erzeugen, GPU-Profil setzen, User/Gruppe entitleten (3 min).
 5. Endpoint-Image herunterladen und auf USB schreiben, Thin Client booten, Pairing per Code (10 min).
 6. Stream laeuft, Audio/USB/Mikro durchgereicht, Session wird auditiert.

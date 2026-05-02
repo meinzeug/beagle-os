@@ -24,7 +24,7 @@ Es ersetzt nicht `docs/refactor/` (Welle 1), sondern setzt darauf auf:
 | 02 | [02-feature-gap-analysis.md](02-feature-gap-analysis.md) | Was Beagle OS heute fehlt vs Konkurrenz |
 | 03 | [03-target-architecture-v2.md](03-target-architecture-v2.md) | Zielarchitektur 7.0 |
 | 04 | [04-roadmap-v2.md](04-roadmap-v2.md) | Versionssprung-Plan in Wellen 7.0 - 7.4 |
-| 05 | [05-streaming-protocol-strategy.md](05-streaming-protocol-strategy.md) | Streaming/Protokoll-Roadmap (Sunshine, Apollo, virtual display, HDR, multi-monitor) |
+| 05 | [05-streaming-protocol-strategy.md](05-streaming-protocol-strategy.md) | Streaming/Protokoll-Roadmap (Beagle Stream Server, Apollo, virtual display, HDR, multi-monitor) |
 | 06 | [06-iam-multitenancy.md](06-iam-multitenancy.md) | Identitaet, RBAC, SSO/SAML/OIDC, Mandantenfaehigkeit |
 | 07 | [07-storage-network-plane.md](07-storage-network-plane.md) | Storage- und Netzwerk-Plattform |
 | 08 | [08-ha-cluster.md](08-ha-cluster.md) | Cluster, HA, Live-Migration, Scheduler |
@@ -40,7 +40,7 @@ Es ersetzt nicht `docs/refactor/` (Welle 1), sondern setzt darauf auf:
 
 Beagle OS hat heute schon das, was 90 Prozent der Konkurrenz **nicht** hat:
 
-- voll integrierter **Streaming-Lifecycle pro VM** (Sunshine + Moonlight + thin client) als first-class-Feature
+- voll integrierter **Streaming-Lifecycle pro VM** (Beagle Stream Server + Beagle Stream Client + thin client) als first-class-Feature
 - ein **eigenstaendiges Endpoint-OS** (`beagle-os/`, `thin-client-assistant/`) und Installer-Stack
 - ein **Bare-Metal-Server-Installer** mit Standalone- und Beagle host-Modus
 - ein **Provider-neutrales Service-Modell** (`core/`, `providers/`, `beagle-host/services/`)

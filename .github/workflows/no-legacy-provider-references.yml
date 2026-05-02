@@ -33,7 +33,7 @@ jobs:
           ALLOWLIST_PATHS=(
             'scripts/lib/provider_shell.sh'
             'scripts/ensure-vm-stream-ready.sh'
-            'scripts/configure-sunshine-guest.sh'
+            'scripts/configure-beagle-stream-server-guest.sh'
             'docs/'
             'CHANGELOG.md'
             'README.md'

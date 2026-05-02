@@ -56,8 +56,8 @@ class PublicHttpSurfaceService:
         if isinstance(profile, dict):
             profile = dict(profile)
             profile.pop("guest_user", None)
-            profile.pop("sunshine_username", None)
-            profile.pop("sunshine_pin", None)
+            profile.pop("beagle_stream_server_username", None)
+            profile.pop("beagle_stream_server_pin", None)
             profile.pop("update_feed_url", None)
             safe["profile"] = profile
         return safe

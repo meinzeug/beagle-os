@@ -2,7 +2,7 @@
 
 Stand: 2026-04-20
 
-Quellen: offizielle Hersteller-Seiten und Doku (Beagle host, Omnissa, Citrix, Microsoft Learn, Parsec, LizardByte Sunshine, ClassicOldSong/Apollo, Kasm, Harvester, OpenStack, Wikipedia: Comparison of platform virtualization software).
+Quellen: offizielle Hersteller-Seiten und Doku (Beagle host, Omnissa, Citrix, Microsoft Learn, Parsec, BeagleStream Server, ClassicOldSong/Apollo, Kasm, Harvester, OpenStack, Wikipedia: Comparison of platform virtualization software).
 
 ## Marktsegmente
 
@@ -11,7 +11,7 @@ Wir konkurrieren **nicht** in nur einem Markt. Beagle OS sitzt zwischen vier Seg
 1. **Open-Source-Hypervisor-Plattformen**: Beagle host, XCP-ng/Citrix Hypervisor, Harvester HCI, OpenStack, OpenShift Virtualization (KubeVirt), oVirt.
 2. **Enterprise-VDI-Plattformen**: Omnissa Horizon (ex-VMware), Citrix DaaS / Virtual Apps and Desktops.
 3. **Cloud-PC-/DaaS-Anbieter**: Microsoft Windows 365, Azure Virtual Desktop, Amazon WorkSpaces, Shadow, Vagon, Cameyo.
-4. **Niedrig-Latenz-Streaming-Stacks**: Parsec / Parsec for Teams, Sunshine + Moonlight, Apollo (Sunshine-Fork) + Artemis, Wolf, NICE DCV.
+4. **Niedrig-Latenz-Streaming-Stacks**: Parsec / Parsec for Teams, Beagle Stream Server + Beagle Stream Client, Apollo (Beagle Stream Server-Fork) + Artemis, Wolf, NICE DCV.
 
 ## Konkurrenten im Detail
 
@@ -55,12 +55,12 @@ Wir konkurrieren **nicht** in nur einem Markt. Beagle OS sitzt zwischen vier Seg
 - **Stark**: extrem niedrige Latenz, P2P-verschluesselt, Wacom/Multi-Monitor/4:4:4, Teamverwaltung, SSO, SCIM, Watermarks.
 - **Schwach**: Nur Streaming-Layer, kein Hypervisor, kein VDI-Brokering, kein Self-Hosting (SaaS), Windows/macOS-Hosts only.
 
-### Sunshine (LizardByte)
+### BeagleStream Server
 
-- **Stark**: Open Source (GPLv3), Moonlight-Protokoll, NVENC/QSV/VAAPI/AMF, Linux/Win/macOS, web UI, Pairing.
+- **Stark**: Open Source (GPLv3), Beagle Stream Client-Protokoll, NVENC/QSV/VAAPI/AMF, Linux/Win/macOS, web UI, Pairing.
 - **Schwach**: Pro Host-Daemon-zentrisch, kein Pool-Modell, kein Hypervisor, kein VDI, virtual display nur eingeschraenkt.
 
-### Apollo (Sunshine-Fork) + Artemis (Moonlight-Fork)
+### Apollo (Beagle Stream Server-Fork) + Artemis (Beagle Stream Client-Fork)
 
 - **Stark**: Built-in Virtual Display mit HDR und auto-resolution-matching, Per-Client-Permissions, Clipboard-Sync, Auto-pause/resume, Multi-Instance.
 - **Schwach**: Windows-only Virtual Display, nicht zentral verwaltbar (pro Host), keine Plattform-Backplane.
@@ -68,7 +68,7 @@ Wir konkurrieren **nicht** in nur einem Markt. Beagle OS sitzt zwischen vier Seg
 ### Kasm Workspaces
 
 - **Stark**: Container- und VM-basierte Workspaces im Browser (HTML5/WebRTC/KasmVNC), Mandanten, RBAC, App-Streaming, Zero-Trust-Entry.
-- **Schwach**: Browser-zentriert (kein nativer Low-Latency-Client wie Moonlight), Container-first (VM ist nachgelagert), kommerzieller Kern.
+- **Schwach**: Browser-zentriert (kein nativer Low-Latency-Client wie Beagle Stream Client), Container-first (VM ist nachgelagert), kommerzieller Kern.
 
 ### NICE DCV / Amazon WorkSpaces
 
@@ -84,7 +84,7 @@ Wir konkurrieren **nicht** in nur einem Markt. Beagle OS sitzt zwischen vier Seg
 
 Legende: V=Vorhanden, T=Teilweise, F=Fehlt.
 
-| Feature | Beagle 6.7 | Beagle 7.0 (Ziel) | Beagle host | XCP-ng | Harvester | Omnissa Horizon | Citrix DaaS | Win 365 | Parsec Teams | Sunshine/Apollo | Kasm |
+| Feature | Beagle 6.7 | Beagle 7.0 (Ziel) | Beagle host | XCP-ng | Harvester | Omnissa Horizon | Citrix DaaS | Win 365 | Parsec Teams | Beagle Stream Server/Apollo | Kasm |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | KVM/QEMU Hypervisor | V | V | V | (Xen) | V | F | F | F | F | F | T |
 | Multi-Node Cluster | F | V | V | V | V | n/a | n/a | n/a | n/a | F | T |
@@ -95,7 +95,7 @@ Legende: V=Vorhanden, T=Teilweise, F=Fehlt.
 | Distributed Firewall | F | V | V | V | T | n/a | n/a | n/a | n/a | F | T |
 | Backup + Inkrementell + Live-Restore | F | V | V (PBS) | V | T | n/a | n/a | n/a | n/a | F | F |
 | Pool- und Template-Mgmt fuer Desktops | T | V | F | F | F | V | V | V | T | F | V |
-| Streaming-First pro VM | V | V | F | F | F | V (Blast) | V (HDX) | V (RDP/AVD) | V (Parsec) | V (Moonlight) | T (Web) |
+| Streaming-First pro VM | V | V | F | F | F | V (Blast) | V (HDX) | V (RDP/AVD) | V (Parsec) | V (Beagle Stream Client) | T (Web) |
 | HDR / Multi-Monitor / 4:4:4 | F | V | F | F | F | V | V | V | V | T | F |
 | Virtual Display + Auto-Res | F | V | F | F | F | V | V | V | T | V (Apollo) | F |
 | Eigenes Endpoint-/Thin-Client-OS | V | V | F | F | F | (IGEL Partner) | (IGEL Partner) | V (Win 365 Link) | F | F | F |
@@ -111,5 +111,5 @@ Legende: V=Vorhanden, T=Teilweise, F=Fehlt.
 ## Kerneinsicht
 
 - Niemand sonst liefert **alle vier Schichten in einem Produkt** (Hypervisor + VDI + Streaming + Endpoint-OS).
-- Beagle host + Sunshine + IGEL + Active Directory ist heute der naheliegendste DIY-Stack — Beagle OS 7.0 macht das zu einem einzigen integrierten Produkt.
-- Der schnellste Weg zur Konkurrenzfaehigkeit ist **nicht**, alles selbst zu bauen, sondern bestehende reife OSS-Bausteine zu integrieren (libvirt, Corosync/Pacemaker, Longhorn/Ceph, Apollo/Sunshine, OpenID Connect, OpenTelemetry).
+- Beagle host + Beagle Stream Server + IGEL + Active Directory ist heute der naheliegendste DIY-Stack — Beagle OS 7.0 macht das zu einem einzigen integrierten Produkt.
+- Der schnellste Weg zur Konkurrenzfaehigkeit ist **nicht**, alles selbst zu bauen, sondern bestehende reife OSS-Bausteine zu integrieren (libvirt, Corosync/Pacemaker, Longhorn/Ceph, Apollo/Beagle Stream Server, OpenID Connect, OpenTelemetry).

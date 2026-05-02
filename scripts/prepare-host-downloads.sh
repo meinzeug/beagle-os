@@ -562,7 +562,7 @@ cat > "$DIST_DIR/beagle-downloads-index.html" <<EOF
     <li><a href="${DOWNLOADS_PATH%/}/beagle-downloads-status.json">Status JSON</a></li>
     <li><a href="${DOWNLOADS_PATH%/}/SHA256SUMS">SHA256SUMS</a></li>
   </ul>
-  <p>The hosted USB installers pull the Beagle installer ISO during USB creation, then embed the selected VM profile so the installed thin client boots directly into Moonlight for that target VM.</p>
+  <p>The hosted USB installers pull the Beagle installer ISO during USB creation, then embed the selected VM profile so the installed thin client boots directly into Beagle Stream Client for that target VM.</p>
   <table>
     <tr><th>Release version</th><td><code>${VERSION}</code></td></tr>
     <tr><th>Server</th><td><code>${SERVER_NAME}</code></td></tr>

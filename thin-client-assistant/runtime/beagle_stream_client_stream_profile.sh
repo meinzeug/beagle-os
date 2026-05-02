@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-moonlight_video_decoder() {
+beagle_stream_client_video_decoder() {
   local configured
-  configured="${PVE_THIN_CLIENT_MOONLIGHT_VIDEO_DECODER:-auto}"
+  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-auto}"
 
   if [[ "$configured" == "auto" ]]; then
     # Hardware decode (VAAPI/VDPAU/Vulkan) requires /dev/dri/renderD128 (render node).
@@ -24,7 +24,7 @@ moonlight_video_decoder() {
 
 record_decoder_choice() {
   local decoder="$1"
-  beagle_log_event "moonlight.decoder" "decoder=${decoder} codec=${PVE_THIN_CLIENT_MOONLIGHT_VIDEO_CODEC:-auto}"
+  beagle_log_event "beagle-stream-client.decoder" "decoder=${decoder} codec=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC:-auto}"
 }
 
 local_display_resolution() {
@@ -60,11 +60,11 @@ local_display_resolution() {
   fi
 }
 
-moonlight_resolution() {
+beagle_stream_client_resolution() {
   local configured detected
-  configured="${PVE_THIN_CLIENT_MOONLIGHT_RESOLUTION:-auto}"
+  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION:-auto}"
 
-  if [[ "${PVE_THIN_CLIENT_MOONLIGHT_AUTO_RESOLUTION:-1}" == "1" ]]; then
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_RESOLUTION:-1}" == "1" ]]; then
     detected="$(local_display_resolution 2>/dev/null || true)"
     case "$configured" in
       ""|auto|native)

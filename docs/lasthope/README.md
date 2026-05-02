@@ -18,7 +18,7 @@ Das verkaufbare Zielbild:
 - Bare-Metal-Installation ohne manuelle Hotfixes
 - Beagle Web Console als einzige Operator-Oberflaeche
 - KVM/libvirt ohne Proxmox-Abhaengigkeit
-- BeagleStream Server/Client statt manuellem Sunshine/Moonlight-Pairing
+- BeagleStream Server/Client statt manuellem Beagle Stream Server/Beagle Stream Client-Pairing
 - WireGuard-geschuetzte Thinclient- und Stream-Pfade
 - mandantenfaehige Auth/RBAC/IAM-Basis
 - Backup, Restore, Audit, Monitoring und Incident-Prozess
@@ -69,7 +69,7 @@ wenn mindestens E2 gruen ist. Fuer produktive Enterprise-Nutzung ist E3 Pflicht.
 | Security, Auth, Audit, Compliance | `docs/checklists/03-security.md` |
 | CI, Tests, Observability, Datenintegritaet, UX | `docs/checklists/04-quality-ci.md` |
 | Release, Operations, Hardware, Pilot | `docs/checklists/05-release-operations.md` |
-| BeagleStream Fork-Spezifikation | `fork.md` und `docs/archive/goenterprise/01-moonlight-vdi-protocol.md` |
+| BeagleStream Fork-Spezifikation | `fork.md` und `docs/archive/goenterprise/01-beagle-stream-client-vdi-protocol.md` |
 | Security Restrisiken | `docs/refactor/11-security-findings.md` |
 
 ## Sofort-Reihenfolge

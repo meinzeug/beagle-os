@@ -35,7 +35,7 @@
 
 **Zuletzt erledigt**:
 - Aktive Checklisten und historischer `08-todo-global.md` wurden gegen Repo, GitHub und `srv1`/`srv2`-Nachweise gegengeprueft.
-- BeagleStream-VM-Runtime-Status ist nicht mehr offen: `website/main.js` rendert `stream_runtime.variant` fuer BeagleStream-Server vs. Sunshine-Fallback.
+- BeagleStream-VM-Runtime-Status ist nicht mehr offen: `website/main.js` rendert `stream_runtime.variant` fuer BeagleStream-Server vs. Beagle Stream Server-Fallback.
 - GitHub/Public-Release-Stand ist belegt: GitHub `Latest` = `v8.0.9`, `beagle-os.com/beagle-updates/beagle-downloads-status.json` meldet `version=8.0.9`.
 - `srv1` Dedicated-Host/KVM-Basis ist belegt: `beagle-control-plane` aktiv, nginx `443`, API `9088`, `/dev/kvm` vorhanden, KVM-Domcaps ok.
 - GPU-R3-Teilpunkte wurden konsolidiert: srv2-GTX-1080-Inventar, VFIO/IOMMU-Status, Gast-Passthrough-Smoke und No-GPU-Pool-Block sind abgehakt; NVENC-Session, VFIO-Reboot-Proof und vGPU/MDEV bleiben offen.
@@ -65,21 +65,21 @@
 ## Stand (2026-05-02, BeagleStream-first in VM-/Thinclient-Builds verdrahtet)
 
 **Zuletzt erledigt**:
-- Neue Ubuntu-Beagle-VMs sprechen im Provisioning-Status jetzt korrekt von `BeagleStream Server` statt pauschal von `Sunshine`.
-- Live-/Raw-Image-Builds ziehen standardmaessig `beagle-stream-client`; Upstream-Moonlight bleibt nur noch Fallback.
+- Neue Ubuntu-Beagle-VMs sprechen im Provisioning-Status jetzt korrekt von `BeagleStream Server` statt pauschal von `Beagle Stream Server`.
+- Live-/Raw-Image-Builds ziehen standardmaessig `beagle-stream-client`; BeagleStream-Client wird ausschliesslich aus dem Beagle-Fork bezogen.
 - Der offene Copilot-CI-Fix fuer `test_ubuntu_beagle_stale_runtime.py` ist direkt in `main` uebernommen.
 
 **Naechste konkrete Schritte**:
 
-1. Den Patch auf `srv1` deployen und dort die WebUI-/API-Texte live pruefen: neue VM-Erstellung muss `BeagleStream Server` statt `Sunshine` zeigen.
+1. Den Patch auf `srv1` deployen und dort die WebUI-/API-Texte live pruefen: neue VM-Erstellung muss `BeagleStream Server` statt `Beagle Stream Server` zeigen.
 2. `vm100` bis durch den aktuellen Ubuntu-Autoinstall-/Firstboot-/Reboot-Pfad beobachten und verifizieren, dass der Status am Ende sauber auf Desktop/Stream-Bereitschaft kippt.
 3. Den offenen Restpfad fuer den separaten `beagle-stream-server`-Fork weiterziehen: serverseitigen Enforcement-/Event-Pfad spaeter auch direkt im Fork statt nur in `beagle-os` verankern.
 
 ## Stand (2026-05-02, BeagleStream Runtime-Erkennung im Host integriert)
 
 **Zuletzt erledigt**:
-- VM-Guest-Prep und Ubuntu-Firstboot schreiben jetzt einen expliziten Runtime-Marker fuer `beagle-stream-server` vs. `sunshine-fallback`.
-- `InstallerPrepService` wertet diesen Marker aus und kann damit den echten Fork-Stand statt nur „Sunshine aktiv“ zurueckmelden.
+- VM-Guest-Prep und Ubuntu-Firstboot schreiben jetzt einen expliziten Runtime-Marker fuer `beagle-stream-server` vs. `beagle-stream-server-fallback`.
+- `InstallerPrepService` wertet diesen Marker aus und kann damit den echten Fork-Stand statt nur „Beagle Stream Server aktiv“ zurueckmelden.
 - Zwei sinnvolle Copilot-PR-Fixes fuer Release-Konkurrenz und platzsparendes Public-Artifact-Rsync wurden direkt in `main` uebernommen.
 
 **Naechste konkrete Schritte**:
@@ -106,7 +106,7 @@
 **Zuletzt erledigt**:
 - VM-spezifische Live-/Installer-Presets schalten nach Enrollment jetzt reproduzierbar in den hostless Broker-Modus.
 - Endpoint-Tokens duerfen `/api/v1/streams/allocate` direkt fuer `vm-<id>` nutzen.
-- Die Runtime persistiert den Broker-Zustand in `/etc/beagle/enrollment.conf` statt nach dem ersten Enroll wieder auf statisches Direct-Moonlight zurueckzufallen.
+- Die Runtime persistiert den Broker-Zustand in `/etc/beagle/enrollment.conf` statt nach dem ersten Enroll wieder auf statisches Direct-Beagle Stream Client zurueckzufallen.
 
 **Naechste konkrete Schritte**:
 
@@ -161,7 +161,7 @@
 ## Stand (2026-05-01, Live-USB Netzwerk-TUI persistent umgesetzt)
 
 **Zuletzt erledigt**:
-- Live-USB-Boots erhalten eine TUI fuer Ethernet/WLAN vor Desktop/Moonlight.
+- Live-USB-Boots erhalten eine TUI fuer Ethernet/WLAN vor Desktop/Beagle Stream Client.
 - Die Auswahl wird in den USB-State geschrieben und beim naechsten Boot automatisch genutzt.
 - Ein 3-Sekunden-Banner erlaubt per `N` das erneute Oeffnen der Netzwerkauswahl.
 
@@ -169,21 +169,21 @@
 
 1. Nach dem srv1-Deploy die Thin-Client-Artefakte komplett neu bauen lassen, damit `pve-thin-client-usb-payload-*` und `pve-thin-client-usb-bootstrap-*` den neuen Runtime-Service enthalten.
 2. Mit einem echten Live-USB-Boot pruefen: erster Boot WLAN/Ethernet-Auswahl, zweiter Boot Auto-Weiterlauf ohne Eingabe, dritter Boot mit `N` Reconfigure.
-3. Danach VM100-Thinclient erneut mit Moonlight/WireGuard abnehmen.
+3. Danach VM100-Thinclient erneut mit Beagle Stream Client/WireGuard abnehmen.
 
 ---
 
-## Stand (2026-05-01, VM100 Thinclient WireGuard/Moonlight repariert)
+## Stand (2026-05-01, VM100 Thinclient WireGuard/Beagle Stream Client repariert)
 
 **Zuletzt erledigt**:
 - VM100-Live-USB-Thinclient bootet mit repariertem Prepare-Pfad, enrollt WireGuard und erreicht VM100 ueber `192.168.123.114:50000/50001`.
 - `srv1` ist fuer WireGuard-Reconcile, libvirt-Forwarding und VM-Bridge-NAT reproduzierbar gehaertet.
-- Moonlight startet auf dem Thinclient gegen den VPN/private VM-Zielpfad.
+- Beagle Stream Client startet auf dem Thinclient gegen den VPN/private VM-Zielpfad.
 
 **Naechste konkrete Schritte**:
 
 1. VM100-Live-USB-Artefakt nach Deploy neu erzeugen und den Stick neu schreiben, damit die Hotfixes nicht nur live gepatcht sind.
-2. Einen Reboot-Smoke fuer Thinclient-Prepare -> WireGuard -> Moonlight in `tests/integration/test_endpoint_boot_to_streaming.py` vertiefen.
+2. Einen Reboot-Smoke fuer Thinclient-Prepare -> WireGuard -> Beagle Stream Client in `tests/integration/test_endpoint_boot_to_streaming.py` vertiefen.
 3. Den gleichen WireGuard-Reconcile-/Forwarding-Stand auf `srv2` spiegeln, falls dort Thinclients validiert werden.
 
 ---
@@ -266,11 +266,11 @@
 
 ---
 
-## Stand (2026-04-30, Sunshine/Moonlight-Smokes auf srv1 mit VM102-Blocker)
+## Stand (2026-04-30, Beagle Stream Server/Beagle Stream Client-Smokes auf srv1 mit VM102-Blocker)
 
 **Zuletzt erledigt**:
-- Die live fahrbaren Sunshine/Moonlight-Smokes auf `srv1` sind fuer VM100 erneut mit PASS-Nachweisen gelaufen (`STREAM_HEALTH_ACTIVE_RESULT=PASS`, `STREAM_INPUT_MATRIX_RESULT=PASS`, `MOONLIGHT_AUTO_PAIR_RESULT=PASS` im Headless-Degraded-Modus, `PLAN01_STREAM_VM_REGISTER=PASS`, `ensure-vm-stream-ready` mit `RC=0`).
-- Die Smoke-Skripte wurden fuer den realen Guest-User-/Xauthority-Pfad und fuer Headless-Pairing ohne aktiven Moonlight-Client gehaertet.
+- Die live fahrbaren Beagle Stream Server/Beagle Stream Client-Smokes auf `srv1` sind fuer VM100 erneut mit PASS-Nachweisen gelaufen (`STREAM_HEALTH_ACTIVE_RESULT=PASS`, `STREAM_INPUT_MATRIX_RESULT=PASS`, `BEAGLE_STREAM_CLIENT_AUTO_PAIR_RESULT=PASS` im Headless-Degraded-Modus, `PLAN01_STREAM_VM_REGISTER=PASS`, `ensure-vm-stream-ready` mit `RC=0`).
+- Die Smoke-Skripte wurden fuer den realen Guest-User-/Xauthority-Pfad und fuer Headless-Pairing ohne aktiven Beagle Stream Client-Client gehaertet.
 
 **Naechste konkrete Schritte**:
 
@@ -360,7 +360,7 @@
 
 
 **Zuletzt erledigt**:
-- Laufzeitfixes fuer den Stream-Ready-Pfad deployed (`PYTHONPATH`-Bootstrap in `ensure-vm-stream-ready.sh` + `configure-sunshine-guest.sh`, SCP-Zielpfad weg von `/tmp`).
+- Laufzeitfixes fuer den Stream-Ready-Pfad deployed (`PYTHONPATH`-Bootstrap in `ensure-vm-stream-ready.sh` + `configure-beagle-stream-server-guest.sh`, SCP-Zielpfad weg von `/tmp`).
 - `srv1`-Rerun gegen VM100 war erfolgreich.
 - VM102 bleibt als externer Runtime-Blocker offen (`VM 102 not found in beagle provider state`, keine Guest-IP).
 
@@ -368,7 +368,7 @@
 
 1. Auf `srv1` die VM102-Inventar-/Provider-State-Diskrepanz beheben (VM neu registrieren oder neu provisionieren), bis `beagle_provider` wieder `guest-exec`/`guest-ipv4` liefern kann.
 2. Danach den offenen Pflicht-Run erneut fahren: `scripts/ensure-vm-stream-ready.sh --vmid 100 --node beagle-0` und `--vmid 102 --node beagle-0`.
-3. Erst nach dualem PASS den offenen Sunshine/Moonlight-TODO in `08-todo-global.md` auf `[x]` setzen und die restliche first-boot readiness gate Validierung (`clean VM100/101`) weiterziehen.
+3. Erst nach dualem PASS den offenen Beagle Stream Server/Beagle Stream Client-TODO in `08-todo-global.md` auf `[x]` setzen und die restliche first-boot readiness gate Validierung (`clean VM100/101`) weiterziehen.
 
 ## Stand (2026-04-29, Plan-07 5GB Backup-Lasttest auf srv1 geschlossen)
 
@@ -387,7 +387,7 @@
 
 **Zuletzt erledigt**:
 - `scripts/test-stream-persistence-reboot-smoke.sh` eingefuehrt und auf `srv1` gegen VM100 erfolgreich ausgefuehrt.
-- Der Lauf validiert Profilkonsistenz + Sunshine-API-Recovery vor/nach Reboot ohne manuelle Firewall-/Routing-Eingriffe.
+- Der Lauf validiert Profilkonsistenz + Beagle Stream Server-API-Recovery vor/nach Reboot ohne manuelle Firewall-/Routing-Eingriffe.
 - Globales TODO wurde auf erledigt gesetzt.
 
 **Naechste konkrete Schritte**:
@@ -406,23 +406,23 @@
 **Naechste konkrete Schritte**:
 
 1. Frische VM100-Installer-Neuinstallation in der lokalen Thinclient-VM fahren (statt Legacy-Image-Fixups) und den gleichen WG-Nachweis ohne manuelle Script-Nachinstallation wiederholen.
-2. End-to-End-Streamstart im VPN-Pfad finalisieren (Moonlight-Launch auf private Ziel-IP/Policy-Pfad) und als reproduzierbaren Smoke in `scripts/` festhalten.
+2. End-to-End-Streamstart im VPN-Pfad finalisieren (Beagle Stream Client-Launch auf private Ziel-IP/Policy-Pfad) und als reproduzierbaren Smoke in `scripts/` festhalten.
 3. Danach den verbleibenden offenen Host-Restblock aus `08-todo-global.md` (clean-install Host-Validierung post server-installer ISO) weiterziehen.
 
-## Stand (2026-04-29, Smoke-Scripts stabilisiert + Sunshine/Moonlight Validierungspfad eingeführt)
+## Stand (2026-04-29, Smoke-Scripts stabilisiert + Beagle Stream Server/Beagle Stream Client Validierungspfad eingeführt)
 
 **Zuletzt erledigt**:
 - `test-server-installer-live-smoke.sh`: DHCP-Timeout auf 300s angehoben, ARP-Fallback in `wait_for_vm_ip` ergänzt.
 - `test-standalone-desktop-stream-sim.sh`: libvirt-Permissions stabilisiert (umask 022, chmod 0644 auf Fake-ISO, chmod o+x auf TMP_DIR).
-- `scripts/test-sunshine-selfheal-smoke.sh` (neu): validiert beagle-sunshine-healthcheck.timer + pkill-Szenario auf VM-Gast.
-- `scripts/test-moonlight-appname-smoke.sh` (neu): ruft Sunshine /api/apps auf, führt Resolver-Logik nach, gibt PASS/WARN aus.
+- `scripts/test-beagle-stream-server-selfheal-smoke.sh` (neu): validiert beagle-stream-server-healthcheck.timer + pkill-Szenario auf VM-Gast.
+- `scripts/test-beagle-stream-client-appname-smoke.sh` (neu): ruft Beagle Stream Server /api/apps auf, führt Resolver-Logik nach, gibt PASS/WARN aus.
 
 **Naechste konkrete Schritte**:
 
 1. Neuen Scripts über Repo-Auto-Update auf `srv1` deployen (nach Push auf GitHub automatisch).
-2. Sunshine-/Moonlight-Smokes gegen VM 100 auf `srv1` ausführen:
-  - `BEAGLE_SMOKE_VM_SSH=beagle@<vm100-ip> bash scripts/test-sunshine-selfheal-smoke.sh`
-  - `SUNSHINE_API_URL=https://<vm100-ip>:47990 SUNSHINE_PASSWORD=... bash scripts/test-moonlight-appname-smoke.sh`
+2. Beagle Stream Server-/Beagle Stream Client-Smokes gegen VM 100 auf `srv1` ausführen:
+  - `BEAGLE_SMOKE_VM_SSH=beagle@<vm100-ip> bash scripts/test-beagle-stream-server-selfheal-smoke.sh`
+  - `BEAGLE_STREAM_SERVER_API_URL=https://<vm100-ip>:47990 BEAGLE_STREAM_SERVER_PASSWORD=... bash scripts/test-beagle-stream-client-appname-smoke.sh`
 3. Danach Installer-Rebuild-/Publish-Punkt weiterziehen: Server-Installer-/Installimage-Artefakte neu bauen damit Onboarding/LetsEncrypt-Fixes in frischen Installationen enthalten sind.
 
 
@@ -474,7 +474,7 @@
 2. Danach den verbliebenen Plan-09-Multi-Node-Live-Block wieder aufnehmen, sobald `srv2` netzseitig verlässlich erreichbar ist.
 3. Fuer spaetere UI-Smokes prüfen, ob ein gemeinsamer statischer Test-Serve-Pfad statt temporaerer Asset-Staging-Schritte sinnvoll ist.
 
-## Stand (2026-04-29, Sunshine/Desktop-Guest-Smoke im Provisioning-Ready-Flow geschlossen)
+## Stand (2026-04-29, Beagle Stream Server/Desktop-Guest-Smoke im Provisioning-Ready-Flow geschlossen)
 
 **Zuletzt erledigt**:
 - `scripts/ensure-vm-stream-ready.sh` prueft nach Provisioning jetzt live `xset q` plus Abwesenheit von `light-locker` und `xfce4-power-manager`.
@@ -568,7 +568,7 @@
 ## Stand (2026-04-29, GoAdvanced Plan 01 abgeschlossen)
 
 **Zuletzt erledigt**:
-- Welle 3d Teil 4 (`webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `sunshine_integration.py`, `gaming_metrics_service.py`) auf `JsonStateStore`/atomare Helper migriert; lokale Tests + `srv1`-Batch-Smoke erfolgreich.
+- Welle 3d Teil 4 (`webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `beagle_stream_server_integration.py`, `gaming_metrics_service.py`) auf `JsonStateStore`/atomare Helper migriert; lokale Tests + `srv1`-Batch-Smoke erfolgreich.
 - Plan-01-Restpunkt `Repo-Grep` fuer direkte `path.write_text(json.dumps(`-Writes in `beagle-host/services` auf Null gebracht.
 
 **Naechste konkrete Schritte**:
@@ -584,7 +584,7 @@
 
 **Naechste konkrete Schritte**:
 
-1. Welle 3d Teil 4: verbleibende Service-Pfade `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `sunshine_integration.py`, `gaming_metrics_service.py` migrieren.
+1. Welle 3d Teil 4: verbleibende Service-Pfade `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `beagle_stream_server_integration.py`, `gaming_metrics_service.py` migrieren.
 2. Danach Plan-01-Restpunkt `Repo-Grep` fuer direkte `path.write_text(json.dumps(` ausserhalb von Tests final auf Null bringen.
 3. Nach Abschluss von Welle 3d den Gesamtstatus in `docs/goadvanced/01-data-integrity.md` und `docs/refactor/08-todo-global.md` als komplett markieren.
 
@@ -596,7 +596,7 @@
 **Naechste konkrete Schritte**:
 
 1. Welle 3d Teil 3: `endpoint_report.py`, `firewall_service.py`, `cluster_membership.py` auf `JsonStateStore`/atomare Writes migrieren.
-2. Welle 3d Teil 4: verbleibende Service-Pfade (`server_settings.py`, `stream_http_surface.py`, `sunshine_integration.py`, ggf. `gaming_metrics_service.py`) in kleinen Batches nachziehen.
+2. Welle 3d Teil 4: verbleibende Service-Pfade (`server_settings.py`, `stream_http_surface.py`, `beagle_stream_server_integration.py`, ggf. `gaming_metrics_service.py`) in kleinen Batches nachziehen.
 3. Danach Plan-01-Restpunkt `Repo-Grep` fuer direkte `path.write_text(json.dumps(` ausserhalb von Tests final auf Null bringen.
 
 ## Stand (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 1 abgeschlossen)
@@ -694,9 +694,9 @@
 
 **Naechste konkrete Schritte**:
 
-1. Den neuen Guest-Provisioning-Stand per normalem Repo-Deploy auch auf `srv2` spiegeln, falls dort Sunshine-/Desktop-VMs erstellt werden.
+1. Den neuen Guest-Provisioning-Stand per normalem Repo-Deploy auch auf `srv2` spiegeln, falls dort Beagle Stream Server-/Desktop-VMs erstellt werden.
 2. Den naechsten neu erstellten WebUI-Desktop-Guest einmal als Smoke bauen und direkt nach erstem Login `xset q` + Prozessliste validieren.
-3. Optional einen kleinen Host-/Guest-Smoke fuer `configure-sunshine-guest.sh` ergaenzen, der `light-locker`/`xfce4-power-manager` nach der Konfiguration live auf einer Test-VM prueft.
+3. Optional einen kleinen Host-/Guest-Smoke fuer `configure-beagle-stream-server-guest.sh` ergaenzen, der `light-locker`/`xfce4-power-manager` nach der Konfiguration live auf einer Test-VM prueft.
 
 ## Stand (2026-04-28, srv1 Systemd-/Update-Drift gepatcht)
 
@@ -751,7 +751,7 @@
 **Naechste konkrete Schritte**:
 
 1. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
-2. **Plan 01 Fork-Rest**: echten `beagle-stream-server`-Fork (Sunshine) mit Broker-/Auth-Komponenten in separatem Repo aufsetzen und gegen den vorhandenen Control-Plane-Slice verdrahten.
+2. **Plan 01 Fork-Rest**: echten `beagle-stream-server`-Fork (Beagle Stream Server) mit Broker-/Auth-Komponenten in separatem Repo aufsetzen und gegen den vorhandenen Control-Plane-Slice verdrahten.
 3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
 4. **Plan 01 Fork-Enforcement**: denselben `vpn_required`-Enforcement-Pfad spaeter im separaten `beagle-stream-server`-Fork verankern.
 
@@ -834,7 +834,7 @@
 
 **Naechste konkrete Schritte**:
 
-1. **Plan 01 Fork-Rest**: den eigentlichen Sunshine-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese API anheben.
+1. **Plan 01 Fork-Rest**: den eigentlichen Beagle Stream Server-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese API anheben.
 2. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
 3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
 4. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
@@ -846,7 +846,7 @@
 
 **Naechste konkrete Schritte**:
 
-1. **Plan 01 Fork-Rest**: den eigentlichen Sunshine-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese neue Control-Plane-API anheben.
+1. **Plan 01 Fork-Rest**: den eigentlichen Beagle Stream Server-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese neue Control-Plane-API anheben.
 2. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
 3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
 4. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
@@ -859,7 +859,7 @@
 
 **Naechste konkrete Schritte**:
 
-1. **Plan 01 Fork-Rest**: den eigentlichen Sunshine-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese neue Control-Plane-API anheben.
+1. **Plan 01 Fork-Rest**: den eigentlichen Beagle Stream Server-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen diese neue Control-Plane-API anheben.
 2. **Plan 04 Restpunkt**: Warm-Pool-Empfehlungen optional automatisch anwenden (mit Safety-Guardrails).
 3. **Plan 02 Live-Restpunkte**: grafischen Sperrbildschirm und Device-Wipe auf echter Thin-Client-Hardware/X11-/Wayland-Sessions verifizieren.
 4. **Plan 01 WireGuard-Rest**: verbleibende WireGuard-Mesh-/Latency-Testpflichtpunkte reproduzierbar im Runtime-Scope schliessen.
@@ -914,7 +914,7 @@
 **Naechste konkrete Schritte**:
 
 1. **Plan 04 Restpunkt schliessen**: Warm-Pool-Empfehlungen optional automatisch anwenden (Auto-Apply mit Guardrails).
-2. **Plan 01 Fork-Rest**: den eigentlichen Sunshine-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen die bestehende API anheben.
+2. **Plan 01 Fork-Rest**: den eigentlichen Beagle Stream Server-Fork `beagle-stream-server` mit HMAC-Token-Pairing und realem Startup-Register gegen die bestehende API anheben.
 3. **Plan 08 angehen**: offenen TUI-Installer-Block (5-Schritt-Validierung + Seed-YAML Non-Interactive + PXE-Seed-Pfad) in `server-installer/` umsetzen.
 4. **Plan 02 Live-Restpunkte**: Enrollment-/WireGuard-/TPM-End-to-End-Abnahmen reproduzierbar auf Runtime-Hardware verankern.
 
@@ -1064,7 +1064,7 @@
 3. **Plan 07 live abnehmen**: Fleet-Alerts gegen echte Thin-Client-Hardware oder VM-Runtime provozieren und verifizieren, dass WebUI + Webhook-Dispatch wie erwartet reagieren.
 4. **Plan 02/07 Fleet-Operatorik nachziehen**: Runtime-Telemetrie um Session-/Health-/Streaming-Signale erweitern, damit Lock/WG/Display nicht die letzten sichtbaren Ist-Daten bleiben.
 5. **Plan 02 Policy-Plane weiter automatisieren**: auf der neuen Drift-/Run-/Config-Surface weitere sichere Batch-Aktionen und spaetere echte Auto-Remediation-Worker aufbauen.
-6. **Plan 01 Fork-Pfad weiterziehen**: den spaeteren `beagle-stream-server`-Enforcement-Pfad im Sunshine-Fork vorbereiten, obwohl der heutige Broker-Pfad bereits blockiert.
+6. **Plan 01 Fork-Pfad weiterziehen**: den spaeteren `beagle-stream-server`-Enforcement-Pfad im Beagle Stream Server-Fork vorbereiten, obwohl der heutige Broker-Pfad bereits blockiert.
 
 ## Stand (2026-04-27, two-host follow-up)
 
@@ -1131,7 +1131,7 @@
 3. **GitHub Release-Workflow erneut gegen echten Push pruefen**: bestaetigen, dass `.github/workflows/release.yml` nach dem Parse-Fix wieder laeuft und auf Push nach `main` einen neuen Rolling-/Release-Lauf erzeugt.
 4. **Plan 12 Nachlauf nur optional**: voller NVIDIA-Treiber-/Streaming-Benchmark im Gast waere noch zusaetzliche Komfortvalidierung, ist aber kein Pflichtblocker mehr.
 5. **Thinclient-Hardware-Rerun auf echtem Stick**: neuen VM100-USB-Stick von `srv1` erzeugen und den bisher fehlgeschlagenen physischen `Preset Installation starten`-Pfad auf echter Hardware erneut abnehmen.
-6. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Moonlight-Session gegen `vm100` pruefen.
+6. **Thinclient-Runtime visuell abnehmen**: lokale installierte Ziel-Disk mit grafischem Capture/Screenshot bis zur sichtbaren Beagle Stream Client-Session gegen `vm100` pruefen.
 7. **Security vor Cluster-Komfort**: separate legacy HTTPS listener abschalten; Installer-/Download-Pfade auf `443` migrieren.
 **Blocker/Risiken**:
 - `srv2` GPU: GTX 1080 ist an `vfio-pci`, aber IOMMU-Gruppe enthaelt weitere Geraete; Passthrough bleibt ohne ACS/BIOS/Hardware-Aenderung nicht sicher freigebbar.
@@ -1374,9 +1374,9 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 
 ## Naechster Schritt (2026-05-01, BeagleStream Phase A)
 
-1. Auf einer VM mit `/etc/beagle/stream-server.env` den Sunshine-Fork mit `BEAGLE_INTEGRATION=ON` starten und `Beagle broker active for VM ...` plus Registrierung gegen `srv1.beagle-os.com:9088` pruefen.
-2. BeagleStream-Client-Release `beagle-phase-a` beobachten; sobald `BeagleStream-latest-x86_64.AppImage` veroeffentlicht ist, muss der naechste Thin-Client-Artefaktbuild diesen Default statt des Fallback-Moonlight-AppImage stage'n.
-3. BeagleStream-Server-Release `beagle-phase-a` erzeugen; sobald `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` veroeffentlicht ist, muss die VM-Guest-Prep dieses Paket statt des Fallback-Sunshine-Pakets stage'n.
+1. Auf einer VM mit `/etc/beagle/stream-server.env` den Beagle Stream Server-Fork mit `BEAGLE_INTEGRATION=ON` starten und `Beagle broker active for VM ...` plus Registrierung gegen `srv1.beagle-os.com:9088` pruefen.
+2. BeagleStream-Client-Release `beagle-phase-a` beobachten; sobald `BeagleStream-latest-x86_64.AppImage` veroeffentlicht ist, muss der naechste Thin-Client-Artefaktbuild diesen Default ohne externen Fallback stage'n.
+3. BeagleStream-Server-Release `beagle-phase-a` erzeugen; sobald `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` veroeffentlicht ist, muss die VM-Guest-Prep dieses Paket statt des Fallback-Beagle Stream Server-Pakets stage'n.
 4. Auf einem Thin-Client mit `/etc/beagle/enrollment.conf` den gebundelten `beagle-stream` starten, Broker-Allocate ausfuehren, WireGuard-Peer-Aktivierung pruefen und Token-als-PIN-Pairing gegen die VM verifizieren.
 5. Danach den kompletten srv1-Flow VM -> Stream-Server-Register -> Thin-Client-Allocate -> Desktop-Stream live abnehmen.
 
@@ -1392,8 +1392,8 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 1. Den jetzt hostless-faehigen Allocate-Contract live auf `srv1` mit einem echten Thin-Client gegen `POST /api/v1/streams/allocate` pruefen; der Request darf nur `pool_id` + `device_id` senden.
 2. Im separaten `beagle-stream-client`-Fork denselben Contract auf WireGuard-Aktivierung + Token-als-PIN-Pairing gegen eine echte VM durchexerzieren.
 3. Danach den kompletten Live-Pfad `thinclient -> allocate -> WireGuard -> pair token -> desktop stream` mit `vm100` oder einer frischen Test-VM auf `srv1` abnehmen.
-4. Wenn der Live-Pfad gruen ist, kann der verbleibende Fallback-Code fuer alte statische Moonlight-/Sunshine-Defaults weiter reduziert werden.
-1. Auf `srv1.beagle-os.com` den neuen Plasma-Provisioning-Pfad live gegen eine frische Ubuntu-Beagle-VM abnehmen: `plasma-cyberpunk` als Default, automatischer Reboot nach Firstboot, Desktop-Login, Wallpaper, LightDM-Greeter und Sunshine-Stream.
+4. Wenn der Live-Pfad gruen ist, kann der verbleibende Fallback-Code fuer alte statische Beagle Stream Client-/Beagle Stream Server-Defaults weiter reduziert werden.
+1. Auf `srv1.beagle-os.com` den neuen Plasma-Provisioning-Pfad live gegen eine frische Ubuntu-Beagle-VM abnehmen: `plasma-cyberpunk` als Default, automatischer Reboot nach Firstboot, Desktop-Login, Wallpaper, LightDM-Greeter und Beagle Stream Server-Stream.
 2. Danach denselben Flow einmal mit `plasma-classic` über die WebUI erstellen und prüfen, dass kein Cyberpunk-Wallpaper/Branding in der Session erzwungen wird.
 3. Die neuen Thinclient-/Live-Build-Artefakte mit dem versionierten Repo-Wallpaper neu bauen und den Plymouth-/Session-Splash auf echter Hardware bzw. Thinclient-VM smoke-testen.
 4. Den Broker-Preset-Fix jetzt live gegen den echten `vm100`-Stick abnehmen: neuen USB-Stick bauen, Thinclient booten, verifizieren dass `CONNECTION_METHOD=broker` gesetzt wird, Enrollment/WireGuard laufen und kein statischer `46.4.96.80`-Direktpfad mehr auftaucht.

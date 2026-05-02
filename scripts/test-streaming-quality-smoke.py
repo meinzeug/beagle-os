@@ -6,7 +6,7 @@ reports a JSON summary for:
 - vkms module state
 - X11 session/xrandr visibility
 - 4K mode apply result
-- Sunshine service/API reachability
+- Beagle Stream Server service/API reachability
 
 Usage:
   python3 scripts/test-streaming-quality-smoke.py \
@@ -137,10 +137,10 @@ def main() -> int:
         (
             "set -e; "
             "guest_user=''; "
-            "if [[ -r /etc/beagle/sunshine-healthcheck.env ]]; then "
-            "  source /etc/beagle/sunshine-healthcheck.env >/dev/null 2>&1 || true; "
+            "if [[ -r /etc/beagle/beagle-stream-server-healthcheck.env ]]; then "
+            "  source /etc/beagle/beagle-stream-server-healthcheck.env >/dev/null 2>&1 || true; "
             "fi; "
-            "for c in \"${SUNSHINE_GUEST_USER:-}\" beagle ubuntu; do "
+            "for c in \"${BEAGLE_STREAM_SERVER_GUEST_USER:-}\" beagle ubuntu; do "
             "  [[ -n \"$c\" ]] || continue; "
             "  if id \"$c\" >/dev/null 2>&1; then guest_user=\"$c\"; break; fi; "
             "done; "
@@ -210,13 +210,13 @@ def main() -> int:
     vkms = _guest_exec(
         args.host,
         args.domain,
-        "lsmod | grep vkms || true; ls -l /dev/dri; systemctl is-active beagle-sunshine.service",
+        "lsmod | grep vkms || true; ls -l /dev/dri; systemctl is-active beagle-stream-server.service",
     )
     vkms_loaded = "vkms" in vkms.out
     virtual_output_present = _xrandr_has_virtual_output(xrandr_out)
-    sunshine_active = "active" in vkms.out
-    summary["checks"]["vkms_sunshine"] = {
-        "ok": vkms.exitcode == 0 and sunshine_active and (vkms_loaded or virtual_output_present),
+    beagle_stream_server_active = "active" in vkms.out
+    summary["checks"]["vkms_beagle_stream_server"] = {
+        "ok": vkms.exitcode == 0 and beagle_stream_server_active and (vkms_loaded or virtual_output_present),
         "exitcode": vkms.exitcode,
         "vkms_loaded": vkms_loaded,
         "virtual_output_present": virtual_output_present,
@@ -228,15 +228,15 @@ def main() -> int:
         args.host,
         args.domain,
         (
-            "source /etc/beagle/sunshine-healthcheck.env >/dev/null 2>&1; "
-            "api_port=$((SUNSHINE_PORT+1)); "
-            # tls-bypass-allowlist: guest-exec loopback to Sunshine API; self-signed cert on 127.0.0.1
-            "curl --insecure -fsS --connect-timeout 3 --max-time 5 "  # tls-bypass-allowlist: guest-exec loopback to Sunshine API
-            "--user \"${SUNSHINE_USER}:${SUNSHINE_PASSWORD}\" "
+            "source /etc/beagle/beagle-stream-server-healthcheck.env >/dev/null 2>&1; "
+            "api_port=$((BEAGLE_STREAM_SERVER_PORT+1)); "
+            # tls-bypass-allowlist: guest-exec loopback to Beagle Stream Server API; self-signed cert on 127.0.0.1
+            "curl --insecure -fsS --connect-timeout 3 --max-time 5 "  # tls-bypass-allowlist: guest-exec loopback to Beagle Stream Server API
+            "--user \"${BEAGLE_STREAM_SERVER_USER}:${BEAGLE_STREAM_SERVER_PASSWORD}\" "
             "\"https://127.0.0.1:${api_port}/api/apps\" >/dev/null && echo APPS_OK || echo APPS_FAIL"
         ),
     )
-    summary["checks"]["sunshine_api_apps"] = {
+    summary["checks"]["beagle_stream_server_api_apps"] = {
         "ok": "APPS_OK" in api.out,
         "exitcode": api.exitcode,
         "out": api.out,
@@ -246,8 +246,8 @@ def main() -> int:
     hard_requirements = [
         summary["checks"]["x11_prereq"]["ok"],
         summary["checks"]["xrandr_query"]["ok"],
-        summary["checks"]["vkms_sunshine"]["ok"],
-        summary["checks"]["sunshine_api_apps"]["ok"],
+        summary["checks"]["vkms_beagle_stream_server"]["ok"],
+        summary["checks"]["beagle_stream_server_api_apps"]["ok"],
     ]
 
     if all(hard_requirements):

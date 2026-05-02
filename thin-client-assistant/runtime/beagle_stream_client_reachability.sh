@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MOONLIGHT_API_URL_SH="${MOONLIGHT_API_URL_SH:-$SCRIPT_DIR/moonlight_api_url.sh}"
+BEAGLE_STREAM_CLIENT_API_URL_SH="${BEAGLE_STREAM_CLIENT_API_URL_SH:-$SCRIPT_DIR/beagle_stream_client_api_url.sh}"
 # shellcheck disable=SC1090
-source "$MOONLIGHT_API_URL_SH"
+source "$BEAGLE_STREAM_CLIENT_API_URL_SH"
 
 probe_stream_target() {
   local api_url host port connect_host effective_api_url
@@ -11,12 +11,12 @@ probe_stream_target() {
 
   api_url="$1"
   host="$2"
-  port="$(moonlight_port)"
-  connect_host="${3:-$(moonlight_primary_connect_host)}"
+  port="$(beagle_stream_client_port)"
+  connect_host="${3:-$(beagle_stream_client_primary_connect_host)}"
   effective_api_url="$api_url"
   curl_opts=(-fsS -o /dev/null --connect-timeout 2 --max-time 4)
-  username="${PVE_THIN_CLIENT_SUNSHINE_USERNAME:-}"
-  password="${PVE_THIN_CLIENT_SUNSHINE_PASSWORD:-}"
+  username="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME:-}"
+  password="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD:-}"
   if prefer_ipv4 && [[ -n "$connect_host" ]] && [[ "$connect_host" != "$host" ]]; then
     curl_opts+=(-4)
     if [[ -n "$api_url" ]]; then
@@ -27,7 +27,7 @@ probe_stream_target() {
     curl_opts+=(--user "${username}:${password}")
   fi
   if [[ -n "$effective_api_url" ]]; then
-    mapfile -t tls_args < <(beagle_curl_tls_args "$effective_api_url" "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}")
+    mapfile -t tls_args < <(beagle_curl_tls_args "$effective_api_url" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_CA_CERT:-}")
     curl_opts+=("${tls_args[@]}")
     if [[ -n "$effective_api_url" ]]; then
       curl "${curl_opts[@]}" "${effective_api_url%/}/api/apps" && return 0
@@ -83,12 +83,12 @@ probe_stream_candidate() {
   probe_stream_target "$effective_api_url" "$candidate" "$candidate"
 }
 
-moonlight_target_reachable() {
+beagle_stream_client_target_reachable() {
   local host connect_host api_url
 
-  host="$(moonlight_host)"
-  connect_host="$(moonlight_connect_host)"
-  api_url="$(selected_sunshine_api_url)"
+  host="$(beagle_stream_client_host)"
+  connect_host="$(beagle_stream_client_connect_host)"
+  api_url="$(selected_beagle_stream_server_api_url)"
   probe_stream_target "$api_url" "$host" "$connect_host"
 }
 
@@ -97,16 +97,16 @@ wait_for_stream_target() {
 
   attempts="${PVE_THIN_CLIENT_STREAM_WAIT_RETRIES:-15}"
   delay="${PVE_THIN_CLIENT_STREAM_WAIT_DELAY:-2}"
-  host="$(moonlight_host)"
-  connect_host="$(moonlight_connect_host)"
-  port="$(moonlight_port)"
+  host="$(beagle_stream_client_host)"
+  connect_host="$(beagle_stream_client_connect_host)"
+  port="$(beagle_stream_client_port)"
 
   for attempt in $(seq 1 "$attempts"); do
-    if moonlight_target_reachable; then
-      beagle_log_event "moonlight.reachable" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} attempt=${attempt}"
+    if beagle_stream_client_target_reachable; then
+      beagle_log_event "beagle-stream-client.reachable" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} attempt=${attempt}"
       return 0
     fi
-    beagle_log_event "moonlight.waiting" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} attempt=${attempt}/${attempts}"
+    beagle_log_event "beagle-stream-client.waiting" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} attempt=${attempt}/${attempts}"
     [[ "$attempt" -lt "$attempts" ]] || break
     sleep "$delay"
   done

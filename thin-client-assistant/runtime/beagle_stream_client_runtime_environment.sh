@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-moonlight_audio_driver() {
+beagle_stream_client_audio_driver() {
   local runtime_dir pulse_socket
 
-  if [[ -n "${PVE_THIN_CLIENT_MOONLIGHT_AUDIO_DRIVER:-}" ]]; then
-    printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_AUDIO_DRIVER}"
+  if [[ -n "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_DRIVER:-}" ]]; then
+    printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_DRIVER}"
     return 0
   fi
 
@@ -26,14 +26,14 @@ configure_graphics_runtime() {
   export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
   export SDL_VIDEODRIVER="${SDL_VIDEODRIVER:-x11}"
   unset WAYLAND_DISPLAY
-  wait_for_x_display "moonlight.display-ready" "moonlight.display-unready"
+  wait_for_x_display "beagle-stream-client.display-ready" "beagle-stream-client.display-unready"
 
-  if [[ "$(moonlight_video_decoder)" == "software" ]]; then
+  if [[ "$(beagle_stream_client_video_decoder)" == "software" ]]; then
     export QT_QUICK_BACKEND="${QT_QUICK_BACKEND:-software}"
     # Do NOT set LIBVA_DRIVER_NAME=none or VDPAU_DRIVER=noop — those values
     # cause dlopen failures for non-existent .so files (none_drv_video.so,
     # libvdpau_noop.so), which crash the FFmpeg software fallback chain.
-    # With --video-decoder software, Moonlight handles hw-decoder skipping itself.
+    # With --video-decoder software, Beagle Stream Client handles hw-decoder skipping itself.
     unset LIBVA_DRIVER_NAME VDPAU_DRIVER 2>/dev/null || true
   fi
 }

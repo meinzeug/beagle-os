@@ -45,7 +45,7 @@ Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job 
 - Dateien: `beagle-host/services/migration_service.py`, `tests/unit/test_migration_service.py`.
 
 ## D-057: Desktop-Streaming-Guards im Ready-Flow sind sichtbar, aber nicht hart blockierend
-- Entscheidung: `scripts/ensure-vm-stream-ready.sh` prueft nach erfolgreichem Sunshine-API-Check zusaetzlich `xset q` und die Abwesenheit von `light-locker`/`xfce4-power-manager`; ein fehlschlagender Guard setzt einen Warnhinweis im Ready-Ergebnis statt den gesamten Provisioning-Flow auf `error` zu brechen.
+- Entscheidung: `scripts/ensure-vm-stream-ready.sh` prueft nach erfolgreichem Beagle Stream Server-API-Check zusaetzlich `xset q` und die Abwesenheit von `light-locker`/`xfce4-power-manager`; ein fehlschlagender Guard setzt einen Warnhinweis im Ready-Ergebnis statt den gesamten Provisioning-Flow auf `error` zu brechen.
 - Grund: Der Guard macht Live-Desktop-Drift fuer Operatoren sichtbar, ohne bestehende Bereitstellungspfade unnoetig hart zu unterbrechen (z.B. bei temporaerer Display-/Session-Unsauberkeit waehrend des First-Login-Fensters).
 - Dateien: `scripts/ensure-vm-stream-ready.sh`, `tests/unit/test_ensure_vm_stream_ready_regressions.py`.
 
@@ -137,7 +137,7 @@ Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job 
 - Grund: bestehende Web Console, Endpoints und Skripte bleiben funktional waehrend des gesamten Wave-2-Rollouts.
 
 ## D-010: Streaming-Backend wird konfigurierbar (Apollo bevorzugt)
-- Entscheidung: Default-Backend in 7.1.1 ist Apollo (Sunshine-Fork mit virtual display, HDR, per-client permissions); Sunshine-Mainline bleibt als Fallback waehlbar pro Pool.
+- Entscheidung: Default-Backend in 7.1.1 ist Apollo (Beagle Stream Server-Fork mit virtual display, HDR, per-client permissions); Beagle Stream Server-Mainline bleibt als Fallback waehlbar pro Pool.
 - Grund: Apollo loest die Engpaesse virtual display, HDR, multi-monitor und auto-resolution, die heute gegen Parsec/Win365 fehlen.
 - Grund: Ermöglicht kontrollierten Erstzugang ohne separaten Setup-Wizard.
 
@@ -199,9 +199,9 @@ Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job 
 - Datei: `scripts/lib/beagle_provider.py`.
 
 ## D-022: Debian-Hosts duerfen nicht an Ubuntu-only Language-Packs scheitern
-- Entscheidung: `configure-sunshine-guest.sh` installiert `language-pack-*` nur, wenn die Pakete auf dem Zielhost im APT-Index existieren.
+- Entscheidung: `configure-beagle-stream-server-guest.sh` installiert `language-pack-*` nur, wenn die Pakete auf dem Zielhost im APT-Index existieren.
 - Grund: Das gleiche VM-Prep-Skript wird auf Debian- und Ubuntu-basierten Hosts genutzt; Ubuntu-only Pakete duerfen den Gesamtflow nicht stoppen.
-- Datei: `scripts/configure-sunshine-guest.sh`.
+- Datei: `scripts/configure-beagle-stream-server-guest.sh`.
 
 ## D-023: Libvirt-Kernel-Boot fuer Ubuntu-Install nutzt per-domain `seclabel type=none`
 - Entscheidung: Fuer beagle-provider Domains mit `qemu:commandline` (`-kernel/-initrd`) wird im Domain-XML `seclabel type="none"` gesetzt.
@@ -209,10 +209,10 @@ Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job 
 - Scope: Nur beagle-provider Install-Domain-Flow; keine hostweite Abschaltung des libvirt Security Drivers im Installer.
 - Betroffene Datei: `beagle-host/providers/beagle_host_provider.py`.
 
-## D-024: Moonlight USB-Presets duerfen nicht ohne Sunshine Auto-Pair Credentials ausgeliefert werden
-- Entscheidung: Der VM-Installer-Skriptgenerator bricht Moonlight-Preset-Generierung ab, wenn `sunshine_username`, `sunshine_password` oder `sunshine_pin` fehlen.
+## D-024: Beagle Stream Client USB-Presets duerfen nicht ohne Beagle Stream Server Auto-Pair Credentials ausgeliefert werden
+- Entscheidung: Der VM-Installer-Skriptgenerator bricht Beagle Stream Client-Preset-Generierung ab, wenn `beagle_stream_server_username`, `beagle_stream_server_password` oder `beagle_stream_server_pin` fehlen.
 - Grund: Unvollstaendige Presets fuehren nach Thinclient-Reboot zu manueller PIN-Eingabe und brechen den Zielpfad "auto-connect".
-- Umsetzung: `beagle-host/services/installer_script.py` priorisiert explizite VM-Metadaten (`sunshine-user/password/pin`) und nutzt danach VM-Secret-Fallback; bei fehlenden Pflichtfeldern wird ein Fehler geworfen.
+- Umsetzung: `beagle-host/services/installer_script.py` priorisiert explizite VM-Metadaten (`beagle-stream-server-user/password/pin`) und nutzt danach VM-Secret-Fallback; bei fehlenden Pflichtfeldern wird ein Fehler geworfen.
 
 ## D-025: Standalone-Host-Service-Install darf nicht auf distro-spezifischem QEMU-Paketnamen haengen
 - Entscheidung: `scripts/install-beagle-host-services.sh` waehlt QEMU-Paketnamen dynamisch nach verfuegbarem APT-Candidate (`qemu-kvm` -> `qemu-system-x86` -> `qemu-system`) statt hartem Debian/Ubuntu-Annahmenmix.
@@ -246,29 +246,29 @@ Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job 
 - Wirkung: Web UI zeigt nach frischer Installation wieder verlässlich den verpflichtenden Onboarding-Flow; bestehende bootstrap-only Zustände werden auf `pending` zurückgeführt, sobald Bootstrap-Auth deaktiviert ist.
 - Dateien: `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-server-installer`, `beagle-host/services/auth_session.py`, `beagle-host/bin/beagle-control-plane.py`.
 
-## D-031: Streaming-Backend-Strategie: Windows-Apollo + Linux-Sunshine-vkms
-- Entscheidung: Plan 11 (Streaming v2) teilt sich in zwei Pfade: (1) **Windows-Desktops nutzen Apollo** mit nativer Virtual Display (SudoVDA), HDR, Multi-Monitor; (2) **Linux-Desktops nutzen Sunshine** mit Virtual Display via DRM-vkms PoC (Standard), optional Apollo-Build aus Source (ohne Virtual Display).
+## D-031: Streaming-Backend-Strategie: Windows-Apollo + Linux-Beagle Stream Server-vkms
+- Entscheidung: Plan 11 (Streaming v2) teilt sich in zwei Pfade: (1) **Windows-Desktops nutzen Apollo** mit nativer Virtual Display (SudoVDA), HDR, Multi-Monitor; (2) **Linux-Desktops nutzen Beagle Stream Server** mit Virtual Display via DRM-vkms PoC (Standard), optional Apollo-Build aus Source (ohne Virtual Display).
 - Grund: Apollo ist Windows-only für Virtual Display (`SudoVDA`-Treiber, geplant für Linux aber nicht implementiert). Linux-Desktops brauchen Virtual Display für headless Hosts (keine physischen Monitore). vkms ist im Mainline-Kernel enthalten und wird per Firstboot-Skript provisioniert.
-- Konsequenz: `beagle-host/services/streaming_backend.py` wird platform-aware: `guest_os == "windows"` → Apollo (default), `guest_os == "linux"` → Sunshine + vkms. Fallback für Apollo-Fehler: Sunshine mainline. Provider-Neutralität bleibt erhalten.
-- Performance-Baseline (2026-04-24, Linux): `python3 scripts/test-streaming-quality-smoke.py --host srv1.beagle-os.com --domain beagle-100` => `result=pass_with_4k_limit` (4K-Modus aktuell nicht setzbar, aber reproduzierbarer Virtual-Output + Sunshine-API funktionsfähig).
+- Konsequenz: `beagle-host/services/streaming_backend.py` wird platform-aware: `guest_os == "windows"` → Apollo (default), `guest_os == "linux"` → Beagle Stream Server + vkms. Fallback für Apollo-Fehler: Beagle Stream Server mainline. Provider-Neutralität bleibt erhalten.
+- Performance-Baseline (2026-04-24, Linux): `python3 scripts/test-streaming-quality-smoke.py --host srv1.beagle-os.com --domain beagle-100` => `result=pass_with_4k_limit` (4K-Modus aktuell nicht setzbar, aber reproduzierbarer Virtual-Output + Beagle Stream Server-API funktionsfähig).
 - Backend-Auswahl-Kriterien:
-  1. Linux-Guest: Sunshine bevorzugt, solange `vkms`/Virtual-Output reproduzierbar ist und `sunshine_api_apps=ok` bleibt.
+  1. Linux-Guest: Beagle Stream Server bevorzugt, solange `vkms`/Virtual-Output reproduzierbar ist und `beagle_stream_server_api_apps=ok` bleibt.
   2. Windows-Guest: Apollo bevorzugt, wenn SudoVDA verfügbar und HDR/Multi-Monitor-Anforderungen bestehen.
-  3. Fallback-Regel: Wenn Primär-Backend nicht stabil ist (Healthchecks/Smoke fehlschlagen), auf Sunshine zurückschalten.
+  3. Fallback-Regel: Wenn Primär-Backend nicht stabil ist (Healthchecks/Smoke fehlschlagen), auf Beagle Stream Server zurückschalten.
   4. Release-Gate: Änderungen am Default-Backend nur mit reproduzierbarem Smoke-Ergebnis und dokumentierter Entscheidung in D-031.
 - Umsetzung:
-  1. **Schritt 1 (2026-04)**: Sunshine mainline bleibt Default für alle VMs bis vkms-PoC validiert ist.
-  2. **Schritt 2 (2026-05)**: vkms PoC auf Linux Desktop-VM validieren (resolution persistence, Moonlight compatibility).
+  1. **Schritt 1 (2026-04)**: Beagle Stream Server mainline bleibt Default für alle VMs bis vkms-PoC validiert ist.
+  2. **Schritt 2 (2026-05)**: vkms PoC auf Linux Desktop-VM validieren (resolution persistence, Beagle Stream Client compatibility).
   3. **Schritt 3 (Q1 2027)**: Apollo Build aus Source für Linux evaluieren (nur für Vergleichsmessungen, ohne Virtual Display-Features).
   4. **Schritt 4 (Q1 2027)**: Windows Guest-VM mit Apollo + SudoVDA evaluieren (Baseline für kompetitives Benchmarking).
-- Testakzeptanz: Linux-Desktop streamt 3840×2160@60 (Sunshine + vkms); Windows-Desktop streamt 3840×2160@60 HDR (Apollo + SudoVDA); beide ohne Artefakte und mit Endpunkt-Moonlight-Kompatibilität.
+- Testakzeptanz: Linux-Desktop streamt 3840×2160@60 (Beagle Stream Server + vkms); Windows-Desktop streamt 3840×2160@60 HDR (Apollo + SudoVDA); beide ohne Artefakte und mit Endpunkt-Beagle Stream Client-Kompatibilität.
 - Dateien: `docs/gofuture/11-streaming-v2.md`, `docs/refactorv2/05-streaming-protocol-strategy.md`, `beagle-host/services/streaming_backend.py` (neu).
 
-## D-032: Endpoint triggert Guest-Display-Prepare vor Moonlight-Stream
-- Entscheidung: Vor dem Moonlight-Stream ruft der Endpoint den Manager-Hook `POST /api/v1/endpoints/moonlight/prepare-stream` auf und uebergibt die lokal erkannte Aufloesung (`WIDTHxHEIGHT`).
+## D-032: Endpoint triggert Guest-Display-Prepare vor Beagle Stream Client-Stream
+- Entscheidung: Vor dem Beagle Stream Client-Stream ruft der Endpoint den Manager-Hook `POST /api/v1/endpoints/beagle-stream-client/prepare-stream` auf und uebergibt die lokal erkannte Aufloesung (`WIDTHxHEIGHT`).
 - Grund: Der Linux-vkms-Guest muss die Zielauflosung vor Streamstart aktiv setzen (xrandr), damit Stream-Session nicht auf statischem Fallback verbleibt.
-- Umsetzung: `thin-client-assistant/runtime/launch-moonlight.sh` + `moonlight_manager_registration.sh` triggern den Hook; Backend setzt per guest-exec (`DISPLAY=:0`, `XAUTHORITY`) via `xrandr`.
-- Dateien: `beagle-host/services/endpoint_http_surface.py`, `beagle-host/services/sunshine_integration.py`, `thin-client-assistant/runtime/launch-moonlight.sh`, `thin-client-assistant/runtime/moonlight_manager_registration.sh`.
+- Umsetzung: `thin-client-assistant/runtime/launch-beagle-stream-client.sh` + `beagle_stream_client_manager_registration.sh` triggern den Hook; Backend setzt per guest-exec (`DISPLAY=:0`, `XAUTHORITY`) via `xrandr`.
+- Dateien: `beagle-host/services/endpoint_http_surface.py`, `beagle-host/services/beagle_stream_server_integration.py`, `thin-client-assistant/runtime/launch-beagle-stream-client.sh`, `thin-client-assistant/runtime/beagle_stream_client_manager_registration.sh`.
 
 ## D-031: Security-Funde muessen pro Run dokumentiert und nach Moeglichkeit sofort gepatcht werden
 - Entscheidung: Jeder Agent-Run muss im bearbeiteten Scope aktiv nach Security-Funden suchen; neue Funde werden in `docs/refactor/11-security-findings.md` dokumentiert und direkt mitgepatcht, wenn der Fix reproduzierbar und risikoarm ist.
@@ -457,27 +457,27 @@ Die Fork-Implementierung arbeitet ab jetzt gegen diese beiden Repositories. Doku
 
 ## BeagleStream Phase A: Token-als-PIN (2026-05-01)
 
-- Entscheidung: `BeagleAuth` nutzt `nvhttp::pin()` aus Sunshine unveraendert.
+- Entscheidung: `BeagleAuth` nutzt `nvhttp::pin()` aus Beagle Stream Server unveraendert.
 - Entscheidung: Der HMAC-Pairing-Token aus dem Broker wird als PIN-String uebergeben.
-- Grund: Das Moonlight-/GFE-Protokoll bleibt unveraendert; es gibt keinen neuen Pairing-Handshake und keinen Breaking Change.
-- Konsequenz: Vanilla-Moonlight-Clients bleiben kompatibel, waehrend BeagleStream-Clients den Broker-Token vorausgefuellt an den bestehenden Pairing-Pfad senden.
+- Grund: Das Beagle Stream Client-/GFE-Protokoll bleibt unveraendert; es gibt keinen neuen Pairing-Handshake und keinen Breaking Change.
+- Konsequenz: Vanilla-Beagle Stream Client-Clients bleiben kompatibel, waehrend BeagleStream-Clients den Broker-Token vorausgefuellt an den bestehenden Pairing-Pfad senden.
 - Repos: `meinzeug/beagle-stream-server`, `meinzeug/beagle-stream-client`, jeweils Branch `beagle/phase-a`.
 
 ## BeagleStream Thin-Client bleibt hostless nur bei Enrollment (2026-05-02)
 
-- Entscheidung: Thin-Clients starten `beagle-stream stream "<App>"` nur, wenn kein statischer `PVE_THIN_CLIENT_MOONLIGHT_HOST` gesetzt ist und `/etc/beagle/enrollment.conf` die Felder `control_plane`, `enrollment_token`, `device_id` und `pool_id` enthaelt.
-- Entscheidung: Der Thin-Client-Build versucht standardmaessig das mutable BeagleStream-Client-Release `https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage`, kann per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL`/`BEAGLE_STREAM_CLIENT_URL` ueberschrieben werden und faellt bei Downloadfehlern auf das bestehende upstream Moonlight-AppImage zurueck.
-- Grund: Bestehende Installationen mit statischem Moonlight-Ziel duerfen nicht brechen, waehrend neue BeagleStream-Endpunkte Broker-Allocate, WireGuard und Token-Pairing im Client-Fork ausfuehren.
-- Konsequenz: Ohne gebundelten `beagle-stream` meldet der Endpoint-Healthcheck im hostless Enrollment-Modus einen klaren Health-Failure statt still auf den alten Moonlight-Pfad mit falscher CLI-Signatur zu fallen.
-- Dateien: `scripts/build-thin-client-installer.sh`, `thin-client-assistant/runtime/moonlight_runtime_exec.sh`, `thin-client-assistant/runtime/launch-moonlight.sh`, `thin-client-assistant/runtime/launch-session.sh`, `beagle-os/overlay/usr/local/sbin/beagle-healthcheck`.
+- Entscheidung: Thin-Clients starten `beagle-stream stream "<App>"` nur, wenn kein statischer `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST` gesetzt ist und `/etc/beagle/enrollment.conf` die Felder `control_plane`, `enrollment_token`, `device_id` und `pool_id` enthaelt.
+- Entscheidung: Der Thin-Client-Build versucht standardmaessig das mutable BeagleStream-Client-Release `https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage`, kann per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL`/`BEAGLE_STREAM_CLIENT_URL` ueberschrieben werden und faellt bei Downloadfehlern auf das bestehende externes Client-AppImage zurueck.
+- Grund: Bestehende Installationen mit statischem Beagle Stream Client-Ziel duerfen nicht brechen, waehrend neue BeagleStream-Endpunkte Broker-Allocate, WireGuard und Token-Pairing im Client-Fork ausfuehren.
+- Konsequenz: Ohne gebundelten `beagle-stream` meldet der Endpoint-Healthcheck im hostless Enrollment-Modus einen klaren Health-Failure statt still auf den alten Beagle Stream Client-Pfad mit falscher CLI-Signatur zu fallen.
+- Dateien: `scripts/build-thin-client-installer.sh`, `thin-client-assistant/runtime/beagle_stream_client_runtime_exec.sh`, `thin-client-assistant/runtime/launch-beagle-stream-client.sh`, `thin-client-assistant/runtime/launch-session.sh`, `beagle-os/overlay/usr/local/sbin/beagle-healthcheck`.
 
-## BeagleStream Server-Paket ersetzt Sunshine nur mit Fallback (2026-05-02)
+## BeagleStream Server-Paket ersetzt Beagle Stream Server nur mit Fallback (2026-05-02)
 
 - Entscheidung: VM-Guest-Prep und Ubuntu-Beagle-Firstboot versuchen zuerst das mutable Server-Fork-Release `https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb`.
-- Entscheidung: Wenn dieses Paket noch nicht verfuegbar ist oder der Download fehlschlaegt, wird weiter das bekannte upstream Sunshine `.deb` installiert.
+- Entscheidung: Wenn dieses Paket nicht verfuegbar ist oder der Download fehlschlaegt, stoppt die Provisionierung kontrolliert.
 - Grund: Neue VMs sollen reproduzierbar auf den eigenen BeagleStream-Server wechseln, ohne VM-Provisioning komplett zu blockieren, solange die Server-Fork-Release-Pipeline noch laeuft.
-- Konsequenz: Service-/Metadaten-Namen bleiben vorerst kompatibel (`beagle-sunshine.service`, Sunshine API), waehrend das installierte Binary/Paket aus dem BeagleStream-Fork kommen kann.
-- Dateien: `scripts/configure-sunshine-guest.sh`, `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`, `beagle-host/services/service_registry.py`, `beagle-host/services/ubuntu_beagle_provisioning.py`.
+- Konsequenz: Service-/Metadaten-Namen bleiben vorerst kompatibel (`beagle-stream-server.service`, Beagle Stream Server API), waehrend das installierte Binary/Paket aus dem BeagleStream-Fork kommen kann.
+- Dateien: `scripts/configure-beagle-stream-server-guest.sh`, `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`, `beagle-host/services/service_registry.py`, `beagle-host/services/ubuntu_beagle_provisioning.py`.
 
 ## Release-Versionen werden in CI aufgeloest statt dauerhaft aus `VERSION` kopiert (2026-05-02)
 

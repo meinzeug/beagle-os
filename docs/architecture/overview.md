@@ -7,14 +7,14 @@ The repository is split into two deployable product surfaces:
 - `extension/` adds Beagle operator actions to Beagle host VM pages
 - `beagle-ui/`, `beagle-host/` and `scripts/` install the same Beagle workflow directly on a Beagle host
 - `core/` and `providers/` are the new provider-neutral architecture seam, with Beagle host as the first implementation
-- `thin-client-assistant/` prepares a Moonlight-based endpoint that boots into a dedicated streaming session
+- `thin-client-assistant/` prepares a Beagle Stream Client-based endpoint that boots into a dedicated streaming session
 - `beagle-os/` builds the dedicated endpoint operating system and kernel profile
 
 These parts are intentionally aligned around one runtime path, while the architecture moves toward provider neutrality:
 
 - `Beagle host` is the current management-system provider
-- `Sunshine` runs inside the streamed VM
-- `Moonlight` runs on the Beagle endpoint
+- `Beagle Stream Server` runs inside the streamed VM
+- `Beagle Stream Client` runs on the Beagle endpoint
 
 ## Provider model
 
@@ -43,7 +43,7 @@ The browser extension and the host-installed UI integration both expose the same
 1. Detect the current Beagle host VM context (`node`, `vmid`)
 2. Read the VM config and cluster resource state through provider-backed virtualization services
 3. Parse Beagle metadata from the VM description
-4. Resolve the Sunshine target, Moonlight defaults and Beagle installer URL
+4. Resolve the Beagle Stream Server target, Beagle Stream Client defaults and Beagle installer URL
 5. Show a Beagle profile dialog with export and download actions
 
 The Beagle profile view is now a first-class management primitive.
@@ -53,8 +53,8 @@ The profile dialog exposes:
 
 - VM identity and live status
 - guest-agent IP discovery where available
-- Sunshine host and API URL
-- Moonlight app, codec, decoder, bitrate and FPS defaults
+- Beagle Stream Server host and API URL
+- Beagle Stream Client app, codec, decoder, bitrate and FPS defaults
 - exported endpoint environment data for reproducible rollouts
 - direct jump points to the hosted installer and control-plane health
 
@@ -114,16 +114,16 @@ The current Beagle endpoint baseline assumes:
 
 - a dedicated local user account for kiosk operation
 - tty/X11 based autologin into a controlled session
-- a preseeded Moonlight profile bound to one Beagle host VM
-- Sunshine trust and API settings coming from the Beagle profile
+- a preseeded Beagle Stream Client profile bound to one Beagle host VM
+- Beagle Stream Server trust and API settings coming from the Beagle profile
 
 Boot flow:
 
 1. the live or local-disk boot medium exposes `vmlinuz`, `initrd.img` and `filesystem.squashfs`
 2. the endpoint prepares hostname and networking from the stored profile
 3. the runtime loads its Beagle configuration from disk or live media state
-4. the session launcher validates that the selected mode is `MOONLIGHT`
-5. `launch-moonlight.sh` pairs or reuses trust and starts the configured Sunshine app
+4. the session launcher validates that the selected mode is `BEAGLE_STREAM_CLIENT`
+5. `launch-beagle-stream-client.sh` pairs or reuses trust and starts the configured Beagle Stream Server app
 
 ## Configuration model
 
@@ -137,9 +137,9 @@ The effective profile contains:
 
 - Beagle host, node and VMID binding
 - provider-specific location data as currently rendered by the active provider
-- Moonlight host and target app
-- Moonlight codec, decoder, bitrate, FPS and audio defaults
-- Sunshine API URL, username, password and pairing PIN
+- Beagle Stream Client host and target app
+- Beagle Stream Client codec, decoder, bitrate, FPS and audio defaults
+- Beagle Stream Server API URL, username, password and pairing PIN
 - local runtime user and autostart toggles
 
 ## Packaging model

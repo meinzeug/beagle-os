@@ -321,7 +321,7 @@ Restluecke bewusst offen:
 - Thin-Client-Runtime:
   - `thin-client-assistant/runtime/device_lock_screen.sh` fuehrt jetzt einen echten Session-Watcher fuer `device.locked` aus.
   - In laufenden X11-Sessions startet der Watcher einen grafischen Sperrbildschirm ueber `zenity` und stuft das Fenster per `wmctrl` als fullscreen/above ein.
-  - Aktive Session-Prozesse wie Moonlight, Kiosk oder GeForce NOW werden beim Sperren aktiv beendet, damit die Sperre nicht nur optisch ist.
+  - Aktive Session-Prozesse wie Beagle Stream Client, Kiosk oder GeForce NOW werden beim Sperren aktiv beendet, damit die Sperre nicht nur optisch ist.
 - Session-Wrapper:
   - `start-pve-thin-client-session`
   - `start-pve-thin-client-kiosk-session`

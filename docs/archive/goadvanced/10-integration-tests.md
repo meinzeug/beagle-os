@@ -39,7 +39,7 @@ Bei Refactor (z.B. Plan 05 control-plane-split) waere ein vollstaendiges Regress
     - Empfaengt Stream-Konfiguration
     - Faellt zurueck auf Fallback-Channel bei Stream-Failure
     - Reconnects nach Token-Rotation
-  - [x] Stubs fuer Sunshine + Moonlight (Mock-Process)
+  - [x] Stubs fuer Beagle Stream Server + Beagle Stream Client (Mock-Process)
 
 - [x] **Schritt 3** — Backup → Restore
   - [x] `tests/integration/test_backup_restore_chain.py`:

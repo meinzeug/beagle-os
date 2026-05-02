@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-_VALID_BACKENDS = {"sunshine", "apollo"}
+_VALID_BACKENDS = {"beagle-stream-server", "apollo"}
 
 
 @dataclass(frozen=True)
@@ -21,14 +21,14 @@ class StreamingBackendService:
     def __init__(
         self,
         *,
-        default_linux_backend: str = "sunshine",
+        default_linux_backend: str = "beagle-stream-server",
         default_windows_backend: str = "apollo",
-        fallback_backend: str = "sunshine",
+        fallback_backend: str = "beagle-stream-server",
         allow_apollo_on_linux: bool = False,
     ) -> None:
-        self._default_linux_backend = self._normalize_backend(default_linux_backend, default="sunshine")
+        self._default_linux_backend = self._normalize_backend(default_linux_backend, default="beagle-stream-server")
         self._default_windows_backend = self._normalize_backend(default_windows_backend, default="apollo")
-        self._fallback_backend = self._normalize_backend(fallback_backend, default="sunshine")
+        self._fallback_backend = self._normalize_backend(fallback_backend, default="beagle-stream-server")
         self._allow_apollo_on_linux = bool(allow_apollo_on_linux)
 
     @staticmethod
@@ -48,7 +48,7 @@ class StreamingBackendService:
         return default
 
     def _virtual_display_supported(self, guest_os: str, backend: str) -> bool:
-        if backend == "sunshine":
+        if backend == "beagle-stream-server":
             return guest_os == "linux"
         if backend == "apollo":
             return guest_os == "windows"

@@ -75,7 +75,7 @@ Umsetzung (2026-04-27):
 - `/metrics` ist im reproduzierbaren nginx-Proxy-Pfad (`scripts/install-beagle-proxy.sh`) als eigener Proxy auf die Control Plane verdrahtet.
 - Live auf `srv1` und `srv2` per `/metrics` ueber nginx validiert; beide Hosts liefern 20 Prometheus-Samples.
 - `beagle-host/services/prometheus_metrics.py` rendert Default-Zero-Samples fuer Counter/Histogramme, damit Scrapes vor erstem Traffic nicht leer bleiben.
-- `beagle-host/services/` ist frei von echten `print()`-Aufrufen; Log-Ausgaben laufen ueber `structured_logger` oder stdlib `logging`. Eingebettete Guest-Script-Ausgaben in `sunshine_integration.py` nutzen `sys.stdout.write`.
+- `beagle-host/services/` ist frei von echten `print()`-Aufrufen; Log-Ausgaben laufen ueber `structured_logger` oder stdlib `logging`. Eingebettete Guest-Script-Ausgaben in `beagle_stream_server_integration.py` nutzen `sys.stdout.write`.
 - Live-Health per authentifiziertem API-Token lokal auf beiden Hosts validiert: `status=healthy`, Components `control_plane`, `providers`, `data_dir`.
 
 ## Abnahmekriterien

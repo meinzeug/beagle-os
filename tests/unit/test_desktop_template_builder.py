@@ -45,7 +45,7 @@ class DesktopTemplateBuilderServiceTests(unittest.TestCase):
                     backing_image="",
                     cpu_cores=2,
                     memory_mib=4096,
-                    software_packages=("xfce4", "sunshine"),
+                    software_packages=("xfce4", "beagle-stream-server"),
                 )
             )
             self.assertEqual(info.template_id, "tpl-1")

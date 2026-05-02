@@ -8,7 +8,7 @@ SCRIPT = ROOT_DIR / "scripts" / "ensure-vm-stream-ready.sh"
 def test_ensure_vm_stream_ready_validates_desktop_streaming_guards() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 
-    assert "sunshine_guest_desktop_smoke_json" in content
+    assert "beagle_stream_server_guest_desktop_smoke_json" in content
     assert "DISPLAY=:0 XAUTHORITY=\"$xauth\" xset q" in content
     assert "pgrep -x light-locker" in content
     assert "pgrep -x xfce4-power-manager" in content

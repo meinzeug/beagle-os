@@ -1,7 +1,7 @@
 # Thin-Client Assistant
 
 This directory contains the deployment-oriented endpoint path for Beagle OS.
-It turns a Linux device or installer image into a dedicated Moonlight thin client that is bound to a Beagle-managed Sunshine VM.
+It turns a Linux device or installer image into a dedicated Beagle Stream Client thin client that is bound to a Beagle-managed Beagle Stream Server VM.
 
 ## Structure
 
@@ -18,10 +18,10 @@ It turns a Linux device or installer image into a dedicated Moonlight thin clien
 The assistant is intentionally single-purpose:
 
 - `Beagle` supplies the VM binding and profile metadata
-- `Sunshine` runs inside the streamed VM
-- `Moonlight` runs on the endpoint
+- `Beagle Stream Server` runs inside the streamed VM
+- `Beagle Stream Client` runs on the endpoint
 
-The runtime launcher validates that the selected mode is `MOONLIGHT` and then starts the configured Sunshine app.
+The runtime launcher validates that the selected mode is `BEAGLE_STREAM_CLIENT` and then starts the configured Beagle Stream Server app.
 
 ## Install
 
@@ -39,7 +39,7 @@ The standalone writer script can be started as a normal user:
 
 It escalates to `sudo` only for partitioning and writing the selected USB device.
 
-When you download a VM-specific installer from the Beagle UI, Beagle first verifies the selected VM as a valid streaming target, prepares Sunshine if needed, and only then releases the installer download.
+When you download a VM-specific installer from the Beagle UI, Beagle first verifies the selected VM as a valid streaming target, prepares Beagle Stream Server if needed, and only then releases the installer download.
 For operator rollouts, prefer the host-provided per-VM installer from:
 
 ```text
@@ -66,11 +66,11 @@ The installer writes:
 A profile typically includes:
 
 - Beagle host, node and VMID
-- Sunshine host and API URL
-- Moonlight app, codec, decoder, bitrate and FPS
-- Sunshine credentials or pairing PIN when unattended startup is desired
+- Beagle Stream Server host and API URL
+- Beagle Stream Client app, codec, decoder, bitrate and FPS
+- Beagle Stream Server credentials or pairing PIN when unattended startup is desired
 
 ## Operational note
 
 A Beagle endpoint is not meant to behave like a generic workstation.
-It is expected to boot straight into the assigned Moonlight session and stay aligned with the Beagle VM profile that generated it.
+It is expected to boot straight into the assigned Beagle Stream Client session and stay aligned with the Beagle VM profile that generated it.

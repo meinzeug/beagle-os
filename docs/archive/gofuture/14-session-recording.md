@@ -52,7 +52,7 @@ Validierung:
 Der Recording-Service klinkt sich in den Streaming-Pfad ein und erzeugt eine lokale
 Video-Datei der Session. ffmpeg ist das bevorzugte Tool für diesen Zweck da es
 auf allen Debian-Systemen verfügbar ist und alle benötigten Codecs unterstützt.
-Das Recording läuft als separater Prozess neben Sunshine/Apollo und liest den
+Das Recording läuft als separater Prozess neben Beagle Stream Server/Apollo und liest den
 RTP/RTSP-Stream oder nutzt einen Screen-Capture-Mechanismus. Die Ausgabe-Dateigröße
 muss durch Bitraten-Limitierung kontrollierbar sein. Recording-Dateien erhalten
 Metadaten: Session-ID, User-ID, Tenant-ID, Start/End-Zeit, Pool-ID.

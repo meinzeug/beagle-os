@@ -17,7 +17,7 @@ STATUS_DIR="${PVE_THIN_CLIENT_STATUS_DIR:-${XDG_RUNTIME_DIR:-/tmp}/pve-thin-clie
 LAUNCH_STATUS_FILE="$STATUS_DIR/launch.status.json"
 
 load_runtime_config
-beagle_log_event "launch-session.start" "mode=${PVE_THIN_CLIENT_MODE:-MOONLIGHT} profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default}"
+beagle_log_event "launch-session.start" "mode=${PVE_THIN_CLIENT_MODE:-BEAGLE_STREAM_CLIENT} profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default}"
 
 if [[ "${PVE_THIN_CLIENT_AUTOSTART:-1}" != "1" ]]; then
   exit 0
@@ -51,19 +51,19 @@ write_launch_status() {
     --runtime-user "${PVE_THIN_CLIENT_RUNTIME_USER:-}" || true
 }
 
-launch_moonlight() {
+launch_beagle_stream_client() {
   local host app binary target
-  host="$(render_template "${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}")"
-  app="$(render_template "${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}")"
-  binary="${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
+  host="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-}")"
+  app="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP:-Desktop}")"
+  binary="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN:-beagle-stream-client}"
   target="${host}:${app}"
   if [[ -z "$host" && -r /etc/beagle/enrollment.conf ]]; then
-    binary="${PVE_THIN_CLIENT_MOONLIGHT_BIN:-beagle-stream}"
+    binary="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN:-beagle-stream}"
     target="broker:${app}"
   fi
-  write_launch_status "MOONLIGHT" "sunshine" "$binary" "$target"
+  write_launch_status "BEAGLE_STREAM_CLIENT" "beagle-stream-server" "$binary" "$target"
   beagle_log_event "launch-session.exec" "binary=${binary} target=${target}"
-  beagle_launch_moonlight_session
+  beagle_launch_beagle_stream_client_session
 }
 
 launch_kiosk() {
@@ -78,9 +78,9 @@ launch_geforcenow() {
   exec "$SCRIPT_DIR/launch-geforcenow.sh"
 }
 
-case "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" in
-  MOONLIGHT)
-    launch_moonlight
+case "${PVE_THIN_CLIENT_MODE:-BEAGLE_STREAM_CLIENT}" in
+  BEAGLE_STREAM_CLIENT)
+    launch_beagle_stream_client
     ;;
   KIOSK)
     launch_kiosk

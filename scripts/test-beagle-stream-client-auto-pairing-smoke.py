@@ -158,7 +158,7 @@ def run_smoke(*, base: str, manager_token: str, vmid: int, require_live_pair_exc
     pair_token_status, pair_token_data = request_json(
         base,
         "POST",
-        "/api/v1/endpoints/moonlight/pair-token",
+        "/api/v1/endpoints/beagle-stream-client/pair-token",
         token=endpoint_token,
         payload={"device_name": endpoint_id},
     )
@@ -175,7 +175,7 @@ def run_smoke(*, base: str, manager_token: str, vmid: int, require_live_pair_exc
     exchange_status, exchange_data = request_json(
         base,
         "POST",
-        "/api/v1/endpoints/moonlight/pair-exchange",
+        "/api/v1/endpoints/beagle-stream-client/pair-exchange",
         token=endpoint_token,
         payload={"pairing_token": pairing_token},
     )
@@ -184,13 +184,13 @@ def run_smoke(*, base: str, manager_token: str, vmid: int, require_live_pair_exc
     exchange_error = str(exchange_data.get("error") or "").strip().lower()
     expected_no_pending_client = exchange_status == 502 and "pin exchange rejected" in exchange_error
     if expected_no_pending_client and not require_live_pair_exchange:
-        # In headless smoke environments there is no active Moonlight pair process.
+        # In headless smoke environments there is no active Beagle Stream Client pair process.
         # The control-plane token flow is still validated by issue_token + exchange call.
         step(
             "pair_exchange",
             exchange_status,
             True,
-            "no live pending Moonlight pairing request; tolerated in non-strict smoke mode",
+            "no live pending Beagle Stream Client pairing request; tolerated in non-strict smoke mode",
         )
     else:
         step("pair_exchange", exchange_status, exchange_ok)
@@ -207,20 +207,20 @@ def run_smoke(*, base: str, manager_token: str, vmid: int, require_live_pair_exc
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Smoke-test Moonlight auto-pairing flow without manual PIN.")
+    parser = argparse.ArgumentParser(description="Smoke-test Beagle Stream Client auto-pairing flow without manual PIN.")
     parser.add_argument("--base", default=os.environ.get("BEAGLE_API_BASE", "http://127.0.0.1:9088"), help="Control-plane base URL")
     parser.add_argument("--token", default=os.environ.get("BEAGLE_MANAGER_API_TOKEN", ""), help="Manager bearer token")
     parser.add_argument("--vmid", type=int, default=0, help="Optional VMID override (must be running)")
     parser.add_argument(
         "--require-live-pair-exchange",
         action="store_true",
-        help="Fail when Sunshine rejects pair exchange due to no pending live Moonlight pairing",
+        help="Fail when Beagle Stream Server rejects pair exchange due to no pending live Beagle Stream Client pairing",
     )
     args = parser.parse_args()
 
     token = str(args.token or "").strip()
     if not token:
-        print("MOONLIGHT_AUTO_PAIR_RESULT=FAIL")
+        print("BEAGLE_STREAM_CLIENT_AUTO_PAIR_RESULT=FAIL")
         print("error=missing token (use --token or BEAGLE_MANAGER_API_TOKEN)")
         return 1
 
@@ -231,17 +231,17 @@ def main() -> int:
             vmid=int(args.vmid or 0),
             require_live_pair_exchange=bool(args.require_live_pair_exchange),
         )
-        print("MOONLIGHT_AUTO_PAIR_RESULT=PASS")
-        print("MOONLIGHT_AUTO_PAIR_VMID=" + str(result.get("vmid")))
-        print("MOONLIGHT_AUTO_PAIR_ENDPOINT_ID=" + str(result.get("endpoint_id")))
+        print("BEAGLE_STREAM_CLIENT_AUTO_PAIR_RESULT=PASS")
+        print("BEAGLE_STREAM_CLIENT_AUTO_PAIR_VMID=" + str(result.get("vmid")))
+        print("BEAGLE_STREAM_CLIENT_AUTO_PAIR_ENDPOINT_ID=" + str(result.get("endpoint_id")))
         if bool(result.get("pair_exchange_degraded")):
-            print("MOONLIGHT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT")
+            print("BEAGLE_STREAM_CLIENT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT")
         else:
-            print("MOONLIGHT_AUTO_PAIR_MODE=PASS_STRICT")
-        print("MOONLIGHT_AUTO_PAIR_STEPS=" + json.dumps(result.get("steps", []), separators=(",", ":")))
+            print("BEAGLE_STREAM_CLIENT_AUTO_PAIR_MODE=PASS_STRICT")
+        print("BEAGLE_STREAM_CLIENT_AUTO_PAIR_STEPS=" + json.dumps(result.get("steps", []), separators=(",", ":")))
         return 0
     except Exception as exc:
-        print("MOONLIGHT_AUTO_PAIR_RESULT=FAIL")
+        print("BEAGLE_STREAM_CLIENT_AUTO_PAIR_RESULT=FAIL")
         print("error=" + str(exc))
         return 1
 

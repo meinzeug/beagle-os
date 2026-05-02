@@ -68,7 +68,7 @@ def build_service() -> UbuntuBeagleProvisioningService:
     service._ubuntu_beagle_default_package_presets = []
     service._ubuntu_beagle_default_desktop = "plasma-cyberpunk"
     service._ubuntu_beagle_desktops = DESKTOPS
-    service._ubuntu_beagle_profile_id = "ubuntu-24.04-desktop-sunshine"
+    service._ubuntu_beagle_profile_id = "ubuntu-24.04-desktop-beagle-stream-server"
     service._ubuntu_beagle_profile_legacy_ids = {}
     service._ubuntu_beagle_default_locale = "de_DE.UTF-8"
     service._ubuntu_beagle_default_keymap = "de"

@@ -13,7 +13,7 @@ chmod 0755 "${TMP_DIR}"
 PORT="${BEAGLE_TEST_PORT:-19088}"
 API_BASE="http://127.0.0.1:${PORT}/api/v1"
 CONTROL_PLANE_LOG="${TMP_DIR}/control-plane.log"
-LISTENER_LOG="${TMP_DIR}/moonlight-listener.log"
+LISTENER_LOG="${TMP_DIR}/beagle-stream-client-listener.log"
 PROVIDER_DIR="${TMP_DIR}/provider"
 DATA_DIR="${TMP_DIR}/data"
 FAKE_ISO_DIR="${TMP_DIR}/fake-iso"
@@ -180,21 +180,21 @@ fi
 PROVISION_STATE="$(http_get "/provisioning/vms/${DESKTOP_VMID}")"
 PROFILE_JSON="$(http_get "/vms/${DESKTOP_VMID}")"
 STREAM_HOST="$(printf '%s' "${PROFILE_JSON}" | json_get "data.get('profile',{}).get('stream_host','')")"
-MOONLIGHT_PORT="$(printf '%s' "${PROFILE_JSON}" | json_get "data.get('profile',{}).get('moonlight_port','')")"
-SUNSHINE_API_URL="$(printf '%s' "${PROFILE_JSON}" | json_get "data.get('profile',{}).get('sunshine_api_url','')")"
+BEAGLE_STREAM_CLIENT_PORT="$(printf '%s' "${PROFILE_JSON}" | json_get "data.get('profile',{}).get('beagle_stream_client_port','')")"
+BEAGLE_STREAM_SERVER_API_URL="$(printf '%s' "${PROFILE_JSON}" | json_get "data.get('profile',{}).get('beagle_stream_server_api_url','')")"
 
 if [[ "${DESKTOP_LABEL}" != "XFCE" ]]; then
   echo "[ERROR] Desktop VM not provisioned with XFCE (label=${DESKTOP_LABEL})" >&2
   exit 1
 fi
 
-if [[ -z "${SUNSHINE_API_URL}" ]]; then
-  echo "[ERROR] Desktop profile missing sunshine_api_url" >&2
+if [[ -z "${BEAGLE_STREAM_SERVER_API_URL}" ]]; then
+  echo "[ERROR] Desktop profile missing beagle_stream_server_api_url" >&2
   exit 1
 fi
 
-if ! printf '%s' "${PROVISION_STATE}" | python3 -c "import json,sys; s=json.load(sys.stdin).get('provisioning',{}); msg=str(s.get('message','')).lower(); sys.exit(0 if ('sunshine' in msg and 'xfce' in msg) else 1)"; then
-  echo "[ERROR] Provisioning state message does not confirm XFCE+Sunshine provisioning" >&2
+if ! printf '%s' "${PROVISION_STATE}" | python3 -c "import json,sys; s=json.load(sys.stdin).get('provisioning',{}); msg=str(s.get('message','')).lower(); sys.exit(0 if ('beagle-stream-server' in msg and 'xfce' in msg) else 1)"; then
+  echo "[ERROR] Provisioning state message does not confirm XFCE+Beagle Stream Server provisioning" >&2
   printf '%s\n' "${PROVISION_STATE}" >&2
   exit 1
 fi
@@ -228,7 +228,7 @@ vm_configs_path.write_text(json.dumps({
 }, indent=2) + "\n", encoding='utf-8')
 PY
 
-if [[ -z "${STREAM_HOST}" || -z "${MOONLIGHT_PORT}" ]]; then
+if [[ -z "${STREAM_HOST}" || -z "${BEAGLE_STREAM_CLIENT_PORT}" ]]; then
   echo "[ERROR] Desktop profile missing stream target data" >&2
   printf '%s\n' "${PROFILE_JSON}" >&2
   exit 1
@@ -238,7 +238,7 @@ python3 - <<PY >"${LISTENER_LOG}" 2>&1 &
 import socket
 import time
 host = "127.0.0.1"
-port = int("${MOONLIGHT_PORT}")
+port = int("${BEAGLE_STREAM_CLIENT_PORT}")
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server.bind((host, port))
@@ -250,7 +250,7 @@ while time.time() < end:
         conn, _ = server.accept()
     except socket.timeout:
         continue
-    conn.sendall(b"MOONLIGHT_SIM_OK")
+    conn.sendall(b"BEAGLE_STREAM_CLIENT_SIM_OK")
     conn.close()
     break
 server.close()
@@ -261,17 +261,17 @@ python3 - <<PY
 import socket
 import sys
 host = "${STREAM_HOST}"
-port = int("${MOONLIGHT_PORT}")
+port = int("${BEAGLE_STREAM_CLIENT_PORT}")
 sock = socket.create_connection((host, port), timeout=3)
 sock.recv(64)
 sock.close()
 print("THINCLIENT_STREAM_SIM_OK")
 PY
 
-SUNSHINE_ACCESS="$(http_post_json "/vms/${DESKTOP_VMID}/sunshine-access" '{}')"
-if ! printf '%s' "${SUNSHINE_ACCESS}" | python3 -c "import json,sys; data=json.load(sys.stdin); url=data.get('sunshine_access',{}).get('url',''); sys.exit(0 if url else 1)"; then
-  echo "[ERROR] sunshine-access endpoint did not return access URL" >&2
-  printf '%s\n' "${SUNSHINE_ACCESS}" >&2
+BEAGLE_STREAM_SERVER_ACCESS="$(http_post_json "/vms/${DESKTOP_VMID}/beagle-stream-server-access" '{}')"
+if ! printf '%s' "${BEAGLE_STREAM_SERVER_ACCESS}" | python3 -c "import json,sys; data=json.load(sys.stdin); url=data.get('beagle_stream_server_access',{}).get('url',''); sys.exit(0 if url else 1)"; then
+  echo "[ERROR] beagle-stream-server-access endpoint did not return access URL" >&2
+  printf '%s\n' "${BEAGLE_STREAM_SERVER_ACCESS}" >&2
   exit 1
 fi
 
@@ -295,6 +295,6 @@ then
 fi
 
 echo "PASS: Standalone provisioning E2E simulation successful"
-echo "  Desktop VMID: ${DESKTOP_VMID} (Ubuntu XFCE + Sunshine provisioning path)"
-echo "  Thinclient VMID: ${THINCLIENT_VMID} (stream simulation connected to ${STREAM_HOST}:${MOONLIGHT_PORT})"
-echo "  Sunshine API URL: ${SUNSHINE_API_URL}"
+echo "  Desktop VMID: ${DESKTOP_VMID} (Ubuntu XFCE + Beagle Stream Server provisioning path)"
+echo "  Thinclient VMID: ${THINCLIENT_VMID} (stream simulation connected to ${STREAM_HOST}:${BEAGLE_STREAM_CLIENT_PORT})"
+echo "  Beagle Stream Server API URL: ${BEAGLE_STREAM_SERVER_API_URL}"

@@ -39,8 +39,8 @@
       };
     }
     return {
-      label: "Sunshine wird vorbereitet",
-      message: state && state.message || "Die VM wird fuer Sunshine und den Internet-Stream vorbereitet.",
+      label: "Beagle Stream Server wird vorbereitet",
+      message: state && state.message || "Die VM wird fuer Beagle Stream Server und den Internet-Stream vorbereitet.",
       unsupported: false
     };
   }

@@ -63,11 +63,11 @@ class VmProfileService:
             return False
         if str(meta.get("beagle-public-stream", "1")).strip().lower() in {"0", "false", "no", "off"}:
             return False
-        if meta.get("beagle-public-moonlight-port"):
+        if meta.get("beagle-public-beagle-stream-client-port"):
             return True
-        if meta.get("sunshine-user") or meta.get("sunshine-password") or meta.get("sunshine-api-url"):
+        if meta.get("beagle-stream-server-user") or meta.get("beagle-stream-server-password") or meta.get("beagle-stream-server-api-url"):
             return True
-        if meta.get("moonlight-host") or meta.get("sunshine-host") or meta.get("sunshine-ip"):
+        if meta.get("beagle-stream-client-host") or meta.get("beagle-stream-server-host") or meta.get("beagle-stream-server-ip"):
             return True
         if guest_ip and str(meta.get("beagle-role", "")).strip().lower() == "desktop":
             return True
@@ -76,7 +76,7 @@ class VmProfileService:
     def build_public_stream_details(self, vm: Any, meta: dict[str, str], guest_ip: str) -> dict[str, Any] | None:
         if not self.should_use_public_stream(meta, guest_ip):
             return None
-        explicit_port = str(meta.get("beagle-public-moonlight-port", "")).strip()
+        explicit_port = str(meta.get("beagle-public-beagle-stream-client-port", "")).strip()
         if explicit_port.isdigit():
             base_port = int(explicit_port)
         else:
@@ -91,8 +91,8 @@ class VmProfileService:
             "enabled": True,
             "host": public_host,
             "guest_ip": guest_ip,
-            "moonlight_port": ports["moonlight_port"],
-            "sunshine_api_url": f"https://{public_host}:{ports['sunshine_api_port']}",
+            "beagle_stream_client_port": ports["beagle_stream_client_port"],
+            "beagle_stream_server_api_url": f"https://{public_host}:{ports['beagle_stream_server_api_port']}",
             "ports": ports,
         }
 
@@ -109,15 +109,15 @@ class VmProfileService:
             "node": target_vm.node,
             "name": target_vm.name,
             "stream_host": target_profile["stream_host"],
-            "moonlight_local_host": str(target_profile.get("moonlight_local_host", "") or ""),
-            "moonlight_port": target_profile.get("moonlight_port", ""),
-            "sunshine_api_url": target_profile["sunshine_api_url"],
-            "moonlight_app": target_profile["moonlight_app"],
+            "beagle_stream_client_local_host": str(target_profile.get("beagle_stream_client_local_host", "") or ""),
+            "beagle_stream_client_port": target_profile.get("beagle_stream_client_port", ""),
+            "beagle_stream_server_api_url": target_profile["beagle_stream_server_api_url"],
+            "beagle_stream_client_app": target_profile["beagle_stream_client_app"],
         }
 
     def resolve_policy_for_vm(self, vm: Any, meta: dict[str, str]) -> dict[str, Any] | None:
         tags = {item.strip() for item in str(vm.tags or "").split(";") if item.strip()}
-        role = meta.get("beagle-role", "desktop" if meta.get("moonlight-host") or meta.get("sunshine-ip") or meta.get("sunshine-host") else "")
+        role = meta.get("beagle-role", "desktop" if meta.get("beagle-stream-client-host") or meta.get("beagle-stream-server-ip") or meta.get("beagle-stream-server-host") else "")
         for policy in self._list_policies():
             if not policy.get("enabled", True):
                 continue
@@ -155,7 +155,7 @@ class VmProfileService:
             recommendations.append("Set CPU type to host for more realistic guest characteristics.")
         if guest_ip:
             risk_flags.append("guest-networked")
-        if meta.get("beagle-public-stream-host") or meta.get("beagle-public-moonlight-port"):
+        if meta.get("beagle-public-stream-host") or meta.get("beagle-public-beagle-stream-client-port"):
             risk_flags.append("public-stream")
         risk_level = "low"
         if len(risk_flags) >= 4:
@@ -195,31 +195,31 @@ class VmProfileService:
         ]
         software_packages = self._expand_software_packages(package_presets, extra_packages)
         guest_ip = self._first_guest_ipv4(vm.vmid) if vm.status == "running" else ""
-        guest_ip = guest_ip or str(meta.get("sunshine-ip", "")).strip()
-        moonlight_local_host = (
-            policy_profile.get("moonlight_local_host")
-            or meta.get("moonlight-local-host")
-            or meta.get("sunshine-ip")
+        guest_ip = guest_ip or str(meta.get("beagle-stream-server-ip", "")).strip()
+        beagle_stream_client_local_host = (
+            policy_profile.get("beagle_stream_client_local_host")
+            or meta.get("beagle-stream-client-local-host")
+            or meta.get("beagle-stream-server-ip")
             or guest_ip
         )
-        stream_host = policy_profile.get("stream_host") or meta.get("moonlight-host") or meta.get("sunshine-ip") or meta.get("sunshine-host") or moonlight_local_host
-        moonlight_port = str(policy_profile.get("moonlight_port") or meta.get("moonlight-port") or meta.get("beagle-public-moonlight-port") or "").strip()
-        sunshine_api_url = policy_profile.get("sunshine_api_url") or meta.get("sunshine-api-url") or (f"https://{stream_host}:47990" if stream_host else "")
+        stream_host = policy_profile.get("stream_host") or meta.get("beagle-stream-client-host") or meta.get("beagle-stream-server-ip") or meta.get("beagle-stream-server-host") or beagle_stream_client_local_host
+        beagle_stream_client_port = str(policy_profile.get("beagle_stream_client_port") or meta.get("beagle-stream-client-port") or meta.get("beagle-public-beagle-stream-client-port") or "").strip()
+        beagle_stream_server_api_url = policy_profile.get("beagle_stream_server_api_url") or meta.get("beagle-stream-server-api-url") or (f"https://{stream_host}:47990" if stream_host else "")
         public_stream = self.build_public_stream_details(vm, meta, guest_ip)
         if public_stream is not None:
             stream_host = public_stream["host"]
-            moonlight_local_host = str(public_stream.get("guest_ip", "") or moonlight_local_host).strip()
-            moonlight_port = str(public_stream["moonlight_port"])
-            sunshine_api_url = public_stream["sunshine_api_url"]
+            beagle_stream_client_local_host = str(public_stream.get("guest_ip", "") or beagle_stream_client_local_host).strip()
+            beagle_stream_client_port = str(public_stream["beagle_stream_client_port"])
+            beagle_stream_server_api_url = public_stream["beagle_stream_server_api_url"]
         installer_url = f"/beagle-api/api/v1/vms/{vm.vmid}/installer.sh"
         live_usb_url = f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.sh"
         installer_windows_url = f"/beagle-api/api/v1/vms/{vm.vmid}/installer.ps1"
         live_usb_windows_url = f"/beagle-api/api/v1/vms/{vm.vmid}/live-usb.ps1"
         installer_iso_url = self._public_installer_iso_url()
         vm_secret = self._load_vm_secret(vm.node, vm.vmid)
-        has_sunshine_password = bool((vm_secret or {}).get("sunshine_password"))
+        has_beagle_stream_server_password = bool((vm_secret or {}).get("beagle_stream_server_password"))
         expected_profile_name = policy_profile.get("expected_profile_name") or meta.get("beagle-profile-name", "")
-        moonlight_app = policy_profile.get("moonlight_app") or meta.get("moonlight-app", meta.get("sunshine-app", "Desktop"))
+        beagle_stream_client_app = policy_profile.get("beagle_stream_client_app") or meta.get("beagle-stream-client-app", meta.get("beagle-stream-server-app", "Desktop"))
         update_enabled = self._truthy(policy_profile.get("update_enabled", meta.get("beagle-update-enabled", "1")), default=True)
         update_channel = str(policy_profile.get("update_channel") or meta.get("beagle-update-channel", "stable")).strip() or "stable"
         update_behavior = str(policy_profile.get("update_behavior") or meta.get("beagle-update-behavior", "prompt")).strip() or "prompt"
@@ -236,25 +236,25 @@ class VmProfileService:
             "tags": vm.tags,
             "guest_ip": guest_ip,
             "stream_host": stream_host,
-            "moonlight_local_host": str(moonlight_local_host or "").strip(),
-            "moonlight_port": moonlight_port,
-            "sunshine_api_url": sunshine_api_url,
-            "guest_user": meta.get("sunshine-guest-user", self._ubuntu_beagle_default_guest_user),
-            "sunshine_username": "",
-            "sunshine_password_configured": has_sunshine_password,
-            "sunshine_pin": "",
-            "moonlight_app": moonlight_app,
+            "beagle_stream_client_local_host": str(beagle_stream_client_local_host or "").strip(),
+            "beagle_stream_client_port": beagle_stream_client_port,
+            "beagle_stream_server_api_url": beagle_stream_server_api_url,
+            "guest_user": meta.get("beagle-stream-server-guest-user", self._ubuntu_beagle_default_guest_user),
+            "beagle_stream_server_username": "",
+            "beagle_stream_server_password_configured": has_beagle_stream_server_password,
+            "beagle_stream_server_pin": "",
+            "beagle_stream_client_app": beagle_stream_client_app,
             "update_enabled": update_enabled,
             "update_channel": update_channel,
             "update_behavior": update_behavior,
             "update_feed_url": update_feed_url,
             "update_version_pin": update_version_pin,
-            "moonlight_resolution": policy_profile.get("moonlight_resolution") or meta.get("moonlight-resolution", "auto"),
-            "moonlight_fps": policy_profile.get("moonlight_fps") or meta.get("moonlight-fps", "60"),
-            "moonlight_bitrate": policy_profile.get("moonlight_bitrate") or meta.get("moonlight-bitrate", "20000"),
-            "moonlight_video_codec": policy_profile.get("moonlight_video_codec") or meta.get("moonlight-video-codec", "H.264"),
-            "moonlight_video_decoder": policy_profile.get("moonlight_video_decoder") or meta.get("moonlight-video-decoder", "auto"),
-            "moonlight_audio_config": policy_profile.get("moonlight_audio_config") or meta.get("moonlight-audio-config", "stereo"),
+            "beagle_stream_client_resolution": policy_profile.get("beagle_stream_client_resolution") or meta.get("beagle-stream-client-resolution", "auto"),
+            "beagle_stream_client_fps": policy_profile.get("beagle_stream_client_fps") or meta.get("beagle-stream-client-fps", "60"),
+            "beagle_stream_client_bitrate": policy_profile.get("beagle_stream_client_bitrate") or meta.get("beagle-stream-client-bitrate", "20000"),
+            "beagle_stream_client_video_codec": policy_profile.get("beagle_stream_client_video_codec") or meta.get("beagle-stream-client-video-codec", "H.264"),
+            "beagle_stream_client_video_decoder": policy_profile.get("beagle_stream_client_video_decoder") or meta.get("beagle-stream-client-video-decoder", "auto"),
+            "beagle_stream_client_audio_config": policy_profile.get("beagle_stream_client_audio_config") or meta.get("beagle-stream-client-audio-config", "stereo"),
             "egress_mode": policy_profile.get("egress_mode") or meta.get("beagle-egress-mode", "full"),
             "egress_type": policy_profile.get("egress_type") or meta.get("beagle-egress-type", "wireguard"),
             "egress_interface": policy_profile.get("egress_interface") or meta.get("beagle-egress-interface", "wg-beagle"),
@@ -281,7 +281,7 @@ class VmProfileService:
             "extra_packages": extra_packages,
             "software_packages": software_packages,
             "network_mode": policy_profile.get("network_mode") or meta.get("thinclient-network-mode", "dhcp"),
-            "default_mode": "MOONLIGHT" if stream_host else "",
+            "default_mode": "BEAGLE_STREAM_CLIENT" if stream_host else "",
             "beagle_hostname": self._safe_hostname(config.get("name") or vm.name, vm.vmid),
             "beagle_manager_pinned_pubkey": self._manager_pinned_pubkey,
             "beagle_role": policy_profile.get("beagle_role") or meta.get("beagle-role", "desktop" if stream_host else ""),
@@ -329,34 +329,34 @@ class VmProfileService:
                     profile["assigned_target"] = assigned_target
                     profile["assignment_source"] = assignment_source
                     profile["beagle_role"] = "endpoint"
-                    if (assignment_source == "manager-policy" or not meta.get("moonlight-host")) and assigned_target["stream_host"]:
+                    if (assignment_source == "manager-policy" or not meta.get("beagle-stream-client-host")) and assigned_target["stream_host"]:
                         profile["stream_host"] = assigned_target["stream_host"]
-                    if (assignment_source == "manager-policy" or not meta.get("moonlight-local-host")) and assigned_target.get("moonlight_local_host"):
-                        profile["moonlight_local_host"] = assigned_target["moonlight_local_host"]
-                    if (assignment_source == "manager-policy" or not meta.get("moonlight-port")) and assigned_target.get("moonlight_port"):
-                        profile["moonlight_port"] = assigned_target["moonlight_port"]
-                    if (assignment_source == "manager-policy" or not meta.get("sunshine-api-url")) and assigned_target["sunshine_api_url"]:
-                        profile["sunshine_api_url"] = assigned_target["sunshine_api_url"]
-                    if (assignment_source == "manager-policy" or not meta.get("moonlight-app")) and assigned_target["moonlight_app"]:
-                        profile["moonlight_app"] = assigned_target["moonlight_app"]
+                    if (assignment_source == "manager-policy" or not meta.get("beagle-stream-client-local-host")) and assigned_target.get("beagle_stream_client_local_host"):
+                        profile["beagle_stream_client_local_host"] = assigned_target["beagle_stream_client_local_host"]
+                    if (assignment_source == "manager-policy" or not meta.get("beagle-stream-client-port")) and assigned_target.get("beagle_stream_client_port"):
+                        profile["beagle_stream_client_port"] = assigned_target["beagle_stream_client_port"]
+                    if (assignment_source == "manager-policy" or not meta.get("beagle-stream-server-api-url")) and assigned_target["beagle_stream_server_api_url"]:
+                        profile["beagle_stream_server_api_url"] = assigned_target["beagle_stream_server_api_url"]
+                    if (assignment_source == "manager-policy" or not meta.get("beagle-stream-client-app")) and assigned_target["beagle_stream_client_app"]:
+                        profile["beagle_stream_client_app"] = assigned_target["beagle_stream_client_app"]
                     if not expected_profile_name:
                         profile["expected_profile_name"] = f"vm-{target_vmid}"
-                    profile["default_mode"] = "MOONLIGHT" if profile["stream_host"] else ""
-                    if assigned_target.get("moonlight_port"):
+                    profile["default_mode"] = "BEAGLE_STREAM_CLIENT" if profile["stream_host"] else ""
+                    if assigned_target.get("beagle_stream_client_port"):
                         profile["public_stream"] = {
                             "enabled": True,
                             "host": profile["stream_host"],
-                            "moonlight_port": profile["moonlight_port"],
-                            "sunshine_api_url": profile["sunshine_api_url"],
+                            "beagle_stream_client_port": profile["beagle_stream_client_port"],
+                            "beagle_stream_server_api_url": profile["beagle_stream_server_api_url"],
                         }
         role_text = str(profile.get("beagle_role", "")).strip().lower()
         installer_target_eligible = bool(profile.get("stream_host")) and role_text not in {"endpoint", "thinclient", "client"}
         if installer_target_eligible:
-            installer_target_message = "Diese VM kann als Sunshine-Ziel vorbereitet und als Beagle-Profil installiert werden."
+            installer_target_message = "Diese VM kann als Beagle Stream Server-Ziel vorbereitet und als Beagle-Profil installiert werden."
         elif role_text in {"endpoint", "thinclient", "client"}:
             installer_target_message = "Diese VM ist als Beagle-Endpunkt klassifiziert und wird nicht als Streaming-Ziel angeboten."
         else:
-            installer_target_message = "Diese VM hat aktuell kein verwertbares Sunshine-/Moonlight-Streaming-Ziel."
+            installer_target_message = "Diese VM hat aktuell kein verwertbares Beagle Stream Server-/Beagle Stream Client-Streaming-Ziel."
         profile["installer_target_eligible"] = installer_target_eligible
         profile["installer_target_message"] = installer_target_message
         return self._normalize_endpoint_profile_contract(profile, vmid=vm.vmid, installer_iso_url=installer_iso_url)

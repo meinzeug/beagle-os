@@ -76,9 +76,9 @@
 
 ## v5.2.31 - 2026-04-06
 
-- Fixed the Beagle Fleet desktop cold-start regression on freshly installed thinclients. The Moonlight launcher no longer probes `PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST` first when that address is only reachable through an upstream gateway, so endpoints outside the Beagle-side private subnet stop wasting startup time on dead `10.10.10.x` attempts before falling back to the real public Sunshine host.
-- Verified the launcher fix live on the real VM100 thinclient at `192.168.178.92`: the desktop runtime dropped from the earlier `moonlight.start -> moonlight.exec` path of roughly 80 seconds down to about 6 seconds on the subsequent restart, while still connecting to the same public host `65.109.80.76:50100`.
-- Fixed runtime config regeneration so Beagle no longer discards Sunshine bootstrap metadata and pinning material when `/usr/local/sbin/beagle-render-config` rewrites `/etc/pve-thin-client/`. The renderer now preserves Sunshine pinned pubkeys plus server name, stream port, unique ID and certificate fields, which keeps fresh Desktop images from regressing into the slow first-run bootstrap path after config refreshes.
+- Fixed the Beagle Fleet desktop cold-start regression on freshly installed thinclients. The Beagle Stream Client launcher no longer probes `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST` first when that address is only reachable through an upstream gateway, so endpoints outside the Beagle-side private subnet stop wasting startup time on dead `10.10.10.x` attempts before falling back to the real public Beagle Stream Server host.
+- Verified the launcher fix live on the real VM100 thinclient at `192.168.178.92`: the desktop runtime dropped from the earlier `beagle-stream-client.start -> beagle-stream-client.exec` path of roughly 80 seconds down to about 6 seconds on the subsequent restart, while still connecting to the same public host `65.109.80.76:50100`.
+- Fixed runtime config regeneration so Beagle no longer discards Beagle Stream Server bootstrap metadata and pinning material when `/usr/local/sbin/beagle-render-config` rewrites `/etc/pve-thin-client/`. The renderer now preserves Beagle Stream Server pinned pubkeys plus server name, stream port, unique ID and certificate fields, which keeps fresh Desktop images from regressing into the slow first-run bootstrap path after config refreshes.
 
 ## v5.2.30 - 2026-04-06
 
@@ -86,10 +86,10 @@
 - Changed the streaming handoff to close the kiosk gracefully through the window manager first, instead of hard-killing the Electron processes. During an active GFN session the kiosk now exits cleanly, the runtime stays alive, and the kiosk supervisor waits until the stream ends before relaunching the kiosk.
 - Added `wmctrl` to both the runtime image and the thin-client live-build package set so this graceful-close path is available after fresh installs and USB-based reinstalls as well.
 - Verified the new handoff live on `192.168.178.92`: `pve-thin-client-runtime.service` stayed `active`, GeForce NOW continued running, and the runtime trace recorded `phase=streaming.kiosk-stop mode=graceful-close` instead of the earlier crash/restart sequence.
-- Fixed the Beagle Fleet desktop-stream provisioning path for Ubuntu guest VMs. Newly configured Sunshine guests now install a real user-audio stack (`pipewire`, `pipewire-pulse`, `wireplumber`) instead of only `pulseaudio-utils`, enable those user services after LightDM autologin, and keep the Pulse socket available for Sunshine audio capture.
-- Hardened the generated `beagle-sunshine.service` so Sunshine no longer starts before the guest desktop and audio session are actually ready. The unit now waits for the X11 display, X authority, user DBus runtime, Pulse socket and a connected XRandR output before launching Sunshine.
-- Verified the VM100 fix live on the Beagle host side: Sunshine stopped reproducing the old `Unable to initialize capture method` failure, accepted real desktop streaming sessions from the thinclient again, and initialized audio capture with `sink-sunshine-stereo` plus `Opus initialized` instead of `Couldn't connect to pulseaudio`.
-- Fixed Moonlight audio routing on the thinclient runtime. Desktop sessions now prefer the local PipeWire/Pulse path instead of forcing SDL and ALSA straight onto a hard-coded hardware PCM, and the generated ALSA default now points back at PipeWire when the plugin is installed. This keeps Beagle Fleet desktop streams compatible with real output selection on fresh installs instead of silently sending audio to the wrong low-level device.
+- Fixed the Beagle Fleet desktop-stream provisioning path for Ubuntu guest VMs. Newly configured Beagle Stream Server guests now install a real user-audio stack (`pipewire`, `pipewire-pulse`, `wireplumber`) instead of only `pulseaudio-utils`, enable those user services after LightDM autologin, and keep the Pulse socket available for Beagle Stream Server audio capture.
+- Hardened the generated `beagle-stream-server.service` so Beagle Stream Server no longer starts before the guest desktop and audio session are actually ready. The unit now waits for the X11 display, X authority, user DBus runtime, Pulse socket and a connected XRandR output before launching Beagle Stream Server.
+- Verified the VM100 fix live on the Beagle host side: Beagle Stream Server stopped reproducing the old `Unable to initialize capture method` failure, accepted real desktop streaming sessions from the thinclient again, and initialized audio capture with `sink-beagle-stream-server-stereo` plus `Opus initialized` instead of `Couldn't connect to pulseaudio`.
+- Fixed Beagle Stream Client audio routing on the thinclient runtime. Desktop sessions now prefer the local PipeWire/Pulse path instead of forcing SDL and ALSA straight onto a hard-coded hardware PCM, and the generated ALSA default now points back at PipeWire when the plugin is installed. This keeps Beagle Fleet desktop streams compatible with real output selection on fresh installs instead of silently sending audio to the wrong low-level device.
 
 ## v5.2.29 - 2026-04-05
 
@@ -147,8 +147,8 @@
 
 ## v5.2.20 - 2026-04-05
 
-- Fixed the Desktop Moonlight connect-host selection so `PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST` is only preferred when the endpoint can reach that host directly without routing through an upstream gateway. Real thinclients on external LANs now choose the public Sunshine/Moonlight host first instead of stalling on an internal Beagle host-only address like `10.10.10.x`.
-- Verified the live VM100 endpoint on `192.168.178.92` against this fix: after clearing the stale local-only host override, the desktop runtime paired successfully and started a real `moonlight stream 65.109.80.76:50100 Desktop` session again.
+- Fixed the Desktop Beagle Stream Client connect-host selection so `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST` is only preferred when the endpoint can reach that host directly without routing through an upstream gateway. Real thinclients on external LANs now choose the public Beagle Stream Server/Beagle Stream Client host first instead of stalling on an internal Beagle host-only address like `10.10.10.x`.
+- Verified the live VM100 endpoint on `192.168.178.92` against this fix: after clearing the stale local-only host override, the desktop runtime paired successfully and started a real `beagle-stream-client stream 65.109.80.76:50100 Desktop` session again.
 
 ## v5.2.19 - 2026-04-05
 
@@ -235,7 +235,7 @@
 - Hardened the gaming session wrappers and kiosk launcher so failed kiosk starts now leave a visible on-screen error terminal with the recent kiosk log instead of silently falling back to a wallpaper-only session.
 - Made the kiosk AppImage launcher more robust for VM and appliance boots by forcing extract-and-run mode, pinning Electron to X11, and adding virtualization-safe GPU-disable flags plus explicit launch/exit logging.
 - Fixed the kiosk installer and launcher permissions so the runtime user can always write kiosk logs, with an automatic fallback to a user-writable log directory if `/opt/beagle-kiosk/logs` is not writable.
-- Fixed the desktop runtime renderer so Beagle host-managed endpoints can carry a dedicated `MOONLIGHT_LOCAL_HOST`, allowing internal same-host test clients to prefer the guest-side Sunshine address instead of hairpinning through the public stream IP.
+- Fixed the desktop runtime renderer so Beagle host-managed endpoints can carry a dedicated `BEAGLE_STREAM_CLIENT_LOCAL_HOST`, allowing internal same-host test clients to prefer the guest-side Beagle Stream Server address instead of hairpinning through the public stream IP.
 - Hardened the thinclient updater against low-space payload failures by pruning stale cached payloads before download and surfacing clearer disk-write errors when a large release tarball cannot be written locally.
 
 ## v5.2.5 - 2026-04-03
@@ -251,7 +251,7 @@
 - Added a dedicated `beagleos-gaming.png` runtime background so `Beagle OS Gaming` shows the new BeagleOS gaming artwork during session startup on both the live image and the installed overlay.
 - Improved runtime failure reporting in the thinclient session wrapper so non-zero launcher exits are recorded instead of being flattened into a misleading success marker.
 - Added the closed-source `beagle-kiosk` installation surface to the public repo, including a release-verifying installer, README guardrails, AGENTS rules and the Affiliate Protection Clause in the repository license.
-- Reworked the `Beagle OS Gaming` boot path so the GRUB entry now isolates into `beagle-kiosk.target` instead of sharing the normal desktop runtime path, while `Beagle OS Desktop` stays on the regular Moonlight/desktop boot track.
+- Reworked the `Beagle OS Gaming` boot path so the GRUB entry now isolates into `beagle-kiosk.target` instead of sharing the normal desktop runtime path, while `Beagle OS Desktop` stays on the regular Beagle Stream Client/desktop boot track.
 - Added dedicated kiosk session units and X11 session wrappers for both the installed overlay and the live-build thinclient image so the gaming profile can start a kiosk binary cleanly on tty1 once it has been installed.
 
 ## v5.2.2 - 2026-04-03
@@ -262,8 +262,8 @@
 
 ## v5.2.1 - 2026-04-03
 
-- Reversed the dual-boot profile mapping so `Beagle OS Gaming` now launches the official NVIDIA GeForce NOW client and `Beagle OS Desktop` now launches Moonlight, matching the intended product naming.
-- Updated both installed-system and USB-installer GRUB generation so the visible boot menu, safe mode and slot fallback entries all stay semantically aligned with the new `Gaming = GeForce NOW` and `Desktop = Moonlight` split.
+- Reversed the dual-boot profile mapping so `Beagle OS Gaming` now launches the official NVIDIA GeForce NOW client and `Beagle OS Desktop` now launches Beagle Stream Client, matching the intended product naming.
+- Updated both installed-system and USB-installer GRUB generation so the visible boot menu, safe mode and slot fallback entries all stay semantically aligned with the new `Gaming = GeForce NOW` and `Desktop = Beagle Stream Client` split.
 - Repacked and republished the thinclient runtime artifacts so fresh installs, staged updates and hosted VM-specific installer scripts all inherit the corrected boot-profile behavior.
 
 ## v5.2.0 - 2026-04-02
@@ -272,26 +272,26 @@
 - Added software selection to the Fleet create and edit flows with named presets plus free-form extra APT packages, and carried those choices through the control-plane catalog, VM metadata, Ubuntu autoinstall seed and in-guest reconfiguration path.
 - Added an edit path for existing managed Beagle desktop VMs so operators can change desktop, locale, keyboard layout and package selections later from the Fleet Manager instead of rebuilding the VM from scratch.
 - Fixed the Beagle host control-plane provisioning sandbox so `qm create`, seed ISO generation, task logging, KVM startup and bridge activation all work reliably from the hardened systemd service context.
-- Fixed the managed-desktop Sunshine startup order so guest reconfiguration now waits for a real X11 session before launching Sunshine, preventing broken post-edit streams on non-XFCE desktops.
+- Fixed the managed-desktop Beagle Stream Server startup order so guest reconfiguration now waits for a real X11 session before launching Beagle Stream Server, preventing broken post-edit streams on non-XFCE desktops.
 - Switched managed desktop defaults and metadata handling to German locale and keymap where requested, and verified the existing `VM100` desktop session now uses the German keyboard layout.
-- Rebooted and revalidated the local Beagle OS thinclient on `192.168.178.92`, confirming that Moonlight still starts and streams correctly after the surrounding host-side changes.
-- Verified the new Fleet workflow against a real test VM by provisioning `VM101` with `LXQt`, `Thunderbird`, `VLC` and `de_DE.UTF-8`/`de` settings through the live control-plane API that backs the Beagle host UI, then editing the same VM in place to `MATE` with `LibreOffice`, `FileZilla` and `GIMP` while keeping Sunshine streamable.
+- Rebooted and revalidated the local Beagle OS thinclient on `192.168.178.92`, confirming that Beagle Stream Client still starts and streams correctly after the surrounding host-side changes.
+- Verified the new Fleet workflow against a real test VM by provisioning `VM101` with `LXQt`, `Thunderbird`, `VLC` and `de_DE.UTF-8`/`de` settings through the live control-plane API that backs the Beagle host UI, then editing the same VM in place to `MATE` with `LibreOffice`, `FileZilla` and `GIMP` while keeping Beagle Stream Server streamable.
 
 ## v5.1.0 - 2026-04-01
 
-- Reworked Moonlight target selection so Beagle OS endpoints now distinguish between local and public Sunshine routes correctly instead of getting stuck on an unreachable internal VM IP when only the public stream path is available.
-- Hardened the Sunshine API selection path so the runtime rewrites and probes the effective API endpoint against the actually selected Moonlight connect host, keeping public-host routing and TLS pinning aligned.
-- Fixed the automatic pairing flow so a successful manager-side registration no longer skips the real `moonlight list`/pair verification path; endpoints now continue into PIN-based pairing when registration alone did not make the host usable.
+- Reworked Beagle Stream Client target selection so Beagle OS endpoints now distinguish between local and public Beagle Stream Server routes correctly instead of getting stuck on an unreachable internal VM IP when only the public stream path is available.
+- Hardened the Beagle Stream Server API selection path so the runtime rewrites and probes the effective API endpoint against the actually selected Beagle Stream Client connect host, keeping public-host routing and TLS pinning aligned.
+- Fixed the automatic pairing flow so a successful manager-side registration no longer skips the real `beagle-stream-client list`/pair verification path; endpoints now continue into PIN-based pairing when registration alone did not make the host usable.
 - Removed the conflicting passworded `sudo` fallback from the thinclient sudoers override, restoring the intended passwordless update actions for the limited `beagle-update-client` command path.
-- Verified the currently installed local thinclient on `192.168.178.92` against the new public-host route, completed pairing against `VM100` on `65.109.80.76:50100`, and confirmed that Moonlight can now see the exported `Desktop` app through the paired public target.
+- Verified the currently installed local thinclient on `192.168.178.92` against the new public-host route, completed pairing against `VM100` on `65.109.80.76:50100`, and confirmed that Beagle Stream Client can now see the exported `Desktop` app through the paired public target.
 
 ## v5.0.4 - 2026-03-29
 
-- Fixed the live and installed Moonlight runtime so it now validates and selects a working `XAUTHORITY` before pairing or streaming, preventing the black-screen boot loop where Moonlight could not open `DISPLAY=:0`.
+- Fixed the live and installed Beagle Stream Client runtime so it now validates and selects a working `XAUTHORITY` before pairing or streaming, preventing the black-screen boot loop where Beagle Stream Client could not open `DISPLAY=:0`.
 - Fixed the standalone and VM-rendered USB live writers so they no longer depend on the downloaded filename to decide between `live` and `installer` mode.
 - Fixed the hosted USB bootstrap so current runtime and installer helper scripts are always repacked into the published payload instead of leaking stale cached files into new USB media.
-- Fixed the published VM USB presets and EFI boot path so large per-VM presets stay off the kernel command line while runtime mode, Moonlight host/port and Sunshine secrets still land on the stick.
-- Rebuilt and verified the Internet-routed live USB flow end-to-end in a Beagle host test VM until Moonlight streamed the VM100 desktop successfully.
+- Fixed the published VM USB presets and EFI boot path so large per-VM presets stay off the kernel command line while runtime mode, Beagle Stream Client host/port and Beagle Stream Server secrets still land on the stick.
+- Rebuilt and verified the Internet-routed live USB flow end-to-end in a Beagle host test VM until Beagle Stream Client streamed the VM100 desktop successfully.
 
 ## v5.0.2 - 2026-03-28
 
@@ -304,11 +304,11 @@
 
 ## v5.0.1 - 2026-03-27
 
-- Fixed the Beagle OS runtime X11 startup path so installed endpoints no longer race on a stale `XAUTHORITY` file before Moonlight and Openbox come up.
+- Fixed the Beagle OS runtime X11 startup path so installed endpoints no longer race on a stale `XAUTHORITY` file before Beagle Stream Client and Openbox come up.
 - Reworked the live and installed boot experience around a Beagle-branded Plymouth theme with a white background, centered Beagle logo, animated spinner and live status messages during runtime preparation.
 - Removed the competing tty1 autologin/getty boot path from the runtime flow so the installed endpoint starts through a single deterministic graphics session instead of showing long black screens.
 - Updated both installer and installed GRUB/runtime boot arguments to suppress live-config autologin side effects and carry the same polished splash behavior across safe, legacy IRQ and text-mode boots.
-- Hardened runtime Moonlight reachability checks to wait for the real target/API path before failing, reducing slow-start and false-negative connection attempts on Internet-routed endpoints.
+- Hardened runtime Beagle Stream Client reachability checks to wait for the real target/API path before failing, reducing slow-start and false-negative connection attempts on Internet-routed endpoints.
 - Fixed host download publishing so rebuilding the installer also refreshes the publicly served `latest` ISO, payload and bootstrap artifacts instead of leaving stale USB media behind.
 
 ## v5.0.0 - 2026-03-26
@@ -324,7 +324,7 @@
 - Fixed runtime device access for installed thin clients by ensuring `thinclient` gets `input` and `render` group membership during autologin setup.
 - Added a `pve-thin-client-runtime.service` session override path so the runtime starts with `PAMName=login` and the required supplementary groups on tty1.
 - Added `Xwrapper.config` to the installer/live image and Beagle OS overlay so Xorg can start with the required device access on kiosk hardware.
-- Hardened Moonlight decoder selection to fall back to software decoding when DRM render nodes exist but are not accessible.
+- Hardened Beagle Stream Client decoder selection to fall back to software decoding when DRM render nodes exist but are not accessible.
 
 ## v4.0.0 - 2026-03-23
 
@@ -335,28 +335,28 @@
 
 ## v3.4.0 - 2026-03-22
 
-- Added a first-class Beagle VM profile dialog to both the host-installed Beagle host UI and the browser extension, so operators can inspect a fully resolved Moonlight/Sunshine endpoint profile per VM and export it directly from the Beagle host workflow.
+- Added a first-class Beagle VM profile dialog to both the host-installed Beagle host UI and the browser extension, so operators can inspect a fully resolved Beagle Stream Client/Beagle Stream Server endpoint profile per VM and export it directly from the Beagle host workflow.
 - Added installer, profile-export and control-plane health actions to the Beagle UI path, turning the Beagle host integration into an operator surface instead of a single download trigger.
 - Added a host-side `beagle-control-plane` service that publishes Beagle health and VM inventory data for installed Beagle hosts.
-- Narrowed Beagle preset generation to Moonlight/Sunshine-only profiles so new per-VM installers no longer publish legacy SPICE, noVNC or DCV fallbacks in Beagle profiles.
-- Updated the main architecture, installation and security documentation to describe Beagle as a Beagle-native Moonlight/Sunshine endpoint and management stack.
+- Narrowed Beagle preset generation to Beagle Stream Client/Beagle Stream Server-only profiles so new per-VM installers no longer publish legacy SPICE, noVNC or DCV fallbacks in Beagle profiles.
+- Updated the main architecture, installation and security documentation to describe Beagle as a Beagle-native Beagle Stream Client/Beagle Stream Server endpoint and management stack.
 
 ## v3.3.1 - 2026-03-17
 
-- Fixed the Sunshine guest provisioning path so LightDM is forced in as the actual `display-manager.service`, replacing the stale `gdm3` default that kept the Xfce autologin desktop from coming up after the first reboot.
-- Locked Sunshine guest defaults to H.264-only software streaming by explicitly disabling HEVC and AV1 in the generated `sunshine.conf`, matching the low-latency CPU-only target profile for this host.
-- Tightened the Xfce autostart path so Sunshine starts only inside the intended Xfce session rather than relying on generic desktop autostart semantics.
+- Fixed the Beagle Stream Server guest provisioning path so LightDM is forced in as the actual `display-manager.service`, replacing the stale `gdm3` default that kept the Xfce autologin desktop from coming up after the first reboot.
+- Locked Beagle Stream Server guest defaults to H.264-only software streaming by explicitly disabling HEVC and AV1 in the generated `beagle-stream-server.conf`, matching the low-latency CPU-only target profile for this host.
+- Tightened the Xfce autostart path so Beagle Stream Server starts only inside the intended Xfce session rather than relying on generic desktop autostart semantics.
 - Added a lightweight Xfce window-manager profile for provisioned guests that disables compositor overhead by default, leaving more CPU budget available for software capture and encoding.
 - Updated the Beagle host installer to reuse packaged GitHub release assets for the USB installer and payload when they are available, so release-tarball installs no longer have to rebuild the live image locally on every host.
 
 ## v3.3.0 - 2026-03-17
 
-- Added a first-class `MOONLIGHT` runtime mode that auto-pairs against Sunshine through its authenticated `/api/pin` endpoint and then starts a preseeded Moonlight desktop stream without asking the operator for any extra runtime details.
-- Extended the thin-client configuration model with Moonlight host/app, codec, decoder, bitrate, resolution, FPS and Sunshine API credentials so the installed target keeps all Sunshine-specific state outside the old SPICE/noVNC/DCV-only path.
-- Added a live-build hook that bundles Moonlight from the official upstream AppImage into the installer image as a local wrapper binary, removing any dependency on distro packaging for the client itself.
-- Expanded VM preset generation so host-served per-VM USB installers can embed Sunshine/Moonlight defaults including auto-pairing PIN, Sunshine API URL, default mode and a low-latency H.264 1080p60 profile.
-- Upgraded the graphical USB installer dashboard and local installer preset flow to understand `MOONLIGHT`, prefer preset-defined default modes and surface Sunshine target metadata directly in the on-stick UI.
-- Kept the old SPICE, noVNC and DCV paths intact as secondary modes, so mixed environments can publish Moonlight first while still exposing the legacy fallbacks per VM.
+- Added a first-class `BEAGLE_STREAM_CLIENT` runtime mode that auto-pairs against Beagle Stream Server through its authenticated `/api/pin` endpoint and then starts a preseeded Beagle Stream Client desktop stream without asking the operator for any extra runtime details.
+- Extended the thin-client configuration model with Beagle Stream Client host/app, codec, decoder, bitrate, resolution, FPS and Beagle Stream Server API credentials so the installed target keeps all Beagle Stream Server-specific state outside the old SPICE/noVNC/DCV-only path.
+- Added a live-build hook that bundles Beagle Stream Client from the official upstream AppImage into the installer image as a local wrapper binary, removing any dependency on distro packaging for the client itself.
+- Expanded VM preset generation so host-served per-VM USB installers can embed Beagle Stream Server/Beagle Stream Client defaults including auto-pairing PIN, Beagle Stream Server API URL, default mode and a low-latency H.264 1080p60 profile.
+- Upgraded the graphical USB installer dashboard and local installer preset flow to understand `BEAGLE_STREAM_CLIENT`, prefer preset-defined default modes and surface Beagle Stream Server target metadata directly in the on-stick UI.
+- Kept the old SPICE, noVNC and DCV paths intact as secondary modes, so mixed environments can publish Beagle Stream Client first while still exposing the legacy fallbacks per VM.
 
 ## v3.2.1 - 2026-03-16
 

@@ -65,7 +65,7 @@ Scheduler placeert nur auf Knoten, die freie Slots dieser Klasse haben.
 ### USB / Wacom / Audio Redirect
 
 - USB-Redirect Klassen (siehe Policy in [06-iam-multitenancy.md](06-iam-multitenancy.md)).
-- Wacom + Stylus-Druck: Apollo/Sunshine-Pfad + Moonlight-Embedded mit Tablet-Eingabe getestet.
+- Wacom + Stylus-Druck: Apollo/Beagle Stream Server-Pfad + Beagle Stream Client-Embedded mit Tablet-Eingabe getestet.
 - Audio-In: Mikro-Capture im Endpoint-OS, Apollo-Audio-In-Stream.
 - Webcam: Pass-through ueber USB-Klassen-Redirect (HID + UVC) oder ueber dedicated stream channel.
 

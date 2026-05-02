@@ -10,7 +10,7 @@
 
 - [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen.
 
-- [x] BeagleStream Runtime-Status in der WebUI sichtbar machen: `stream_runtime.variant` fuer VM-/Installer-Readiness verwenden; `website/main.js` rendert BeagleStream-Server vs. Sunshine-Fallback inkl. Paketstatus (2026-05-02 Docs-Triage). Thin-Client-Artefakt-/Health-Paritaet bleibt als separater Restpfad in `06-next-steps.md`.
+- [x] BeagleStream Runtime-Status in der WebUI sichtbar machen: `stream_runtime.variant` fuer VM-/Installer-Readiness verwenden; `website/main.js` rendert BeagleStream-Server vs. Beagle Stream Server-Fallback inkl. Paketstatus (2026-05-02 Docs-Triage). Thin-Client-Artefakt-/Health-Paritaet bleibt als separater Restpfad in `06-next-steps.md`.
 - [ ] BeagleStream End-to-End-Abnahme fuer VM100 auf `srv1` reproduzierbar abschliessen: Thinclient boot -> Broker-Allocate -> WireGuard -> sichtbarer Desktop-Stream.
 
 - [x] R1-VM-Lifecycle ueber API reproduzierbar geschlossen: `scripts/test-vm-lifecycle-r1-smoke.py` fuehrt `create -> start -> snapshot -> reboot -> delete` gegen `srv1` aus (PASS, 2026-04-30, inkl. Cleanup).
@@ -28,7 +28,7 @@
 - [x] GoAdvanced Plan 06 Schritt 3 Teil 1 schliessen: erstes produktives SQLite-Repository `core/repository/vm_repository.py` inkl. Tests und `srv1`-Smoke einfuehren.
 - [x] GoAdvanced Plan 06 Schritt 2 schliessen: `core/persistence/migrations/001_init.sql` mit Tabellen, Pflicht-Indizes und ersten Foreign-Keys einfuehren; lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 06 Schritt 1 schliessen: `core/persistence/sqlite_db.py` mit WAL-/Foreign-Key-Setup, Migration-Runner und fokussierten Tests einfuehren; lokal + auf `srv1` validieren.
-- [x] GoAdvanced Plan 01 Welle 3d Teil 4 schliessen: `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `sunshine_integration.py`, `gaming_metrics_service.py` auf `JsonStateStore`/atomare Helper migrieren und lokal + auf `srv1` validieren.
+- [x] GoAdvanced Plan 01 Welle 3d Teil 4 schliessen: `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `beagle_stream_server_integration.py`, `gaming_metrics_service.py` auf `JsonStateStore`/atomare Helper migrieren und lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Restpunkt schliessen: `Repo-Grep` fuer direkte `path.write_text(json.dumps(`-Writes in `beagle-host/services` auf Null bringen.
 - [x] GoAdvanced Plan 01 Welle 3d Teil 3 schliessen: `endpoint_report.py`, `firewall_service.py`, `cluster_membership.py` auf `JsonStateStore`/atomare Store-Helper migrieren und lokal + auf `srv1` validieren.
 - [x] GoAdvanced Plan 01 Welle 3d Teil 2 schliessen: `maintenance_service.py`, `installer_log_service.py`, `ha_watchdog.py` auf `JsonStateStore` migrieren und lokal + auf `srv1` validieren.
@@ -71,8 +71,8 @@
 - [x] GoEnterprise Plan 09: offene Testpflicht (RAPL/VM-Anteil, 100W->40g CO2, Chargeback-Energiekosten, CSRD Scope-2 Quartal) mit Acceptance-Suite und srv1-Lauf schliessen.
 - [x] GoEnterprise Plan 09: externen Feed-/Importjob für stündlichen Carbon-/Strommix hinterlegen.
 
-- [x] Sunshine-/Desktop-Gast-Smoke fuer neue WebUI-VMs erweitern: nach Provisioning live `xset q` sowie Abwesenheit von `light-locker` und `xfce4-power-manager` pruefen.
-	- Umsetzung 2026-04-29: `scripts/ensure-vm-stream-ready.sh` fuehrt nach erfolgreichem Sunshine-API-Check zusaetzlich einen Guest-Desktop-Smoke aus (`xset q`, `light-locker`/`xfce4-power-manager` Prozess-Check) und persistiert einen Warnstatus ohne den Ready-Flow hart abzubrechen.
+- [x] Beagle Stream Server-/Desktop-Gast-Smoke fuer neue WebUI-VMs erweitern: nach Provisioning live `xset q` sowie Abwesenheit von `light-locker` und `xfce4-power-manager` pruefen.
+	- Umsetzung 2026-04-29: `scripts/ensure-vm-stream-ready.sh` fuehrt nach erfolgreichem Beagle Stream Server-API-Check zusaetzlich einen Guest-Desktop-Smoke aus (`xset q`, `light-locker`/`xfce4-power-manager` Prozess-Check) und persistiert einen Warnstatus ohne den Ready-Flow hart abzubrechen.
 
 
 ## Update 2026-04-28 (GoEnterprise Plan 02)
@@ -274,7 +274,7 @@
 - [x] Execute GoFuture Plan 10 Schritt 6: add VM-detail action `Als Template` and implement Template-Builder modal + Sysprep/Seal progress dialog in Web Console, wired to `POST /api/v1/pool-templates`, then deploy and smoke-check on `srv1.beagle-os.com` (2026-04-22).
 - [x] Close GoFuture Plan 10 test checklist items for template->pool smoke, floating 5-slot allocation, <=60s recycle, and persistent same-VM reassignment via `scripts/test-vdi-pools-smoke.py`, validated locally and on `srv1.beagle-os.com` (2026-04-22).
 - [x] Close the final GoFuture Plan 10 entitlement visibility checkbox by implementing server-side pool filtering/masked lookups and proving it via the authenticated `scripts/test-vdi-pools-smoke.py` visibility slice on localhost and `srv1.beagle-os.com` (2026-04-22).
-- [x] Execute GoFuture Plan 11 Schritt 1 (Linux first): Moonlight endpoint now sends detected `WIDTHxHEIGHT` to manager (`/api/v1/endpoints/moonlight/prepare-stream`), guest applies xrandr prepare before stream start; baseline smoke remains `pass_with_4k_limit` on `srv1/beagle-100` (2026-04-22).
+- [x] Execute GoFuture Plan 11 Schritt 1 (Linux first): Beagle Stream Client endpoint now sends detected `WIDTHxHEIGHT` to manager (`/api/v1/endpoints/beagle-stream-client/prepare-stream`), guest applies xrandr prepare before stream start; baseline smoke remains `pass_with_4k_limit` on `srv1/beagle-100` (2026-04-22).
 - [x] Execute GoFuture Plan 11 Schritt 2: implement signed token-based auto-pairing (`pairing_service.py`) and replace PIN-driven endpoint flow with token exchange; fixed srv1 non-root `endpoint-tokens` permission trap causing pair-token `500`, live pair-token now `201` (2026-04-22).
 - [x] Execute GoFuture Plan 11 Schritt 3 Teil 1: add typed `StreamingProfile` core model plus pool API persistence/read-write (`POST/GET/PUT /api/v1/pools`) and validate live on `srv1.beagle-os.com` with create/read/update/delete smoke (2026-04-22).
 - [x] Execute GoFuture Plan 11 Schritt 3 Teil 2: add Web Console pool-wizard editor for `streaming_profile` (encoder/codec/bitrate/fps/resolution/hdr), wire payload/summary/card rendering, deploy to `srv1.beagle-os.com`, and validate delivered fields plus wizard smoke slice (2026-04-22).
@@ -363,7 +363,7 @@
 - [x] Deploy full repo 6.6.9 host runtime to the Hetzner `beagle-server` and verify services/download metadata.
 - [ ] Re-run VM lifecycle validation on the full 6.6.9 host runtime to rule out mixed-version behavior.
 - [ ] Validate firstboot stale fallback guardrails on fresh runs (no premature completion while guest provisioning is still active).
-- [ ] Verify first-boot Sunshine readiness gate and callback end-to-end on a fully clean VM100/101 run (no manual completion override).
+- [ ] Verify first-boot Beagle Stream Server readiness gate and callback end-to-end on a fully clean VM100/101 run (no manual completion override).
 - [x] Fix beagle-provider VM provisioning failure when libvirt pool `local` is missing (auto-create pool/fallback instead of hard-fail).
 - [x] Fix beagle-provider VM start failure when libvirt network `beagle` is missing (auto-create network/fallback instead of hard-fail).
 - [x] Ensure server-installer path keeps onboarding pending by disabling bootstrap-auth auto-user creation (`BEAGLE_AUTH_BOOTSTRAP_DISABLE=1`).
@@ -378,14 +378,14 @@
 	- Umsetzung 2026-04-29: `tests/unit/test_server_settings.py` um Route-Regressionen fuer `POST /api/v1/settings/security/tls/letsencrypt` erweitert (invalid-domain -> `400`, success-path -> `200`).
 	- Reproduzierbarer Smoke: neues Script `scripts/test-security-tls-api-smoke.sh` prueft auf Zielhost `GET /api/v1/settings/security/tls` (`200`) und den Let's-Encrypt-Guardrail fuer invalid domain (`400`, `invalid domain format`).
 	- Validierung: lokal `python3 -m pytest tests/unit/test_server_settings.py -q` => `30 passed`; `srv1`-Run via SSH => `SECURITY_TLS_API_SMOKE=PASS`.
-- [x] Validate new Moonlight app-name resolver against Sunshine `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
-	- Umsetzung 2026-04-29: `scripts/test-moonlight-appname-smoke.sh` eingeführt; ruft `GET /api/apps` gegen Sunshine auf, führt Resolver-Logik inline nach und validiert dass `Desktop` auflösbar ist. Gegen VM 100 auf `srv1` ausführbar via `SUNSHINE_API_URL=... SUNSHINE_PASSWORD=... bash scripts/test-moonlight-appname-smoke.sh`.
-	- Validierung 2026-04-29 auf `srv1` / VM100 (`192.168.123.116`, Sunshine-Port `50001`): `MOONLIGHT_APPNAME_SMOKE=PASS`; Inventory enthielt `Desktop`, Resolver lieferte `Desktop`.
-- [x] Add reproducible Sunshine guest service self-heal in repo provisioning (automatic restart on crash/stop).
-- [x] Validate Sunshine self-heal timer (`beagle-sunshine-healthcheck.timer`) on VM reboot and forced crash (`pkill sunshine`).
-	- Umsetzung 2026-04-29: `scripts/test-sunshine-selfheal-smoke.sh` eingeführt; prüft Timer-Zustand, killst sunshine via `pkill -9`, wartet auf Neustart, validiert API-Antwort und führt Healthcheck-Skript manuell aus. Ausführbar via `BEAGLE_SMOKE_VM_SSH=beagle@<guest-ip> bash scripts/test-sunshine-selfheal-smoke.sh`.
-	- Validierung 2026-04-29 auf `srv1` / VM100 (`192.168.123.116`, Sunshine-Port `50001`): `SUNSHINE_SELFHEAL_SMOKE=PASS`; Sunshine restartete nach `pkill -9` innerhalb von 90s, API antwortete mit HTTP `401`, manueller Healthcheck lief ohne harten Fehlerpfad durch.
-- [x] Set VPN/WireGuard as default transport for VM Sunshine/Moonlight endpoints (no direct default fallback).
+- [x] Validate new Beagle Stream Client app-name resolver against Beagle Stream Server `/api/apps` so `failed to find Application Desktop` is no longer reproducible on VM 101.
+	- Umsetzung 2026-04-29: `scripts/test-beagle-stream-client-appname-smoke.sh` eingeführt; ruft `GET /api/apps` gegen Beagle Stream Server auf, führt Resolver-Logik inline nach und validiert dass `Desktop` auflösbar ist. Gegen VM 100 auf `srv1` ausführbar via `BEAGLE_STREAM_SERVER_API_URL=... BEAGLE_STREAM_SERVER_PASSWORD=... bash scripts/test-beagle-stream-client-appname-smoke.sh`.
+	- Validierung 2026-04-29 auf `srv1` / VM100 (`192.168.123.116`, Beagle Stream Server-Port `50001`): `BEAGLE_STREAM_CLIENT_APPNAME_SMOKE=PASS`; Inventory enthielt `Desktop`, Resolver lieferte `Desktop`.
+- [x] Add reproducible Beagle Stream Server guest service self-heal in repo provisioning (automatic restart on crash/stop).
+- [x] Validate Beagle Stream Server self-heal timer (`beagle-stream-server-healthcheck.timer`) on VM reboot and forced crash (`pkill beagle-stream-server`).
+	- Umsetzung 2026-04-29: `scripts/test-beagle-stream-server-selfheal-smoke.sh` eingeführt; prüft Timer-Zustand, killst beagle-stream-server via `pkill -9`, wartet auf Neustart, validiert API-Antwort und führt Healthcheck-Skript manuell aus. Ausführbar via `BEAGLE_SMOKE_VM_SSH=beagle@<guest-ip> bash scripts/test-beagle-stream-server-selfheal-smoke.sh`.
+	- Validierung 2026-04-29 auf `srv1` / VM100 (`192.168.123.116`, Beagle Stream Server-Port `50001`): `BEAGLE_STREAM_SERVER_SELFHEAL_SMOKE=PASS`; Beagle Stream Server restartete nach `pkill -9` innerhalb von 90s, API antwortete mit HTTP `401`, manueller Healthcheck lief ohne harten Fehlerpfad durch.
+- [x] Set VPN/WireGuard as default transport for VM Beagle Stream Server/Beagle Stream Client endpoints (no direct default fallback).
 	- Umsetzung 2026-04-29: Host-/Installer-/Runtime-Defaults auf `egress_mode=full`, `egress_type=wireguard`, `egress_interface=wg-beagle` umgestellt (`vm_profile.py`, `installer_script.py`, `endpoint_enrollment.py`, `thin_client_preset.py`, Thinclient-Installer/Runtime inkl. PowerShell writer).
 	- Validierung 2026-04-29 auf `srv1`: `GET /api/v1/vms/100` liefert `full/wireguard/wg-beagle`; VM100-Installer enthaelt dieselben Werte im eingebetteten Preset.
 	- Lokale Thinclient-VM-Validierung: `wg-beagle` erfolgreich enrolled gegen `srv1`, Route zur privaten VM100-IP (`192.168.123.116`) geht ueber WG, WG-Transferzaehler steigen bei Zielzugriff.
@@ -394,15 +394,15 @@
 - [x] Fix VM start error `domain 'beagle-100' already exists with uuid ...` in beagle libvirt provider by preserving existing domain UUID during redefine.
 - [x] Show `installing` VM status in inventory while ubuntu autoinstall/firstboot provisioning is active.
 - [x] Disable UI start action while VM status is `installing` to avoid conflicting manual power actions.
-- [x] Install beaglethinclient against the successfully provisioned VM 101 and verify Moonlight streaming end-to-end.
+- [x] Install beaglethinclient against the successfully provisioned VM 101 and verify Beagle Stream Client streaming end-to-end.
 - [x] Diagnose and fix RTSP handshake abort (`sessionUrl0` internal VM IP + host forward policy mismatch).
 - [x] Expose Live-USB creator download action in Beagle Web Console endpoint detail flow.
 - [x] Harden provisioning catalog bridge default fallback to discovered bridge inventory.
 - [x] Rebuild server installer ISO artifact in current workspace (2026-04-19 run).
 - [x] Validate stream persistence across full reboot without manual firewall/route intervention.
-	- Umsetzung 2026-04-29: neues Smoke-Skript `scripts/test-stream-persistence-reboot-smoke.sh` erstellt; prueft VM-Profilkonsistenz (`egress_mode`/`egress_type`), Sunshine-API-Erreichbarkeit vor und nach Reboot, fuehrt VM-Reboot ueber Provider-Pfad aus und validiert Recovery ohne manuelle Firewall-/Route-Operationen.
-	- Robustheit: Skript exportiert `PYTHONPATH` fuer Provider-Helper und nutzt fuer Sunshine-Checks einen Fallback von Public-URL auf private Guest-URL (`moonlight_local_host`) fuer Host-interne Validierung.
-	- Validierung 2026-04-29 auf `srv1` / VM100: `STREAM_REBOOT_PERSISTENCE_SMOKE=PASS` (Sunshine API vor/nach Reboot `HTTP 401`, VM wieder `running`, Stream-Profil unveraendert).
+	- Umsetzung 2026-04-29: neues Smoke-Skript `scripts/test-stream-persistence-reboot-smoke.sh` erstellt; prueft VM-Profilkonsistenz (`egress_mode`/`egress_type`), Beagle Stream Server-API-Erreichbarkeit vor und nach Reboot, fuehrt VM-Reboot ueber Provider-Pfad aus und validiert Recovery ohne manuelle Firewall-/Route-Operationen.
+	- Robustheit: Skript exportiert `PYTHONPATH` fuer Provider-Helper und nutzt fuer Beagle Stream Server-Checks einen Fallback von Public-URL auf private Guest-URL (`beagle_stream_client_local_host`) fuer Host-interne Validierung.
+	- Validierung 2026-04-29 auf `srv1` / VM100: `STREAM_REBOOT_PERSISTENCE_SMOKE=PASS` (Beagle Stream Server API vor/nach Reboot `HTTP 401`, VM wieder `running`, Stream-Profil unveraendert).
 - [x] Fix `test-server-installer-live-smoke.sh` DHCP timeout in local libvirt harness after fresh ISO build.
 	- Umsetzung 2026-04-29: `WAIT_DHCP_SECONDS` auf 300 angehoben, `WAIT_HEALTH_SECONDS` auf 300; ARP-Fallback in `wait_for_vm_ip` ergänzt.
 - [x] Stabilize `test-standalone-desktop-stream-sim.sh` for real libvirt execution (storage/permission/fake-kernel assumptions).
@@ -410,18 +410,18 @@
 - [ ] Complete in-VM installer flow and re-validate host API/download/noVNC paths post-install from the freshly rebuilt server-installer ISO.
 - [x] Confirm installer template artifact generation recovers after long-running `prepare-host-downloads` run and endpoint returns 200.
 - [x] Fix host-install reproducibility gap: always run `scripts/prepare-host-downloads.sh` in `scripts/install-beagle-host.sh` even when release artifacts already exist.
-- [x] Ensure stream-prep script consumes persisted guest connection inputs (`sunshine-ip`, `guest_password`) so the next run does not rely on manual SSH/console work.
+- [x] Ensure stream-prep script consumes persisted guest connection inputs (`beagle-stream-server-ip`, `guest_password`) so the next run does not rely on manual SSH/console work.
 - [x] Persist Ubuntu `guest_password` into per-VM secrets and add a legacy fallback for already-created VMs so unattended stream-prep can reuse generated guest credentials.
 	- Deployed on 2026-04-19 and validated:
 		- VM102 (post-fix) has `guest_password` in `/var/lib/beagle/beagle-manager/vm-secrets/beagle-0-102.json` ✅
 		- VM100 (pre-fix) fallback extracts from provisioning state (`beagle-0-100.json`) ✅
-		- `ensure-vm-stream-ready.sh` progressed past credential check to Sunshine install attempt ✅
+		- `ensure-vm-stream-ready.sh` progressed past credential check to Beagle Stream Server install attempt ✅
 		- Remaining blocker: VMs have not yet obtained DHCP IPs (environmental, not code) ⏸️
 - [ ] Wait for VM installation completion and QEMU-guest-agent initialization so `virsh guestinfo` can read IPv4 addresses.
-- [ ] Re-run `ensure-vm-stream-ready.sh` on VMs 100 and 102 once IPs are available to prove full unattended stream-prep flow (credential persistence + Sunshine install + ready state).
-	- Update 2026-04-29 (`srv1`): VM100 re-run succeeded with unattended path (`Configured Sunshine guest VM 100 ...`), including the SCP-path fix and provider import bootstrap in the script runtime.
+- [ ] Re-run `ensure-vm-stream-ready.sh` on VMs 100 and 102 once IPs are available to prove full unattended stream-prep flow (credential persistence + Beagle Stream Server install + ready state).
+	- Update 2026-04-29 (`srv1`): VM100 re-run succeeded with unattended path (`Configured Beagle Stream Server guest VM 100 ...`), including the SCP-path fix and provider import bootstrap in the script runtime.
 	- Update 2026-04-29 (`srv1`): VM102 remains blocked by runtime inventory/provider state (`RuntimeError: VM 102 not found in beagle provider state`, no guest IPv4), therefore full dual-VM proof is still open.
-	- Update 2026-04-30 (`srv1`): VM100 readiness gate re-run returned `RC=0` and reached `Configured Sunshine guest VM 100 on localhost (guest IP: 192.168.123.114)`; host-external self-check to `46.4.96.80:50001` remained unreachable (`curl: (7)`), but script still completed with success marker (`ENSURE_VM_STREAM_READY=PASS`).
+	- Update 2026-04-30 (`srv1`): VM100 readiness gate re-run returned `RC=0` and reached `Configured Beagle Stream Server guest VM 100 on localhost (guest IP: 192.168.123.114)`; host-external self-check to `46.4.96.80:50001` remained unreachable (`curl: (7)`), but script still completed with success marker (`ENSURE_VM_STREAM_READY=PASS`).
 	- Update 2026-04-30 (`srv1`): VM102 re-run still blocked unchanged (`VM 102 not found in beagle provider state`, `Unable to determine guest IPv4 address for VM 102`, `VM102_RC=1`).
 - [ ] Fix post-install beagleserver disk boot path after installer success (currently no-bootable-device after ISO eject/reset).
 - [x] Add outer-host disk guardrails/cleanup routine for local validation harness (prevent repeated `beagleserver` pause on 100% root).
@@ -449,7 +449,7 @@
 - [x] Remove the duplicate standalone bootstrap download from the Linux USB writers by reusing the first extracted helper tree across the `sudo` re-exec for both `pve-thin-client-usb-installer-*.sh` and `pve-thin-client-live-usb-*.sh`.
 - [x] Stop building/expecting `beagle-os-server-installer-amd64.iso` and `Debian-1201-bookworm-amd64-beagle-server.tar.gz` on Beagle hosts; keep host-local `/beagle-downloads` limited to endpoint/thin-client artifacts while public server-release artifacts stay on the separate website.
 - [x] Add SSE live status for the complete Settings -> Updates page and normalize artifact-build messages so running builds do not show missing payload/bootstrap as the primary error.
-- [x] Add persistent Live-USB network selection before Desktop/Moonlight, including Ethernet/WLAN TUI, USB-state persistence, 3-second `N` override banner, and private permissions for persisted WLAN PSKs.
+- [x] Add persistent Live-USB network selection before Desktop/Beagle Stream Client, including Ethernet/WLAN TUI, USB-state persistence, 3-second `N` override banner, and private permissions for persisted WLAN PSKs.
 - [x] Harden endpoint self-update/self-heal for Live-USB and installed thinclients: persistent update state/cache, A/B slot bootflag preservation, delayed management timers after network/WireGuard, health-failure rollback reporting, and VM WebUI rebuild-required hints.
 - [x] Re-run standalone `scripts/check-beagle-host.sh` after the active `srv1` artifact build is idle; it passes without PVE service checks, stale `8443` references, or status checksum drift.
 - [ ] Work through `docs/gorelease/` R2/R3 gates before offering Beagle OS as Enterprise Candidate; book hardware according to `docs/gorelease/02-hardware-test-matrix.md`.
@@ -483,12 +483,12 @@
 - [x] GoEnterprise Plan 01: GitHub-Forks real anlegen (`meinzeug/beagle-stream-server`, `meinzeug/beagle-stream-client`) und lokale Arbeitsbranches `beagle/phase-a` vorbereiten.
 - [x] GoEnterprise Plan 01: `beagle-stream-server` Phase A im separaten Fork implementieren (`src/beagle/*`, `BEAGLE_INTEGRATION`, Debian-Paket).
 - [x] GoEnterprise Plan 01: `beagle-stream-client` Phase A im separaten Fork implementieren (`app/beagle/*`, Broker-Allocate, WireGuard-Peer-Aktivierung, Branding).
-- [x] BeagleStream Phase A Forks unter `meinzeug/*` umsetzen: Sunshine-Server mit Broker-Integration/Token-als-PIN und Moonlight-Qt-Client mit Broker-Allocate/WireGuard/Branding auf Branch `beagle/phase-a`.
+- [x] BeagleStream Phase A Forks unter `meinzeug/*` umsetzen: Beagle Stream Server-Server mit Broker-Integration/Token-als-PIN und Beagle Stream Client-Qt-Client mit Broker-Allocate/WireGuard/Branding auf Branch `beagle/phase-a`.
 - [x] BeagleStream Phase A Thin-Client-Runtime vorbereiten: hostless Enrollment startet `beagle-stream stream <App>`, Build kann BeagleStream-AppImage stage'n und Healthcheck meldet fehlenden `beagle-stream` bei Broker-Modus.
 - [ ] BeagleStream Phase A Runtime-Abnahme auf `srv1`: Server-Fork registriert VM, Client-Fork alloziert Session, aktiviert WireGuard-Peer und paired per HMAC-Token-als-PIN.
 - [x] Thinclient-Broker-Presets haerten: USB-Live-/Install-Presets und Enrollment-Rewrite setzen `CONNECTION_METHOD=broker`, damit hostless `vm100`-Sticks nicht wieder in den alten Direktmodus zurueckfallen.
 - [x] Thinclient-Live-USB-Bootassets vereinheitlichen: GRUB-/Plymouth-/TTY-/Session-Wallpaper nutzen das versionierte Beagle-Wallpaper und skalieren auf die aktuelle Bildschirmgroesse.
-- [x] BeagleStream Phase A Packaging-Hooks: Thin-Client-Build und VM-Guest-Prep versuchen standardmaessig die `beagle-phase-a` Releases von `beagle-stream-client`/`beagle-stream-server` und fallen bei fehlendem Asset auf upstream Moonlight/Sunshine zurueck.
+- [x] BeagleStream Phase A Packaging-Hooks: Thin-Client-Build und VM-Guest-Prep versuchen standardmaessig die `beagle-phase-a` Releases von `beagle-stream-client`/`beagle-stream-server` und fallen bei fehlendem Asset auf externen BeagleStream-Client/Beagle Stream Server zurueck.
 - [x] BeagleStream Phase A Hostless-Contract haerten: `POST /api/v1/streams/allocate` akzeptiert leeren `user_id` bei gesetzter `device_id` und verwendet intern einen stabilen Device-Lease-Owner.
 - [ ] BeagleStream Phase A Packaging-Abschluss live bestaetigen: Client-AppImage und Server-DEB sind im `beagle-phase-a` Release vorhanden; Thin-Client-Artefaktbuild und VM-Guest-Prep stage'n die eigenen Fork-Artefakte statt der Fallbacks.
 - [x] Release-/Artifact-/Website-Workflows von starrer `8.0.0`-Version auf dynamische SemVer-Aufloesung umstellen.

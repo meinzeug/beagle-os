@@ -26,7 +26,7 @@ class UbuntuBeagleProvisioningService:
         *,
         allocate_public_stream_base_port: Callable[[str, int], int | None],
         build_profile: Callable[[Any], dict[str, Any]],
-        configure_sunshine_guest_script: Path,
+        configure_beagle_stream_server_guest_script: Path,
         current_public_stream_host: Callable[[], str],
         default_usb_tunnel_port: Callable[[int], int],
         ensure_vm_secret: Callable[[Any], dict[str, Any]],
@@ -84,7 +84,7 @@ class UbuntuBeagleProvisioningService:
         ubuntu_beagle_profile_streaming: str,
         ubuntu_beagle_software_presets: dict[str, dict[str, Any]],
         ubuntu_beagle_stream_server_url: str,
-        ubuntu_beagle_sunshine_url: str,
+        ubuntu_beagle_beagle_stream_server_url: str,
         ubuntu_beagle_tokens_dir: Callable[[], Path],
         utcnow: Callable[[], str],
         validate_linux_username: Callable[[str, str], str],
@@ -92,7 +92,7 @@ class UbuntuBeagleProvisioningService:
     ) -> None:
         self._allocate_public_stream_base_port = allocate_public_stream_base_port
         self._build_profile = build_profile
-        self._configure_sunshine_guest_script = Path(configure_sunshine_guest_script)
+        self._configure_beagle_stream_server_guest_script = Path(configure_beagle_stream_server_guest_script)
         self._current_public_stream_host = current_public_stream_host
         self._default_usb_tunnel_port = default_usb_tunnel_port
         self._ensure_vm_secret = ensure_vm_secret
@@ -155,7 +155,7 @@ class UbuntuBeagleProvisioningService:
             if item and item in supported_presets
         ]
         self._ubuntu_beagle_stream_server_url = str(ubuntu_beagle_stream_server_url or "")
-        self._ubuntu_beagle_sunshine_url = str(ubuntu_beagle_sunshine_url or "")
+        self._ubuntu_beagle_beagle_stream_server_url = str(ubuntu_beagle_beagle_stream_server_url or "")
         self._ubuntu_beagle_tokens_dir = ubuntu_beagle_tokens_dir
         self._utcnow = utcnow
         self._validate_linux_username = validate_linux_username
@@ -206,7 +206,7 @@ class UbuntuBeagleProvisioningService:
                     "Ubuntu Autoinstall",
                     "Selectable desktop",
                     "LightDM Autologin",
-                    "Sunshine Streaming",
+                    "Beagle Stream Server Streaming",
                     "QEMU Guest Agent",
                     "Chrome preinstalled",
                 ],
@@ -644,16 +644,16 @@ class UbuntuBeagleProvisioningService:
             f"beagle-desktop-session: {desktop['session']}",
             f"beagle-desktop-theme: {desktop.get('theme_variant', desktop['id'])}",
             f"beagle-streaming: {self._ubuntu_beagle_profile_streaming}",
-            f"sunshine-guest-user: {guest_user}",
-            "sunshine-app: Desktop",
-            "moonlight-app: Desktop",
-            "moonlight-resolution: auto",
-            "moonlight-fps: 60",
-            "moonlight-bitrate: 20000",
-            "moonlight-video-codec: H.264",
-            "moonlight-video-decoder: auto",
-            "moonlight-audio-config: stereo",
-            "thinclient-default-mode: MOONLIGHT",
+            f"beagle-stream-server-guest-user: {guest_user}",
+            "beagle-stream-server-app: Desktop",
+            "beagle-stream-client-app: Desktop",
+            "beagle-stream-client-resolution: auto",
+            "beagle-stream-client-fps: 60",
+            "beagle-stream-client-bitrate: 20000",
+            "beagle-stream-client-video-codec: H.264",
+            "beagle-stream-client-video-decoder: auto",
+            "beagle-stream-client-audio-config: stereo",
+            "thinclient-default-mode: BEAGLE_STREAM_CLIENT",
             "beagle-template-set: ubuntu-beagle",
             f"beagle-template-hostname: {hostname}",
             f"beagle-identity-hostname: {hostname}",
@@ -666,14 +666,14 @@ class UbuntuBeagleProvisioningService:
             lines.append(f"beagle-extra-packages: {','.join(extra_packages)}")
         if public_stream:
             public_host = str(public_stream.get("host", "")).strip()
-            moonlight_port = int(public_stream.get("moonlight_port", 0) or 0)
-            sunshine_api_url = str(public_stream.get("sunshine_api_url", "")).strip()
+            beagle_stream_client_port = int(public_stream.get("beagle_stream_client_port", 0) or 0)
+            beagle_stream_server_api_url = str(public_stream.get("beagle_stream_server_api_url", "")).strip()
             if public_host:
                 lines.append(f"beagle-public-stream-host: {public_host}")
-            if moonlight_port > 0:
-                lines.append(f"beagle-public-moonlight-port: {moonlight_port}")
-            if sunshine_api_url:
-                lines.append(f"beagle-public-sunshine-api-url: {sunshine_api_url}")
+            if beagle_stream_client_port > 0:
+                lines.append(f"beagle-public-beagle-stream-client-port: {beagle_stream_client_port}")
+            if beagle_stream_server_api_url:
+                lines.append(f"beagle-public-beagle-stream-server-api-url: {beagle_stream_server_api_url}")
         return "\n".join(lines) + "\n"
 
     def build_ubuntu_beagle_seed_iso(
@@ -691,9 +691,9 @@ class UbuntuBeagleProvisioningService:
         software_packages: list[str],
         package_presets: list[str],
         network_mac: str,
-        sunshine_user: str,
-        sunshine_password: str,
-        sunshine_port: int | None,
+        beagle_stream_server_user: str,
+        beagle_stream_server_password: str,
+        beagle_stream_server_port: int | None,
         callback_url: str,
     ) -> Path:
         if not self._template_dir.exists():
@@ -708,12 +708,12 @@ class UbuntuBeagleProvisioningService:
             self._template_dir / "firstboot-provision.sh.tpl",
             {
                 "__GUEST_USER__": guest_user,
-                "__SUNSHINE_USER__": sunshine_user,
-                "__SUNSHINE_PASSWORD__": sunshine_password,
-                "__SUNSHINE_PORT__": str(int(sunshine_port)) if sunshine_port else "",
+                "__BEAGLE_STREAM_SERVER_USER__": beagle_stream_server_user,
+                "__BEAGLE_STREAM_SERVER_PASSWORD__": beagle_stream_server_password,
+                "__BEAGLE_STREAM_SERVER_PORT__": str(int(beagle_stream_server_port)) if beagle_stream_server_port else "",
                 "__BEAGLE_STREAM_SERVER_URL__": self._ubuntu_beagle_stream_server_url,
-                "__SUNSHINE_URL__": self._ubuntu_beagle_sunshine_url,
-                "__SUNSHINE_ORIGIN_WEB_UI_ALLOWED__": "wan",
+                "__BEAGLE_STREAM_SERVER_URL__": self._ubuntu_beagle_beagle_stream_server_url,
+                "__BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED__": "wan",
                 "__IDENTITY_LOCALE__": identity_locale,
                 "__IDENTITY_LANGUAGE__": self.locale_language(identity_locale),
                 "__IDENTITY_KEYMAP__": identity_keymap,
@@ -930,14 +930,14 @@ class UbuntuBeagleProvisioningService:
         start_after_create = str(payload.get("start", "1")).strip().lower() not in {"0", "false", "no", "off"}
         hostname = self._safe_hostname(str(payload.get("hostname", "")).strip() or name, vmid)
         iso_assets = self.ensure_ubuntu_beagle_iso_cached(self._ubuntu_beagle_iso_url)
-        sunshine_user_input = str(payload.get("sunshine_user", "")).strip()
-        sunshine_user = (
-            self._validate_linux_username(sunshine_user_input, "sunshine_user")
-            if sunshine_user_input
-            else f"sunshine-vm{vmid}"
+        beagle_stream_server_user_input = str(payload.get("beagle_stream_server_user", "")).strip()
+        beagle_stream_server_user = (
+            self._validate_linux_username(beagle_stream_server_user_input, "beagle_stream_server_user")
+            if beagle_stream_server_user_input
+            else f"beagle-stream-server-vm{vmid}"
         )
-        sunshine_password_input = str(payload.get("sunshine_password", ""))
-        sunshine_password = self._validate_password(sunshine_password_input, "sunshine_password", allow_empty=True) or self._random_secret(26)
+        beagle_stream_server_password_input = str(payload.get("beagle_stream_server_password", ""))
+        beagle_stream_server_password = self._validate_password(beagle_stream_server_password_input, "beagle_stream_server_password", allow_empty=True) or self._random_secret(26)
         guest_password_input = str(payload.get("guest_password", ""))
         guest_password = self._validate_password(guest_password_input, "guest_password", allow_empty=True) or self._random_secret(20)
         identity_locale = self._normalize_locale(payload.get("identity_locale", ""))
@@ -947,17 +947,17 @@ class UbuntuBeagleProvisioningService:
         callback_url = self._public_ubuntu_beagle_complete_url(completion_token)
         public_stream: dict[str, Any] | None = None
         public_base_port = self._allocate_public_stream_base_port(node, vmid)
-        sunshine_port: int | None = None
+        beagle_stream_server_port: int | None = None
         network_mac = self.ubuntu_beagle_network_mac(vmid)
         ha_policy = self._normalize_ha_policy(payload.get("ha_policy", ""))
         resolved_public_stream_host = self._current_public_stream_host()
         if resolved_public_stream_host and public_base_port is not None:
             ports = self._stream_ports(public_base_port)
-            sunshine_port = ports["moonlight_port"]
+            beagle_stream_server_port = ports["beagle_stream_client_port"]
             public_stream = {
                 "host": resolved_public_stream_host,
-                "moonlight_port": ports["moonlight_port"],
-                "sunshine_api_url": f"https://{resolved_public_stream_host}:{ports['sunshine_api_port']}",
+                "beagle_stream_client_port": ports["beagle_stream_client_port"],
+                "beagle_stream_server_api_url": f"https://{resolved_public_stream_host}:{ports['beagle_stream_server_api_port']}",
             }
         seed_path = self.build_ubuntu_beagle_seed_iso(
             vmid=vmid,
@@ -972,9 +972,9 @@ class UbuntuBeagleProvisioningService:
             software_packages=software_packages,
             package_presets=package_presets,
             network_mac=network_mac,
-            sunshine_user=sunshine_user,
-            sunshine_password=sunshine_password,
-            sunshine_port=sunshine_port,
+            beagle_stream_server_user=beagle_stream_server_user,
+            beagle_stream_server_password=beagle_stream_server_password,
+            beagle_stream_server_port=beagle_stream_server_port,
             callback_url=callback_url,
         )
         # Keep storage references reproducible across providers by ensuring
@@ -1012,8 +1012,8 @@ class UbuntuBeagleProvisioningService:
                 "os_profile": os_profile,
                 "guest_user": guest_user,
                 "guest_password": guest_password,
-                "sunshine_user": sunshine_user,
-                "sunshine_password": sunshine_password,
+                "beagle_stream_server_user": beagle_stream_server_user,
+                "beagle_stream_server_password": beagle_stream_server_password,
                 "desktop": str(desktop["id"]),
                 "desktop_label": str(desktop["label"]),
                 "package_presets": package_presets,
@@ -1097,11 +1097,11 @@ class UbuntuBeagleProvisioningService:
             {
                 "guest_password": guest_password,
                 "password": guest_password,
-                "sunshine_username": sunshine_user,
-                "sunshine_password": sunshine_password,
-                "sunshine_pin": self._random_pin(),
+                "beagle_stream_server_username": beagle_stream_server_user,
+                "beagle_stream_server_password": beagle_stream_server_password,
+                "beagle_stream_server_pin": self._random_pin(),
                 "thinclient_password": self._random_secret(22),
-                "sunshine_pinned_pubkey": "",
+                "beagle_stream_server_pinned_pubkey": "",
                 "usb_tunnel_port": self._default_usb_tunnel_port(vmid),
                 "node": node,
                 "vmid": vmid,
@@ -1145,8 +1145,8 @@ class UbuntuBeagleProvisioningService:
             "guest_password": guest_password,
             "identity_locale": identity_locale,
             "identity_keymap": identity_keymap,
-            "sunshine_user": str(secret.get("sunshine_username", "") or sunshine_user),
-            "sunshine_password": str(secret.get("sunshine_password", "") or sunshine_password),
+            "beagle_stream_server_user": str(secret.get("beagle_stream_server_username", "") or beagle_stream_server_user),
+            "beagle_stream_server_password": str(secret.get("beagle_stream_server_password", "") or beagle_stream_server_password),
             "completion_token": completion_token,
             "completion_url": callback_url,
             "started": start_after_create,
@@ -1212,12 +1212,12 @@ class UbuntuBeagleProvisioningService:
             provisioning_state = self._latest_ubuntu_beagle_state_for_vmid(vmid, include_credentials=True) or {}
             credentials = provisioning_state.get("credentials") if isinstance(provisioning_state.get("credentials"), dict) else {}
             guest_password = str(credentials.get("guest_password", "") or "").strip()
-            sunshine_user = str(secret.get("sunshine_username", "") or "").strip()
-            sunshine_password = str(secret.get("sunshine_password", "") or "").strip()
-            if not sunshine_user or not sunshine_password:
-                raise RuntimeError("sunshine credentials are missing for guest reconfiguration")
+            beagle_stream_server_user = str(secret.get("beagle_stream_server_username", "") or "").strip()
+            beagle_stream_server_password = str(secret.get("beagle_stream_server_password", "") or "").strip()
+            if not beagle_stream_server_user or not beagle_stream_server_password:
+                raise RuntimeError("beagle-stream-server credentials are missing for guest reconfiguration")
             configure_command = [
-                str(self._configure_sunshine_guest_script),
+                str(self._configure_beagle_stream_server_guest_script),
                 "--beagle-host",
                 "localhost",
                 "--vmid",
@@ -1236,17 +1236,17 @@ class UbuntuBeagleProvisioningService:
                 str(desktop["label"]),
                 "--desktop-session",
                 str(desktop["session"]),
-                "--sunshine-user",
-                sunshine_user,
-                "--sunshine-password",
-                sunshine_password,
+                "--beagle-stream-server-user",
+                beagle_stream_server_user,
+                "--beagle-stream-server-password",
+                beagle_stream_server_password,
             ]
-            sunshine_pin = str(secret.get("sunshine_pin", "") or "").strip()
-            if sunshine_pin:
-                configure_command.extend(["--sunshine-pin", sunshine_pin])
-            moonlight_port = str(current_profile.get("moonlight_port", "") or "").strip()
-            if moonlight_port.isdigit():
-                configure_command.extend(["--sunshine-port", moonlight_port])
+            beagle_stream_server_pin = str(secret.get("beagle_stream_server_pin", "") or "").strip()
+            if beagle_stream_server_pin:
+                configure_command.extend(["--beagle-stream-server-pin", beagle_stream_server_pin])
+            beagle_stream_client_port = str(current_profile.get("beagle_stream_client_port", "") or "").strip()
+            if beagle_stream_client_port.isdigit():
+                configure_command.extend(["--beagle-stream-server-port", beagle_stream_client_port])
             public_stream_host = str(current_profile.get("stream_host", "") or "").strip()
             if public_stream_host:
                 configure_command.extend(["--public-stream-host", public_stream_host])

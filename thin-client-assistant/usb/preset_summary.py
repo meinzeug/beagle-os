@@ -10,7 +10,7 @@ import shlex
 import subprocess
 from typing import Any
 
-STREAMING_MODES = ("MOONLIGHT", "SPICE", "NOVNC", "DCV")
+STREAMING_MODES = ("BEAGLE_STREAM_CLIENT", "SPICE", "NOVNC", "DCV")
 
 
 def _string(value: Any) -> str:
@@ -19,8 +19,8 @@ def _string(value: Any) -> str:
 
 def mode_available(name: str, preset: dict[str, Any]) -> bool:
     mode = str(name or "").strip().upper()
-    if mode == "MOONLIGHT":
-        return bool(_string(preset.get("moonlight_host")))
+    if mode == "BEAGLE_STREAM_CLIENT":
+        return bool(_string(preset.get("beagle_stream_client_host")))
     if mode == "SPICE":
         return bool(_string(preset.get("spice_url"))) or (
             bool(_string(preset.get("beagle_host")))
@@ -55,9 +55,9 @@ def build_preset_summary(
     spice_password: str,
     novnc_url: str,
     dcv_url: str,
-    moonlight_host: str,
+    beagle_stream_client_host: str,
     default_mode: str,
-    moonlight_app: str,
+    beagle_stream_client_app: str,
 ) -> dict[str, Any]:
     raw = {
         "preset_active": bool(preset_active),
@@ -73,9 +73,9 @@ def build_preset_summary(
         "spice_password": _string(spice_password),
         "novnc_url": _string(novnc_url),
         "dcv_url": _string(dcv_url),
-        "moonlight_host": _string(moonlight_host),
+        "beagle_stream_client_host": _string(beagle_stream_client_host),
         "default_mode": _string(default_mode),
-        "moonlight_app": _string(moonlight_app),
+        "beagle_stream_client_app": _string(beagle_stream_client_app),
     }
     return {
         "preset_active": raw["preset_active"],
@@ -84,8 +84,8 @@ def build_preset_summary(
         "beagle_host": raw["beagle_host"],
         "beagle_node": raw["beagle_node"],
         "beagle_vmid": raw["beagle_vmid"],
-        "moonlight_host": raw["moonlight_host"],
-        "moonlight_app": raw["moonlight_app"],
+        "beagle_stream_client_host": raw["beagle_stream_client_host"],
+        "beagle_stream_client_app": raw["beagle_stream_client_app"],
         "default_mode": raw["default_mode"],
         "available_modes": available_modes(raw),
     }
@@ -192,9 +192,9 @@ def _add_preset_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--spice-password", default="")
     parser.add_argument("--novnc-url", default="")
     parser.add_argument("--dcv-url", default="")
-    parser.add_argument("--moonlight-host", default="")
+    parser.add_argument("--beagle-stream-client-host", default="")
     parser.add_argument("--default-mode", default="")
-    parser.add_argument("--moonlight-app", default="Desktop")
+    parser.add_argument("--beagle-stream-client-app", default="Desktop")
 
 
 def _summary_from_args(args: argparse.Namespace) -> dict[str, Any]:
@@ -212,9 +212,9 @@ def _summary_from_args(args: argparse.Namespace) -> dict[str, Any]:
         spice_password=args.spice_password,
         novnc_url=args.novnc_url,
         dcv_url=args.dcv_url,
-        moonlight_host=args.moonlight_host,
+        beagle_stream_client_host=args.beagle_stream_client_host,
         default_mode=args.default_mode,
-        moonlight_app=args.moonlight_app,
+        beagle_stream_client_app=args.beagle_stream_client_app,
     )
 
 

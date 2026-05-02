@@ -98,7 +98,7 @@ export function filteredInventory() {
       profile.vmid,
       profile.beagle_role,
       profile.assignment_source,
-      profile.moonlight_app
+      profile.beagle_stream_client_app
     ].join(' ').toLowerCase();
     return haystack.indexOf(query) !== -1;
   }).sort((left, right) => {
@@ -207,14 +207,14 @@ export function exportInventoryCsv() {
       profile.status,
       profile.beagle_role,
       profile.stream_host,
-      profile.moonlight_port,
+      profile.beagle_stream_client_port,
       profile.identity_hostname
     ].map((cell) => {
       const textValue = String(cell == null ? '' : cell);
       return '"' + textValue.replace(/"/g, '""') + '"';
     }).join(',');
   });
-  rows.unshift('"vmid","name","node","status","role","stream_host","moonlight_port","hostname"');
+  rows.unshift('"vmid","name","node","status","role","stream_host","beagle_stream_client_port","hostname"');
   downloadTextFile('beagle-inventory.csv', rows.join('\n') + '\n', 'text/csv;charset=utf-8');
   inventoryHooks.setBanner('Inventar als CSV exportiert.', 'ok');
 }
@@ -376,7 +376,7 @@ export function renderInventory() {
       (isSelected ? ' vm-card-selected' : '');
     const role = roleOf(vm) || 'unassigned';
     const streamInfo = profile.stream_host
-      ? escapeHtml(profile.stream_host) + (profile.moonlight_port ? ':' + escapeHtml(profile.moonlight_port) : '')
+      ? escapeHtml(profile.stream_host) + (profile.beagle_stream_client_port ? ':' + escapeHtml(profile.beagle_stream_client_port) : '')
       : '';
     const nodeInfo = profile.node
       ? '<span class="vm-card-node"><span class="vm-card-node-label">Node</span><span class="vm-card-node-value">' + escapeHtml(profile.node) + '</span></span>'

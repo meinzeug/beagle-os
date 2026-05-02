@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-moonlight_curl_bin() {
+beagle_stream_client_curl_bin() {
 	printf '%s\n' "${BEAGLE_CURL_BIN:-curl}"
 }
 
-moonlight_hostname_value() {
+beagle_stream_client_hostname_value() {
 	local hostname_bin="${BEAGLE_HOSTNAME_BIN:-hostname}"
 
 	if [[ -n "${PVE_THIN_CLIENT_HOSTNAME:-}" ]]; then
@@ -15,8 +15,8 @@ moonlight_hostname_value() {
 	"$hostname_bin"
 }
 
-moonlight_client_device_name() {
-	printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_CLIENT_NAME:-$(moonlight_hostname_value)}"
+beagle_stream_client_device_name() {
+	printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_NAME:-$(beagle_stream_client_hostname_value)}"
 }
 
 json_bool() {
@@ -34,22 +34,22 @@ print("1" if bool(data.get("status")) else "0")
 PY
 }
 
-submit_sunshine_pin() {
+submit_beagle_stream_server_pin() {
 	local api_url username password pin name response
 	local curl_bin
 	local -a curl_args tls_args
 
-	api_url="$(selected_sunshine_api_url)"
-	username="${PVE_THIN_CLIENT_SUNSHINE_USERNAME:-}"
-	password="${PVE_THIN_CLIENT_SUNSHINE_PASSWORD:-}"
-	pin="${PVE_THIN_CLIENT_SUNSHINE_PIN:-}"
-	name="$(moonlight_client_device_name)"
+	api_url="$(selected_beagle_stream_server_api_url)"
+	username="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME:-}"
+	password="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD:-}"
+	pin="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN:-}"
+	name="$(beagle_stream_client_device_name)"
 
 	[[ -n "$api_url" && -n "$username" && -n "$password" && -n "$pin" ]] || return 1
 
-	curl_bin="$(moonlight_curl_bin)"
+	curl_bin="$(beagle_stream_client_curl_bin)"
 	curl_args=("$curl_bin" -fsS --connect-timeout 2 --max-time 4 --user "${username}:${password}" -H 'Content-Type: application/json')
-	mapfile -t tls_args < <(beagle_curl_tls_args "$api_url" "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}")
+	mapfile -t tls_args < <(beagle_curl_tls_args "$api_url" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_CA_CERT:-}")
 	curl_args+=("${tls_args[@]}")
 
 	response="$(
@@ -61,20 +61,20 @@ submit_sunshine_pin() {
 	[[ "$(json_bool "$response")" == "1" ]]
 }
 
-sunshine_apps_json() {
+beagle_stream_server_apps_json() {
 	local api_url username password
 	local curl_bin
 	local -a curl_args tls_args
 
-	api_url="$(selected_sunshine_api_url)"
-	username="${PVE_THIN_CLIENT_SUNSHINE_USERNAME:-}"
-	password="${PVE_THIN_CLIENT_SUNSHINE_PASSWORD:-}"
+	api_url="$(selected_beagle_stream_server_api_url)"
+	username="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME:-}"
+	password="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD:-}"
 
 	[[ -n "$api_url" && -n "$username" && -n "$password" ]] || return 1
 
-	curl_bin="$(moonlight_curl_bin)"
+	curl_bin="$(beagle_stream_client_curl_bin)"
 	curl_args=("$curl_bin" -fsS --connect-timeout 2 --max-time 5 --user "${username}:${password}")
-	mapfile -t tls_args < <(beagle_curl_tls_args "$api_url" "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}")
+	mapfile -t tls_args < <(beagle_curl_tls_args "$api_url" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_CA_CERT:-}")
 	curl_args+=("${tls_args[@]}")
 
 	"${curl_args[@]}" "${api_url%/}/api/apps"
@@ -84,7 +84,7 @@ resolve_stream_app_name() {
 	local requested apps_json
 
 	requested="${1:-Desktop}"
-	apps_json="$(sunshine_apps_json 2>/dev/null || true)"
+	apps_json="$(beagle_stream_server_apps_json 2>/dev/null || true)"
 
 	python3 - "$requested" "$apps_json" <<'PY'
 import json

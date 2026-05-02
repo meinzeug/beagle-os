@@ -24,7 +24,7 @@ Beagle OS soll funktional so maechtig sein wie etablierte Enterprise-Virtualisie
 
 ## Zielplattform-Domaenen
 - Virtualization Runtime: VM lifecycle, templates, clone, snapshots, migration
-- Streaming Runtime: Sunshine/Moonlight Orchestrierung pro VM inkl. Credentials, readiness, session health
+- Streaming Runtime: Beagle Stream Server/Beagle Stream Client Orchestrierung pro VM inkl. Credentials, readiness, session health
 - Identity & Access: username/password, roles, scopes, audit
 - Storage Plane: lokale und verteilte Storages, policies, protection
 - Network Plane: bridges, VLAN, overlays, policy enforcement

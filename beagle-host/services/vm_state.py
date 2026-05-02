@@ -35,8 +35,8 @@ class VmStateService:
         managed = bool(profile.get("stream_host") or profile.get("assigned_target") or profile.get("expected_profile_name"))
         desired = {
             "stream_host": profile.get("stream_host", ""),
-            "moonlight_port": profile.get("moonlight_port", ""),
-            "moonlight_app": profile.get("moonlight_app", ""),
+            "beagle_stream_client_port": profile.get("beagle_stream_client_port", ""),
+            "beagle_stream_client_app": profile.get("beagle_stream_client_app", ""),
             "network_mode": profile.get("network_mode", ""),
             "egress_mode": profile.get("egress_mode", ""),
             "identity_timezone": profile.get("identity_timezone", ""),
@@ -71,8 +71,8 @@ class VmStateService:
             drift.append({"field": field, "label": label, "expected": expected, "actual": actual})
 
         compare("stream_host", str(profile.get("stream_host", "")), str(summary.get("stream_host", "")), "Stream Host")
-        compare("moonlight_port", str(profile.get("moonlight_port", "")), str(summary.get("moonlight_port", "")), "Moonlight Port")
-        compare("moonlight_app", str(profile.get("moonlight_app", "")), str(summary.get("moonlight_app", "")), "Moonlight App")
+        compare("beagle_stream_client_port", str(profile.get("beagle_stream_client_port", "")), str(summary.get("beagle_stream_client_port", "")), "Beagle Stream Client Port")
+        compare("beagle_stream_client_app", str(profile.get("beagle_stream_client_app", "")), str(summary.get("beagle_stream_client_app", "")), "Beagle Stream Client App")
         compare("network_mode", str(profile.get("network_mode", "")), str(summary.get("network_mode", "")), "Network Mode")
         compare("egress_mode", str(profile.get("egress_mode", "")), str(summary.get("egress_mode", "")), "Egress Mode")
         compare("identity_timezone", str(profile.get("identity_timezone", "")), str(summary.get("identity_timezone", "")), "Timezone")
@@ -84,9 +84,9 @@ class VmStateService:
                 return
             alerts.append({"field": field, "label": label, "expected": expected, "actual": actual})
 
-        alert("moonlight_target_reachable", "Target Reachable", str(summary.get("moonlight_target_reachable", "")))
-        alert("sunshine_api_reachable", "Sunshine API Reachable", str(summary.get("sunshine_api_reachable", "")))
-        alert("runtime_binary_available", "Moonlight Runtime", str(summary.get("runtime_binary_available", "")))
+        alert("beagle_stream_client_target_reachable", "Target Reachable", str(summary.get("beagle_stream_client_target_reachable", "")))
+        alert("beagle_stream_server_api_reachable", "Beagle Stream Server API Reachable", str(summary.get("beagle_stream_server_api_reachable", "")))
+        alert("runtime_binary_available", "Beagle Stream Client Runtime", str(summary.get("runtime_binary_available", "")))
         vm_fingerprint = profile.get("vm_fingerprint", {}) if isinstance(profile.get("vm_fingerprint"), dict) else {}
         if str(vm_fingerprint.get("risk_level", "")).lower() == "high":
             alerts.append({

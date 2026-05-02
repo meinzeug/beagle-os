@@ -130,9 +130,9 @@ paths:
       responses:
         '200':
           description: Success
-  /api/v1/endpoints/moonlight/register:
+  /api/v1/endpoints/beagle-stream-client/register:
     get:
-      operationId: get_api_v1_endpoints_moonlight_register
+      operationId: get_api_v1_endpoints_beagle_stream_client_register
       responses:
         '200':
           description: Success

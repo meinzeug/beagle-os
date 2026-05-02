@@ -144,7 +144,7 @@ def run_service_smoke(temp_dir: Path) -> str:
             backing_image="",
             cpu_cores=2,
             memory_mib=4096,
-            software_packages=("xfce4", "sunshine"),
+            software_packages=("xfce4", "beagle-stream-server"),
             notes="synthetic smoke image",
         )
     )

@@ -53,13 +53,13 @@ beagle_launch_kiosk_session() {
   done
 }
 
-beagle_launch_moonlight_session() {
+beagle_launch_beagle_stream_client_session() {
   local launcher_status=127
-  local relaunch_enabled="${PVE_THIN_CLIENT_MOONLIGHT_RELAUNCH:-1}"
-  local relaunch_delay="${PVE_THIN_CLIENT_MOONLIGHT_RELAUNCH_DELAY_SECONDS:-3}"
+  local relaunch_enabled="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RELAUNCH:-1}"
+  local relaunch_delay="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RELAUNCH_DELAY_SECONDS:-3}"
 
   while true; do
-    if "$SCRIPT_DIR/launch-moonlight.sh"; then
+    if "$SCRIPT_DIR/launch-beagle-stream-client.sh"; then
       launcher_status=0
     else
       launcher_status=$?
@@ -68,14 +68,14 @@ beagle_launch_moonlight_session() {
     if [[ "$relaunch_enabled" != "1" ]]; then
       return "$launcher_status"
     fi
-    if [[ "${PVE_THIN_CLIENT_MOONLIGHT_QUIT_AFTER:-0}" == "1" && "$launcher_status" -eq 0 ]]; then
+    if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_QUIT_AFTER:-0}" == "1" && "$launcher_status" -eq 0 ]]; then
       return 0
     fi
 
     if [[ "$launcher_status" -eq 0 ]]; then
-      beagle_log_event "launch-session.moonlight" "state=clean-exit relaunch=1"
+      beagle_log_event "launch-session.beagle-stream-client" "state=clean-exit relaunch=1"
     else
-      beagle_log_event "launch-session.moonlight" "state=failed status=${launcher_status} relaunch=1"
+      beagle_log_event "launch-session.beagle-stream-client" "state=failed status=${launcher_status} relaunch=1"
     fi
     sleep "$relaunch_delay"
   done

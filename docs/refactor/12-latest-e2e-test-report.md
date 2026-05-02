@@ -1,6 +1,6 @@
 # E2E Test Report — April 18, 2026
 
-**Objective**: Full E2E validation of Beagle OS v6.6.7 standalone mode with nested VM provisioning, Ubuntu Beagle Desktop VM creation, and Moonlight streaming capability.
+**Objective**: Full E2E validation of Beagle OS v6.6.7 standalone mode with nested VM provisioning, Ubuntu Beagle Desktop VM creation, and Beagle Stream Client streaming capability.
 
 **Status**: **IN PROGRESS** — Critical infrastructure validated; VMs still building.
 
@@ -47,7 +47,7 @@
 1. Wait for VM 101 first-boot completion (~30-60 min more, nested KVM)
 2. Download USB installer for VM 101
 3. Boot beaglethinclient to desktop
-4. Pair Moonlight with Sunshine
+4. Pair Beagle Stream Client with Beagle Stream Server
 5. Screenshot streaming verification
 6. Final git commit
 
@@ -107,7 +107,7 @@ beagle)
 |------|------|----|----|
 | Host (hypervisor) | Test harness | — | beagleserver, beaglethinclient |
 | beagleserver (VM 98) | Beagle OS Host (standalone) | 192.168.122.127 | ↓ |
-| ↳ VM 101 (ubuntu-beagle-101) | Ubuntu Beagle Desktop (XFCE+Sunshine) | 10.77.x.x (beagle net) | — |
+| ↳ VM 101 (ubuntu-beagle-101) | Ubuntu Beagle Desktop (XFCE+Beagle Stream Server) | 10.77.x.x (beagle net) | — |
 
 ### Network Layout
 
@@ -133,7 +133,7 @@ beagle)
    ↓
 5. Autoinstall finish: Reboot VM 101
    ↓
-6. VM 101 first-boot: cloud-init executes /prepare-firstboot (install XFCE, Sunshine)
+6. VM 101 first-boot: cloud-init executes /prepare-firstboot (install XFCE, Beagle Stream Server)
    ↓
 7. First-boot finish: VM calls POST /public/ubuntu-install/{token}/complete
    ↓
@@ -187,7 +187,7 @@ beagle)
 
 - **Admin login**: beagle / test123
 - **VM 101 completion token**: lg2D0rNDss0b7gHZSU06emY5LPZC27PV
-- **Sunshine user on VM 101**: sunshine-vm101 / bhEXUsVA5QjGnBWouUmLk99bPN
+- **Beagle Stream Server user on VM 101**: beagle-stream-server-vm101 / bhEXUsVA5QjGnBWouUmLk99bPN
 - **Guest user on VM 101**: beagle / MBrjkmnU6j6gNiN8EEGC
 
 ### Running Processes
@@ -226,9 +226,9 @@ beagle)
   - [ ] Get fresh auth token
   - [ ] Download `/api/v1/vms/101/installer.sh` to beaglethinclient
   - [ ] SSH to beaglethinclient and execute installer
-  - [ ] Pair Moonlight client with Sunshine on VM 101
+  - [ ] Pair Beagle Stream Client client with Beagle Stream Server on VM 101
   - [ ] Screenshot desktop stream
-  - [ ] Verify Sunshine services responding on port 50032-50033 (from `/api/v1/vms`)
+  - [ ] Verify Beagle Stream Server services responding on port 50032-50033 (from `/api/v1/vms`)
 - [ ] If `provisioning.status == "installing"`:
   - [ ] Continue polling; estimate 30-60 more mins
   - [ ] Optionally check `/var/log/libvirt/qemu/beagle-101.log` for errors
@@ -256,7 +256,7 @@ b545a95 (prior) publish(release): v6.6.7 artifacts + README
 
 **Beagle OS v6.6.7 standalone mode is functionally operational.** Critical infrastructure (control plane, API, auth, libvirt, VM provisioning) is working. Two focused bug fixes have addressed auth bootstrap and libvirt package gaps. End-to-end provisioning flow is in progress and on track.
 
-**Next agent**: Continue monitoring VM 101 autoinstall (async loop running), then complete Moonlight streaming test when VM is ready.
+**Next agent**: Continue monitoring VM 101 autoinstall (async loop running), then complete Beagle Stream Client streaming test when VM is ready.
 
 ---
 

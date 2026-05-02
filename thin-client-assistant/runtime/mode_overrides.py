@@ -26,11 +26,11 @@ def resolve_runtime_mode_overrides(
 ) -> dict[str, str]:
     requested = str(requested_mode or "").strip().lower()
     client_mode = requested or str(current_client_mode or "").strip()
-    mode = str(current_mode or "MOONLIGHT").strip() or "MOONLIGHT"
+    mode = str(current_mode or "BEAGLE_STREAM_CLIENT").strip() or "BEAGLE_STREAM_CLIENT"
     boot_profile = str(current_boot_profile or "").strip()
 
-    if requested in {"desktop", "moonlight"}:
-        mode = "MOONLIGHT"
+    if requested in {"desktop", "beagle-stream-client"}:
+        mode = "BEAGLE_STREAM_CLIENT"
         boot_profile = "desktop"
     elif requested in {"gaming", "kiosk"}:
         mode = "KIOSK"

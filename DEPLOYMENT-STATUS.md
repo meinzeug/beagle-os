@@ -11,10 +11,10 @@
 Beagle OS is **functionally complete** and **strategically ready** for production end-to-end flows:
 
 1. **Host Layer**: Beagle Server with Beagle, systemd services, and beagle-host control plane running
-2. **VM Layer**: Desktop VMs created, provisioned, Sunshine streaming configured
+2. **VM Layer**: Desktop VMs created, provisioned, Beagle Stream Server streaming configured
 3. **Installer Layer**: USB installer scripts ready for download (beagle-os-installer.sh)
-4. **Thin Client Layer**: beaglethinclient exists; Moonlight capable
-5. **Streaming**: Sunshine endpoint live; firewall rules configured; XFCE desktop ready
+4. **Thin Client Layer**: beaglethinclient exists; Beagle Stream Client capable
+5. **Streaming**: Beagle Stream Server endpoint live; firewall rules configured; XFCE desktop ready
 
 ---
 
@@ -32,13 +32,13 @@ Beagle OS is **functionally complete** and **strategically ready** for productio
 - **beagle-193, 194, 195**: Desktop VMs configured
   - OS: Ubuntu 22.04 LTS
   - Desktop: XFCE4
-  - Streaming: Sunshine configured on port 50064
-  - Sunshine Status: ✓ Running (port 50064 active)
+  - Streaming: Beagle Stream Server configured on port 50064
+  - Beagle Stream Server Status: ✓ Running (port 50064 active)
 
 ### Network
 - **Host Network**: 192.168.122.x (libvirt NAT)
 - **Isolated Desktop Network**: 192.168.123.x (used by desktop VMs for internal routing)
-- **Streaming**: Sunshine on 192.168.122.131:50064 (reachable from host)
+- **Streaming**: Beagle Stream Server on 192.168.122.131:50064 (reachable from host)
 - **Port Firewall**: ✓ All streaming ports open
 - **DNS/DHCP**: ✓ Working
 
@@ -56,13 +56,13 @@ Beagle OS is **functionally complete** and **strategically ready** for productio
 | Host installer (ISO) boots | ✓ | Tested; beagle-server-installer.sh works |
 | Control plane API (port 9088) | ✓ | Responsive; auth working |
 | VM provisioning API | ✓ | Creates VMs; auto-configures systemd |
-| Sunshine streaming (port 50064) | ✓ | Active; firewall rules applied |
+| Beagle Stream Server streaming (port 50064) | ✓ | Active; firewall rules applied |
 | XFCE desktop environment | ✓ | Running on VMs; GPU acceleration possible |
 | USB installer download | ✓ | beagle-os-installer.sh available for download |
 | Thin client VM existence | ✓ | beaglethinclient created via API |
 | Network isolation (desktop VMs) | ✓ | Configured; 192.168.123.x working |
 | systemd integration | ✓ | beagle-manager, provisioner auto-starting |
-| Security: Secret storage | ✓ | Sunshine credentials in /etc/beagle (restricted) |
+| Security: Secret storage | ✓ | Beagle Stream Server credentials in /etc/beagle (restricted) |
 
 ---
 
@@ -75,10 +75,10 @@ Beagle OS is **functionally complete** and **strategically ready** for productio
 - **Fix**: Production hosts should have dedicated lab isolation or cloud scaling
 
 ### 2. **Streaming Test Incomplete**
-- **Issue**: Moonlight streaming test timed out (network startup delays)
+- **Issue**: Beagle Stream Client streaming test timed out (network startup delays)
 - **Impact**: End-to-end test didn't complete; streaming assumed working
-- **Evidence**: Sunshine daemon live, firewall open, credentials configured
-- **Workaround**: Manual test: `moonlight stream -1080 60 192.168.122.131:50064 Desktop` from thinclient
+- **Evidence**: Beagle Stream Server daemon live, firewall open, credentials configured
+- **Workaround**: Manual test: `beagle-stream-client stream -1080 60 192.168.122.131:50064 Desktop` from thinclient
 - **Status**: **NOT A BLOCKER** — all prerequisites in place
 
 ### 3. **VM Boot Sequencing**
@@ -101,13 +101,13 @@ Beagle OS is **functionally complete** and **strategically ready** for productio
 1. **Test End-to-End Flow** (manual, 30 min)
    - Download `beagle-os-installer.sh` via Web UI → copy to USB
    - Boot thin client from USB → verify Beagle OS loads
-   - Pair Moonlight: `moonlight pair 192.168.122.131`
-   - Stream Desktop: `moonlight stream -1080 60 192.168.122.131:50064 Desktop`
+   - Pair Beagle Stream Client: `beagle-stream-client pair 192.168.122.131`
+   - Stream Desktop: `beagle-stream-client stream -1080 60 192.168.122.131:50064 Desktop`
 
 2. **Verify VM Auto-Provisioning** (5 min)
    - Create 2–3 more VMs via API: `curl -X POST http://127.0.0.1:9088/api/v1/provisioning/vms ...`
    - Confirm systemd services start automatically
-   - Check Sunshine port opens on each new VM
+   - Check Beagle Stream Server port opens on each new VM
 
 3. **Monitor System Load** (ongoing)
    - Watch:  `top`, `free`, `virsh list`
@@ -139,10 +139,10 @@ Beagle OS is **functionally complete** and **strategically ready** for productio
 
 ### 🚀 Future Enhancements
 
-- [ ] Auto-pairing of thin clients (Moonlight API integration)
+- [ ] Auto-pairing of thin clients (Beagle Stream Client API integration)
 - [ ] Multi-host orchestration (Beagle cluster mode)
 - [ ] Web UI dashboard for live VM/streaming metrics
-- [ ] Automated failover for Sunshine if primary VM fails
+- [ ] Automated failover for Beagle Stream Server if primary VM fails
 - [ ] Compression profiles for low-bandwidth networks
 
 ---
@@ -152,7 +152,7 @@ Beagle OS is **functionally complete** and **strategically ready** for productio
 | Item | Path | Note |
 |------|------|------|
 | API Config | `/etc/beagle/beagle-manager.env` | Token + DB URL |
-| Sunshine Credentials | `/var/lib/beagle/vm-{NID}/secrets` | Username, PIN, cert |
+| Beagle Stream Server Credentials | `/var/lib/beagle/vm-{NID}/secrets` | Username, PIN, cert |
 | Installer Script | `/tmp/beagle-os-installer.sh` | Downloaded via Web UI |
 | VM Images | `/var/lib/libvirt/images/beagle-os-*.img` | Template + instances |
 | Logs | `/var/log/beagle-*` | Manager, provisioner, reconciler |
@@ -167,7 +167,7 @@ Beagle OS is **functionally complete** and **strategically ready** for productio
 - ✓ Host boot + systemd init
 - ✓ Control plane API startup (port 9088)
 - ✓ VM creation request accepted
-- ✓ Sunshine daemon alive (port 50064)
+- ✓ Beagle Stream Server daemon alive (port 50064)
 - ✓ Network isolation working
 - ✓ Firewall rules applied
 - ✓ Desktop environment responsive

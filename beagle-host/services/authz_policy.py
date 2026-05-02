@@ -110,7 +110,7 @@ class AuthzPolicyService:
                 or route.endswith("/usb/attach")
                 or route.endswith("/usb/detach")
                 or route.endswith("/migrate")
-                or route.endswith("/sunshine-access")
+                or route.endswith("/beagle-stream-server-access")
             ):
                 return "vm:mutate"
             if route.startswith("/api/v1/virtualization/vms/") and route.endswith("/power"):

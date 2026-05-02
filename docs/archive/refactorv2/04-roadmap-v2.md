@@ -49,7 +49,7 @@ Akzeptanz: Pool von 5 Floating-Desktops, User loggt sich ein und bekommt einen f
 
 ## 7.1.1 — "Streaming v2 mit Apollo + Virtual Display"
 
-- Apollo (oder Apollo-Patches in Sunshine) als bevorzugter Backend.
+- Apollo (oder Apollo-Patches in Beagle Stream Server) als bevorzugter Backend.
 - Virtual Display Linux (Apollo-Roadmap-Konform: SudoVDA-Aequivalent oder DRM-virtual).
 - Auto-Pairing per signiertem Token aus Web Console (kein manueller PIN).
 - Encoder-Auswahl pro Pool/VM/Profil.

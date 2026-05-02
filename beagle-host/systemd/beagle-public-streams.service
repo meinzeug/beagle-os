@@ -1,5 +1,5 @@
 [Unit]
-Description=Reconcile Beagle public Moonlight/Sunshine streams
+Description=Reconcile Beagle public Beagle Stream Client/Beagle Stream Server streams
 After=network-online.target
 Wants=network-online.target
 

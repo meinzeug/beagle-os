@@ -16,12 +16,12 @@ DESKTOP_WALLPAPER_FILENAME="__DESKTOP_WALLPAPER_FILENAME__"
 SOFTWARE_PACKAGES="__SOFTWARE_PACKAGES__"
 PACKAGE_PRESETS="__PACKAGE_PRESETS__"
 NETWORK_MAC="__NETWORK_MAC__"
-SUNSHINE_USER="__SUNSHINE_USER__"
-SUNSHINE_PASSWORD="__SUNSHINE_PASSWORD__"
-SUNSHINE_PORT="__SUNSHINE_PORT__"
+BEAGLE_STREAM_SERVER_USER="__BEAGLE_STREAM_SERVER_USER__"
+BEAGLE_STREAM_SERVER_PASSWORD="__BEAGLE_STREAM_SERVER_PASSWORD__"
+BEAGLE_STREAM_SERVER_PORT="__BEAGLE_STREAM_SERVER_PORT__"
 BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"
-SUNSHINE_URL="__SUNSHINE_URL__"
-SUNSHINE_ORIGIN_WEB_UI_ALLOWED="__SUNSHINE_ORIGIN_WEB_UI_ALLOWED__"
+BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"
+BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED="__BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED__"
 CALLBACK_URL="__CALLBACK_URL__"
 CALLBACK_PINNED_PUBKEY="__CALLBACK_PINNED_PUBKEY__"
 FAILED_CALLBACK_URL="${CALLBACK_URL%/complete}/failed"
@@ -766,17 +766,17 @@ post_completion_callback() {
   return 1
 }
 
-wait_for_sunshine_ready() {
+wait_for_beagle_stream_server_ready() {
   local -a expected_ports=()
 
-  if [[ -n "$SUNSHINE_PORT" ]]; then
-    expected_ports=("$SUNSHINE_PORT" "$((SUNSHINE_PORT + 1))")
+  if [[ -n "$BEAGLE_STREAM_SERVER_PORT" ]]; then
+    expected_ports=("$BEAGLE_STREAM_SERVER_PORT" "$((BEAGLE_STREAM_SERVER_PORT + 1))")
   else
     expected_ports=("47984" "47990")
   fi
 
   for _ in {1..180}; do
-    if systemctl is-active --quiet beagle-sunshine.service; then
+    if systemctl is-active --quiet beagle-stream-server.service; then
       for port in "${expected_ports[@]}"; do
         if ss -H -ltn "( sport = :${port} )" 2>/dev/null | grep -q LISTEN; then
           return 0
@@ -784,7 +784,7 @@ wait_for_sunshine_ready() {
       done
     fi
     if (( _ % 30 == 0 )); then
-      /usr/local/bin/beagle-sunshine-healthcheck --repair-only >/dev/null 2>&1 || true
+      /usr/local/bin/beagle-stream-server-healthcheck --repair-only >/dev/null 2>&1 || true
     fi
     sleep 2
   done
@@ -837,18 +837,12 @@ if [[ ! -f "$DONE_FILE" ]]; then
   TMPDIR_WORK="$(mktemp -d)"
   stream_runtime_variant="beagle-stream-server"
   stream_runtime_package_url="$BEAGLE_STREAM_SERVER_URL"
-  if ! curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$BEAGLE_STREAM_SERVER_URL"; then
-    echo "BeagleStream server package unavailable, falling back to upstream Sunshine package." >&2
-    stream_runtime_variant="sunshine-fallback"
-    stream_runtime_package_url="$SUNSHINE_URL"
-    curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"
-  fi
-  apt_retry apt-get install -y --no-install-recommends "$TMPDIR_WORK/sunshine.deb"
+  curl -fsSLo "$TMPDIR_WORK/beagle-stream-server.deb" "$BEAGLE_STREAM_SERVER_URL"
+  apt_retry apt-get install -y --no-install-recommends "$TMPDIR_WORK/beagle-stream-server.deb"
   repair_interrupted_dpkg
   write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"
-  # Detect the sunshine binary path — beagle-stream-server installs to /usr/bin/sunshine,
-  # the upstream fallback deb installs to /usr/local/bin/sunshine.
-  SUNSHINE_EXEC="$(command -v sunshine 2>/dev/null || echo /usr/bin/sunshine)"
+  # Detect the beagle-stream-server binary path across package layout changes.
+  BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
   configure_system_locale
   configure_keyboard_layout
   install_desktop_wallpaper
@@ -868,7 +862,7 @@ EOF
   install -d -m 0700 -o "$GUEST_USER" -g "$GUEST_USER" \
     "/home/$GUEST_USER/.config" \
     "/home/$GUEST_USER/.config/autostart" \
-    "/home/$GUEST_USER/.config/sunshine" \
+    "/home/$GUEST_USER/.config/beagle-stream-server" \
     "/home/$GUEST_USER/.local" \
     "/home/$GUEST_USER/.local/state" \
     "/home/$GUEST_USER/.local/state/wireplumber" \
@@ -953,21 +947,21 @@ fi
 EOF
   chmod 0755 "/home/$GUEST_USER/.xprofile"
 
-  cat > "/home/$GUEST_USER/.config/sunshine/sunshine.conf" <<EOF
-sunshine_name = ${GUEST_USER}-sunshine
+  cat > "/home/$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" <<EOF
+beagle_stream_server_name = ${GUEST_USER}-beagle-stream-server
 min_log_level = info
-origin_web_ui_allowed = ${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}
-origin_pin_allowed = ${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}
+origin_web_ui_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
+origin_pin_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
 encoder = software
 sw_preset = superfast
 sw_tune = zerolatency
 capture = x11
 hevc_mode = 0
 av1_mode = 0
-$( if [[ -n "$SUNSHINE_PORT" ]]; then printf 'port = %s\n' "$SUNSHINE_PORT"; fi )
+$( if [[ -n "$BEAGLE_STREAM_SERVER_PORT" ]]; then printf 'port = %s\n' "$BEAGLE_STREAM_SERVER_PORT"; fi )
 EOF
 
-  cat > "/home/$GUEST_USER/.config/sunshine/apps.json" <<'EOF'
+  cat > "/home/$GUEST_USER/.config/beagle-stream-server/apps.json" <<'EOF'
 {
   "env": {
     "PATH": "$(PATH):$(HOME)/.local/bin"
@@ -1019,9 +1013,9 @@ EOF
   configure_default_browser
   configure_plasma_profile
 
-  cat > /etc/systemd/system/beagle-sunshine.service <<EOF
+  cat > /etc/systemd/system/beagle-stream-server.service <<EOF
 [Unit]
-Description=Beagle Sunshine
+Description=Beagle Beagle Stream Server
 After=network-online.target display-manager.service graphical.target sound.target
 Wants=network-online.target
 StartLimitIntervalSec=0
@@ -1038,7 +1032,7 @@ Environment=XDG_RUNTIME_DIR=/run/user/${GUEST_UID}
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${GUEST_UID}/bus
 Environment=PULSE_SERVER=unix:/run/user/${GUEST_UID}/pulse/native
 ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/${GUEST_UID}/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/${GUEST_USER}/.Xauthority && -d /run/user/${GUEST_UID} && -S /run/user/${GUEST_UID}/bus && -S "\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xrandr --query >/dev/null 2>&1; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
-ExecStart=${SUNSHINE_EXEC}
+ExecStart=${BEAGLE_STREAM_SERVER_EXEC}
 Restart=always
 RestartSec=2
 TimeoutStartSec=210
@@ -1048,34 +1042,34 @@ WantedBy=graphical.target
 EOF
 
   install -d -m 0755 /etc/beagle
-  cat > /etc/beagle/sunshine-healthcheck.env <<EOF
-SUNSHINE_USER=${SUNSHINE_USER}
-SUNSHINE_PASSWORD=${SUNSHINE_PASSWORD}
-SUNSHINE_PORT=${SUNSHINE_PORT}
+  cat > /etc/beagle/beagle-stream-server-healthcheck.env <<EOF
+BEAGLE_STREAM_SERVER_USER=${BEAGLE_STREAM_SERVER_USER}
+BEAGLE_STREAM_SERVER_PASSWORD=${BEAGLE_STREAM_SERVER_PASSWORD}
+BEAGLE_STREAM_SERVER_PORT=${BEAGLE_STREAM_SERVER_PORT}
 GUEST_USER=${GUEST_USER}
 GUEST_UID=${GUEST_UID}
 EOF
-  chmod 0600 /etc/beagle/sunshine-healthcheck.env
+  chmod 0600 /etc/beagle/beagle-stream-server-healthcheck.env
 
-  cat > /usr/local/bin/beagle-sunshine-healthcheck <<'EOF'
+  cat > /usr/local/bin/beagle-stream-server-healthcheck <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_FILE="/etc/beagle/sunshine-healthcheck.env"
+ENV_FILE="/etc/beagle/beagle-stream-server-healthcheck.env"
 [[ -r "$ENV_FILE" ]] || exit 1
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
-SUNSHINE_USER="${SUNSHINE_USER:-sunshine}"
-SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD:-}"
-SUNSHINE_PORT="${SUNSHINE_PORT:-}"
+BEAGLE_STREAM_SERVER_USER="${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
+BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD:-}"
+BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-}"
 GUEST_USER="${GUEST_USER:-beagle}"
 GUEST_UID="${GUEST_UID:-$(id -u "$GUEST_USER" 2>/dev/null || echo 1000)}"
 
 repair="${1:-}"
 api_port=47990
-if [[ -n "$SUNSHINE_PORT" ]]; then
-  api_port="$((SUNSHINE_PORT + 1))"
+if [[ -n "$BEAGLE_STREAM_SERVER_PORT" ]]; then
+  api_port="$((BEAGLE_STREAM_SERVER_PORT + 1))"
 fi
 
 ensure_runtime() {
@@ -1088,24 +1082,24 @@ ensure_runtime() {
 restart_stack() {
   ensure_runtime
   systemctl daemon-reload >/dev/null 2>&1 || true
-  systemctl enable beagle-sunshine.service >/dev/null 2>&1 || true
-  systemctl restart beagle-sunshine.service >/dev/null 2>&1 || true
+  systemctl enable beagle-stream-server.service >/dev/null 2>&1 || true
+  systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true
 }
 
 ensure_timer() {
-  systemctl enable --now beagle-sunshine-healthcheck.timer >/dev/null 2>&1 || true
+  systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
 }
 
 is_api_ready() {
-  [[ -n "$SUNSHINE_PASSWORD" ]] || return 1
-  # Sunshine uses a self-signed cert on 127.0.0.1; --insecure disables CN check
+  [[ -n "$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
+  # Beagle Stream Server uses a self-signed cert on 127.0.0.1; --insecure disables CN check
   # while --pinnedpubkey (when set) ensures cryptographic pinning.
-  # tls-bypass-allowlist: loopback Sunshine API, self-signed cert, pubkey-pinned
-  local _tls_args=(--insecure)  # tls-bypass-allowlist: Sunshine loopback
-  [[ -n "${SUNSHINE_PINNED_PUBKEY:-}" ]] && _tls_args+=(--pinnedpubkey "$SUNSHINE_PINNED_PUBKEY")
+  # tls-bypass-allowlist: loopback Beagle Stream Server API, self-signed cert, pubkey-pinned
+  local _tls_args=(--insecure)  # tls-bypass-allowlist: Beagle Stream Server loopback
+  [[ -n "${BEAGLE_STREAM_SERVER_PINNED_PUBKEY:-}" ]] && _tls_args+=(--pinnedpubkey "$BEAGLE_STREAM_SERVER_PINNED_PUBKEY")
   curl -fsS --connect-timeout 3 --max-time 5 \
     "${_tls_args[@]}" \
-    --user "${SUNSHINE_USER}:${SUNSHINE_PASSWORD}" \
+    --user "${BEAGLE_STREAM_SERVER_USER}:${BEAGLE_STREAM_SERVER_PASSWORD}" \
     "https://127.0.0.1:${api_port}/api/apps" >/dev/null
 }
 
@@ -1116,12 +1110,12 @@ if [[ "$repair" == "--repair-only" ]]; then
   exit 0
 fi
 
-if ! systemctl is-active --quiet beagle-sunshine.service; then
+if ! systemctl is-active --quiet beagle-stream-server.service; then
   restart_stack
   exit 0
 fi
 
-if ! pgrep -x sunshine >/dev/null 2>&1; then
+if ! pgrep -x beagle-stream-server >/dev/null 2>&1; then
   restart_stack
   exit 0
 fi
@@ -1130,29 +1124,29 @@ if ! is_api_ready; then
   restart_stack
 fi
 EOF
-  chmod 0755 /usr/local/bin/beagle-sunshine-healthcheck
+  chmod 0755 /usr/local/bin/beagle-stream-server-healthcheck
 
-  cat > /etc/systemd/system/beagle-sunshine-healthcheck.service <<'EOF'
+  cat > /etc/systemd/system/beagle-stream-server-healthcheck.service <<'EOF'
 [Unit]
-Description=Beagle Sunshine Healthcheck and Repair
-After=network-online.target beagle-sunshine.service
+Description=Beagle Beagle Stream Server Healthcheck and Repair
+After=network-online.target beagle-stream-server.service
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/beagle-sunshine-healthcheck
+ExecStart=/usr/local/bin/beagle-stream-server-healthcheck
 EOF
 
-  cat > /etc/systemd/system/beagle-sunshine-healthcheck.timer <<EOF
+  cat > /etc/systemd/system/beagle-stream-server-healthcheck.timer <<EOF
 [Unit]
-Description=Run Beagle Sunshine healthcheck periodically
+Description=Run Beagle Beagle Stream Server healthcheck periodically
 
 [Timer]
 OnBootSec=30s
 OnUnitActiveSec=30s
 Persistent=true
 RandomizedDelaySec=5s
-Unit=beagle-sunshine-healthcheck.service
+Unit=beagle-stream-server-healthcheck.service
 
 [Install]
 WantedBy=timers.target
@@ -1182,11 +1176,11 @@ TimeoutStartSec=210
 WantedBy=graphical.target
 EOF
 
-  systemctl disable sunshine >/dev/null 2>&1 || true
-  systemctl stop sunshine >/dev/null 2>&1 || true
-  su - "$GUEST_USER" -c "systemctl --user disable --now sunshine.service >/dev/null 2>&1 || true" || true
-  rm -f "/home/$GUEST_USER/.config/autostart/sunshine.desktop"
-  pkill -u "$GUEST_USER" -x sunshine >/dev/null 2>&1 || true
+  systemctl disable beagle-stream-server >/dev/null 2>&1 || true
+  systemctl stop beagle-stream-server >/dev/null 2>&1 || true
+  su - "$GUEST_USER" -c "systemctl --user disable --now beagle-stream-server.service >/dev/null 2>&1 || true" || true
+  rm -f "/home/$GUEST_USER/.config/autostart/beagle-stream-server.desktop"
+  pkill -u "$GUEST_USER" -x beagle-stream-server >/dev/null 2>&1 || true
   systemctl disable gdm3 >/dev/null 2>&1 || true
   printf '/usr/sbin/lightdm\n' > /etc/X11/default-display-manager
   ln -sf /usr/lib/systemd/system/lightdm.service /etc/systemd/system/display-manager.service
@@ -1194,7 +1188,7 @@ EOF
   systemctl enable qemu-guest-agent.service >/dev/null 2>&1 || true
   systemctl set-default graphical.target >/dev/null
 
-  su - "$GUEST_USER" -c "HOME=/home/$GUEST_USER XDG_CONFIG_HOME=/home/$GUEST_USER/.config sunshine --creds '$SUNSHINE_USER' '$SUNSHINE_PASSWORD'"
+  su - "$GUEST_USER" -c "HOME=/home/$GUEST_USER XDG_CONFIG_HOME=/home/$GUEST_USER/.config beagle-stream-server --creds '$BEAGLE_STREAM_SERVER_USER' '$BEAGLE_STREAM_SERVER_PASSWORD'"
   systemctl restart display-manager.service >/dev/null 2>&1 || true
   loginctl enable-linger "$GUEST_USER" >/dev/null 2>&1 || true
   for _ in {1..60}; do
@@ -1204,12 +1198,12 @@ EOF
     fi
     sleep 1
   done
-  systemctl enable --now beagle-sunshine.service >/dev/null 2>&1 || true
-  systemctl enable --now beagle-sunshine-healthcheck.timer >/dev/null 2>&1 || true
+  systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true
+  systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
   systemctl enable beagle-x11vnc.service >/dev/null 2>&1 || true
-  if ! wait_for_sunshine_ready; then
-    echo "WARN: Sunshine did not become ready during firstboot; continuing and leaving repair timer active" >&2
-    /usr/local/bin/beagle-sunshine-healthcheck --repair-only >/dev/null 2>&1 || true
+  if ! wait_for_beagle_stream_server_ready; then
+    echo "WARN: Beagle Stream Server did not become ready during firstboot; continuing and leaving repair timer active" >&2
+    /usr/local/bin/beagle-stream-server-healthcheck --repair-only >/dev/null 2>&1 || true
   fi
 
   touch "$DONE_FILE"

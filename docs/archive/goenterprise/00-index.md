@@ -23,7 +23,7 @@ Zielversion: **Beagle OS 8.x** (Enterprise Tier)
 
 ### Beagle OS Alleinstellungsmerkmale (heute bereits vorhanden)
 
-1. **BeagleStream (Moonlight/Sunshine Fork)** — Niedrigste Latenz aller VDI-Protokolle (~1-3ms intern), Gaming-grade. **WireGuard-Overhead: +0.003ms** (gemessen srv1, 24.04.2026)
+1. **BeagleStream (Beagle Stream Client/Beagle Stream Server Fork)** — Niedrigste Latenz aller VDI-Protokolle (~1-3ms intern), Gaming-grade. **WireGuard-Overhead: +0.003ms** (gemessen srv1, 24.04.2026)
 2. **WireGuard Zero-Trust Mesh** — Jedes Gerät im verschlüsselten Tunnel. Hardware-beschleunigt (AES+AVX2+VAES auf srv1). Latenz-neutral.
 3. **Eigenes Thin-Client-OS** — Bootet auf beliebiger x86-Hardware, QR-Enrollment, A/B-Update, TPM, WireGuard-Key automatisch beim Enrollment
 4. **Vollständig Open Source + Self-Hosted** — DSGVO-konform, kein Vendor Lock-in, kein Cloud-Zwang
@@ -40,7 +40,7 @@ Zielversion: **Beagle OS 8.x** (Enterprise Tier)
 
 | Plan | Name | Priorität | Version |
 |---|---|---|---|
-| [01](./01-moonlight-vdi-protocol.md) | **BeagleStream**: Sunshine/Moonlight Fork + WireGuard-Mesh | **SOFORT** | 8.0.0 |
+| [01](./01-beagle-stream-client-vdi-protocol.md) | **BeagleStream**: Beagle Stream Server/Beagle Stream Client Fork + WireGuard-Mesh | **SOFORT** | 8.0.0 |
 | [02](./02-zero-trust-thin-client.md) | Zero-Trust Thin-Client: WireGuard Enrollment + MDM | **SOFORT** | 8.0.0 |
 | [03](./03-gaming-kiosk-pools.md) | Gaming-Kiosk-Pool-Management (Esports/Schulen/Militär) | **SOFORT** | 8.0.1 |
 | [04](./04-ai-smart-scheduler.md) | KI-basierter VM-Scheduler (Lernender Placement-Algo) | Q3 2026 | 8.1.0 |
@@ -56,7 +56,7 @@ Zielversion: **Beagle OS 8.x** (Enterprise Tier)
 ## Zeitplan (Grob)
 
 ```
-2026 Q2 (Mai-Jun)  → Plan 01 + 02 + 03 (Moonlight VDI + Zero-Trust + Gaming Pools)
+2026 Q2 (Mai-Jun)  → Plan 01 + 02 + 03 (Beagle Stream Client VDI + Zero-Trust + Gaming Pools)
 2026 Q3 (Jul-Sep)  → Plan 04 + 05 (AI Scheduler + Cost Transparency)
 2026 Q4 (Okt-Dez) → Plan 06 + 07 (Session Handover + Fleet Intelligence)
 2027 Q1 (Jan-Mär)  → Plan 08 + 09 (All-in-One Installer + Energy Dashboard)
@@ -68,7 +68,7 @@ Zielversion: **Beagle OS 8.x** (Enterprise Tier)
 ## Architekturprinzipien GoEnterprise
 
 1. **Kein Cloud-Zwang** — Vollständig On-Premises betreibbar. Optional Hybrid.
-2. **BeagleStream = Open Protocol** — GPL v3 Fork von Sunshine+Moonlight, eigene Broker-API, WireGuard-integriert. Kein proprietäres HDX/BLAST/RDP.
+2. **BeagleStream = Open Protocol** — GPL v3 Fork von Beagle Stream Server+Beagle Stream Client, eigene Broker-API, WireGuard-integriert. Kein proprietäres HDX/BLAST/RDP.
 3. **Zero-Trust by Default via WireGuard** — Kein Endgerät wird vertraut. WireGuard-Mesh beim Enrollment automatisch aufgebaut. Overhead: **+0.003ms** (getestet). Kein Gerät ohne Schlüssel bekommt eine Session.
 4. **Metriken für alles** — Jede VM, jede Session, jedes Endgerät produziert Metriken. Kein Blindflug.
 5. **Self-Healing** — Defekte Thin-Clients, hängende VMs, ausgefallene Nodes werden automatisch erkannt und behoben.
@@ -79,7 +79,7 @@ Zielversion: **Beagle OS 8.x** (Enterprise Tier)
 ## Einstieg für neue Agents
 
 1. Diese Datei lesen (fertig).
-2. `01-moonlight-vdi-protocol.md` lesen — BeagleStream Fork-Plan, erste offene `[ ]`-Checkboxes bearbeiten.
+2. `01-beagle-stream-client-vdi-protocol.md` lesen — BeagleStream Fork-Plan, erste offene `[ ]`-Checkboxes bearbeiten.
 3. WireGuard-Latenztest bereits abgeschlossen: +0.003ms Overhead. Beweis: loopback-Test auf srv1, 24.04.2026.
 4. Für Live-Tests: `ssh srv1.beagle-os.com`.
 4. Nach Abschluss: `[x]` setzen, `docs/refactor/05-progress.md` aktualisieren.

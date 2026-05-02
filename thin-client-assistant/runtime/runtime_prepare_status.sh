@@ -18,9 +18,9 @@ runtime_required_binary() {
     return 0
   fi
 
-  case "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" in
-    MOONLIGHT)
-      printf '%s\n' "${PVE_THIN_CLIENT_MOONLIGHT_BIN:-moonlight}"
+  case "${PVE_THIN_CLIENT_MODE:-BEAGLE_STREAM_CLIENT}" in
+    BEAGLE_STREAM_CLIENT)
+      printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN:-beagle-stream-client}"
       ;;
     KIOSK)
       printf '%s\n' "/usr/local/sbin/beagle-kiosk-launch"
@@ -84,8 +84,8 @@ write_prepare_runtime_status() {
     --connection-method "${PVE_THIN_CLIENT_CONNECTION_METHOD:-UNSET}" \
     --profile-name "${PVE_THIN_CLIENT_PROFILE_NAME:-UNSET}" \
     --required-binary "$required_binary" \
-    --moonlight-host "${PVE_THIN_CLIENT_MOONLIGHT_HOST:-UNSET}" \
-    --moonlight-app "${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}" \
+    --beagle-stream-client-host "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-UNSET}" \
+    --beagle-stream-client-app "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP:-Desktop}" \
     --binary-available "$binary_available" >/dev/null
 
   chmod 0644 "$status_file"

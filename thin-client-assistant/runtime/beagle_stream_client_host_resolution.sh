@@ -18,7 +18,7 @@ raise SystemExit(1)
 PY
 }
 
-resolve_preferred_moonlight_host() {
+resolve_preferred_beagle_stream_client_host() {
   local host resolved
   host="$1"
   [[ -n "$host" ]] || return 0

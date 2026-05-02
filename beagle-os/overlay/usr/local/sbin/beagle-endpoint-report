@@ -73,9 +73,9 @@ manager_token="${BEAGLE_ENDPOINT_MANAGER_TOKEN:-${PVE_THIN_CLIENT_BEAGLE_MANAGER
 vmid="${BEAGLE_ENDPOINT_BEAGLE_VMID:-${PVE_THIN_CLIENT_BEAGLE_VMID:-}}"
 node="${BEAGLE_ENDPOINT_BEAGLE_NODE:-${PVE_THIN_CLIENT_BEAGLE_NODE:-}}"
 profile_name="${BEAGLE_ENDPOINT_PROFILE_NAME:-${PVE_THIN_CLIENT_PROFILE_NAME:-default}}"
-stream_host="${BEAGLE_ENDPOINT_MOONLIGHT_HOST:-${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}}"
-moonlight_port="${BEAGLE_ENDPOINT_MOONLIGHT_PORT:-${PVE_THIN_CLIENT_MOONLIGHT_PORT:-}}"
-moonlight_app="${BEAGLE_ENDPOINT_MOONLIGHT_APP:-${PVE_THIN_CLIENT_MOONLIGHT_APP:-Desktop}}"
+stream_host="${BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_HOST:-${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-}}"
+beagle_stream_client_port="${BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_PORT:-${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT:-}}"
+beagle_stream_client_app="${BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_APP:-${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP:-Desktop}}"
 network_mode="${BEAGLE_ENDPOINT_NETWORK_MODE:-${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}}"
 egress_mode="${BEAGLE_ENDPOINT_EGRESS_MODE:-${PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE:-direct}}"
 identity_hostname="${BEAGLE_ENDPOINT_IDENTITY_HOSTNAME:-${PVE_THIN_CLIENT_IDENTITY_HOSTNAME:-}}"
@@ -108,8 +108,8 @@ export BEAGLE_REPORT_NODE="$node"
 export BEAGLE_REPORT_TIMESTAMP="$timestamp"
 export BEAGLE_REPORT_PROFILE_NAME="$profile_name"
 export BEAGLE_REPORT_STREAM_HOST="$stream_host"
-export BEAGLE_REPORT_MOONLIGHT_PORT="$moonlight_port"
-export BEAGLE_REPORT_MOONLIGHT_APP="$moonlight_app"
+export BEAGLE_REPORT_BEAGLE_STREAM_CLIENT_PORT="$beagle_stream_client_port"
+export BEAGLE_REPORT_BEAGLE_STREAM_CLIENT_APP="$beagle_stream_client_app"
 export BEAGLE_REPORT_NETWORK_MODE="$network_mode"
 export BEAGLE_REPORT_EGRESS_MODE="$egress_mode"
 export BEAGLE_REPORT_IDENTITY_HOSTNAME="$identity_hostname"
@@ -175,8 +175,8 @@ payload = {
     "node": os.environ["BEAGLE_REPORT_NODE"],
     "reported_at": os.environ["BEAGLE_REPORT_TIMESTAMP"],
     "stream_host": os.environ.get("BEAGLE_REPORT_STREAM_HOST") or "",
-    "moonlight_port": os.environ.get("BEAGLE_REPORT_MOONLIGHT_PORT") or "",
-    "moonlight_app": os.environ.get("BEAGLE_REPORT_MOONLIGHT_APP") or "Desktop",
+    "beagle_stream_client_port": os.environ.get("BEAGLE_REPORT_BEAGLE_STREAM_CLIENT_PORT") or "",
+    "beagle_stream_client_app": os.environ.get("BEAGLE_REPORT_BEAGLE_STREAM_CLIENT_APP") or "Desktop",
     "network_mode": os.environ.get("BEAGLE_REPORT_NETWORK_MODE") or "dhcp",
     "egress_mode": os.environ.get("BEAGLE_REPORT_EGRESS_MODE") or "direct",
     "health": health,

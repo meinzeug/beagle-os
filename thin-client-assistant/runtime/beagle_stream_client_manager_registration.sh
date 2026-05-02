@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-build_moonlight_manager_registration_payload() {
+build_beagle_stream_client_manager_registration_payload() {
   local client_cert="${1:-}"
   local device_name="${2:-}"
 
@@ -15,7 +15,7 @@ print(json.dumps({
 PY
 }
 
-build_moonlight_stream_prepare_payload() {
+build_beagle_stream_client_stream_prepare_payload() {
   local resolution="${1:-}"
   local app="${2:-Desktop}"
 
@@ -30,7 +30,7 @@ print(json.dumps({
 PY
 }
 
-build_moonlight_pair_token_payload() {
+build_beagle_stream_client_pair_token_payload() {
   local device_name="${1:-}"
 
   python3 - "$device_name" <<'PY'
@@ -43,7 +43,7 @@ print(json.dumps({
 PY
 }
 
-build_moonlight_pair_exchange_payload() {
+build_beagle_stream_client_pair_exchange_payload() {
   local pairing_token="${1:-}"
 
   python3 - "$pairing_token" <<'PY'
@@ -56,7 +56,7 @@ print(json.dumps({
 PY
 }
 
-fetch_moonlight_current_session_via_manager() {
+fetch_beagle_stream_client_current_session_via_manager() {
   local response_file="${1:-}"
   local manager_url manager_token manager_pin manager_ca_cert curl_bin session_id vmid url http_status
   local -a curl_args tls_args
@@ -78,16 +78,16 @@ fetch_moonlight_current_session_via_manager() {
     url="${url}?vmid=${vmid}"
   fi
 
-  curl_bin="$(moonlight_curl_bin)"
+  curl_bin="$(beagle_stream_client_curl_bin)"
   curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 20 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}")
   mapfile -t tls_args < <(beagle_curl_tls_args "$url" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
-  http_status="$(${curl_args[@]} "$url" || true)"
+  http_status="$("${curl_args[@]}" "$url" || true)"
   [[ "$http_status" == "200" ]]
 }
 
-parse_moonlight_pair_token_response() {
+parse_beagle_stream_client_pair_token_response() {
   local response_file="${1:-}"
 
   python3 - "$response_file" <<'PY'
@@ -110,7 +110,7 @@ print(expires_at)
 PY
 }
 
-register_moonlight_client_via_manager() {
+register_beagle_stream_client_via_manager() {
   local manager_url manager_token manager_pin manager_ca_cert device_name client_cert response_file payload_file http_status
   local curl_bin
   local -a curl_args tls_args
@@ -119,32 +119,32 @@ register_moonlight_client_via_manager() {
   manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
   manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
   manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
-  device_name="$(moonlight_client_device_name)"
+  device_name="$(beagle_stream_client_device_name)"
 
   [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
-  client_cert="$(extract_moonlight_certificate_pem 2>/dev/null || true)"
+  client_cert="$(extract_beagle_stream_client_certificate_pem 2>/dev/null || true)"
   [[ -n "$client_cert" ]] || return 1
 
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
-  curl_bin="$(moonlight_curl_bin)"
+  curl_bin="$(beagle_stream_client_curl_bin)"
   curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 30 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
-  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/moonlight/register" "$manager_pin" "$manager_ca_cert")
+  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/register" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
 
-  build_moonlight_manager_registration_payload "$client_cert" "$device_name" >"$payload_file"
+  build_beagle_stream_client_manager_registration_payload "$client_cert" "$device_name" >"$payload_file"
 
   http_status="$(
-    "${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/moonlight/register" || true
+    "${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/beagle-stream-client/register" || true
   )"
   if [[ "$http_status" != "201" ]]; then
     rm -f "$payload_file"
     rm -f "$response_file"
     return 1
   fi
-  if ! sync_moonlight_host_from_manager_response "$response_file"; then
+  if ! sync_beagle_stream_client_host_from_manager_response "$response_file"; then
     rm -f "$payload_file"
     rm -f "$response_file"
     return 1
@@ -154,7 +154,7 @@ register_moonlight_client_via_manager() {
   return 0
 }
 
-prepare_moonlight_stream_via_manager() {
+prepare_beagle_stream_client_stream_via_manager() {
   local resolution="${1:-}"
   local app="${2:-Desktop}"
   local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status
@@ -172,22 +172,22 @@ prepare_moonlight_stream_via_manager() {
 
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
-  curl_bin="$(moonlight_curl_bin)"
+  curl_bin="$(beagle_stream_client_curl_bin)"
   curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 30 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
-  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/moonlight/prepare-stream" "$manager_pin" "$manager_ca_cert")
+  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/prepare-stream" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
 
-  build_moonlight_stream_prepare_payload "$resolution" "$app" >"$payload_file"
-  http_status="$(${curl_args[@]} --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/moonlight/prepare-stream" || true)"
+  build_beagle_stream_client_stream_prepare_payload "$resolution" "$app" >"$payload_file"
+  http_status="$("${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/beagle-stream-client/prepare-stream" || true)"
 
   rm -f "$payload_file"
   rm -f "$response_file"
   [[ "$http_status" == "200" ]]
 }
 
-request_moonlight_pairing_token_via_manager() {
+request_beagle_stream_client_pairing_token_via_manager() {
   local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status
   local curl_bin device_name
   local -a curl_args tls_args parsed
@@ -198,37 +198,37 @@ request_moonlight_pairing_token_via_manager() {
   manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
   [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
 
-  device_name="$(moonlight_client_device_name)"
+  device_name="$(beagle_stream_client_device_name)"
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
-  curl_bin="$(moonlight_curl_bin)"
+  curl_bin="$(beagle_stream_client_curl_bin)"
   curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 20 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
-  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/moonlight/pair-token" "$manager_pin" "$manager_ca_cert")
+  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-token" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
 
-  build_moonlight_pair_token_payload "$device_name" >"$payload_file"
-  http_status="$(${curl_args[@]} --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/moonlight/pair-token" || true)"
+  build_beagle_stream_client_pair_token_payload "$device_name" >"$payload_file"
+  http_status="$("${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-token" || true)"
   if [[ "$http_status" != "201" ]]; then
     rm -f "$payload_file" "$response_file"
     return 1
   fi
 
-  if ! mapfile -t parsed < <(parse_moonlight_pair_token_response "$response_file"); then
+  if ! mapfile -t parsed < <(parse_beagle_stream_client_pair_token_response "$response_file"); then
     rm -f "$payload_file" "$response_file"
     return 1
   fi
   rm -f "$payload_file" "$response_file"
 
   [[ "${#parsed[@]}" -ge 2 ]] || return 1
-  export PVE_THIN_CLIENT_MOONLIGHT_PAIRING_TOKEN="${parsed[0]}"
-  export PVE_THIN_CLIENT_MOONLIGHT_PAIRING_PIN="${parsed[1]}"
-  export PVE_THIN_CLIENT_MOONLIGHT_PAIRING_EXPIRES_AT="${parsed[2]:-}"
+  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN="${parsed[0]}"
+  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_PIN="${parsed[1]}"
+  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_EXPIRES_AT="${parsed[2]:-}"
   return 0
 }
 
-exchange_moonlight_pairing_token_via_manager() {
+exchange_beagle_stream_client_pairing_token_via_manager() {
   local pairing_token="${1:-}"
   local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status
   local curl_bin
@@ -243,15 +243,15 @@ exchange_moonlight_pairing_token_via_manager() {
 
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
-  curl_bin="$(moonlight_curl_bin)"
+  curl_bin="$(beagle_stream_client_curl_bin)"
   curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 20 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
-  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/moonlight/pair-exchange" "$manager_pin" "$manager_ca_cert")
+  mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-exchange" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
 
-  build_moonlight_pair_exchange_payload "$pairing_token" >"$payload_file"
-  http_status="$(${curl_args[@]} --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/moonlight/pair-exchange" || true)"
+  build_beagle_stream_client_pair_exchange_payload "$pairing_token" >"$payload_file"
+  http_status="$("${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-exchange" || true)"
 
   rm -f "$payload_file" "$response_file"
   [[ "$http_status" == "200" ]]

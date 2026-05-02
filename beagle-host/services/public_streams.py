@@ -65,7 +65,7 @@ class PublicStreamService:
     def explicit_public_stream_base_port(self, config: dict[str, Any] | None) -> int | None:
         vm_config = config if isinstance(config, dict) else {}
         meta = self._parse_description_meta(vm_config.get("description", ""))
-        explicit_port = str(meta.get("beagle-public-moonlight-port", "")).strip()
+        explicit_port = str(meta.get("beagle-public-beagle-stream-client-port", "")).strip()
         if explicit_port.isdigit():
             return int(explicit_port)
         return None

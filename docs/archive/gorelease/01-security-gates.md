@@ -91,7 +91,7 @@ Abnahme:
 - [ ] Enterprise-Piloten nutzen WireGuard-Mesh oder gleichwertig verschluesselten Transport.
 - [ ] Thin-Client Enrollment erzeugt eigene Schluessel; Private Keys verlassen das Geraet nicht.
 - [ ] Broker erzwingt Policy, Pool-Zugehoerigkeit und Session-Status vor Stream-Start.
-- [ ] Sunshine/Moonlight-Pairing ist nachvollziehbar und nicht manuell unsicher.
+- [ ] Beagle Stream Server/Beagle Stream Client-Pairing ist nachvollziehbar und nicht manuell unsicher.
 - [ ] Stream-Health und Session-Ende werden auditierbar erfasst.
 
 Abnahme:

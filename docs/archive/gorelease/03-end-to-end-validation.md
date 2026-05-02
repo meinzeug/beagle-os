@@ -60,7 +60,7 @@ Hardware:
 - [ ] Autoinstall laeuft ohne manuelle Callback-Korrektur durch.
 - [ ] Firstboot-Service meldet Completion selbst.
 - [ ] Guest-Agent/IP-Erkennung funktioniert.
-- [ ] Sunshine/Moonlight-Setup wird automatisch bereit.
+- [ ] Beagle Stream Server/Beagle Stream Client-Setup wird automatisch bereit.
 - [ ] VM Delete/Reset/Snapshot funktionieren.
 
 Hardware:

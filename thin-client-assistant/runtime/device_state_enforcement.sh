@@ -62,8 +62,8 @@ clear_device_runtime_secrets() {
     >/dev/null 2>&1 || true
 
   rm -rf \
-    "${user_home}/.config/Moonlight Game Streaming Project" \
-    "${user_home}/.cache/moonlight" \
+    "${user_home}/.config/Beagle Stream Client Game Streaming Project" \
+    "${user_home}/.cache/beagle-stream-client" \
     "${state_dir}/gfn" \
     >/dev/null 2>&1 || true
 }

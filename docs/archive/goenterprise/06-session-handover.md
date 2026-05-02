@@ -32,7 +32,7 @@ Heute: Session trennen, VM einfrieren, in München neu verbinden (20-60 Sekunden
 ### Schritt 1 — Session-State-Checkpoint
 
 - [x] `beagle-host/services/session_manager.py`: `checkpoint_session(session_id)`:
-  - Speichert aktuellen Session-State: aktiver VM-State (QEMU-Checkpoint), Moonlight-Connection-State, User-Context
+  - Speichert aktuellen Session-State: aktiver VM-State (QEMU-Checkpoint), Beagle Stream Client-Connection-State, User-Context
   - Checkpoint-Datei in `/var/lib/beagle/session-checkpoints/{session_id}.ckpt`
 - [x] Provoke: `providers/beagle/libvirt_provider.py`: `save_vm_state(vmid, checkpoint_path)` via virsh managedsave
 - [x] Tests: `tests/unit/test_session_checkpoint.py`
@@ -42,14 +42,14 @@ Heute: Session trennen, VM einfrieren, in München neu verbinden (20-60 Sekunden
 - [x] `beagle-host/services/session_manager.py`: `transfer_session(session_id, target_node)`:
   - Checkpoint zu Ziel-Node übertragen (rsync/SCP über Management-Netzwerk)
   - VM auf Quell-Node stoppen, auf Ziel-Node aus Checkpoint restoren
-  - Moonlight: neue Verbindung zu Ziel-Node aufbauen, Client bekommt neue Server-IP
+  - Beagle Stream Client: neue Verbindung zu Ziel-Node aufbauen, Client bekommt neue Server-IP
 - [x] `providers/beagle/libvirt_provider.py`: `restore_vm_from_checkpoint(vmid, checkpoint_path)`
 - [x] Tests: `tests/unit/test_session_transfer.py`
 
 ### Schritt 3 — Transparent Client Reconnect
 
 - [x] Session-Broker-Erweiterung (Plan 01, Schritt 1): `GET /api/v1/session/current` gibt immer aktuellen Node zurück
-- [x] Moonlight-Client-OS (Thin-Client): bei Reconnect → Broker fragen, automatisch auf richtigen Node umleiten
+- [x] Beagle Stream Client-Client-OS (Thin-Client): bei Reconnect → Broker fragen, automatisch auf richtigen Node umleiten
 - [x] Max. Unterbrechungszeit-Ziel: <5 Sekunden (Checkpoint + Transfer + Restore + Reconnect)
 - [x] Tests: E2E-Timing-Test: `tests/integration/test_session_handover_timing.py`
 
@@ -71,7 +71,7 @@ Heute: Session trennen, VM einfrieren, in München neu verbinden (20-60 Sekunden
 
 ## Testpflicht nach Abschluss
 
-- [x] Checkpoint: Session-State wird korrekt gespeichert (VM-State + Moonlight-State).
+- [x] Checkpoint: Session-State wird korrekt gespeichert (VM-State + Beagle Stream Client-State).
 - [x] Transfer: Checkpoint von Node A zu Node B transferiert, VM auf B gestartet.
 - [x] Client Reconnect: Client verbindet sich automatisch auf neuen Node, <5s Unterbrechung.
 - [x] Geo-Routing: IP-Wechsel löst automatischen Handover aus.

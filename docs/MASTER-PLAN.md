@@ -27,7 +27,7 @@ Streaming-Plattform mit eigenem Endpoint-OS. Kernbausteine:
   KVM/libvirt-basierte Virtualisierung, Provider-neutrale Services,
   Web Console, Auth/RBAC, Audit, Cluster-Foundation.
 - **Beagle Web Console** (`website/`): einzige Operator-Oberflaeche.
-- **BeagleStream** (Sunshine/Moonlight-Fork-Strategie, Plan GoEnterprise 01):
+- **BeagleStream** (Beagle Stream Server/Beagle Stream Client-Fork-Strategie, Plan GoEnterprise 01):
   Streaming-Protokoll mit WireGuard-Mesh.
 - **Beagle Endpoint OS / Thin Client** (`beagle-os/`, `thin-client-assistant/`):
   eigenes Endpoint-OS, QR-Enrollment, Zero-Trust.
@@ -83,7 +83,7 @@ genau **ein** kanonischer Detailplan. Andere Vorkommen sind Hintergrund.
 
 | Thema | Kanonischer Plan | Sekundaer / Hintergrund |
 |---|---|---|
-| Streaming-Protokoll (BeagleStream) | `archive/goenterprise/01-moonlight-vdi-protocol.md` | `archive/gofuture/11-streaming-v2.md`, `archive/refactorv2/05-streaming-protocol-strategy.md` |
+| Streaming-Protokoll (BeagleStream) | `archive/goenterprise/01-beagle-stream-client-vdi-protocol.md` | `archive/gofuture/11-streaming-v2.md`, `archive/refactorv2/05-streaming-protocol-strategy.md` |
 | Zero-Trust Thin Client + WireGuard | `archive/goenterprise/02-zero-trust-thin-client.md` | `archive/gofuture/19-endpoint-os.md`, `archive/refactorv2/11-endpoint-strategy.md` |
 | Gaming Kiosk Pools | `archive/goenterprise/03-gaming-kiosk-pools.md` | — |
 | Smart Scheduler / Placement | `archive/goenterprise/04-ai-smart-scheduler.md` | `archive/refactorv2/08-ha-cluster.md` |
@@ -168,7 +168,7 @@ sekundaere Plan ist als Hintergrund/Recherche zu lesen, nicht als Auftrag.
 ### In Arbeit / offen (echte Restpunkte)
 
 - **GoEnterprise Plan 01 — Fork**: separater `beagle-stream-server`-Fork
-  (Sunshine-Patches) inkl. .deb-Build und Moonlight-Client-Fork; Phase B/C/D der
+  (Beagle Stream Server-Patches) inkl. .deb-Build und Beagle Stream Client-Client-Fork; Phase B/C/D der
   Stream-Roadmap; WireGuard-Mesh-Latenz-Live-Test (vorheriger Namespace-Sim
   erreichte das +0.01 ms-Threshold nicht); `vpn_required`-Enforcement im Fork.
 - ~~**GoEnterprise Plan 02 — Restpunkte**~~: grafischen Sperrbildschirm live an X11-Session

@@ -3,7 +3,7 @@
 # GoEnterprise Plan 01, Schritt 6
 #
 # Selects the best streaming protocol in order of preference:
-#   1. BeagleStream (Moonlight/Sunshine fork) via WireGuard tunnel (UDP 47998)
+#   1. BeagleStream (Beagle Stream Client/Beagle Stream Server fork) via WireGuard tunnel (UDP 47998)
 #   2. BeagleStream direct (if policy allows and WireGuard unavailable)
 #   3. xRDP via WireGuard tunnel (TCP 3389)
 #   4. Error with diagnostic info
@@ -18,7 +18,7 @@
 #   WG_IFACE          — WireGuard interface name (default: wg-beagle)
 #   PROBE_TIMEOUT_S   — Timeout per probe in seconds (default: 2)
 #   NETWORK_MODE      — vpn_required | vpn_preferred | direct_allowed  (default: vpn_preferred)
-#   MOONLIGHT_BIN     — Path to moonlight binary (default: moonlight)
+#   BEAGLE_STREAM_CLIENT_BIN     — Path to beagle-stream-client binary (default: beagle-stream-client)
 #   XFREERDP_BIN      — Path to xfreerdp binary (default: xfreerdp)
 
 set -euo pipefail
@@ -31,7 +31,7 @@ RDP_PORT="${RDP_PORT:-3389}"
 WG_IFACE="${WG_IFACE:-wg-beagle}"
 PROBE_TIMEOUT_S="${PROBE_TIMEOUT_S:-2}"
 NETWORK_MODE="${NETWORK_MODE:-vpn_preferred}"
-MOONLIGHT_BIN="${MOONLIGHT_BIN:-moonlight}"
+BEAGLE_STREAM_CLIENT_BIN="${BEAGLE_STREAM_CLIENT_BIN:-beagle-stream-client}"
 XFREERDP_BIN="${XFREERDP_BIN:-xfreerdp}"
 
 # ---------------------------------------------------------------------------

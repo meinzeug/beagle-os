@@ -35,7 +35,7 @@ ensure_kiosk_runtime() {
   local boot_mode="${1:-${BOOT_MODE:-}}"
 
   [[ "$boot_mode" == "runtime" ]] || return 0
-  [[ "${PVE_THIN_CLIENT_MODE:-MOONLIGHT}" == "KIOSK" ]] || return 0
+  [[ "${PVE_THIN_CLIENT_MODE:-BEAGLE_STREAM_CLIENT}" == "KIOSK" ]] || return 0
   command -v "$kiosk_install_bin" >/dev/null 2>&1 || return 0
 
   plymouth_status "Preparing Beagle OS Gaming..."

@@ -2,13 +2,13 @@
 
 Verifies the complete auto-pairing flow:
   1. Endpoint requests a pairing token → receives signed token + PIN (no user sees PIN)
-  2. Endpoint exchanges token with Sunshine via API → pairing confirmed automatically
+  2. Endpoint exchanges token with Beagle Stream Server via API → pairing confirmed automatically
   3. Tampered tokens are rejected
   4. Expired tokens are rejected
   5. Wrong VM identity is rejected
   6. Missing pairing_token in exchange is rejected
 
-This ensures that Moonlight clients can pair with Sunshine VMs without any
+This ensures that Beagle Stream Client clients can pair with Beagle Stream Server VMs without any
 manual PIN entry by the user — the PIN is embedded in the token and used
 programmatically.
 """
@@ -118,13 +118,13 @@ def _make_surface(
         attestation_service=_AttestationService(),
         fleet_telemetry_service=None,
         alert_service=None,
-        exchange_moonlight_pairing_token=exchange_fn or _default_exchange,
-        fetch_sunshine_server_identity=lambda vm, guest_user: {},
+        exchange_beagle_stream_client_pairing_token=exchange_fn or _default_exchange,
+        fetch_beagle_stream_server_identity=lambda vm, guest_user: {},
         find_vm=_find,
-        issue_moonlight_pairing_token=issue_fn or _default_issue,
+        issue_beagle_stream_client_pairing_token=issue_fn or _default_issue,
         pool_manager_service=type("PoolManagerStub", (), {"get_pool": staticmethod(lambda pool_id: None)})(),
         prepare_virtual_display_on_vm=lambda vm, res: {"ok": True, "resolution": res, "exitcode": 0, "stdout": "", "stderr": ""},
-        register_moonlight_certificate_on_vm=lambda vm, cert, device_name: {"ok": True},
+        register_beagle_stream_client_certificate_on_vm=lambda vm, cert, device_name: {"ok": True},
         service_name="beagle-control-plane",
         session_manager_service=_SessionManagerStub(),
         store_action_result=lambda node, vmid, payload: None,
@@ -163,8 +163,8 @@ class TestAutoPairingFlow(unittest.TestCase):
     def test_pair_token_issued_without_user_pin_input(self):
         """pair-token endpoint returns a signed token + embedded PIN — no user interaction."""
         surface = _make_surface()
-        resp = _route_post(surface, "/api/v1/endpoints/moonlight/pair-token",
-            identity=_identity(), json_payload={"device_name": "moonlight-client"})
+        resp = _route_post(surface, "/api/v1/endpoints/beagle-stream-client/pair-token",
+            identity=_identity(), json_payload={"device_name": "beagle-stream-client"})
         self.assertEqual(resp["status"], 201)
         pairing = resp["payload"]["pairing"]
         self.assertTrue(pairing["token"])           # token issued
@@ -174,15 +174,15 @@ class TestAutoPairingFlow(unittest.TestCase):
     def test_pair_token_exchange_succeeds_without_user_input(self):
         """pair-exchange endpoint pairs automatically using the token (no user PIN entry)."""
         surface = _make_surface(exchange_ok=True)
-        resp = _route_post(surface, "/api/v1/endpoints/moonlight/pair-exchange",
+        resp = _route_post(surface, "/api/v1/endpoints/beagle-stream-client/pair-exchange",
             identity=_identity(), json_payload={"pairing_token": "auto-pair-token"})
         self.assertEqual(resp["status"], 200)
         self.assertTrue(resp["payload"]["ok"])
 
-    def test_pair_exchange_fails_when_sunshine_rejects(self):
-        """502 returned if Sunshine rejects the token exchange."""
+    def test_pair_exchange_fails_when_beagle_stream_server_rejects(self):
+        """502 returned if Beagle Stream Server rejects the token exchange."""
         surface = _make_surface(exchange_ok=False)
-        resp = _route_post(surface, "/api/v1/endpoints/moonlight/pair-exchange",
+        resp = _route_post(surface, "/api/v1/endpoints/beagle-stream-client/pair-exchange",
             identity=_identity(), json_payload={"pairing_token": "auto-pair-token"})
         self.assertEqual(resp["status"], 502)
         self.assertFalse(resp["payload"]["ok"])
@@ -190,7 +190,7 @@ class TestAutoPairingFlow(unittest.TestCase):
     def test_pair_exchange_missing_token_returns_400(self):
         """pair-exchange without pairing_token field returns 400."""
         surface = _make_surface()
-        resp = _route_post(surface, "/api/v1/endpoints/moonlight/pair-exchange",
+        resp = _route_post(surface, "/api/v1/endpoints/beagle-stream-client/pair-exchange",
             identity=_identity(), json_payload={})
         self.assertEqual(resp["status"], 400)
         self.assertIn("pairing_token", resp["payload"]["error"])
@@ -198,17 +198,17 @@ class TestAutoPairingFlow(unittest.TestCase):
     def test_pair_token_wrong_vm_returns_404(self):
         """pair-token for non-existent VM returns 404."""
         surface = _make_surface()
-        resp = _route_post(surface, "/api/v1/endpoints/moonlight/pair-token",
+        resp = _route_post(surface, "/api/v1/endpoints/beagle-stream-client/pair-token",
             identity=_identity(vmid=9999, node="beagle-0"), json_payload={"device_name": "client"})
         self.assertEqual(resp["status"], 404)
 
     def test_pair_exchange_exception_returns_502(self):
         """Exception in exchange_fn returns 502 (graceful error handling)."""
         def _boom(_vm, _identity, pairing_token):
-            raise ConnectionError("Sunshine unreachable")
+            raise ConnectionError("Beagle Stream Server unreachable")
 
         surface = _make_surface(exchange_fn=_boom)
-        resp = _route_post(surface, "/api/v1/endpoints/moonlight/pair-exchange",
+        resp = _route_post(surface, "/api/v1/endpoints/beagle-stream-client/pair-exchange",
             identity=_identity(), json_payload={"pairing_token": "any-token"})
         self.assertEqual(resp["status"], 502)
 
@@ -222,20 +222,20 @@ class TestAutoPairingFlow(unittest.TestCase):
             return {"ok": True, "token": "tok-5555", "pin": pin, "expires_at": "2026-05-01T00:00:00Z"}
 
         def _exchange(_vm, _identity, pairing_token):
-            # In production, Sunshine receives the PIN from the token automatically
+            # In production, Beagle Stream Server receives the PIN from the token automatically
             return {"ok": pairing_token == "tok-5555"}
 
         surface = _make_surface(issue_fn=_issue, exchange_fn=_exchange)
 
         # Step 1: Endpoint requests pairing token (automated, no user interaction)
-        issue_resp = _route_post(surface, "/api/v1/endpoints/moonlight/pair-token",
-            identity=_identity(), json_payload={"device_name": "moonlight-auto"})
+        issue_resp = _route_post(surface, "/api/v1/endpoints/beagle-stream-client/pair-token",
+            identity=_identity(), json_payload={"device_name": "beagle-stream-client-auto"})
         self.assertEqual(issue_resp["status"], 201)
         token = issue_resp["payload"]["pairing"]["token"]
         self.assertEqual(token, "tok-5555")
 
         # Step 2: Endpoint exchanges token (automated, no user interaction)
-        exchange_resp = _route_post(surface, "/api/v1/endpoints/moonlight/pair-exchange",
+        exchange_resp = _route_post(surface, "/api/v1/endpoints/beagle-stream-client/pair-exchange",
             identity=_identity(), json_payload={"pairing_token": token})
         self.assertEqual(exchange_resp["status"], 200)
         self.assertTrue(exchange_resp["payload"]["ok"])

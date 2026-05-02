@@ -14,7 +14,7 @@ class InstallerScriptService:
         *,
         build_profile: Callable[[Any], dict[str, Any]],
         ensure_vm_secret: Callable[[Any], dict[str, Any]],
-        fetch_sunshine_server_identity: Callable[[Any, str], dict[str, Any]],
+        fetch_beagle_stream_server_identity: Callable[[Any, str], dict[str, Any]],
         get_vm_config: Callable[[str, int], dict[str, Any]],
         hosted_installer_iso_file: Path,
         hosted_installer_template_file: Path,
@@ -33,11 +33,11 @@ class InstallerScriptService:
         raw_shell_installer_template_file: Path,
         raw_windows_installer_template_file: Path,
         safe_hostname: Callable[[str, int], str],
-        sunshine_guest_user: Callable[[Any, dict[str, Any]], str],
+        beagle_stream_server_guest_user: Callable[[Any, dict[str, Any]], str],
     ) -> None:
         self._build_profile = build_profile
         self._ensure_vm_secret = ensure_vm_secret
-        self._fetch_sunshine_server_identity = fetch_sunshine_server_identity
+        self._fetch_beagle_stream_server_identity = fetch_beagle_stream_server_identity
         self._get_vm_config = get_vm_config
         self._hosted_installer_iso_file = hosted_installer_iso_file
         self._hosted_installer_template_file = hosted_installer_template_file
@@ -56,7 +56,7 @@ class InstallerScriptService:
         self._raw_shell_installer_template_file = Path(raw_shell_installer_template_file)
         self._raw_windows_installer_template_file = raw_windows_installer_template_file
         self._safe_hostname = safe_hostname
-        self._sunshine_guest_user = sunshine_guest_user
+        self._beagle_stream_server_guest_user = beagle_stream_server_guest_user
 
     def _read_shell_template(self, preferred_template_file: Path) -> str:
         for candidate in (Path(preferred_template_file), self._raw_shell_installer_template_file):
@@ -99,41 +99,41 @@ class InstallerScriptService:
         beagle_verify_tls = meta.get("beagle-verify-tls", "1")
         expected_profile_name = str(profile.get("expected_profile_name") or f"vm-{vm.vmid}")
         stream_allocation_id = str(profile.get("stream_allocation_id", f"vm-{vm.vmid}") or f"vm-{vm.vmid}")
-        moonlight_host = str(profile.get("stream_host", "") or "")
-        moonlight_local_host = str(profile.get("moonlight_local_host", "") or "")
-        moonlight_port = str(profile.get("moonlight_port", "") or "")
-        sunshine_api_url = str(profile.get("sunshine_api_url", "") or "")
+        beagle_stream_client_host = str(profile.get("stream_host", "") or "")
+        beagle_stream_client_local_host = str(profile.get("beagle_stream_client_local_host", "") or "")
+        beagle_stream_client_port = str(profile.get("beagle_stream_client_port", "") or "")
+        beagle_stream_server_api_url = str(profile.get("beagle_stream_server_api_url", "") or "")
         vm_secret = self._ensure_vm_secret(vm)
-        sunshine_username = self._first_non_empty(
-            meta.get("sunshine-user"),
-            vm_secret.get("sunshine_username", ""),
+        beagle_stream_server_username = self._first_non_empty(
+            meta.get("beagle-stream-server-user"),
+            vm_secret.get("beagle_stream_server_username", ""),
         )
-        sunshine_password = self._first_non_empty(
-            meta.get("sunshine-password"),
-            vm_secret.get("sunshine_password", ""),
+        beagle_stream_server_password = self._first_non_empty(
+            meta.get("beagle-stream-server-password"),
+            vm_secret.get("beagle_stream_server_password", ""),
         )
-        sunshine_pin = self._first_non_empty(
-            meta.get("sunshine-pin"),
-            vm_secret.get("sunshine_pin", ""),
+        beagle_stream_server_pin = self._first_non_empty(
+            meta.get("beagle-stream-server-pin"),
+            vm_secret.get("beagle_stream_server_pin", ""),
         )
-        sunshine_pinned_pubkey = str(vm_secret.get("sunshine_pinned_pubkey", "") or "")
-        guest_user = self._sunshine_guest_user(vm, config)
-        sunshine_server = (
-            self._fetch_sunshine_server_identity(vm, guest_user)
+        beagle_stream_server_pinned_pubkey = str(vm_secret.get("beagle_stream_server_pinned_pubkey", "") or "")
+        guest_user = self._beagle_stream_server_guest_user(vm, config)
+        beagle_stream_server = (
+            self._fetch_beagle_stream_server_identity(vm, guest_user)
             if vm.status == "running" and guest_user
             else {}
         )
-        sunshine_server_cert_pem = str(sunshine_server.get("server_cert_pem", "") or "")
-        sunshine_server_cert_b64 = (
-            base64.b64encode(sunshine_server_cert_pem.encode("utf-8")).decode("ascii")
-            if sunshine_server_cert_pem
+        beagle_stream_server_cert_pem = str(beagle_stream_server.get("server_cert_pem", "") or "")
+        beagle_stream_server_cert_b64 = (
+            base64.b64encode(beagle_stream_server_cert_pem.encode("utf-8")).decode("ascii")
+            if beagle_stream_server_cert_pem
             else ""
         )
 
-        # Moonlight presets must carry Sunshine API credentials for non-interactive auto-pairing.
-        if moonlight_host and not all((sunshine_username, sunshine_password, sunshine_pin)):
+        # Beagle Stream Client presets must carry Beagle Stream Server API credentials for non-interactive auto-pairing.
+        if beagle_stream_client_host and not all((beagle_stream_server_username, beagle_stream_server_password, beagle_stream_server_pin)):
             raise ValueError(
-                f"vm {vm.vmid} is missing Sunshine auto-pair credentials for Moonlight preset generation"
+                f"vm {vm.vmid} is missing Beagle Stream Server auto-pair credentials for Beagle Stream Client preset generation"
             )
 
         return build_common_preset(
@@ -141,7 +141,7 @@ class InstallerScriptService:
             vm_name=vm_name,
             hostname_value=self._safe_hostname(vm_name, vm.vmid),
             autostart=meta.get("thinclient-autostart", "1"),
-            default_mode="MOONLIGHT",
+            default_mode="BEAGLE_STREAM_CLIENT",
             network_mode=meta.get("thinclient-network-mode", "dhcp"),
             network_interface=meta.get("thinclient-network-interface", "eth0"),
             beagle_scheme=beagle_scheme,
@@ -152,22 +152,22 @@ class InstallerScriptService:
             beagle_realm=beagle_realm,
             beagle_verify_tls=beagle_verify_tls,
             beagle_manager_url=self._public_manager_url,
-            moonlight_host="",
-            moonlight_local_host=moonlight_local_host,
-            moonlight_app=str(profile.get("moonlight_app", "Desktop") or "Desktop"),
-            moonlight_bin=meta.get("moonlight-bin", "beagle-stream"),
-            moonlight_resolution=str(profile.get("moonlight_resolution", "auto") or "auto"),
-            moonlight_fps=str(profile.get("moonlight_fps", "60") or "60"),
-            moonlight_bitrate=str(profile.get("moonlight_bitrate", "20000") or "20000"),
-            moonlight_video_codec=str(profile.get("moonlight_video_codec", "H.264") or "H.264"),
-            moonlight_video_decoder=str(profile.get("moonlight_video_decoder", "auto") or "auto"),
-            moonlight_audio_config=str(profile.get("moonlight_audio_config", "stereo") or "stereo"),
-            moonlight_absolute_mouse=meta.get("moonlight-absolute-mouse", "1"),
-            moonlight_quit_after=meta.get("moonlight-quit-after", "0"),
-            sunshine_api_url=sunshine_api_url,
-            sunshine_username=sunshine_username,
-            sunshine_password=sunshine_password,
-            sunshine_pin=sunshine_pin,
+            beagle_stream_client_host="",
+            beagle_stream_client_local_host=beagle_stream_client_local_host,
+            beagle_stream_client_app=str(profile.get("beagle_stream_client_app", "Desktop") or "Desktop"),
+            beagle_stream_client_bin=meta.get("beagle-stream-client-bin", "beagle-stream"),
+            beagle_stream_client_resolution=str(profile.get("beagle_stream_client_resolution", "auto") or "auto"),
+            beagle_stream_client_fps=str(profile.get("beagle_stream_client_fps", "60") or "60"),
+            beagle_stream_client_bitrate=str(profile.get("beagle_stream_client_bitrate", "20000") or "20000"),
+            beagle_stream_client_video_codec=str(profile.get("beagle_stream_client_video_codec", "H.264") or "H.264"),
+            beagle_stream_client_video_decoder=str(profile.get("beagle_stream_client_video_decoder", "auto") or "auto"),
+            beagle_stream_client_audio_config=str(profile.get("beagle_stream_client_audio_config", "stereo") or "stereo"),
+            beagle_stream_client_absolute_mouse=meta.get("beagle-stream-client-absolute-mouse", "1"),
+            beagle_stream_client_quit_after=meta.get("beagle-stream-client-quit-after", "0"),
+            beagle_stream_server_api_url=beagle_stream_server_api_url,
+            beagle_stream_server_username=beagle_stream_server_username,
+            beagle_stream_server_password=beagle_stream_server_password,
+            beagle_stream_server_pin=beagle_stream_server_pin,
             extra_fields=build_runtime_extension_fields(
                 network_static_address=meta.get("thinclient-network-static-address", ""),
                 network_static_prefix=meta.get("thinclient-network-static-prefix", "24"),
@@ -206,14 +206,14 @@ class InstallerScriptService:
                 identity_locale=str(profile.get("identity_locale", "") or ""),
                 identity_keymap=str(profile.get("identity_keymap", "") or ""),
                 identity_chrome_profile=str(profile.get("identity_chrome_profile", "") or ""),
-                moonlight_port=moonlight_port,
-                sunshine_pinned_pubkey=sunshine_pinned_pubkey,
-                sunshine_server_name=str(sunshine_server.get("sunshine_name", "") or ""),
-                sunshine_server_stream_port=str(sunshine_server.get("stream_port", "") or moonlight_port or ""),
-                sunshine_server_uniqueid=str(sunshine_server.get("uniqueid", "") or ""),
-                sunshine_server_cert_b64=sunshine_server_cert_b64,
-                moonlight_host=moonlight_host,
-                sunshine_api_url=sunshine_api_url,
+                beagle_stream_client_port=beagle_stream_client_port,
+                beagle_stream_server_pinned_pubkey=beagle_stream_server_pinned_pubkey,
+                beagle_stream_server_name=str(beagle_stream_server.get("beagle_stream_server_name", "") or ""),
+                beagle_stream_server_stream_port=str(beagle_stream_server.get("stream_port", "") or beagle_stream_client_port or ""),
+                beagle_stream_server_uniqueid=str(beagle_stream_server.get("uniqueid", "") or ""),
+                beagle_stream_server_cert_b64=beagle_stream_server_cert_b64,
+                beagle_stream_client_host=beagle_stream_client_host,
+                beagle_stream_server_api_url=beagle_stream_server_api_url,
             ),
         )
 

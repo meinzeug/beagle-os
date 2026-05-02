@@ -11,7 +11,7 @@ Basis: aktueller Repo-Stand (6.7.0) plus `docs/refactor/02-target-architecture.m
 - Beagle-Host Control Plane in Python (`beagle-host/bin/beagle-control-plane.py`) mit Services unter `beagle-host/services/`.
 - Provider-Neutralitaet ueber `core/provider`, `core/virtualization`, `providers/beagle`, `providers/beagle-host`, `beagle-host/providers/`.
 - VM Lifecycle (create/start/stop/delete/resume) ueber `HostProvider`-Vertrag fuer Libvirt und Beagle host.
-- Provisioning-Flow fuer Ubuntu Desktop + XFCE + Sunshine ueber `services/ubuntu_beagle_provisioning.py` und `templates/ubuntu-beagle/*`.
+- Provisioning-Flow fuer Ubuntu Desktop + XFCE + Beagle Stream Server ueber `services/ubuntu_beagle_provisioning.py` und `templates/ubuntu-beagle/*`.
 - noVNC-Zugriff ueber `services/vm_console_access.py` mit guest-side `x11vnc`-Praeferenz.
 - Tokenisierter noVNC-Proxy ueber `beagle-host/systemd/beagle-novnc-proxy.service`.
 - Lokales Identity + Onboarding + Session-Service (`services/auth_session.py`).
@@ -51,7 +51,7 @@ Sortiert nach Prioritaet fuer den Versionssprung 7.0.
    - Entitlements pro User/Gruppe/Pool.
 
 5. **Streaming-Plane v2**
-   - Apollo-/Sunshine-Integration mit virtual display, HDR, Multi-Monitor, 4:4:4.
+   - Apollo-/Beagle Stream Server-Integration mit virtual display, HDR, Multi-Monitor, 4:4:4.
    - Encoder-Auswahl pro VM-Profil (NVENC/QSV/VAAPI/AMF/Software).
    - Auto-Pairing mit signiertem Token aus Web Console (kein manueller PIN-Tanz).
    - Audio-In + Mikro + Wacom + Gamepad-Redirect dokumentiert und getestet.
@@ -124,7 +124,7 @@ Sortiert nach Prioritaet fuer den Versionssprung 7.0.
 | Cluster + HA + Live-Migration | `beagle-host/services/cluster_*` (neu), `beagle-host/providers/beagle_host_provider.py`, `core/virtualization/` |
 | Storage-Plane | `beagle-host/services/storage_*` (neu), `core/virtualization/` Contracts |
 | Pool/Template-Modell | `beagle-host/services/desktop_pool_*` (neu), `services/ubuntu_beagle_provisioning.py` |
-| Streaming v2 | `services/sunshine_integration.py`, `services/public_streams.py`, neue `services/streaming_*` |
+| Streaming v2 | `services/beagle_stream_server_integration.py`, `services/public_streams.py`, neue `services/streaming_*` |
 | IAM v2 | `services/auth_session.py`, neue `services/identity_oidc.py`, `services/identity_saml.py`, `services/scim_*` |
 | Audit + Recording | `services/audit_log.py` (vorhanden), neue `services/session_recording.py` |
 | Backup + DR | `services/backup_*` (neu), Storage-Pool-Hooks |

@@ -31,7 +31,7 @@ Solange diese existieren, ist der Build-Tree gross, die mentale Last hoch und ne
 
 - [x] **Schritt 1** — Inventur (2026-04-25)
   - [x] `grep -rn 'pvesh\|qm \|/etc/pve\|PVEAuthCookie\|api2/json\|beagle-host' --include='*.py' --include='*.sh' --include='*.md' --include='*.js'`
-  - [x] Pro Treffer dokumentiert (Code/Doku/Skript) — Restposten in `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-sunshine-guest.sh`, `scripts/optimize-beagle-host-vm-for-beagle.sh`, `extension/providers/beagle-host.js`, `thin-client-assistant/usb/pve-thin-client-beagle-host-api.py`, `thin-client-assistant/runtime/connect-beagle-host-spice.sh`. Cert-Default `service_registry.py:209` migriert (siehe Schritt 4).
+  - [x] Pro Treffer dokumentiert (Code/Doku/Skript) — Restposten in `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-beagle-stream-server-guest.sh`, `scripts/optimize-beagle-host-vm-for-beagle.sh`, `extension/providers/beagle-host.js`, `thin-client-assistant/usb/pve-thin-client-beagle-host-api.py`, `thin-client-assistant/runtime/connect-beagle-host-spice.sh`. Cert-Default `service_registry.py:209` migriert (siehe Schritt 4).
 
 - [x] **Schritt 2** — Feature-Parity-Audit (2026-05-XX)
   - [x] Pro Beagle host-Funktion geprüft: VM-Lifecycle, Snapshots, Storage, Netzwerk, Auth, Cluster, Backup, UI, Monitoring
@@ -58,7 +58,7 @@ Solange diese existieren, ist der Build-Tree gross, die mentale Last hoch und ne
   - [x] Entferne historische Verweise nicht (sie zeigen Refactor-Geschichte)
 
 - [x] **Schritt 7** — CI-Guard (2026-04-25)
-  - [x] `.github/workflows/no-legacy-provider-references.yml` mit Allowlist fuer `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-sunshine-guest.sh`, `thin-client-assistant/`, `extension/` ergaenzt.
+  - [x] `.github/workflows/no-legacy-provider-references.yml` mit Allowlist fuer `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-beagle-stream-server-guest.sh`, `thin-client-assistant/`, `extension/` ergaenzt.
   - [x] Lokale Simulation `FOUND=0` nach Cert-Default-Migration und Soft-Disable.
   - [x] Wirft Fehler bei `pvesh|qm |PVEAuthCookie|api2/json|/etc/pve|legacylib` ausserhalb Allowlist.
 

@@ -120,18 +120,18 @@ export function executeAction(action, sourceButton) {
     });
     return;
   }
-  if (action === 'sunshine-ui') {
-    postJson('/vms/' + vmid + '/sunshine-access', {}).then((payload) => {
-      const url = payload && payload.sunshine_access ? payload.sunshine_access.url : '';
+  if (action === 'beagle-stream-server-ui') {
+    postJson('/vms/' + vmid + '/beagle-stream-server-access', {}).then((payload) => {
+      const url = payload && payload.beagle_stream_server_access ? payload.beagle_stream_server_access.url : '';
       if (!url) {
-        throw new Error('No Sunshine URL received');
+        throw new Error('No Beagle Stream Server URL received');
       }
       if (!isSafeExternalUrl(url)) {
-        throw new Error('Unsafe Sunshine URL blocked');
+        throw new Error('Unsafe Beagle Stream Server URL blocked');
       }
       window.open(url, '_blank', 'noopener');
     }).catch((error) => {
-      actionHooks.setBanner('Sunshine access failed: ' + error.message, 'warn');
+      actionHooks.setBanner('Beagle Stream Server access failed: ' + error.message, 'warn');
     });
     return;
   }

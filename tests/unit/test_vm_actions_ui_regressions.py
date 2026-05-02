@@ -78,7 +78,7 @@ def test_vm_detail_surfaces_stream_runtime_variant_and_fallback_state() -> None:
     assert "function streamRuntimeVariantLabel(profile)" in main
     assert "function streamRuntimeVariantBanner(profile)" in main
     assert "BeagleStream Server" in main
-    assert "Sunshine Fallback" in main
+    assert "Beagle Stream Server Fallback" in main
     assert "fieldBlock('Stream-Runtime', streamRuntimeVariantLabel(profile))" in main
     assert "fieldBlock('Stream-Paket', profile.stream_runtime && profile.stream_runtime.package_url ? profile.stream_runtime.package_url : 'n/a')" in main
-    assert "Diese VM laeuft noch im Sunshine-Fallback." in main
+    assert "Diese VM laeuft noch im Beagle Stream Server-Fallback." in main

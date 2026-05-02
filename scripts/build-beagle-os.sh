@@ -18,18 +18,17 @@ RUNTIME_USER="${BEAGLE_OS_USER:-thinclient}"
 IMAGE_SIZE_GB="${BEAGLE_OS_IMAGE_SIZE_GB:-8}"
 JOBS="${BEAGLE_OS_JOBS:-$(nproc)}"
 BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage"
-MOONLIGHT_FALLBACK_URL="https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/Moonlight-6.1.0-x86_64.AppImage"
-MOONLIGHT_URL="${BEAGLE_OS_MOONLIGHT_URL:-$BEAGLE_STREAM_CLIENT_DEFAULT_URL}"
-MOONLIGHT_HOST="${BEAGLE_OS_MOONLIGHT_HOST:-}"
-MOONLIGHT_PORT="${BEAGLE_OS_MOONLIGHT_PORT:-}"
-MOONLIGHT_APP="${BEAGLE_OS_MOONLIGHT_APP:-Desktop}"
-MOONLIGHT_RESOLUTION="${BEAGLE_OS_MOONLIGHT_RESOLUTION:-auto}"
-MOONLIGHT_FPS="${BEAGLE_OS_MOONLIGHT_FPS:-60}"
-MOONLIGHT_BITRATE="${BEAGLE_OS_MOONLIGHT_BITRATE:-20000}"
-SUNSHINE_API_URL="${BEAGLE_OS_SUNSHINE_API_URL:-}"
-SUNSHINE_USERNAME="${BEAGLE_OS_SUNSHINE_USERNAME:-}"
-SUNSHINE_PASSWORD="${BEAGLE_OS_SUNSHINE_PASSWORD:-}"
-SUNSHINE_PIN="${BEAGLE_OS_SUNSHINE_PIN:-}"
+BEAGLE_STREAM_CLIENT_URL="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_URL:-$BEAGLE_STREAM_CLIENT_DEFAULT_URL}"
+BEAGLE_STREAM_CLIENT_HOST="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_HOST:-}"
+BEAGLE_STREAM_CLIENT_PORT="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_PORT:-}"
+BEAGLE_STREAM_CLIENT_APP="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_APP:-Desktop}"
+BEAGLE_STREAM_CLIENT_RESOLUTION="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_RESOLUTION:-auto}"
+BEAGLE_STREAM_CLIENT_FPS="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_FPS:-60}"
+BEAGLE_STREAM_CLIENT_BITRATE="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_BITRATE:-20000}"
+BEAGLE_STREAM_SERVER_API_URL="${BEAGLE_OS_BEAGLE_STREAM_SERVER_API_URL:-}"
+BEAGLE_STREAM_SERVER_USERNAME="${BEAGLE_OS_BEAGLE_STREAM_SERVER_USERNAME:-}"
+BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_OS_BEAGLE_STREAM_SERVER_PASSWORD:-}"
+BEAGLE_STREAM_SERVER_PIN="${BEAGLE_OS_BEAGLE_STREAM_SERVER_PIN:-}"
 MANAGER_URL="${BEAGLE_OS_MANAGER_URL:-}"
 MANAGER_TOKEN="${BEAGLE_OS_MANAGER_TOKEN:-}"
 
@@ -103,7 +102,7 @@ require_root() {
   if [[ "$EUID" -eq 0 ]]; then
     return
   fi
-  exec sudo --preserve-env=BEAGLE_OS_RELEASE,BEAGLE_OS_ARCH,BEAGLE_OS_MIRROR,BEAGLE_OS_KERNEL_VERSION,BEAGLE_OS_KERNEL_LOCALVERSION,BEAGLE_OS_KERNEL_DEB_PATH,BEAGLE_OS_SKIP_KERNEL_BUILD,BEAGLE_OS_HOSTNAME,BEAGLE_OS_USER,BEAGLE_OS_IMAGE_SIZE_GB,BEAGLE_OS_WORK_DIR,BEAGLE_OS_OUT_DIR,BEAGLE_OS_JOBS,BEAGLE_OS_PROFILE_DIR,BEAGLE_OS_MOONLIGHT_URL,BEAGLE_OS_MOONLIGHT_HOST,BEAGLE_OS_MOONLIGHT_PORT,BEAGLE_OS_MOONLIGHT_APP,BEAGLE_OS_MOONLIGHT_RESOLUTION,BEAGLE_OS_MOONLIGHT_FPS,BEAGLE_OS_MOONLIGHT_BITRATE,BEAGLE_OS_SUNSHINE_API_URL,BEAGLE_OS_SUNSHINE_USERNAME,BEAGLE_OS_SUNSHINE_PASSWORD,BEAGLE_OS_SUNSHINE_PIN,BEAGLE_OS_MANAGER_URL,BEAGLE_OS_MANAGER_TOKEN "$0" "$@"
+  exec sudo --preserve-env=BEAGLE_OS_RELEASE,BEAGLE_OS_ARCH,BEAGLE_OS_MIRROR,BEAGLE_OS_KERNEL_VERSION,BEAGLE_OS_KERNEL_LOCALVERSION,BEAGLE_OS_KERNEL_DEB_PATH,BEAGLE_OS_SKIP_KERNEL_BUILD,BEAGLE_OS_HOSTNAME,BEAGLE_OS_USER,BEAGLE_OS_IMAGE_SIZE_GB,BEAGLE_OS_WORK_DIR,BEAGLE_OS_OUT_DIR,BEAGLE_OS_JOBS,BEAGLE_OS_PROFILE_DIR,BEAGLE_OS_BEAGLE_STREAM_CLIENT_URL,BEAGLE_OS_BEAGLE_STREAM_CLIENT_HOST,BEAGLE_OS_BEAGLE_STREAM_CLIENT_PORT,BEAGLE_OS_BEAGLE_STREAM_CLIENT_APP,BEAGLE_OS_BEAGLE_STREAM_CLIENT_RESOLUTION,BEAGLE_OS_BEAGLE_STREAM_CLIENT_FPS,BEAGLE_OS_BEAGLE_STREAM_CLIENT_BITRATE,BEAGLE_OS_BEAGLE_STREAM_SERVER_API_URL,BEAGLE_OS_BEAGLE_STREAM_SERVER_USERNAME,BEAGLE_OS_BEAGLE_STREAM_SERVER_PASSWORD,BEAGLE_OS_BEAGLE_STREAM_SERVER_PIN,BEAGLE_OS_MANAGER_URL,BEAGLE_OS_MANAGER_TOKEN "$0" "$@"
 }
 
 install_dependencies() {
@@ -395,7 +394,7 @@ install_thin_client_runtime() {
 
   install -m 0755 "$ROOT_DIR/thin-client-assistant/runtime/launch-session.sh" "$install_root/launch-session.sh"
   install -m 0755 "$ROOT_DIR/thin-client-assistant/runtime/prepare-runtime.sh" "$install_root/prepare-runtime.sh"
-  install -m 0755 "$ROOT_DIR/thin-client-assistant/runtime/launch-moonlight.sh" "$install_root/launch-moonlight.sh"
+  install -m 0755 "$ROOT_DIR/thin-client-assistant/runtime/launch-beagle-stream-client.sh" "$install_root/launch-beagle-stream-client.sh"
   install -m 0755 "$ROOT_DIR/thin-client-assistant/runtime/common.sh" "$install_root/common.sh"
   install -m 0755 "$ROOT_DIR/thin-client-assistant/runtime/apply-network-config.sh" "$install_root/apply-network-config.sh"
   install -m 0755 "$ROOT_DIR/thin-client-assistant/installer/write-config.sh" "$install_root/installer/write-config.sh"
@@ -407,21 +406,21 @@ seed_endpoint_profile() {
   cat > "$ROOTFS_DIR/etc/beagle-os/endpoint.env" <<EOF
 BEAGLE_ENDPOINT_PROFILE_NAME="default"
 BEAGLE_ENDPOINT_AUTOSTART=""
-BEAGLE_ENDPOINT_MOONLIGHT_HOST="${MOONLIGHT_HOST}"
-BEAGLE_ENDPOINT_MOONLIGHT_PORT="${MOONLIGHT_PORT}"
-BEAGLE_ENDPOINT_MOONLIGHT_APP="${MOONLIGHT_APP}"
-BEAGLE_ENDPOINT_MOONLIGHT_RESOLUTION="${MOONLIGHT_RESOLUTION}"
-BEAGLE_ENDPOINT_MOONLIGHT_FPS="${MOONLIGHT_FPS}"
-BEAGLE_ENDPOINT_MOONLIGHT_BITRATE="${MOONLIGHT_BITRATE}"
-BEAGLE_ENDPOINT_MOONLIGHT_VIDEO_CODEC="H.264"
-BEAGLE_ENDPOINT_MOONLIGHT_VIDEO_DECODER="auto"
-BEAGLE_ENDPOINT_MOONLIGHT_AUDIO_CONFIG="stereo"
-BEAGLE_ENDPOINT_MOONLIGHT_ABSOLUTE_MOUSE="1"
-BEAGLE_ENDPOINT_MOONLIGHT_QUIT_AFTER="0"
-BEAGLE_ENDPOINT_SUNSHINE_API_URL="${SUNSHINE_API_URL}"
-BEAGLE_ENDPOINT_SUNSHINE_USERNAME="${SUNSHINE_USERNAME}"
-BEAGLE_ENDPOINT_SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD}"
-BEAGLE_ENDPOINT_SUNSHINE_PIN="${SUNSHINE_PIN}"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_HOST="${BEAGLE_STREAM_CLIENT_HOST}"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_PORT="${BEAGLE_STREAM_CLIENT_PORT}"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_APP="${BEAGLE_STREAM_CLIENT_APP}"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_RESOLUTION="${BEAGLE_STREAM_CLIENT_RESOLUTION}"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_FPS="${BEAGLE_STREAM_CLIENT_FPS}"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_BITRATE="${BEAGLE_STREAM_CLIENT_BITRATE}"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC="H.264"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER="auto"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG="stereo"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE="1"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_QUIT_AFTER="0"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_SERVER_API_URL="${BEAGLE_STREAM_SERVER_API_URL}"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_SERVER_USERNAME="${BEAGLE_STREAM_SERVER_USERNAME}"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD}"
+BEAGLE_ENDPOINT_BEAGLE_STREAM_SERVER_PIN="${BEAGLE_STREAM_SERVER_PIN}"
 BEAGLE_ENDPOINT_MANAGER_URL="${MANAGER_URL}"
 BEAGLE_ENDPOINT_MANAGER_TOKEN="${MANAGER_TOKEN}"
 BEAGLE_ENDPOINT_NETWORK_MODE="dhcp"
@@ -439,49 +438,33 @@ apply_profile_overlay() {
   fi
 }
 
-install_moonlight_into_rootfs() {
+install_beagle_stream_client_into_rootfs() {
   local appimage_url work_dir target_dir wrapper_path
 
-  work_dir="$(mktemp -d "$WORK_DIR/moonlight.XXXXXX")"
-  target_dir="$ROOTFS_DIR/opt/moonlight"
-  wrapper_path="$ROOTFS_DIR/usr/local/bin/moonlight"
-  appimage_url="$MOONLIGHT_URL"
+  work_dir="$(mktemp -d "$WORK_DIR/beagle-stream-client.XXXXXX")"
+  target_dir="$ROOTFS_DIR/opt/beagle-stream-client"
+  wrapper_path="$ROOTFS_DIR/usr/local/bin/beagle-stream-client"
+  appimage_url="$BEAGLE_STREAM_CLIENT_URL"
 
   cleanup_stage() {
     rm -rf "${work_dir:-}"
   }
   trap cleanup_stage RETURN
 
-  if ! curl -fL \
+  curl -fL \
     --retry 8 \
     --retry-delay 3 \
     --retry-connrefused \
     --continue-at - \
     --speed-limit 5000 \
     --speed-time 30 \
-    -o "$work_dir/Moonlight.AppImage" \
-    "$appimage_url"; then
-    if [[ "$appimage_url" != "$MOONLIGHT_FALLBACK_URL" ]]; then
-      echo "BeagleStream client download failed; falling back to upstream Moonlight AppImage." >&2
-      rm -f "$work_dir/Moonlight.AppImage"
-      curl -fL \
-        --retry 8 \
-        --retry-delay 3 \
-        --retry-connrefused \
-        --continue-at - \
-        --speed-limit 5000 \
-        --speed-time 30 \
-        -o "$work_dir/Moonlight.AppImage" \
-        "$MOONLIGHT_FALLBACK_URL"
-    else
-      return 1
-    fi
-  fi
+    -o "$work_dir/BeagleStream.AppImage" \
+    "$appimage_url"
 
-  chmod +x "$work_dir/Moonlight.AppImage"
+  chmod +x "$work_dir/BeagleStream.AppImage"
   (
     cd "$work_dir"
-    ./Moonlight.AppImage --appimage-extract >/dev/null
+    ./BeagleStream.AppImage --appimage-extract >/dev/null
   )
 
   rm -rf "$target_dir"
@@ -492,14 +475,14 @@ install_moonlight_into_rootfs() {
 #!/bin/sh
 set -eu
 
-APPDIR="/opt/moonlight"
+APPDIR="/opt/beagle-stream-client"
 export APPDIR
 export QT_PLUGIN_PATH="${APPDIR}/usr/plugins"
 export QML2_IMPORT_PATH="${APPDIR}/usr/qml"
 export QT_XKB_CONFIG_ROOT="/usr/share/X11/xkb"
 export LD_LIBRARY_PATH="${APPDIR}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
-exec "${APPDIR}/usr/bin/moonlight" "$@"
+exec "${APPDIR}/usr/bin/beagle-stream-client" "$@"
 EOF
   chmod 0755 "$wrapper_path"
 }
@@ -652,7 +635,7 @@ main() {
   install_thin_client_runtime
   apply_profile_overlay
   seed_endpoint_profile
-  install_moonlight_into_rootfs
+  install_beagle_stream_client_into_rootfs
   chroot_run_rootfs "/usr/local/sbin/beagle-render-config"
   write_build_metadata
   configure_rootfs_plymouth

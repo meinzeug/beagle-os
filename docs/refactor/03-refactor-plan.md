@@ -34,7 +34,7 @@ In 4 inkrementellen Wellen Beagle OS zu einer beagle-native Plattform ausbauen, 
 - actions queue harmonisiert fuer power/update/stream tasks
 
 ### Nutzung vorhandener Komponenten
-- vm_state, vm_profile, vm_secret_bootstrap, installer_prep, sunshine_integration
+- vm_state, vm_profile, vm_secret_bootstrap, installer_prep, beagle_stream_server_integration
 - thin-client-assistant runtime und installer assets
 
 ### Erfolgskriterien

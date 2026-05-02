@@ -80,7 +80,7 @@ from policy_normalization import PolicyNormalizationService
 from policy_store import PolicyStoreService
 from pairing_service import PairingService
 from public_http_surface import PublicHttpSurfaceService
-from public_sunshine_surface import PublicSunshineSurfaceService
+from public_beagle_stream_server_surface import PublicBeagleStreamServerSurfaceService
 from public_ubuntu_install_surface import PublicUbuntuInstallSurfaceService
 from public_streams import PublicStreamService
 from job_queue_service import JobQueueService
@@ -101,8 +101,8 @@ from runtime_paths import RuntimePathsService
 from runtime_support import RuntimeSupportService
 from scim_service import ScimService
 from saml_service import SamlAssertionError, SamlService
-from sunshine_access_token_store import SunshineAccessTokenStoreService
-from sunshine_integration import SunshineIntegrationService
+from beagle_stream_server_access_token_store import BeagleStreamServerAccessTokenStoreService
+from beagle_stream_server_integration import BeagleStreamServerIntegrationService
 from stream_http_surface import StreamHttpSurfaceService
 from stream_policy_service import StreamPolicyService
 from support_bundle_store import SupportBundleStoreService
@@ -379,7 +379,7 @@ NOVNC_PATH = os.environ.get("BEAGLE_NOVNC_PATH", "/novnc").strip() or "/novnc"
 NOVNC_TOKEN_FILE = os.environ.get("BEAGLE_NOVNC_TOKEN_FILE", "/etc/beagle/novnc/tokens").strip() or "/etc/beagle/novnc/tokens"
 BEAGLE_HOST_PROVIDER_KIND = normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "beagle"))
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
-SUNSHINE_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_SUNSHINE_ACCESS_TOKEN_TTL_SECONDS", "600"))
+BEAGLE_STREAM_SERVER_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_STREAM_SERVER_ACCESS_TOKEN_TTL_SECONDS", "600"))
 PAIRING_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_PAIRING_TOKEN_TTL_SECONDS", "60"))
 PAIRING_TOKEN_SECRET = os.environ.get("BEAGLE_PAIRING_TOKEN_SECRET", "").strip()
 ENERGY_FEED_IMPORT_TIMEOUT_SECONDS = float(
@@ -440,21 +440,21 @@ UBUNTU_BEAGLE_CYBERPUNK_WALLPAPER_SOURCE = Path(
     ).strip()
     or str(ROOT_DIR / "assets" / "branding" / "beagle-cyberpunk-wallpaper.png")
 )
-UBUNTU_BEAGLE_PROFILE_ID = "ubuntu-24.04-desktop-sunshine"
+UBUNTU_BEAGLE_PROFILE_ID = "ubuntu-24.04-desktop-beagle-stream-server"
 UBUNTU_BEAGLE_PROFILE_LEGACY_IDS = {
-    "ubuntu-24.04-xfce-sunshine": "xfce",
+    "ubuntu-24.04-xfce-beagle-stream-server": "xfce",
 }
 UBUNTU_BEAGLE_PROFILE_LABEL = "Ubuntu 24.04 LTS Desktop mit BeagleStream"
 UBUNTU_BEAGLE_PROFILE_RELEASE = "24.04 LTS"
 UBUNTU_BEAGLE_PROFILE_STREAMING = "BeagleStream"
 UBUNTU_BEAGLE_MIN_PASSWORD_LENGTH = int(os.environ.get("BEAGLE_UBUNTU_MIN_PASSWORD_LENGTH", "8"))
-UBUNTU_BEAGLE_SUNSHINE_URL = os.environ.get(
-    "BEAGLE_UBUNTU_SUNSHINE_URL",
-    "https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb",
-).strip()
 UBUNTU_BEAGLE_STREAM_SERVER_URL = os.environ.get(
     "BEAGLE_UBUNTU_STREAM_SERVER_URL",
     "https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb",
+).strip()
+UBUNTU_BEAGLE_STREAM_SERVER_URL = os.environ.get(
+    "BEAGLE_UBUNTU_BEAGLE_STREAM_SERVER_URL",
+    UBUNTU_BEAGLE_STREAM_SERVER_URL,
 ).strip()
 UBUNTU_BEAGLE_LOCAL_ISO_DIR = Path(
     os.environ.get("BEAGLE_UBUNTU_LOCAL_ISO_DIR", "/var/lib/vz/template/iso").strip() or "/var/lib/vz/template/iso"
@@ -1274,7 +1274,7 @@ STREAM_HTTP_SURFACE_SERVICE: StreamHttpSurfaceService | None = None
 ADMIN_HTTP_SURFACE_SERVICE: AdminHttpSurfaceService | None = None
 AUTH_HTTP_SURFACE_SERVICE: AuthHttpSurfaceService | None = None
 ENDPOINT_LIFECYCLE_SURFACE_SERVICE: EndpointLifecycleSurfaceService | None = None
-PUBLIC_SUNSHINE_SURFACE_SERVICE: PublicSunshineSurfaceService | None = None
+PUBLIC_BEAGLE_STREAM_SERVER_SURFACE_SERVICE: PublicBeagleStreamServerSurfaceService | None = None
 VM_MUTATION_SURFACE_SERVICE: VmMutationSurfaceService | None = None
 MIGRATION_SERVICE: MigrationService | None = None
 HA_MANAGER_SERVICE: HaManagerService | None = None
@@ -1328,8 +1328,8 @@ VM_SECRET_STORE_SERVICE: VmSecretStoreService | None = None
 VM_SECRET_BOOTSTRAP_SERVICE: VmSecretBootstrapService | None = None
 VM_USB_SERVICE: VmUsbService | None = None
 ENROLLMENT_TOKEN_STORE_SERVICE: EnrollmentTokenStoreService | None = None
-SUNSHINE_ACCESS_TOKEN_STORE_SERVICE: SunshineAccessTokenStoreService | None = None
-SUNSHINE_INTEGRATION_SERVICE: SunshineIntegrationService | None = None
+BEAGLE_STREAM_SERVER_ACCESS_TOKEN_STORE_SERVICE: BeagleStreamServerAccessTokenStoreService | None = None
+BEAGLE_STREAM_SERVER_INTEGRATION_SERVICE: BeagleStreamServerIntegrationService | None = None
 NETWORK_HTTP_SURFACE_SERVICE: NetworkHttpSurfaceService | None = None
 # no module-level singleton for AuthSessionHttpSurfaceService: it has per-request callables
 ENDPOINT_TOKEN_STORE_SERVICE: EndpointTokenStoreService | None = None
@@ -1588,7 +1588,7 @@ def vm_secret_bootstrap_service() -> VmSecretBootstrapService:
             public_stream_host=runtime_environment_service().current_public_stream_host(),
             random_pin=utility_support_service().random_pin,
             random_secret=utility_support_service().random_secret,
-            resolve_sunshine_pinned_pubkey=resolve_vm_sunshine_pinned_pubkey,
+            resolve_beagle_stream_server_pinned_pubkey=resolve_vm_beagle_stream_server_pinned_pubkey,
             safe_slug=utility_support_service().safe_slug,
             save_vm_secret=save_vm_secret,
             session_script_path=Path(__file__).resolve().parent / "beagle-usb-tunnel-session",
@@ -1624,39 +1624,39 @@ def enrollment_tokens_dir() -> Path:
     return enrollment_token_store_service().tokens_dir()
 
 
-def sunshine_access_token_store_service() -> SunshineAccessTokenStoreService:
-    global SUNSHINE_ACCESS_TOKEN_STORE_SERVICE
-    if SUNSHINE_ACCESS_TOKEN_STORE_SERVICE is None:
-        SUNSHINE_ACCESS_TOKEN_STORE_SERVICE = SunshineAccessTokenStoreService(
+def beagle_stream_server_access_token_store_service() -> BeagleStreamServerAccessTokenStoreService:
+    global BEAGLE_STREAM_SERVER_ACCESS_TOKEN_STORE_SERVICE
+    if BEAGLE_STREAM_SERVER_ACCESS_TOKEN_STORE_SERVICE is None:
+        BEAGLE_STREAM_SERVER_ACCESS_TOKEN_STORE_SERVICE = BeagleStreamServerAccessTokenStoreService(
             data_dir=runtime_paths_service().data_dir,
             load_json_file=load_json_file,
             write_json_file=write_json_file,
             parse_utc_timestamp=parse_utc_timestamp,
         )
-    return SUNSHINE_ACCESS_TOKEN_STORE_SERVICE
+    return BEAGLE_STREAM_SERVER_ACCESS_TOKEN_STORE_SERVICE
 
 
-def sunshine_integration_service() -> SunshineIntegrationService:
-    global SUNSHINE_INTEGRATION_SERVICE
-    if SUNSHINE_INTEGRATION_SERVICE is None:
-        SUNSHINE_INTEGRATION_SERVICE = SunshineIntegrationService(
+def beagle_stream_server_integration_service() -> BeagleStreamServerIntegrationService:
+    global BEAGLE_STREAM_SERVER_INTEGRATION_SERVICE
+    if BEAGLE_STREAM_SERVER_INTEGRATION_SERVICE is None:
+        BEAGLE_STREAM_SERVER_INTEGRATION_SERVICE = BeagleStreamServerIntegrationService(
             build_profile=build_profile,
             ensure_vm_secret=ensure_vm_secret,
             find_vm=find_vm,
             get_vm_config=get_vm_config,
             guest_exec_script_text=HOST_PROVIDER.guest_exec_script_text,
-            load_sunshine_access_token=load_sunshine_access_token,
+            load_beagle_stream_server_access_token=load_beagle_stream_server_access_token,
             parse_description_meta=metadata_support_service().parse_description_meta,
             public_manager_url=PUBLIC_MANAGER_URL,
             run_subprocess=subprocess.run,
             safe_slug=utility_support_service().safe_slug,
-            store_sunshine_access_token=sunshine_access_token_store_service().store,
-            sunshine_access_token_is_valid=sunshine_access_token_is_valid,
-            sunshine_access_token_ttl_seconds=SUNSHINE_ACCESS_TOKEN_TTL_SECONDS,
+            store_beagle_stream_server_access_token=beagle_stream_server_access_token_store_service().store,
+            beagle_stream_server_access_token_is_valid=beagle_stream_server_access_token_is_valid,
+            beagle_stream_server_access_token_ttl_seconds=BEAGLE_STREAM_SERVER_ACCESS_TOKEN_TTL_SECONDS,
             ubuntu_beagle_default_guest_user=UBUNTU_BEAGLE_DEFAULT_GUEST_USER,
             utcnow=utcnow,
         )
-    return SUNSHINE_INTEGRATION_SERVICE
+    return BEAGLE_STREAM_SERVER_INTEGRATION_SERVICE
 
 
 def pairing_service() -> PairingService:
@@ -1700,7 +1700,7 @@ def endpoint_enrollment_service() -> EndpointEnrollmentService:
             ),
             public_manager_url=PUBLIC_MANAGER_URL,
             public_server_name=PUBLIC_SERVER_NAME,
-            resolve_vm_sunshine_pinned_pubkey=resolve_vm_sunshine_pinned_pubkey,
+            resolve_vm_beagle_stream_server_pinned_pubkey=resolve_vm_beagle_stream_server_pinned_pubkey,
             save_vm_secret=save_vm_secret,
             service_name="beagle-control-plane",
             store_endpoint_token=endpoint_token_store_service().store,
@@ -1784,8 +1784,8 @@ def endpoint_tokens_dir() -> Path:
     return endpoint_token_store_service().tokens_dir()
 
 
-def sunshine_access_tokens_dir() -> Path:
-    return sunshine_access_token_store_service().tokens_dir()
+def beagle_stream_server_access_tokens_dir() -> Path:
+    return beagle_stream_server_access_token_store_service().tokens_dir()
 
 
 def ubuntu_beagle_state_service() -> UbuntuBeagleStateService:
@@ -2268,51 +2268,51 @@ def manager_pinned_pubkey() -> str:
 
 
 def fetch_https_pinned_pubkey(url: str) -> str:
-    return sunshine_integration_service().fetch_https_pinned_pubkey(url)
+    return beagle_stream_server_integration_service().fetch_https_pinned_pubkey(url)
 
 
 def guest_exec_text(vmid: int, script: str) -> tuple[int, str, str]:
-    return sunshine_integration_service().guest_exec_text(vmid, script)
+    return beagle_stream_server_integration_service().guest_exec_text(vmid, script)
 
 
-def sunshine_guest_user(vm: VmSummary, config: dict[str, Any] | None = None) -> str:
-    return sunshine_integration_service().sunshine_guest_user(vm, config)
+def beagle_stream_server_guest_user(vm: VmSummary, config: dict[str, Any] | None = None) -> str:
+    return beagle_stream_server_integration_service().beagle_stream_server_guest_user(vm, config)
 
 
-def register_moonlight_certificate_on_vm(vm: VmSummary, client_cert_pem: str, *, device_name: str) -> dict[str, Any]:
-    return sunshine_integration_service().register_moonlight_certificate_on_vm(
+def register_beagle_stream_client_certificate_on_vm(vm: VmSummary, client_cert_pem: str, *, device_name: str) -> dict[str, Any]:
+    return beagle_stream_server_integration_service().register_beagle_stream_client_certificate_on_vm(
         vm,
         client_cert_pem,
         device_name=device_name,
     )
 
 
-def fetch_sunshine_server_identity(vm: VmSummary, guest_user: str) -> dict[str, Any]:
-    return sunshine_integration_service().fetch_sunshine_server_identity(vm, guest_user)
+def fetch_beagle_stream_server_identity(vm: VmSummary, guest_user: str) -> dict[str, Any]:
+    return beagle_stream_server_integration_service().fetch_beagle_stream_server_identity(vm, guest_user)
 
 
 def prepare_virtual_display_on_vm(vm: VmSummary, resolution: str) -> dict[str, Any]:
-    return sunshine_integration_service().prepare_virtual_display_on_vm(vm, resolution=resolution)
+    return beagle_stream_server_integration_service().prepare_virtual_display_on_vm(vm, resolution=resolution)
 
 
-def internal_sunshine_api_url(vm: VmSummary, profile: dict[str, Any] | None = None) -> str:
-    return sunshine_integration_service().internal_sunshine_api_url(vm, profile)
+def internal_beagle_stream_server_api_url(vm: VmSummary, profile: dict[str, Any] | None = None) -> str:
+    return beagle_stream_server_integration_service().internal_beagle_stream_server_api_url(vm, profile)
 
 
-def resolve_vm_sunshine_pinned_pubkey(vm: VmSummary) -> str:
-    return sunshine_integration_service().resolve_vm_sunshine_pinned_pubkey(vm)
+def resolve_vm_beagle_stream_server_pinned_pubkey(vm: VmSummary) -> str:
+    return beagle_stream_server_integration_service().resolve_vm_beagle_stream_server_pinned_pubkey(vm)
 
 
-def ensure_vm_sunshine_pinned_pubkey(vm: VmSummary, secret: dict[str, Any]) -> dict[str, Any]:
-    return vm_secret_bootstrap_service().ensure_vm_sunshine_pinned_pubkey(vm, secret)
+def ensure_vm_beagle_stream_server_pinned_pubkey(vm: VmSummary, secret: dict[str, Any]) -> dict[str, Any]:
+    return vm_secret_bootstrap_service().ensure_vm_beagle_stream_server_pinned_pubkey(vm, secret)
 
 
 def enrollment_token_path(token: str) -> Path:
     return enrollment_token_store_service().token_path(token)
 
 
-def sunshine_access_token_path(token: str) -> Path:
-    return sunshine_access_token_store_service().token_path(token)
+def beagle_stream_server_access_token_path(token: str) -> Path:
+    return beagle_stream_server_access_token_store_service().token_path(token)
 
 
 def issue_enrollment_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
@@ -2323,12 +2323,12 @@ def load_enrollment_token(token: str) -> dict[str, Any] | None:
     return enrollment_token_store_service().load(token)
 
 
-def issue_sunshine_access_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
-    return sunshine_integration_service().issue_sunshine_access_token(vm)
+def issue_beagle_stream_server_access_token(vm: VmSummary) -> tuple[str, dict[str, Any]]:
+    return beagle_stream_server_integration_service().issue_beagle_stream_server_access_token(vm)
 
 
-def load_sunshine_access_token(token: str) -> dict[str, Any] | None:
-    return sunshine_access_token_store_service().load(token)
+def load_beagle_stream_server_access_token(token: str) -> dict[str, Any] | None:
+    return beagle_stream_server_access_token_store_service().load(token)
 
 
 def mark_enrollment_token_used(token: str, payload: dict[str, Any], *, endpoint_id: str) -> None:
@@ -2339,8 +2339,8 @@ def enrollment_token_is_valid(payload: dict[str, Any] | None, *, endpoint_id: st
     return enrollment_token_store_service().is_valid(payload, endpoint_id=endpoint_id)
 
 
-def sunshine_access_token_is_valid(payload: dict[str, Any] | None) -> bool:
-    return sunshine_access_token_store_service().is_valid(payload)
+def beagle_stream_server_access_token_is_valid(payload: dict[str, Any] | None) -> bool:
+    return beagle_stream_server_access_token_store_service().is_valid(payload)
 
 
 def endpoint_token_path(token: str) -> Path:
@@ -2355,13 +2355,13 @@ def load_endpoint_token(token: str) -> dict[str, Any] | None:
     return endpoint_token_store_service().load(token)
 
 
-def issue_moonlight_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], device_name: str) -> dict[str, Any]:
+def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], device_name: str) -> dict[str, Any]:
     pin = random_pin()
     endpoint_id = str(endpoint_identity.get("endpoint_id", "") or "").strip()
     hostname = str(endpoint_identity.get("hostname", "") or "").strip()
     token = pairing_service().issue_token(
         {
-            "scope": "moonlight.pair",
+            "scope": "beagle-stream-client.pair",
             "vmid": int(vm.vmid),
             "node": str(vm.node),
             "endpoint_id": endpoint_id,
@@ -2379,7 +2379,7 @@ def issue_moonlight_pairing_token(vm: VmSummary, endpoint_identity: dict[str, An
     }
 
 
-def exchange_moonlight_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], pairing_token: str) -> dict[str, Any]:
+def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], pairing_token: str) -> dict[str, Any]:
     payload = pairing_service().consume_token(pairing_token)
     if not isinstance(payload, dict):
         return {"ok": False, "error": "invalid or expired pairing token"}
@@ -2397,7 +2397,7 @@ def exchange_moonlight_pairing_token(vm: VmSummary, endpoint_identity: dict[str,
         return {"ok": False, "error": "pairing token missing pin"}
     device_name = str(payload.get("device_name", "") or "").strip() or f"beagle-vm{vm.vmid}-client"
 
-    status, _, body = proxy_sunshine_request(
+    status, _, body = proxy_beagle_stream_server_request(
         vm,
         request_path="/api/pin",
         query="",
@@ -2406,23 +2406,23 @@ def exchange_moonlight_pairing_token(vm: VmSummary, endpoint_identity: dict[str,
         request_headers={"Content-Type": "application/json", "Accept": "application/json"},
     )
     if int(status) >= 400:
-        return {"ok": False, "error": f"sunshine pin exchange failed with HTTP {int(status)}"}
+        return {"ok": False, "error": f"beagle-stream-server pin exchange failed with HTTP {int(status)}"}
 
     try:
         response_payload = json.loads((body or b"{}").decode("utf-8", errors="replace"))
     except json.JSONDecodeError:
         response_payload = {}
     if not bool((response_payload or {}).get("status")):
-        return {"ok": False, "error": "sunshine pin exchange rejected"}
+        return {"ok": False, "error": "beagle-stream-server pin exchange rejected"}
     return {"ok": True}
 
 
-def sunshine_proxy_ticket_url(token: str) -> str:
-    return sunshine_integration_service().sunshine_proxy_ticket_url(token)
+def beagle_stream_server_proxy_ticket_url(token: str) -> str:
+    return beagle_stream_server_integration_service().beagle_stream_server_proxy_ticket_url(token)
 
 
-def proxy_sunshine_request(vm: VmSummary, *, request_path: str, query: str, method: str, body: bytes | None, request_headers: dict[str, str]) -> tuple[int, dict[str, str], bytes]:
-    return sunshine_integration_service().proxy_sunshine_request(
+def proxy_beagle_stream_server_request(vm: VmSummary, *, request_path: str, query: str, method: str, body: bytes | None, request_headers: dict[str, str]) -> tuple[int, dict[str, str], bytes]:
+    return beagle_stream_server_integration_service().proxy_beagle_stream_server_request(
         vm,
         request_path=request_path,
         query=query,
@@ -2475,8 +2475,8 @@ def allocate_public_stream_base_port(node: str, vmid: int) -> int | None:
 def stream_ports(base_port: int) -> dict[str, int]:
     base = int(base_port)
     return {
-        "moonlight_port": base,
-        "sunshine_api_port": base + 1,
+        "beagle_stream_client_port": base,
+        "beagle_stream_server_api_port": base + 1,
         "https_port": base + 1,
         "rtsp_port": base + 21,
     }
@@ -2613,12 +2613,12 @@ def detach_usb_from_guest(vm: VmSummary, *, port: int | None = None, busid: str 
     return vm_usb_service().detach_usb_from_guest(vm, port=port, busid=busid)
 
 
-def quick_sunshine_status(vmid: int) -> dict[str, Any]:
-    return installer_prep_service().quick_sunshine_status(vmid)
+def quick_beagle_stream_server_status(vmid: int) -> dict[str, Any]:
+    return installer_prep_service().quick_beagle_stream_server_status(vmid)
 
 
-def default_installer_prep_state(vm: VmSummary, sunshine_status: dict[str, Any] | None = None) -> dict[str, Any]:
-    return installer_prep_service().default_state(vm, sunshine_status)
+def default_installer_prep_state(vm: VmSummary, beagle_stream_server_status: dict[str, Any] | None = None) -> dict[str, Any]:
+    return installer_prep_service().default_state(vm, beagle_stream_server_status)
 
 
 def summarize_installer_prep_state(vm: VmSummary, state: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -2774,7 +2774,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
         UBUNTU_BEAGLE_PROVISIONING_SERVICE = UbuntuBeagleProvisioningService(
             allocate_public_stream_base_port=allocate_public_stream_base_port,
             build_profile=build_profile,
-            configure_sunshine_guest_script=ROOT_DIR / "scripts" / "configure-sunshine-guest.sh",
+            configure_beagle_stream_server_guest_script=ROOT_DIR / "scripts" / "configure-beagle-stream-server-guest.sh",
             current_public_stream_host=current_public_stream_host,
             default_usb_tunnel_port=default_usb_tunnel_port,
             ensure_vm_secret=ensure_vm_secret,
@@ -2832,7 +2832,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             ubuntu_beagle_profile_streaming=UBUNTU_BEAGLE_PROFILE_STREAMING,
             ubuntu_beagle_software_presets=UBUNTU_BEAGLE_SOFTWARE_PRESETS,
             ubuntu_beagle_stream_server_url=UBUNTU_BEAGLE_STREAM_SERVER_URL,
-            ubuntu_beagle_sunshine_url=UBUNTU_BEAGLE_SUNSHINE_URL,
+            ubuntu_beagle_beagle_stream_server_url=UBUNTU_BEAGLE_STREAM_SERVER_URL,
             ubuntu_beagle_tokens_dir=ubuntu_beagle_tokens_dir,
             utcnow=utcnow,
             validate_linux_username=ubuntu_beagle_inputs_service().validate_linux_username,
@@ -3532,13 +3532,13 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
             attestation_service=attestation_service(),
             fleet_telemetry_service=fleet_telemetry_service(),
             alert_service=alert_service(),
-            exchange_moonlight_pairing_token=exchange_moonlight_pairing_token,
-            fetch_sunshine_server_identity=fetch_sunshine_server_identity,
+            exchange_beagle_stream_client_pairing_token=exchange_beagle_stream_client_pairing_token,
+            fetch_beagle_stream_server_identity=fetch_beagle_stream_server_identity,
             find_vm=find_vm,
-            issue_moonlight_pairing_token=issue_moonlight_pairing_token,
+            issue_beagle_stream_client_pairing_token=issue_beagle_stream_client_pairing_token,
             pool_manager_service=pool_manager_service(),
             prepare_virtual_display_on_vm=prepare_virtual_display_on_vm,
-            register_moonlight_certificate_on_vm=register_moonlight_certificate_on_vm,
+            register_beagle_stream_client_certificate_on_vm=register_beagle_stream_client_certificate_on_vm,
             service_name="beagle-control-plane",
             session_manager_service=session_manager_service(),
             store_action_result=store_action_result,
@@ -3660,7 +3660,7 @@ def issue_stream_allocate_pairing_token(vm_id: int, user_id: str, device_id: str
     vm = find_vm(int(vm_id))
     if vm is None:
         return ""
-    result = issue_moonlight_pairing_token(
+    result = issue_beagle_stream_client_pairing_token(
         vm,
         {
             "endpoint_id": str(device_id or "").strip(),
@@ -3715,14 +3715,14 @@ def endpoint_lifecycle_surface_service() -> EndpointLifecycleSurfaceService:
     return ENDPOINT_LIFECYCLE_SURFACE_SERVICE
 
 
-def public_sunshine_surface_service() -> PublicSunshineSurfaceService:
-    global PUBLIC_SUNSHINE_SURFACE_SERVICE
-    if PUBLIC_SUNSHINE_SURFACE_SERVICE is None:
-        PUBLIC_SUNSHINE_SURFACE_SERVICE = PublicSunshineSurfaceService(
-            proxy_sunshine_request=proxy_sunshine_request,
-            resolve_ticket_vm=sunshine_integration_service().resolve_ticket_vm,
+def public_beagle_stream_server_surface_service() -> PublicBeagleStreamServerSurfaceService:
+    global PUBLIC_BEAGLE_STREAM_SERVER_SURFACE_SERVICE
+    if PUBLIC_BEAGLE_STREAM_SERVER_SURFACE_SERVICE is None:
+        PUBLIC_BEAGLE_STREAM_SERVER_SURFACE_SERVICE = PublicBeagleStreamServerSurfaceService(
+            proxy_beagle_stream_server_request=proxy_beagle_stream_server_request,
+            resolve_ticket_vm=beagle_stream_server_integration_service().resolve_ticket_vm,
         )
-    return PUBLIC_SUNSHINE_SURFACE_SERVICE
+    return PUBLIC_BEAGLE_STREAM_SERVER_SURFACE_SERVICE
 
 
 def vm_mutation_surface_service() -> VmMutationSurfaceService:
@@ -3733,7 +3733,7 @@ def vm_mutation_surface_service() -> VmMutationSurfaceService:
             build_vm_usb_state=build_vm_usb_state,
             find_vm=find_vm,
             invalidate_vm_cache=invalidate_vm_cache,
-            issue_sunshine_access_token=issue_sunshine_access_token,
+            issue_beagle_stream_server_access_token=issue_beagle_stream_server_access_token,
             migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: migration_service().migrate_vm(
                 int(vmid),
                 target_node=str(target_node or "").strip(),
@@ -3748,7 +3748,7 @@ def vm_mutation_surface_service() -> VmMutationSurfaceService:
             start_installer_prep=start_installer_prep,
             stop_vm=lambda vmid: HOST_PROVIDER.stop_vm(int(vmid), skiplock=True, timeout=None),
             summarize_action_result=summarize_action_result,
-            sunshine_proxy_ticket_url=sunshine_proxy_ticket_url,
+            beagle_stream_server_proxy_ticket_url=beagle_stream_server_proxy_ticket_url,
             usb_action_wait_seconds=USB_ACTION_WAIT_SECONDS,
             utcnow=utcnow,
             version=VERSION,
@@ -5256,7 +5256,7 @@ def installer_script_service() -> InstallerScriptService:
         INSTALLER_SCRIPT_SERVICE = InstallerScriptService(
             build_profile=build_profile,
             ensure_vm_secret=ensure_vm_secret,
-            fetch_sunshine_server_identity=fetch_sunshine_server_identity,
+            fetch_beagle_stream_server_identity=fetch_beagle_stream_server_identity,
             get_vm_config=get_vm_config,
             hosted_installer_iso_file=HOSTED_INSTALLER_ISO_FILE,
             hosted_installer_template_file=HOSTED_INSTALLER_TEMPLATE_FILE,
@@ -5275,7 +5275,7 @@ def installer_script_service() -> InstallerScriptService:
             raw_shell_installer_template_file=RAW_SHELL_INSTALLER_TEMPLATE_FILE,
             raw_windows_installer_template_file=RAW_WINDOWS_INSTALLER_TEMPLATE_FILE,
             safe_hostname=metadata_support_service().safe_hostname,
-            sunshine_guest_user=sunshine_guest_user,
+            beagle_stream_server_guest_user=beagle_stream_server_guest_user,
         )
     return INSTALLER_SCRIPT_SERVICE
 

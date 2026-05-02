@@ -71,7 +71,7 @@ def _service(tmp_path: Path) -> tuple[StreamHttpSurfaceService, list[tuple[str, 
 
     service = StreamHttpSurfaceService(
         state_file=tmp_path / "streams" / "servers.json",
-        build_vm_profile=lambda found_vm: {"stream_host": "srv2.beagle-os.com", "moonlight_port": 47984},
+        build_vm_profile=lambda found_vm: {"stream_host": "srv2.beagle-os.com", "beagle_stream_client_port": 47984},
         find_vm=lambda vmid: vm if int(vmid) == vm.vmid else None,
         pool_manager_service=_PoolManager(),
         stream_policy_service=policy_service,

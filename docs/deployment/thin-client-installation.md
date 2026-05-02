@@ -4,8 +4,8 @@
 
 Beagle OS is built for one endpoint model:
 
-- `Sunshine` runs inside the streamed VM
-- `Moonlight` runs on the endpoint
+- `Beagle Stream Server` runs inside the streamed VM
+- `Beagle Stream Client` runs on the endpoint
 - the current infrastructure provider supplies inventory, metadata and installer distribution
 
 The active provider is Beagle host infrastructure. The endpoint/runtime contract should remain stable even as host integration is moved behind explicit provider seams.
@@ -17,27 +17,27 @@ The repository ships both the Beagle endpoint runtime and the USB/local-disk ins
 - Debian or Ubuntu style package management on the build/installer side
 - the USB writer is executed on a Linux workstation with `sudo`
 - the resulting endpoint is a dedicated Beagle device, not a general-purpose desktop
-- the endpoint boots directly into a Moonlight session against a provider-assigned Sunshine VM
+- the endpoint boots directly into a Beagle Stream Client session against a provider-assigned Beagle Stream Server VM
 
 ## Installation flow
 
 1. Install the Beagle integration on the active management host.
-2. Prepare the target VM with Sunshine.
+2. Prepare the target VM with Beagle Stream Server.
 3. Store the Beagle metadata on that VM in the management plane.
 4. Download the VM-specific Beagle installer from the Beagle UI.
 5. Write the installer to USB or install directly to a target disk.
-6. Boot the endpoint and verify that Moonlight starts against the intended VM.
+6. Boot the endpoint and verify that Beagle Stream Client starts against the intended VM.
 
 The preferred operator path is now VM-centric: the current provider host publishes one installer per VM, already seeded with the correct Beagle profile.
 
-## Moonlight profile behavior
+## Beagle Stream Client profile behavior
 
 A Beagle profile contains:
 
-- the Sunshine host / API URL
-- the Moonlight app name, usually `Desktop`
+- the Beagle Stream Server host / API URL
+- the Beagle Stream Client app name, usually `Desktop`
 - codec, decoder, bitrate, FPS and audio defaults
-- optional Sunshine credentials and pairing PIN
+- optional Beagle Stream Server credentials and pairing PIN
 - the current provider location/binding fields, today usually host and VMID
 
 This means a Beagle endpoint does not need manual target entry during rollout.
@@ -57,23 +57,23 @@ Install project assets on a Beagle host for local operator distribution:
 ./scripts/install-beagle-host.sh
 ```
 
-Provision an Ubuntu guest for the preferred Sunshine path:
+Provision an Ubuntu guest for the preferred Beagle Stream Server path:
 
 ```bash
-./scripts/configure-sunshine-guest.sh \
+./scripts/configure-beagle-stream-server-guest.sh \
   --beagle-host beagle.local \
   --vmid 100 \
   --guest-user dennis \
-  --sunshine-user sunshine \
-  --sunshine-password 'choose-a-strong-password'
+  --beagle-stream-server-user beagle-stream-server \
+  --beagle-stream-server-password 'choose-a-strong-password'
 ```
 
-Register a Beagle endpoint certificate on the Sunshine VM without interactive pairing:
+Register a Beagle endpoint certificate on the Beagle Stream Server VM without interactive pairing:
 
 ```bash
-./scripts/register-moonlight-client-on-sunshine.sh \
-  --client-config Moonlight.conf \
-  --sunshine-state /home/dennis/.config/sunshine/sunshine_state.json \
+./scripts/register-beagle-stream-client-on-beagle-stream-server.sh \
+  --client-config Beagle Stream Client.conf \
+  --beagle-stream-server-state /home/dennis/.config/beagle-stream-server/beagle_stream_server_state.json \
   --device-name beagle-os-101
 ```
 
@@ -101,7 +101,7 @@ The Beagle host publishes these operator-facing endpoints:
 In the current management UI path, the VM-specific download path is guarded by Beagle's installer preparation flow:
 
 - `USB Installer bereit`: the target VM is ready and the installer can be downloaded immediately
-- `Sunshine wird vorbereitet`: Beagle is still checking or configuring Sunshine for the selected VM
+- `Beagle Stream Server wird vorbereitet`: Beagle is still checking or configuring Beagle Stream Server for the selected VM
 - `Ziel ungeeignet`: the selected VM is not offered as a final streaming target
 
 The intended VM-centric flow today is:
@@ -111,7 +111,7 @@ The intended VM-centric flow today is:
 3. The script downloads the current Beagle installer ISO from the management host.
 4. The script writes the bootable USB stick and embeds the selected VM profile.
 5. Install Beagle OS on the thin client.
-6. The installed endpoint boots with Moonlight defaults for that VM.
+6. The installed endpoint boots with Beagle Stream Client defaults for that VM.
 
 ## Build and validation commands
 
@@ -150,6 +150,6 @@ Verify that a host installation is healthy:
 - inspect `/etc/pve-thin-client/thinclient.conf`
 - inspect `/etc/beagle-os/endpoint.env` on Beagle OS images
 - run `systemctl status pve-thin-client-prepare.service`
-- verify `moonlight` is available on the endpoint
-- verify `moonlight list <sunshine-host>` resolves the streamed target app
-- verify the endpoint can actually start the Sunshine `Desktop` stream for the assigned VM
+- verify `beagle-stream-client` is available on the endpoint
+- verify `beagle-stream-client list <beagle-stream-server-host>` resolves the streamed target app
+- verify the endpoint can actually start the Beagle Stream Server `Desktop` stream for the assigned VM

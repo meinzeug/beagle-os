@@ -18,7 +18,7 @@ Stand: 2026-04-20
 ### R3 — Apollo-Patches nicht upstream
 
 - Risiko: Apollo-Fork koennte stagnieren; Beagle wird Inhouse-Maintainer.
-- Massnahme: Apollo-Integration als Build-Layer ueber Sunshine-Mainline halten; Fallback-Pfad auf Sunshine ohne virtual display dokumentieren.
+- Massnahme: Apollo-Integration als Build-Layer ueber Beagle Stream Server-Mainline halten; Fallback-Pfad auf Beagle Stream Server ohne virtual display dokumentieren.
 
 ### R4 — Linux Virtual Display
 
@@ -63,7 +63,7 @@ Stand: 2026-04-20
 
 1. Cluster-Store: etcd vs. SQLite-Litestream vs. Corosync.
 2. Default-Storage-Backend fuer Welle 7.0.1: ZFS oder NFS oder beides.
-3. Streaming-Backend in 7.1.1: Apollo-only oder Apollo+Sunshine selektierbar.
+3. Streaming-Backend in 7.1.1: Apollo-only oder Apollo+Beagle Stream Server selektierbar.
 4. Linux Virtual Display: vkms vs. xvfb vs. xrandr-virtual.
 5. Backup-Format: PBS-kompatibel vs. Restic-kompatibel vs. eigenes Format.
 6. SDN-Implementierung: nftables-only vs. nftables+OVS.
@@ -75,7 +75,7 @@ Stand: 2026-04-20
 - Die bestehenden Welle-1-Komponenten (`beagle-host/services/*`, `core/`, `providers/`) bleiben strukturell stabil.
 - Beagle Server OS bleibt Debian-basiert.
 - KVM/QEMU/libvirt-Stack bleibt der primaere Compute-Layer.
-- Sunshine/Apollo + Moonlight bleibt der primaere Streaming-Layer.
+- Beagle Stream Server/Apollo + Beagle Stream Client bleibt der primaere Streaming-Layer.
 
 ## Out of Scope fuer 7.0
 

@@ -44,8 +44,8 @@ def write_runtime_status(
     connection_method: str,
     profile_name: str,
     required_binary: str,
-    moonlight_host: str,
-    moonlight_app: str,
+    beagle_stream_client_host: str,
+    beagle_stream_client_app: str,
     binary_available: bool,
 ) -> None:
     lines = [
@@ -56,8 +56,8 @@ def write_runtime_status(
         f"connection_method={str(connection_method or '')}",
         f"profile_name={str(profile_name or '')}",
         f"required_binary={str(required_binary or '')}",
-        f"moonlight_host={str(moonlight_host or '')}",
-        f"moonlight_app={str(moonlight_app or '')}",
+        f"beagle_stream_client_host={str(beagle_stream_client_host or '')}",
+        f"beagle_stream_client_app={str(beagle_stream_client_app or '')}",
         f"binary_available={'1' if binary_available else '0'}",
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -84,8 +84,8 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_parser.add_argument("--connection-method", default="")
     runtime_parser.add_argument("--profile-name", required=True)
     runtime_parser.add_argument("--required-binary", required=True)
-    runtime_parser.add_argument("--moonlight-host", default="")
-    runtime_parser.add_argument("--moonlight-app", default="")
+    runtime_parser.add_argument("--beagle-stream-client-host", default="")
+    runtime_parser.add_argument("--beagle-stream-client-app", default="")
     runtime_parser.add_argument("--binary-available", required=True)
 
     return parser
@@ -114,8 +114,8 @@ def main(argv: list[str] | None = None) -> int:
             connection_method=args.connection_method,
             profile_name=args.profile_name,
             required_binary=args.required_binary,
-            moonlight_host=args.moonlight_host,
-            moonlight_app=args.moonlight_app,
+            beagle_stream_client_host=args.beagle_stream_client_host,
+            beagle_stream_client_app=args.beagle_stream_client_app,
             binary_available=str(args.binary_available).strip() in {"1", "true", "yes", "on"},
         )
         return 0

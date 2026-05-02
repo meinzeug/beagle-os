@@ -148,11 +148,11 @@ port_count = int(sys.argv[6])
 def should_publish(meta, guest_ip):
     if str(meta.get("beagle-public-stream", "1")).strip().lower() in {"0", "false", "no", "off"}:
         return False
-    if meta.get("beagle-public-moonlight-port"):
+    if meta.get("beagle-public-beagle-stream-client-port"):
         return True
-    if meta.get("sunshine-user") or meta.get("sunshine-password") or meta.get("sunshine-api-url"):
+    if meta.get("beagle-stream-server-user") or meta.get("beagle-stream-server-password") or meta.get("beagle-stream-server-api-url"):
         return True
-    if meta.get("moonlight-host") or meta.get("sunshine-host") or meta.get("sunshine-ip"):
+    if meta.get("beagle-stream-client-host") or meta.get("beagle-stream-server-host") or meta.get("beagle-stream-server-ip"):
         return True
     if guest_ip and str(meta.get("beagle-role", "")).strip().lower() == "desktop":
         return True
@@ -204,7 +204,7 @@ for vm in sorted(resources, key=lambda item: int(item.get("vmid", 0))):
         continue
     key = f"{node}:{vmid}"
     active_keys.add(key)
-    explicit_port = str(meta.get("beagle-public-moonlight-port", "")).strip()
+    explicit_port = str(meta.get("beagle-public-beagle-stream-client-port", "")).strip()
     if explicit_port.isdigit():
         mapped_base = int(explicit_port)
         if streams.get(key) != mapped_base:
@@ -229,7 +229,7 @@ for vm in sorted(resources, key=lambda item: int(item.get("vmid", 0))):
         "guest_ip": guest_ip,
         "public_host": str(meta.get("beagle-public-stream-host", "")).strip() or public_host,
         "base_port": int(mapped_base),
-        "sunshine_api_url": str(meta.get("beagle-public-sunshine-api-url", "")).strip() or f"https://{public_host}:{int(mapped_base) + 1}",
+        "beagle_stream_server_api_url": str(meta.get("beagle-public-beagle-stream-server-api-url", "")).strip() or f"https://{public_host}:{int(mapped_base) + 1}",
     })
 
 stale_keys = [key for key in streams if key not in active_keys]

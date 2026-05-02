@@ -25,21 +25,21 @@ print(urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment)
 PY
 }
 
-sunshine_api_url() {
+beagle_stream_server_api_url() {
   local configured host
-  configured="$(render_template "${PVE_THIN_CLIENT_SUNSHINE_API_URL:-}" 2>/dev/null || true)"
+  configured="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL:-}" 2>/dev/null || true)"
   if [[ -n "$configured" ]]; then
     printf '%s\n' "$configured"
     return 0
   fi
 
-  host="$(moonlight_host)"
+  host="$(beagle_stream_client_host)"
   if [[ -n "$host" ]]; then
     printf 'https://%s:47990\n' "$host"
   fi
 }
 
-effective_sunshine_api_url() {
+effective_beagle_stream_server_api_url() {
   local api_url host connect_host rewritten
 
   api_url="$1"
@@ -63,12 +63,12 @@ effective_sunshine_api_url() {
   printf '%s\n' "$api_url"
 }
 
-selected_sunshine_api_url() {
+selected_beagle_stream_server_api_url() {
   local api_url host connect_host effective_api_url
 
-  api_url="$(sunshine_api_url)"
-  host="$(moonlight_host)"
-  connect_host="$(moonlight_connect_host)"
-  effective_api_url="$(effective_sunshine_api_url "$api_url" "$host" "$connect_host" 2>/dev/null || printf '%s\n' "$api_url")"
+  api_url="$(beagle_stream_server_api_url)"
+  host="$(beagle_stream_client_host)"
+  connect_host="$(beagle_stream_client_connect_host)"
+  effective_api_url="$(effective_beagle_stream_server_api_url "$api_url" "$host" "$connect_host" 2>/dev/null || printf '%s\n' "$api_url")"
   printf '%s\n' "$effective_api_url"
 }

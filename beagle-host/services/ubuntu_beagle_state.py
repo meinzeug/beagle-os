@@ -110,8 +110,8 @@ class UbuntuBeagleStateService:
             summary["credentials"] = {
                 "guest_user": str(state.get("guest_user", "")).strip(),
                 "guest_password": str(state.get("guest_password", "")).strip(),
-                "sunshine_user": str(state.get("sunshine_user", "")).strip(),
-                "sunshine_password": str(state.get("sunshine_password", "")).strip(),
+                "beagle_stream_server_user": str(state.get("beagle_stream_server_user", "")).strip(),
+                "beagle_stream_server_password": str(state.get("beagle_stream_server_password", "")).strip(),
             }
         return summary
 

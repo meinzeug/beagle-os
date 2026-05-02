@@ -165,7 +165,7 @@ function buildDetailActionsHtml(status) {
     html += actionButton('vm-stop', 'Stoppen', 'ghost');
     html += actionButton('vm-reboot', 'Neustart', 'ghost');
     html += actionButton('novnc-ui', 'noVNC', 'ghost');
-    html += actionButton('sunshine-ui', 'Sunshine', 'ghost');
+    html += actionButton('beagle-stream-server-ui', 'Beagle Stream Server', 'ghost');
     html += buildUsbDownloadMenuHtml();
   }
   if (status === 'stopped' || status === 'shutoff') {
@@ -185,8 +185,8 @@ function streamRuntimeVariantLabel(profile) {
   if (variant === 'beagle-stream-server') {
     return 'BeagleStream Server';
   }
-  if (variant === 'sunshine-fallback') {
-    return 'Sunshine Fallback';
+  if (variant === 'beagle-stream-server-fallback') {
+    return 'Beagle Stream Server Fallback';
   }
   return 'Unbekannt';
 }
@@ -197,8 +197,8 @@ function streamRuntimeVariantBanner(profile) {
   if (variant === 'beagle-stream-server') {
     return '<div class="banner ok">Diese VM nutzt bereits den echten BeagleStream-Server-Fork.</div>';
   }
-  if (variant === 'sunshine-fallback') {
-    return '<div class="banner warn">Diese VM laeuft noch im Sunshine-Fallback. Der echte BeagleStream-Server-Fork ist hier noch nicht aktiv.</div>';
+  if (variant === 'beagle-stream-server-fallback') {
+    return '<div class="banner warn">Diese VM laeuft noch im Beagle Stream Server-Fallback. Der echte BeagleStream-Server-Fork ist hier noch nicht aktiv.</div>';
   }
   return '<div class="banner subtle">Der Stream-Runtime-Status dieser VM wurde noch nicht erkannt.</div>';
 }
@@ -219,7 +219,7 @@ function buildSummaryPanelHtml(vmid, profile) {
     fieldBlock('Node', profile.node || 'n/a') +
     fieldBlock('Rolle', role) +
     fieldBlock('Stream-Host', profile.stream_host || 'n/a') +
-    fieldBlock('Moonlight-Port', profile.moonlight_port ? String(profile.moonlight_port) : 'n/a') +
+    fieldBlock('Beagle Stream Client-Port', profile.beagle_stream_client_port ? String(profile.beagle_stream_client_port) : 'n/a') +
     fieldBlock('Stream-Runtime', streamRuntimeVariantLabel(profile)) +
     fieldBlock('Stream-Paket', profile.stream_runtime && profile.stream_runtime.package_url ? profile.stream_runtime.package_url : 'n/a') +
     fieldBlock('Installer geeignet', profile.installer_target_eligible ? 'Ja' : 'Nein') +
@@ -239,9 +239,9 @@ function buildCredentialsPanelHtml(credentials) {
     '<div class="detail-grid">' +
     maskedFieldBlock('Thin-Client Passwort', credentials.thinclient_password) +
     maskedFieldBlock('Guest Passwort', credentials.guest_password) +
-    maskedFieldBlock('Sunshine Benutzername', credentials.sunshine_username) +
-    maskedFieldBlock('Sunshine Passwort', credentials.sunshine_password) +
-    maskedFieldBlock('Sunshine PIN', credentials.sunshine_pin) +
+    maskedFieldBlock('Beagle Stream Server Benutzername', credentials.beagle_stream_server_username) +
+    maskedFieldBlock('Beagle Stream Server Passwort', credentials.beagle_stream_server_password) +
+    maskedFieldBlock('Beagle Stream Server PIN', credentials.beagle_stream_server_pin) +
     fieldBlock('USB-Tunnel Host', credentials.usb_tunnel_host || 'n/a') +
     fieldBlock('USB-Tunnel Benutzer', credentials.usb_tunnel_user || 'n/a') +
     fieldBlock('USB-Tunnel Port', credentials.usb_tunnel_port ? String(credentials.usb_tunnel_port) : 'n/a') +
@@ -435,7 +435,7 @@ function loadDetail(vmid) {
   if (tileStatus) tileStatus.textContent = status ? status.charAt(0).toUpperCase() + status.slice(1) : '—';
   if (tileNode)   tileNode.textContent   = (profile && profile.node)         ? String(profile.node)         : '—';
   if (tileRole)   tileRole.textContent   = (profile && profile.beagle_role)  ? String(profile.beagle_role).toUpperCase() : '—';
-  if (tileStream) tileStream.textContent = (profile && profile.stream_host)  ? String(profile.stream_host) + (profile.moonlight_port ? ':' + profile.moonlight_port : '') : '—';
+  if (tileStream) tileStream.textContent = (profile && profile.stream_host)  ? String(profile.stream_host) + (profile.beagle_stream_client_port ? ':' + profile.beagle_stream_client_port : '') : '—';
   if (statStatus) {
     statStatus.classList.remove('vdp-running', 'vdp-installing');
     if (status === 'running')    statStatus.classList.add('vdp-running');

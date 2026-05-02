@@ -399,8 +399,8 @@ function collectPolicyStructuredProfile() {
     beagle_role: getValue('policy-beagle-role'),
     network_mode: getValue('policy-network-mode'),
     stream_host: getValue('policy-stream-host'),
-    moonlight_port: getValue('policy-moonlight-port'),
-    moonlight_app: getValue('policy-moonlight-app'),
+    beagle_stream_client_port: getValue('policy-beagle-stream-client-port'),
+    beagle_stream_client_app: getValue('policy-beagle-stream-client-app'),
     expected_profile_name: getValue('policy-expected-profile-name'),
     update_enabled: getValue('policy-update-enabled'),
     update_channel: getValue('policy-update-channel'),
@@ -453,8 +453,8 @@ function populatePolicyStructuredProfile(profile) {
   setValue('policy-assigned-node', assignedTarget.node || '');
   setValue('policy-network-mode', data.network_mode || '');
   setValue('policy-stream-host', data.stream_host || '');
-  setValue('policy-moonlight-port', data.moonlight_port || '');
-  setValue('policy-moonlight-app', data.moonlight_app || '');
+  setValue('policy-beagle-stream-client-port', data.beagle_stream_client_port || '');
+  setValue('policy-beagle-stream-client-app', data.beagle_stream_client_app || '');
   setValue('policy-expected-profile-name', data.expected_profile_name || '');
   setValue('policy-update-enabled', data.update_enabled !== false);
   setValue('policy-update-channel', data.update_channel || 'stable');
@@ -674,7 +674,7 @@ function renderPolicySummary(policy) {
     fieldBlock('Selector', JSON.stringify(selector), 'mono'),
     fieldBlock('Rolle', String(profile.beagle_role || '-')),
     fieldBlock('Target', assignedTarget.vmid != null ? (String(assignedTarget.vmid) + (assignedTarget.node ? ' @ ' + assignedTarget.node : '')) : '-'),
-    fieldBlock('Streaming', [profile.stream_host, profile.moonlight_port, profile.moonlight_app].filter(Boolean).join(' / ') || '-'),
+    fieldBlock('Streaming', [profile.stream_host, profile.beagle_stream_client_port, profile.beagle_stream_client_app].filter(Boolean).join(' / ') || '-'),
     fieldBlock('Updates', [profile.update_enabled === false ? 'off' : 'on', profile.update_channel || '-', profile.update_behavior || '-'].join(' / ')),
     fieldBlock('Egress', [profile.egress_mode || '-', profile.egress_interface || '-'].join(' / ')),
     fieldBlock('Identity', [profile.identity_hostname || '-', profile.identity_timezone || '-', profile.identity_locale || '-'].join(' / '))

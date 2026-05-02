@@ -15,7 +15,6 @@ OWNER_UID="${SUDO_UID:-$(id -u)}"
 OWNER_GID="${SUDO_GID:-$(id -g)}"
 BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage"
 BEAGLE_STREAM_CLIENT_URL="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL:-${BEAGLE_STREAM_CLIENT_URL:-$BEAGLE_STREAM_CLIENT_DEFAULT_URL}}"
-MOONLIGHT_URL="${PVE_THIN_CLIENT_MOONLIGHT_URL:-https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/Moonlight-6.1.0-x86_64.AppImage}"
 GRUB_BACKGROUND_SRC="$ROOT_DIR/thin-client-assistant/usb/assets/grub-background.jpg"
 ROOTFS_STAGE_DIR="$BUILD_DIR/rootfs-stage"
 THINCLIENT_USER="thinclient"
@@ -353,12 +352,12 @@ build_live_assets_from_stage() {
   )
 }
 
-stage_moonlight_assets() {
-  local work_dir target_dir moonlight_wrapper_path beagle_wrapper_path appimage_url
+stage_beagle_stream_client_assets() {
+  local work_dir target_dir beagle_stream_client_wrapper_path beagle_wrapper_path appimage_url
 
   work_dir="$(mktemp -d)"
-  target_dir="$BUILD_DIR/config/includes.chroot/opt/moonlight"
-  moonlight_wrapper_path="$BUILD_DIR/config/includes.chroot/usr/local/bin/moonlight"
+  target_dir="$BUILD_DIR/config/includes.chroot/opt/beagle-stream-client"
+  beagle_stream_client_wrapper_path="$BUILD_DIR/config/includes.chroot/usr/local/bin/beagle-stream-client"
   beagle_wrapper_path="$BUILD_DIR/config/includes.chroot/usr/local/bin/beagle-stream"
 
   cleanup_stage() {
@@ -366,72 +365,56 @@ stage_moonlight_assets() {
   }
   trap cleanup_stage RETURN
 
-  appimage_url="$MOONLIGHT_URL"
+  appimage_url="$BEAGLE_STREAM_CLIENT_URL"
   if [[ -n "$BEAGLE_STREAM_CLIENT_URL" ]]; then
     appimage_url="$BEAGLE_STREAM_CLIENT_URL"
   fi
 
-  if ! curl -fL \
-      --retry 8 \
-      --retry-delay 3 \
-      --retry-connrefused \
-      --continue-at - \
-      --speed-limit 5000 \
-      --speed-time 30 \
-      -o "$work_dir/Moonlight.AppImage" \
-      "$appimage_url"; then
-    if [[ "$appimage_url" != "$MOONLIGHT_URL" ]]; then
-      echo "BeagleStream client download failed; falling back to upstream Moonlight AppImage." >&2
-      rm -f "$work_dir/Moonlight.AppImage"
-      curl -fL \
-        --retry 8 \
-        --retry-delay 3 \
-        --retry-connrefused \
-        --continue-at - \
-        --speed-limit 5000 \
-        --speed-time 30 \
-        -o "$work_dir/Moonlight.AppImage" \
-        "$MOONLIGHT_URL"
-    else
-      return 1
-    fi
-  fi
+  curl -fL \
+    --retry 8 \
+    --retry-delay 3 \
+    --retry-connrefused \
+    --continue-at - \
+    --speed-limit 5000 \
+    --speed-time 30 \
+    -o "$work_dir/BeagleStream.AppImage" \
+    "$appimage_url"
 
-  chmod +x "$work_dir/Moonlight.AppImage"
+  chmod +x "$work_dir/BeagleStream.AppImage"
   (
     cd "$work_dir"
-    ./Moonlight.AppImage --appimage-extract >/dev/null
+    ./BeagleStream.AppImage --appimage-extract >/dev/null
   )
 
   rm -rf "$target_dir"
-  install -d -m 0755 "$target_dir" "$(dirname "$moonlight_wrapper_path")"
+  install -d -m 0755 "$target_dir" "$(dirname "$beagle_stream_client_wrapper_path")"
   cp -a "$work_dir/squashfs-root/." "$target_dir/"
 
-  cat > "$moonlight_wrapper_path" <<'EOF'
+  cat > "$beagle_stream_client_wrapper_path" <<'EOF'
 #!/bin/sh
 set -eu
 
-APPDIR="/opt/moonlight"
+APPDIR="/opt/beagle-stream-client"
 export APPDIR
 export QT_PLUGIN_PATH="${APPDIR}/usr/plugins"
 export QML2_IMPORT_PATH="${APPDIR}/usr/qml"
 export QT_XKB_CONFIG_ROOT="/usr/share/X11/xkb"
 export LD_LIBRARY_PATH="${APPDIR}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
-if [ -x "${APPDIR}/usr/bin/moonlight" ]; then
-  exec "${APPDIR}/usr/bin/moonlight" "$@"
+if [ -x "${APPDIR}/usr/bin/beagle-stream-client" ]; then
+  exec "${APPDIR}/usr/bin/beagle-stream-client" "$@"
 fi
 
 exec "${APPDIR}/usr/bin/beagle-stream" "$@"
 EOF
-  chmod 0755 "$moonlight_wrapper_path"
+  chmod 0755 "$beagle_stream_client_wrapper_path"
 
   if [[ -x "$target_dir/usr/bin/beagle-stream" ]]; then
     cat > "$beagle_wrapper_path" <<'EOF'
 #!/bin/sh
 set -eu
 
-APPDIR="/opt/moonlight"
+APPDIR="/opt/beagle-stream-client"
 export APPDIR
 export QT_PLUGIN_PATH="${APPDIR}/usr/plugins"
 export QML2_IMPORT_PATH="${APPDIR}/usr/qml"
@@ -461,7 +444,7 @@ rsync -a --delete \
   --exclude '*.pyc' \
   "$ROOT_DIR/thin-client-assistant/" \
   "$BUILD_DIR/config/includes.chroot/usr/local/lib/pve-thin-client/"
-stage_moonlight_assets
+stage_beagle_stream_client_assets
 chmod 0755 "$BUILD_DIR"
 
 pushd "$BUILD_DIR" >/dev/null

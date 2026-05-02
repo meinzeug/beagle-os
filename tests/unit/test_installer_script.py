@@ -86,14 +86,14 @@ class InstallerScriptServiceTests(unittest.TestCase):
             service = InstallerScriptService(
                 build_profile=lambda vm: {
                     "stream_host": "stream.example",
-                    "sunshine_api_url": "https://stream.example/api",
+                    "beagle_stream_server_api_url": "https://stream.example/api",
                 },
                 ensure_vm_secret=lambda vm: {
-                    "sunshine_username": "sun-user",
-                    "sunshine_password": "sun-pass",
-                    "sunshine_pin": "1234",
+                    "beagle_stream_server_username": "sun-user",
+                    "beagle_stream_server_password": "sun-pass",
+                    "beagle_stream_server_pin": "1234",
                 },
-                fetch_sunshine_server_identity=lambda vm, guest_user: {},
+                fetch_beagle_stream_server_identity=lambda vm, guest_user: {},
                 get_vm_config=lambda node, vmid: {"name": f"vm-{vmid}", "description": ""},
                 hosted_installer_iso_file=missing_iso,
                 hosted_installer_template_file=missing_hosted,
@@ -118,7 +118,7 @@ class InstallerScriptServiceTests(unittest.TestCase):
                 raw_shell_installer_template_file=raw_shell,
                 raw_windows_installer_template_file=raw_windows,
                 safe_hostname=lambda name, vmid: f"vm-{vmid}",
-                sunshine_guest_user=lambda vm, config: "beagle",
+                beagle_stream_server_guest_user=lambda vm, config: "beagle",
             )
             vm = SimpleNamespace(vmid=100, node="srv1", name="VM 100", status="running")
 

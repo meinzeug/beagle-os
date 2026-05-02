@@ -18,7 +18,7 @@ hypervisor layer, and the thin-client endpoint stack.
 | **VM State** | VM inventory, IDs, names, status, node assignment | `state.db` → `vms` table + `provider-state/` | No |
 | **Pool State** | VDI pool definitions, assignments, prewarm events | `state.db` → `pools` table | Indirect (pool/user assignment) |
 | **Device Registry** | Enrolled thin clients: device ID, fingerprint, hostname, status, last seen | `state.db` → `devices` table | Yes (hostname, fingerprint) |
-| **Stream / Session Health** | Sunshine/Moonlight pairing, stream health metrics | `stream-health.json`, in-memory | Yes (client IP) |
+| **Stream / Session Health** | Beagle Stream Server/Beagle Stream Client pairing, stream health metrics | `stream-health.json`, in-memory | Yes (client IP) |
 | **Endpoint HW Info** | CPU, RAM, disk, GPU, NIC reported by thin client | `fleet-telemetry/`, `device-registry.json` | No (hardware only) |
 | **Backup Targets** | S3/SFTP credentials used for backup exports | `/etc/beagle/credentials.env` (operator-managed) | Yes (secrets) |
 | **GPU Inventory** | PCIe GPU IDs, driver, vGPU profile | `state.db` → `gpus` table | No |

@@ -10,7 +10,7 @@ Priorität: 8.0.1
 **Kein einziger VDI-Anbieter (Citrix, VMware, Azure, AWS) bietet Gaming-Kiosk-Pools an.**
 
 Beagle OS ist die einzige Virtualisierungsplattform die:
-1. Gaming-Grade Streaming (Moonlight/Sunshine) nativ integriert hat
+1. Gaming-Grade Streaming (Beagle Stream Client/Beagle Stream Server) nativ integriert hat
 2. Einen Kiosk-Modus für Endgeräte bietet
 3. Beides auf derselben Hardware/Plattform kombinieren kann
 
@@ -78,7 +78,7 @@ Beagle OS ist die einzige Virtualisierungsplattform die:
 
 - [x] `beagle-host/services/gaming_metrics_service.py`:
   - Aggregiert Stream-Health-Daten (RTT, FPS, dropped frames) + GPU-Metriken pro Session
-  - Stündliche/tägliche Reports: Durchschnittliche FPS, Peak-Stunden, populärste Spiele (via Window-Title aus Sunshine)
+  - Stündliche/tägliche Reports: Durchschnittliche FPS, Peak-Stunden, populärste Spiele (via Window-Title aus Beagle Stream Server)
   - Alert wenn FPS < 30 oder RTT > 50ms
 - [x] Web Console: Gaming-Metrics-Dashboard mit Graphen
 - [x] Tests: `tests/unit/test_gaming_metrics.py`
@@ -261,6 +261,6 @@ Beagle OS ist die einzige Virtualisierungsplattform die:
 
 ## Unique Selling Point vs. Konkurrenz
 
-- **Citrix/Omnissa**: Kein Gaming-Modus, RDP-Latenz für Gaming ungeeignet → Beagle: Moonlight, <5ms, Gaming-native
+- **Citrix/Omnissa**: Kein Gaming-Modus, RDP-Latenz für Gaming ungeeignet → Beagle: Beagle Stream Client, <5ms, Gaming-native
 - **GeForce NOW / Shadow PC**: Cloud-only, teuer, DSGVO-Probleme → Beagle: On-Prem, selbst gehostet
 - **Beagle host**: Kein Broker, kein Kiosk-UI, kein Time-Limit → Beagle: vollständiger Stack

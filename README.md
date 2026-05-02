@@ -18,7 +18,7 @@ Beagle OS is a source-available, standalone virtualization platform. Free for pr
 ### Three modes, one ISO
 
 - `Beagle OS Desktop`
-  Endpoint runtime. Runs Moonlight and connects to a Sunshine-enabled VM hosted by any Beagle server.
+  Endpoint runtime. Runs Beagle Stream Client and connects to a Beagle Stream Server-enabled VM hosted by any Beagle server.
 - `Beagle OS Gaming`
   Gaming kiosk shell. Launches GeForce NOW and returns to the kiosk on exit.
 - `Beagle OS Server`
@@ -100,7 +100,7 @@ Beagle OS is a layered platform with provider-neutral contracts at the core:
 2. `Provider Layer` *(optional)*
    Concrete external hypervisor integration. Currently supports Beagle host as an optional provider. More providers can be added without changing core logic.
 3. `Beagle OS Endpoint Runtime`
-   Dedicated endpoint OS for Moonlight desktop mode and Gaming kiosk mode.
+   Dedicated endpoint OS for Beagle Stream Client desktop mode and Gaming kiosk mode.
 4. `Beagle Control Plane`
    Inventory, VM-aware artifact publication, host services, health checks, and fleet management.
 5. `Beagle Server Installer`
@@ -109,8 +109,8 @@ Beagle OS is a layered platform with provider-neutral contracts at the core:
 In practice:
 
 - Beagle OS is the primary operator surface — not Beagle host.
-- Sunshine inside a VM is the desktop streaming target.
-- Moonlight on the endpoint is the desktop client.
+- Beagle Stream Server inside a VM is the desktop streaming target.
+- Beagle Stream Client on the endpoint is the desktop client.
 - The Beagle kiosk is the gaming shell around GeForce NOW.
 - Public artifacts on `beagle-os.com` are the canonical release surface.
 
@@ -120,7 +120,7 @@ Typical Desktop flow:
 
 1. Boot a server with the Beagle Server Installer ISO.
 2. Choose **Beagle OS Standalone** (or **with Beagle host** if desired).
-3. Create a Sunshine-capable VM via the Beagle Console.
+3. Create a Beagle Stream Server-capable VM via the Beagle Console.
 4. Download the VM-specific endpoint installer from the Beagle Console.
 5. Write a USB stick and install the endpoint.
 6. Boot the endpoint into `Beagle OS Desktop` — the stream starts automatically.

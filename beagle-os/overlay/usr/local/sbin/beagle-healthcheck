@@ -20,10 +20,10 @@ if [[ -r "$COMMON_SH" ]]; then
   load_runtime_config >/dev/null 2>&1 || true
 fi
 
-moonlight_host="${BEAGLE_ENDPOINT_MOONLIGHT_HOST:-${PVE_THIN_CLIENT_MOONLIGHT_HOST:-}}"
-sunshine_api_url="${BEAGLE_ENDPOINT_SUNSHINE_API_URL:-${PVE_THIN_CLIENT_SUNSHINE_API_URL:-}}"
-sunshine_username="${BEAGLE_ENDPOINT_SUNSHINE_USERNAME:-${PVE_THIN_CLIENT_SUNSHINE_USERNAME:-}}"
-sunshine_password="${BEAGLE_ENDPOINT_SUNSHINE_PASSWORD:-${PVE_THIN_CLIENT_SUNSHINE_PASSWORD:-}}"
+beagle_stream_client_host="${BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_HOST:-${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-}}"
+beagle_stream_server_api_url="${BEAGLE_ENDPOINT_BEAGLE_STREAM_SERVER_API_URL:-${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL:-}}"
+beagle_stream_server_username="${BEAGLE_ENDPOINT_BEAGLE_STREAM_SERVER_USERNAME:-${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME:-}}"
+beagle_stream_server_password="${BEAGLE_ENDPOINT_BEAGLE_STREAM_SERVER_PASSWORD:-${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD:-}}"
 network_mode="${BEAGLE_ENDPOINT_NETWORK_MODE:-${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}}"
 autostart="${BEAGLE_ENDPOINT_AUTOSTART:-${PVE_THIN_CLIENT_AUTOSTART:-0}}"
 manager_url="${BEAGLE_ENDPOINT_MANAGER_URL:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}}"
@@ -40,11 +40,11 @@ endpoint_dispatch_timer_state="$(systemctl is-active beagle-endpoint-dispatch.ti
 update_scan_timer_state="$(systemctl is-active beagle-update-scan.timer 2>/dev/null || true)"
 prepare_state="$(systemctl is-active beagle-thin-client-prepare.service 2>/dev/null || systemctl is-active pve-thin-client-prepare.service 2>/dev/null || true)"
 guest_agent_state="$(systemctl is-active qemu-guest-agent.service 2>/dev/null || true)"
-moonlight_binary="0"
+beagle_stream_client_binary="0"
 beagle_stream_binary="0"
 beagle_stream_hostless="0"
-moonlight_target_reachable="0"
-sunshine_api_reachable="0"
+beagle_stream_client_target_reachable="0"
+beagle_stream_server_api_reachable="0"
 external_ip="$(curl -4fsS --connect-timeout 3 --max-time 6 https://api.ipify.org 2>/dev/null || true)"
 virtualization_type="$(systemd-detect-virt 2>/dev/null || true)"
 monitor_summary="$(xrandr --listmonitors 2>/dev/null | tr '\n' ';' | sed 's/;$/\n/' || true)"
@@ -55,13 +55,13 @@ identity_keymap="$(awk -F= '$1 == "keymap" {print substr($0, index($0, "=") + 1)
 client_mode="${PVE_THIN_CLIENT_CLIENT_MODE:-$(cmdline_var pve_thin_client.client_mode 2>/dev/null || true)}"
 kiosk_state="$(systemctl is-active beagle-kiosk.service 2>/dev/null || true)"
 
-if command -v moonlight >/dev/null 2>&1; then
-  moonlight_binary="1"
+if command -v beagle-stream-client >/dev/null 2>&1; then
+  beagle_stream_client_binary="1"
 fi
 if command -v beagle-stream >/dev/null 2>&1; then
   beagle_stream_binary="1"
 fi
-if [[ -z "$moonlight_host" && -r /etc/beagle/enrollment.conf ]] \
+if [[ -z "$beagle_stream_client_host" && -r /etc/beagle/enrollment.conf ]] \
   && grep -q '^control_plane=' /etc/beagle/enrollment.conf \
   && grep -q '^enrollment_token=' /etc/beagle/enrollment.conf \
   && grep -q '^device_id=' /etc/beagle/enrollment.conf \
@@ -69,21 +69,21 @@ if [[ -z "$moonlight_host" && -r /etc/beagle/enrollment.conf ]] \
   beagle_stream_hostless="1"
 fi
 
-if [[ -n "$moonlight_host" ]]; then
-  if ping -c 1 -W 2 "$moonlight_host" >/dev/null 2>&1; then
-    moonlight_target_reachable="1"
+if [[ -n "$beagle_stream_client_host" ]]; then
+  if ping -c 1 -W 2 "$beagle_stream_client_host" >/dev/null 2>&1; then
+    beagle_stream_client_target_reachable="1"
   fi
 fi
 
-if [[ -n "$sunshine_api_url" ]]; then
+if [[ -n "$beagle_stream_server_api_url" ]]; then
   curl_args=(-fsS --connect-timeout 2 --max-time 4 -o /dev/null)
-  mapfile -t tls_args < <(beagle_curl_tls_args "$sunshine_api_url" "${PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_SUNSHINE_CA_CERT:-}")
+  mapfile -t tls_args < <(beagle_curl_tls_args "$beagle_stream_server_api_url" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_CA_CERT:-}")
   curl_args+=("${tls_args[@]}")
-  if [[ -n "$sunshine_username" && -n "$sunshine_password" ]]; then
-    curl_args+=(--user "${sunshine_username}:${sunshine_password}")
+  if [[ -n "$beagle_stream_server_username" && -n "$beagle_stream_server_password" ]]; then
+    curl_args+=(--user "${beagle_stream_server_username}:${beagle_stream_server_password}")
   fi
-  if curl "${curl_args[@]}" "${sunshine_api_url%/}/api/apps"; then
-    sunshine_api_reachable="1"
+  if curl "${curl_args[@]}" "${beagle_stream_server_api_url%/}/api/apps"; then
+    beagle_stream_server_api_reachable="1"
   fi
 fi
 
@@ -93,13 +93,13 @@ hostname=$hostname_value
 network_mode=$network_mode
 autostart=$autostart
 client_mode=${client_mode:-UNSET}
-moonlight_host=${moonlight_host:-UNSET}
-sunshine_api_url=${sunshine_api_url:-UNSET}
-moonlight_binary=$moonlight_binary
+beagle_stream_client_host=${beagle_stream_client_host:-UNSET}
+beagle_stream_server_api_url=${beagle_stream_server_api_url:-UNSET}
+beagle_stream_client_binary=$beagle_stream_client_binary
 beagle_stream_binary=$beagle_stream_binary
 beagle_stream_hostless=$beagle_stream_hostless
-moonlight_target_reachable=$moonlight_target_reachable
-sunshine_api_reachable=$sunshine_api_reachable
+beagle_stream_client_target_reachable=$beagle_stream_client_target_reachable
+beagle_stream_server_api_reachable=$beagle_stream_server_api_reachable
 networkmanager_state=${network_state:-unknown}
 ssh_state=${ssh_state:-unknown}
 autologin_state=${autologin_state:-unknown}
@@ -126,17 +126,17 @@ EOF
 cp "$HEALTH_FILE" "$LOG_DIR/health.status"
 
 health_failure_reasons=()
-if [[ "$moonlight_binary" != "1" && "$beagle_stream_binary" != "1" ]]; then
-  health_failure_reasons+=("moonlight binary missing")
+if [[ "$beagle_stream_client_binary" != "1" && "$beagle_stream_binary" != "1" ]]; then
+  health_failure_reasons+=("beagle-stream-client binary missing")
 fi
 if [[ "$beagle_stream_hostless" == "1" && "$beagle_stream_binary" != "1" ]]; then
   health_failure_reasons+=("beagle-stream binary missing")
 fi
-if [[ -n "$moonlight_host" && "$moonlight_target_reachable" != "1" ]]; then
-  health_failure_reasons+=("moonlight target unreachable")
+if [[ -n "$beagle_stream_client_host" && "$beagle_stream_client_target_reachable" != "1" ]]; then
+  health_failure_reasons+=("beagle-stream-client target unreachable")
 fi
-if [[ -n "$sunshine_api_url" && "$sunshine_api_reachable" != "1" ]]; then
-  health_failure_reasons+=("sunshine api unreachable")
+if [[ -n "$beagle_stream_server_api_url" && "$beagle_stream_server_api_reachable" != "1" ]]; then
+  health_failure_reasons+=("beagle-stream-server api unreachable")
 fi
 if [[ "${egress_mode:-direct}" != "direct" && "${egress_state:-unknown}" != "ready" && "${egress_state:-unknown}" != "ok" && "${egress_state:-unknown}" != "active" ]]; then
   health_failure_reasons+=("secure egress not ready")

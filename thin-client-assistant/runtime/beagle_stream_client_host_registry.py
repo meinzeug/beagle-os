@@ -40,7 +40,7 @@ def command_seed_response(args: argparse.Namespace) -> int:
     response_path = Path(args.output)
     uniqueid = (args.uniqueid or "").strip()
     cert_b64 = (args.cert_b64 or "").strip()
-    sunshine_name = (args.sunshine_name or "").strip()
+    beagle_stream_server_name = (args.beagle_stream_server_name or "").strip()
     stream_port = (args.stream_port or "").strip()
 
     try:
@@ -52,10 +52,10 @@ def command_seed_response(args: argparse.Namespace) -> int:
         return 1
 
     payload = {
-        "sunshine_server": {
+        "beagle_stream_server": {
             "uniqueid": uniqueid,
             "server_cert_pem": server_cert_pem,
-            "sunshine_name": sunshine_name,
+            "beagle_stream_server_name": beagle_stream_server_name,
             "stream_port": stream_port,
         }
     }
@@ -116,13 +116,13 @@ def command_sync_config(args: argparse.Namespace) -> int:
     port = (args.port or "").strip()
 
     payload = json.loads(response_path.read_text(encoding="utf-8"))
-    server = payload.get("sunshine_server") if isinstance(payload, dict) else None
+    server = payload.get("beagle_stream_server") if isinstance(payload, dict) else None
     if not isinstance(server, dict):
         return 1
 
     uniqueid = str(server.get("uniqueid", "") or "").strip()
     server_cert_pem = str(server.get("server_cert_pem", "") or "")
-    sunshine_name = str(server.get("sunshine_name", "") or "").strip() or host or connect_host
+    beagle_stream_server_name = str(server.get("beagle_stream_server_name", "") or "").strip() or host or connect_host
     stream_port = str(server.get("stream_port", "") or "").strip()
     manual_host = connect_host or host
     manual_port = port or stream_port or "47984"
@@ -150,7 +150,7 @@ def command_sync_config(args: argparse.Namespace) -> int:
     escaped_cert = server_cert_pem.replace("\\", "\\\\").replace("\n", "\\n")
     updated_host_lines = [
         "1\\customname=false",
-        f"1\\hostname={sunshine_name}",
+        f"1\\hostname={beagle_stream_server_name}",
         f"1\\ipv6address={existing_ipv6_address}",
         f"1\\ipv6port={existing_ipv6_port}",
         f"1\\localaddress={manual_host}",
@@ -193,7 +193,7 @@ def command_retarget_config(args: argparse.Namespace) -> int:
         return 1
 
     manual_port = port or entries.get("1\\manualport", "").strip() or entries.get("1\\localport", "").strip() or "47984"
-    sunshine_name = entries.get("1\\hostname", "").strip() or manual_host
+    beagle_stream_server_name = entries.get("1\\hostname", "").strip() or manual_host
     existing_mac = entries.get("1\\mac", "@ByteArray()").strip() or "@ByteArray()"
     existing_nvidiasw = entries.get("1\\nvidiasw", "false").strip() or "false"
     existing_remote_address = entries.get("1\\remoteaddress", "").strip()
@@ -203,7 +203,7 @@ def command_retarget_config(args: argparse.Namespace) -> int:
 
     updated_host_lines = [
         "1\\customname=false",
-        f"1\\hostname={sunshine_name}",
+        f"1\\hostname={beagle_stream_server_name}",
         f"1\\ipv6address={existing_ipv6_address}",
         f"1\\ipv6port={existing_ipv6_port}",
         f"1\\localaddress={manual_host}",
@@ -232,7 +232,7 @@ def build_parser() -> argparse.ArgumentParser:
     seed_response.add_argument("--output", required=True)
     seed_response.add_argument("--uniqueid", required=True)
     seed_response.add_argument("--cert-b64", required=True)
-    seed_response.add_argument("--sunshine-name", default="")
+    seed_response.add_argument("--beagle-stream-server-name", default="")
     seed_response.add_argument("--stream-port", default="")
     seed_response.set_defaults(func=command_seed_response)
 

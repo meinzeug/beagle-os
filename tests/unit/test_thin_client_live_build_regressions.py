@@ -11,11 +11,11 @@ PREPARE_RUNTIME = ROOT / "thin-client-assistant" / "runtime" / "prepare-runtime.
 RUNTIME_DEBUG_REPORT = ROOT / "thin-client-assistant" / "runtime" / "runtime_debug_report.sh"
 SYSTEMD_BOOTSTRAP = ROOT / "thin-client-assistant" / "runtime" / "runtime_systemd_bootstrap.sh"
 WIREGUARD_ENROLLMENT = ROOT / "thin-client-assistant" / "runtime" / "enrollment_wireguard.sh"
-MOONLIGHT_RUNTIME_EXEC = ROOT / "thin-client-assistant" / "runtime" / "moonlight_runtime_exec.sh"
-LAUNCH_MOONLIGHT = ROOT / "thin-client-assistant" / "runtime" / "launch-moonlight.sh"
+BEAGLE_STREAM_CLIENT_RUNTIME_EXEC = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_runtime_exec.sh"
+LAUNCH_BEAGLE_STREAM_CLIENT = ROOT / "thin-client-assistant" / "runtime" / "launch-beagle-stream-client.sh"
 BUILD_THIN_CLIENT = ROOT / "scripts" / "build-thin-client-installer.sh"
 BUILD_BEAGLE_OS = ROOT / "scripts" / "build-beagle-os.sh"
-LIVE_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "008-install-moonlight.hook.chroot"
+LIVE_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "008-install-beagle-stream-client.hook.chroot"
 
 
 def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None:
@@ -71,15 +71,15 @@ def test_wireguard_enrollment_script_is_executable_for_prepare_runtime() -> None
 
 
 def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() -> None:
-    runtime_text = MOONLIGHT_RUNTIME_EXEC.read_text(encoding="utf-8")
-    launcher_text = LAUNCH_MOONLIGHT.read_text(encoding="utf-8")
+    runtime_text = BEAGLE_STREAM_CLIENT_RUNTIME_EXEC.read_text(encoding="utf-8")
+    launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
 
     assert "beagle_stream_hostless_enabled()" in runtime_text
     assert 'printf \'%s\\n\' "beagle-stream"' in runtime_text
-    assert 'out_ref=("$(moonlight_bin)" stream "$app")' in runtime_text
+    assert 'out_ref=("$(beagle_stream_client_bin)" stream "$app")' in runtime_text
     assert 'hostless_beagle_stream=1' in launcher_text
-    assert "fetch_moonlight_current_session_via_manager" in launcher_text
-    assert 'beagle_log_event "moonlight.beagle-stream-hostless"' in launcher_text
+    assert "fetch_beagle_stream_client_current_session_via_manager" in launcher_text
+    assert 'beagle_log_event "beagle-stream-client.beagle-stream-hostless"' in launcher_text
 
 
 def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
@@ -88,20 +88,20 @@ def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
     assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in build_text
     assert "BeagleStream-latest-x86_64.AppImage" in build_text
     assert "BEAGLE_STREAM_CLIENT_URL" in build_text
-    assert "BeagleStream client download failed; falling back to upstream Moonlight AppImage." in build_text
+    assert "BeagleStream.AppImage" in build_text
     assert 'beagle_wrapper_path="$BUILD_DIR/config/includes.chroot/usr/local/bin/beagle-stream"' in build_text
     assert 'if [[ -x "$target_dir/usr/bin/beagle-stream" ]]; then' in build_text
 
 
-def test_live_and_raw_image_builds_default_to_beaglestream_client_with_fallback() -> None:
+def test_live_and_raw_image_builds_default_to_beaglestream_client() -> None:
     raw_build_text = BUILD_BEAGLE_OS.read_text(encoding="utf-8")
     live_hook_text = LIVE_HOOK.read_text(encoding="utf-8")
 
     assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in raw_build_text
     assert "BeagleStream-latest-x86_64.AppImage" in raw_build_text
-    assert "MOONLIGHT_FALLBACK_URL" in raw_build_text
-    assert "BeagleStream client download failed; falling back to upstream Moonlight AppImage." in raw_build_text
+    assert "BEAGLE_STREAM_CLIENT_FALLBACK_URL" not in raw_build_text
+    assert "BeagleStream.AppImage" in raw_build_text
     assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in live_hook_text
     assert "BeagleStream-latest-x86_64.AppImage" in live_hook_text
-    assert "MOONLIGHT_FALLBACK_URL" in live_hook_text
-    assert "BeagleStream client download failed; falling back to upstream Moonlight AppImage." in live_hook_text
+    assert "BEAGLE_STREAM_CLIENT_FALLBACK_URL" not in live_hook_text
+    assert "BeagleStream.AppImage" in live_hook_text

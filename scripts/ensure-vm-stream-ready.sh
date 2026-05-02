@@ -18,10 +18,10 @@ STATE_FILE="${BEAGLE_INSTALLER_PREP_STATE_FILE:-}"
 PUBLIC_STREAM_HOST_RAW="${BEAGLE_PUBLIC_STREAM_HOST:-${PVE_DCV_PROXY_SERVER_NAME:-$(hostname -f 2>/dev/null || hostname)}}"
 STREAMS_FILE="${BEAGLE_PUBLIC_STREAMS_FILE:-$MANAGER_DATA_DIR/public-streams.json}"
 VM_SECRETS_DIR="${BEAGLE_VM_SECRETS_DIR:-$MANAGER_DATA_DIR/vm-secrets}"
-SUNSHINE_DEFAULT_USER="${BEAGLE_SUNSHINE_DEFAULT_USER:-}"
-SUNSHINE_DEFAULT_PASSWORD="${BEAGLE_SUNSHINE_DEFAULT_PASSWORD:-}"
-SUNSHINE_DEFAULT_PIN="${BEAGLE_SUNSHINE_DEFAULT_PIN:-}"
-SUNSHINE_DEFAULT_GUEST_USER="${BEAGLE_SUNSHINE_DEFAULT_GUEST_USER:-beagle}"
+BEAGLE_STREAM_SERVER_DEFAULT_USER="${BEAGLE_STREAM_SERVER_DEFAULT_USER:-}"
+BEAGLE_STREAM_SERVER_DEFAULT_PASSWORD="${BEAGLE_STREAM_SERVER_DEFAULT_PASSWORD:-}"
+BEAGLE_STREAM_SERVER_DEFAULT_PIN="${BEAGLE_STREAM_SERVER_DEFAULT_PIN:-}"
+BEAGLE_STREAM_SERVER_DEFAULT_GUEST_USER="${BEAGLE_STREAM_SERVER_DEFAULT_GUEST_USER:-beagle}"
 HOST_TLS_CERT_FILE="${BEAGLE_HOST_TLS_CERT_FILE:-/etc/beagle/manager-ssl.pem}"
 
 resolve_public_stream_host() {
@@ -199,13 +199,13 @@ raise SystemExit(1)
 PY
 }
 
-sunshine_guest_status_json() {
+beagle_stream_server_guest_status_json() {
   local command
-  command='binary=0; service=0; process=0; command -v sunshine >/dev/null 2>&1 && binary=1; (systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; pgrep -x sunshine >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
+  command='binary=0; service=0; process=0; command -v beagle-stream-server >/dev/null 2>&1 && binary=1; (systemctl is-active beagle-stream-server >/dev/null 2>&1 || systemctl is-active beagle-stream-server.service >/dev/null 2>&1) && service=1; pgrep -x beagle-stream-server >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
   beagle_provider_guest_exec_sync_bash "$VMID" "$command"
 }
 
-sunshine_guest_desktop_smoke_json() {
+beagle_stream_server_guest_desktop_smoke_json() {
   local guest_user="$1"
   local command
   command="$(cat <<'EOF'
@@ -231,9 +231,9 @@ EOF
   beagle_provider_guest_exec_sync_bash "$VMID" "$command"
 }
 
-repair_sunshine_guest_runtime() {
+repair_beagle_stream_server_guest_runtime() {
   local command
-  command='if command -v /usr/local/bin/beagle-sunshine-healthcheck >/dev/null 2>&1; then /usr/local/bin/beagle-sunshine-healthcheck --repair-only >/dev/null 2>&1 || true; else systemctl daemon-reload >/dev/null 2>&1 || true; systemctl enable --now beagle-sunshine.service >/dev/null 2>&1 || true; systemctl restart beagle-sunshine.service >/dev/null 2>&1 || true; fi; binary=0; service=0; process=0; command -v sunshine >/dev/null 2>&1 && binary=1; (systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; pgrep -x sunshine >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
+  command='if command -v /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1; then /usr/local/bin/beagle-stream-server-healthcheck --repair-only >/dev/null 2>&1 || true; else systemctl daemon-reload >/dev/null 2>&1 || true; systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true; systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true; fi; binary=0; service=0; process=0; command -v beagle-stream-server >/dev/null 2>&1 && binary=1; (systemctl is-active beagle-stream-server >/dev/null 2>&1 || systemctl is-active beagle-stream-server.service >/dev/null 2>&1) && service=1; pgrep -x beagle-stream-server >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
   beagle_provider_guest_exec_sync_bash "$VMID" "$command"
 }
 
@@ -302,15 +302,15 @@ PY
 
 verify_public_api() {
   local api_url="$1"
-  local sunshine_user="$2"
-  local sunshine_password="$3"
+  local beagle_stream_server_user="$2"
+  local beagle_stream_server_password="$3"
   local pinned_pubkey="${4:-}"
-  local -a curl_args=(curl -fsS --connect-timeout 4 --max-time 10 --user "${sunshine_user}:${sunshine_password}")
+  local -a curl_args=(curl -fsS --connect-timeout 4 --max-time 10 --user "${beagle_stream_server_user}:${beagle_stream_server_password}")
 
   if [[ "$api_url" == https://* ]]; then
     if [[ -n "$pinned_pubkey" ]]; then
-      # tls-bypass-allowlist: sunshine API uses self-signed cert; pubkey-pinning provides the security guarantee
-      curl_args+=(--insecure --pinnedpubkey "$pinned_pubkey") # tls-bypass-allowlist: sunshine API uses self-signed cert; pubkey pinning is enforced
+      # tls-bypass-allowlist: beagle-stream-server API uses self-signed cert; pubkey-pinning provides the security guarantee
+      curl_args+=(--insecure --pinnedpubkey "$pinned_pubkey") # tls-bypass-allowlist: beagle-stream-server API uses self-signed cert; pubkey pinning is enforced
     elif [[ -n "${BEAGLE_PUBLIC_TLS_PINNED_PUBKEY:-}" ]]; then
       curl_args+=(--pinnedpubkey "${BEAGLE_PUBLIC_TLS_PINNED_PUBKEY}")
     elif [[ -f "$HOST_TLS_CERT_FILE" ]]; then
@@ -325,15 +325,15 @@ verify_public_api() {
 
 verify_public_api_insecure_local() {
   local api_url="$1"
-  local sunshine_user="$2"
-  local sunshine_password="$3"
+  local beagle_stream_server_user="$2"
+  local beagle_stream_server_password="$3"
 
   if [[ "$api_url" != https://192.168.* && "$api_url" != https://10.* && "$api_url" != https://172.16.* && "$api_url" != https://172.17.* && "$api_url" != https://172.18.* && "$api_url" != https://172.19.* && "$api_url" != https://172.2*.* && "$api_url" != https://172.30.* && "$api_url" != https://172.31.* ]]; then
     return 1
   fi
 
   # tls-bypass-allowlist: this fallback is limited to direct private guest addresses used for host-local readiness probes
-  curl -fsS --connect-timeout 4 --max-time 10 --insecure --user "${sunshine_user}:${sunshine_password}" "${api_url%/}/api/apps" >/dev/null # tls-bypass-allowlist: host-local readiness probe against self-signed Sunshine TLS
+  curl -fsS --connect-timeout 4 --max-time 10 --insecure --user "${beagle_stream_server_user}:${beagle_stream_server_password}" "${api_url%/}/api/apps" >/dev/null # tls-bypass-allowlist: host-local readiness probe against self-signed Beagle Stream Server TLS
 }
 
 run_public_stream_reconcile() {
@@ -345,39 +345,39 @@ run_public_stream_reconcile() {
 }
 
 main() {
-  local stream_port sunshine_user sunshine_password sunshine_pin sunshine_pinned_pubkey guest_user guest_password sunshine_status_raw sunshine_status_json desktop_smoke_raw desktop_smoke_json public_api_url direct_api_url guest_ip installer_guest_ip extra_json verify_extra_json
+  local stream_port beagle_stream_server_user beagle_stream_server_password beagle_stream_server_pin beagle_stream_server_pinned_pubkey guest_user guest_password beagle_stream_server_status_raw beagle_stream_server_status_json desktop_smoke_raw desktop_smoke_json public_api_url direct_api_url guest_ip installer_guest_ip extra_json verify_extra_json
 
   parse_args "$@"
   [[ -n "$VMID" && -n "$NODE" ]] || { usage; exit 1; }
   state_init
 
-  stream_port="$(meta_get beagle-public-moonlight-port)"
+  stream_port="$(meta_get beagle-public-beagle-stream-client-port)"
   if [[ -z "$stream_port" ]]; then
     stream_port="$(allocate_stream_port)"
   fi
-  sunshine_user="$(vm_secret_get sunshine_username)"
-  sunshine_password="$(vm_secret_get sunshine_password)"
-  sunshine_pin="$(vm_secret_get sunshine_pin)"
-  sunshine_pinned_pubkey="$(vm_secret_get sunshine_pinned_pubkey)"
-  if [[ -z "$sunshine_user" ]]; then
-    sunshine_user="$(meta_get sunshine-user)"
+  beagle_stream_server_user="$(vm_secret_get beagle_stream_server_username)"
+  beagle_stream_server_password="$(vm_secret_get beagle_stream_server_password)"
+  beagle_stream_server_pin="$(vm_secret_get beagle_stream_server_pin)"
+  beagle_stream_server_pinned_pubkey="$(vm_secret_get beagle_stream_server_pinned_pubkey)"
+  if [[ -z "$beagle_stream_server_user" ]]; then
+    beagle_stream_server_user="$(meta_get beagle-stream-server-user)"
   fi
-  if [[ -z "$sunshine_password" ]]; then
-    sunshine_password="$(meta_get sunshine-password)"
+  if [[ -z "$beagle_stream_server_password" ]]; then
+    beagle_stream_server_password="$(meta_get beagle-stream-server-password)"
   fi
-  if [[ -z "$sunshine_pin" ]]; then
-    sunshine_pin="$(meta_get sunshine-pin)"
+  if [[ -z "$beagle_stream_server_pin" ]]; then
+    beagle_stream_server_pin="$(meta_get beagle-stream-server-pin)"
   fi
-  if [[ -z "$sunshine_user" ]]; then
-    sunshine_user="$(latest_ubuntu_state_credential sunshine_username)"
+  if [[ -z "$beagle_stream_server_user" ]]; then
+    beagle_stream_server_user="$(latest_ubuntu_state_credential beagle_stream_server_username)"
   fi
-  if [[ -z "$sunshine_password" ]]; then
-    sunshine_password="$(latest_ubuntu_state_credential sunshine_password)"
+  if [[ -z "$beagle_stream_server_password" ]]; then
+    beagle_stream_server_password="$(latest_ubuntu_state_credential beagle_stream_server_password)"
   fi
-  if [[ -z "$sunshine_pin" ]]; then
-    sunshine_pin="$(latest_ubuntu_state_credential sunshine_pin)"
+  if [[ -z "$beagle_stream_server_pin" ]]; then
+    beagle_stream_server_pin="$(latest_ubuntu_state_credential beagle_stream_server_pin)"
   fi
-  guest_user="$(meta_get sunshine-guest-user)"
+  guest_user="$(meta_get beagle-stream-server-guest-user)"
   guest_password="$(vm_secret_get guest_password)"
   if [[ -z "$guest_password" ]]; then
     guest_password="$(vm_secret_get password)"
@@ -385,14 +385,14 @@ main() {
   if [[ -z "$guest_password" ]]; then
     guest_password="$(latest_ubuntu_state_credential guest_password)"
   fi
-  [[ -n "$sunshine_user" ]] || sunshine_user="$SUNSHINE_DEFAULT_USER"
-  [[ -n "$sunshine_password" ]] || sunshine_password="$SUNSHINE_DEFAULT_PASSWORD"
-  [[ -n "$sunshine_pin" ]] || sunshine_pin="$SUNSHINE_DEFAULT_PIN"
-  [[ -n "$sunshine_user" ]] || sunshine_user="sunshine-vm${VMID}"
-  [[ -n "$sunshine_password" ]] || sunshine_password="beagle-vm${VMID}-sunshine"
-  [[ -n "$sunshine_pin" ]] || sunshine_pin="$(printf '%04d' $(( VMID % 10000 )))"
-  [[ -n "$guest_user" ]] || guest_user="$SUNSHINE_DEFAULT_GUEST_USER"
-  installer_guest_ip="$(meta_get sunshine-ip)"
+  [[ -n "$beagle_stream_server_user" ]] || beagle_stream_server_user="$BEAGLE_STREAM_SERVER_DEFAULT_USER"
+  [[ -n "$beagle_stream_server_password" ]] || beagle_stream_server_password="$BEAGLE_STREAM_SERVER_DEFAULT_PASSWORD"
+  [[ -n "$beagle_stream_server_pin" ]] || beagle_stream_server_pin="$BEAGLE_STREAM_SERVER_DEFAULT_PIN"
+  [[ -n "$beagle_stream_server_user" ]] || beagle_stream_server_user="beagle-stream-server-vm${VMID}"
+  [[ -n "$beagle_stream_server_password" ]] || beagle_stream_server_password="beagle-vm${VMID}-beagle-stream-server"
+  [[ -n "$beagle_stream_server_pin" ]] || beagle_stream_server_pin="$(printf '%04d' $(( VMID % 10000 )))"
+  [[ -n "$guest_user" ]] || guest_user="$BEAGLE_STREAM_SERVER_DEFAULT_GUEST_USER"
+  installer_guest_ip="$(meta_get beagle-stream-server-ip)"
   if [[ -z "$installer_guest_ip" ]]; then
     installer_guest_ip="$(guest_ipv4 2>/dev/null || true)"
   fi
@@ -401,21 +401,21 @@ main() {
 import json
 import sys
 
-vmid, stream_host, moonlight_port, sunshine_api_url, installer_guest_ip, guest_password = sys.argv[1:7]
+vmid, stream_host, beagle_stream_client_port, beagle_stream_server_api_url, installer_guest_ip, guest_password = sys.argv[1:7]
 print(json.dumps({
     "installer_url": f"/beagle-api/api/v1/vms/{vmid}/installer.sh",
     "stream_host": stream_host,
-    "moonlight_port": moonlight_port,
-    "sunshine_api_url": sunshine_api_url,
+    "beagle_stream_client_port": beagle_stream_client_port,
+    "beagle_stream_server_api_url": beagle_stream_server_api_url,
     "installer_guest_ip": installer_guest_ip,
     "installer_guest_password_available": bool(guest_password),
 }))
 PY
 )"
-  write_state running inspect 5 "Pruefe Sunshine in VM ${VMID}." "$extra_json"
+  write_state running inspect 5 "Pruefe Beagle Stream Server in VM ${VMID}." "$extra_json"
 
-  sunshine_status_raw="$(sunshine_guest_status_json)"
-  sunshine_status_json="$(python3 - "$sunshine_status_raw" <<'PY'
+  beagle_stream_server_status_raw="$(beagle_stream_server_guest_status_json)"
+  beagle_stream_server_status_json="$(python3 - "$beagle_stream_server_status_raw" <<'PY'
 import json, sys
 raw=sys.argv[1].strip()
 if not raw:
@@ -436,13 +436,13 @@ except Exception:
 print(json.dumps(inner))
 PY
 )"
-  verify_extra_json="$(python3 - "$extra_json" "$sunshine_status_json" <<'PY'
+  verify_extra_json="$(python3 - "$extra_json" "$beagle_stream_server_status_json" <<'PY'
 import json
 import sys
 
 base = json.loads(sys.argv[1])
 status = json.loads(sys.argv[2])
-base["sunshine_status"] = {
+base["beagle_stream_server_status"] = {
     "binary": bool(status.get("binary")),
     "service": bool(status.get("service")),
     "process": bool(status.get("process")),
@@ -451,15 +451,15 @@ print(json.dumps(base))
 PY
 )"
 
-  if python3 - "$sunshine_status_json" <<'PY'
+  if python3 - "$beagle_stream_server_status_json" <<'PY'
 import json, sys
 payload=json.loads(sys.argv[1])
 raise SystemExit(0 if payload.get('binary') and not payload.get('service') else 1)
 PY
   then
-  write_state running repair 20 "Sunshine ist installiert, aber der Dienst ist inaktiv. Reparatur wird versucht." "$verify_extra_json"
-  sunshine_status_raw="$(repair_sunshine_guest_runtime)"
-  sunshine_status_json="$(python3 - "$sunshine_status_raw" <<'PY'
+  write_state running repair 20 "Beagle Stream Server ist installiert, aber der Dienst ist inaktiv. Reparatur wird versucht." "$verify_extra_json"
+  beagle_stream_server_status_raw="$(repair_beagle_stream_server_guest_runtime)"
+  beagle_stream_server_status_json="$(python3 - "$beagle_stream_server_status_raw" <<'PY'
 import json, sys
 raw=sys.argv[1].strip()
 if not raw:
@@ -480,13 +480,13 @@ except Exception:
 print(json.dumps(inner))
 PY
 )"
-  verify_extra_json="$(python3 - "$extra_json" "$sunshine_status_json" <<'PY'
+  verify_extra_json="$(python3 - "$extra_json" "$beagle_stream_server_status_json" <<'PY'
 import json
 import sys
 
 base = json.loads(sys.argv[1])
 status = json.loads(sys.argv[2])
-base["sunshine_status"] = {
+base["beagle_stream_server_status"] = {
   "binary": bool(status.get("binary")),
   "service": bool(status.get("service")),
   "process": bool(status.get("process")),
@@ -496,23 +496,23 @@ PY
 )"
   fi
 
-  if python3 - "$sunshine_status_json" <<'PY'
+  if python3 - "$beagle_stream_server_status_json" <<'PY'
 import json, sys
 payload=json.loads(sys.argv[1])
 raise SystemExit(0 if payload.get('binary') and payload.get('service') else 1)
 PY
   then
-    write_state running verify 65 "Sunshine ist bereits installiert. Pruefe Sunshine API." "$verify_extra_json"
+    write_state running verify 65 "Beagle Stream Server ist bereits installiert. Pruefe Beagle Stream Server API." "$verify_extra_json"
   else
-    write_state running install 25 "Sunshine fehlt oder ist nicht aktiv. Installation wird gestartet." "$verify_extra_json"
+    write_state running install 25 "Beagle Stream Server fehlt oder ist nicht aktiv. Installation wird gestartet." "$verify_extra_json"
     local -a configure_args=(
       --beagle-host localhost
       --vmid "$VMID"
       --guest-user "$guest_user"
-      --sunshine-user "$sunshine_user"
-      --sunshine-password "$sunshine_password"
-      --sunshine-pin "$sunshine_pin"
-      --sunshine-port "$stream_port"
+      --beagle-stream-server-user "$beagle_stream_server_user"
+      --beagle-stream-server-password "$beagle_stream_server_password"
+      --beagle-stream-server-pin "$beagle_stream_server_pin"
+      --beagle-stream-server-port "$stream_port"
       --public-stream-host "$PUBLIC_STREAM_HOST"
       --no-reboot
     )
@@ -522,9 +522,9 @@ PY
     if [[ -n "$guest_password" ]]; then
       configure_args+=(--guest-password "$guest_password")
     fi
-    /opt/beagle/scripts/configure-sunshine-guest.sh "${configure_args[@]}"
-    sunshine_status_raw="$(sunshine_guest_status_json)"
-    sunshine_status_json="$(python3 - "$sunshine_status_raw" <<'PY'
+    /opt/beagle/scripts/configure-beagle-stream-server-guest.sh "${configure_args[@]}"
+    beagle_stream_server_status_raw="$(beagle_stream_server_guest_status_json)"
+    beagle_stream_server_status_json="$(python3 - "$beagle_stream_server_status_raw" <<'PY'
 import json, sys
 raw=sys.argv[1].strip()
 if not raw:
@@ -545,13 +545,13 @@ except Exception:
 print(json.dumps(inner))
 PY
 )"
-    verify_extra_json="$(python3 - "$extra_json" "$sunshine_status_json" <<'PY'
+    verify_extra_json="$(python3 - "$extra_json" "$beagle_stream_server_status_json" <<'PY'
 import json
 import sys
 
 base = json.loads(sys.argv[1])
 status = json.loads(sys.argv[2])
-base["sunshine_status"] = {
+base["beagle_stream_server_status"] = {
     "binary": bool(status.get("binary")),
     "service": bool(status.get("service")),
     "process": bool(status.get("process")),
@@ -564,14 +564,14 @@ PY
   write_state running expose 75 "Aktiviere oeffentliche Stream-Ports auf dem Beagle-Host." "$verify_extra_json"
   run_public_stream_reconcile >/dev/null
 
-  guest_ip="$(meta_get sunshine-ip)"
+  guest_ip="$(meta_get beagle-stream-server-ip)"
   if [[ -z "$guest_ip" ]]; then
     guest_ip="$(guest_ipv4 2>/dev/null || true)"
   fi
   if [[ -n "$guest_ip" ]]; then
     direct_api_url="https://${guest_ip}:$((stream_port + 1))"
-    write_state running verify 90 "Pruefe Sunshine API direkt in der VM." "$verify_extra_json"
-    if verify_public_api "$direct_api_url" "$sunshine_user" "$sunshine_password" "$sunshine_pinned_pubkey" || verify_public_api_insecure_local "$direct_api_url" "$sunshine_user" "$sunshine_password"; then
+    write_state running verify 90 "Pruefe Beagle Stream Server API direkt in der VM." "$verify_extra_json"
+    if verify_public_api "$direct_api_url" "$beagle_stream_server_user" "$beagle_stream_server_password" "$beagle_stream_server_pinned_pubkey" || verify_public_api_insecure_local "$direct_api_url" "$beagle_stream_server_user" "$beagle_stream_server_password"; then
       verify_extra_json="$(python3 - "$verify_extra_json" <<'PY'
 import json, sys
 base = json.loads(sys.argv[1])
@@ -580,8 +580,8 @@ base["installer_target_status"] = "ready"
 print(json.dumps(base))
 PY
 )"
-      write_state running verify 95 "Sunshine ist bereit. Pruefe Desktop-Streaming-Guards in der VM." "$verify_extra_json"
-      desktop_smoke_raw="$(sunshine_guest_desktop_smoke_json "$guest_user")"
+      write_state running verify 95 "Beagle Stream Server ist bereit. Pruefe Desktop-Streaming-Guards in der VM." "$verify_extra_json"
+      desktop_smoke_raw="$(beagle_stream_server_guest_desktop_smoke_json "$guest_user")"
       desktop_smoke_json="$(python3 - "$desktop_smoke_raw" <<'PY'
 import json
 import sys
@@ -641,10 +641,10 @@ base["desktop_smoke_warning"] = "xset q oder Locker/Power-Manager-Pruefung fehlg
 print(json.dumps(base))
 PY
 )"
-        if verify_public_api "$public_api_url" "$sunshine_user" "$sunshine_password" "$sunshine_pinned_pubkey"; then
-          write_state ready complete 100 "Sunshine ist bereit, aber Desktop-Streaming-Guards melden Warnungen (xset q oder Locker/Power-Manager)." "$verify_extra_json"
+        if verify_public_api "$public_api_url" "$beagle_stream_server_user" "$beagle_stream_server_password" "$beagle_stream_server_pinned_pubkey"; then
+          write_state ready complete 100 "Beagle Stream Server ist bereit, aber Desktop-Streaming-Guards melden Warnungen (xset q oder Locker/Power-Manager)." "$verify_extra_json"
         else
-          write_state ready complete 100 "Sunshine ist bereit (direkter API-Check), aber Desktop-Streaming-Guards melden Warnungen (xset q oder Locker/Power-Manager)." "$verify_extra_json"
+          write_state ready complete 100 "Beagle Stream Server ist bereit (direkter API-Check), aber Desktop-Streaming-Guards melden Warnungen (xset q oder Locker/Power-Manager)." "$verify_extra_json"
         fi
         exit 0
       fi
@@ -659,16 +659,16 @@ print(json.dumps(base))
 PY
 )"
 
-      if verify_public_api "$public_api_url" "$sunshine_user" "$sunshine_password" "$sunshine_pinned_pubkey"; then
-        write_state ready complete 100 "Sunshine ist bereit. Oeffentlicher API-Check und Desktop-Streaming-Guards waren erfolgreich." "$verify_extra_json"
+      if verify_public_api "$public_api_url" "$beagle_stream_server_user" "$beagle_stream_server_password" "$beagle_stream_server_pinned_pubkey"; then
+        write_state ready complete 100 "Beagle Stream Server ist bereit. Oeffentlicher API-Check und Desktop-Streaming-Guards waren erfolgreich." "$verify_extra_json"
       else
-        write_state ready complete 100 "Sunshine ist bereit. Direkter API-Check und Desktop-Streaming-Guards in der VM waren erfolgreich; oeffentlicher Self-Check wurde auf dem Host uebersprungen." "$verify_extra_json"
+        write_state ready complete 100 "Beagle Stream Server ist bereit. Direkter API-Check und Desktop-Streaming-Guards in der VM waren erfolgreich; oeffentlicher Self-Check wurde auf dem Host uebersprungen." "$verify_extra_json"
       fi
       exit 0
     fi
   fi
 
-  write_state error verify 100 "Sunshine API ist nach der Vorbereitung noch nicht erreichbar." "$verify_extra_json"
+  write_state error verify 100 "Beagle Stream Server API ist nach der Vorbereitung noch nicht erreichbar." "$verify_extra_json"
   exit 1
 }
 

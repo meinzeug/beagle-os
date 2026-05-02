@@ -63,10 +63,10 @@ def apply_enrollment_config(
     credentials = _load_env_file(credentials_path)
     for key, value in (
         ("PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN", config.get("beagle_manager_token", "")),
-        ("PVE_THIN_CLIENT_SUNSHINE_USERNAME", config.get("sunshine_username", "")),
-        ("PVE_THIN_CLIENT_SUNSHINE_PASSWORD", config.get("sunshine_password", "")),
-        ("PVE_THIN_CLIENT_SUNSHINE_PIN", config.get("sunshine_pin", "")),
-        ("PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY", config.get("sunshine_pinned_pubkey", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME", config.get("beagle_stream_server_username", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD", config.get("beagle_stream_server_password", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN", config.get("beagle_stream_server_pin", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY", config.get("beagle_stream_server_pinned_pubkey", "")),
         ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRIVATE_KEY", config.get("egress_wg_private_key", "")),
         ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRESHARED_KEY", config.get("egress_wg_preshared_key", "")),
     ):
@@ -78,12 +78,12 @@ def apply_enrollment_config(
     for key, value in (
         ("PVE_THIN_CLIENT_BEAGLE_DEVICE_ID", config.get("device_id", "")),
         ("PVE_THIN_CLIENT_CONNECTION_METHOD", "broker" if broker_enabled else "direct"),
-        ("PVE_THIN_CLIENT_MOONLIGHT_HOST", "" if broker_enabled else config.get("moonlight_host", "")),
-        ("PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST", config.get("moonlight_local_host", "")),
-        ("PVE_THIN_CLIENT_MOONLIGHT_PORT", config.get("moonlight_port", "")),
-        ("PVE_THIN_CLIENT_MOONLIGHT_APP", config.get("moonlight_app", "Desktop")),
-        ("PVE_THIN_CLIENT_MOONLIGHT_BIN", "beagle-stream" if broker_enabled else config_existing.get("PVE_THIN_CLIENT_MOONLIGHT_BIN", '"moonlight"').strip('"')),
-        ("PVE_THIN_CLIENT_SUNSHINE_API_URL", "" if broker_enabled else config.get("sunshine_api_url", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST", "" if broker_enabled else config.get("beagle_stream_client_host", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST", config.get("beagle_stream_client_local_host", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT", config.get("beagle_stream_client_port", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP", config.get("beagle_stream_client_app", "Desktop")),
+        ("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN", "beagle-stream" if broker_enabled else config_existing.get("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN", '"beagle-stream-client"').strip('"')),
+        ("PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL", "" if broker_enabled else config.get("beagle_stream_server_api_url", "")),
         ("PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE", config.get("egress_mode", "full")),
         ("PVE_THIN_CLIENT_BEAGLE_EGRESS_TYPE", config.get("egress_type", "wireguard")),
         ("PVE_THIN_CLIENT_BEAGLE_EGRESS_INTERFACE", config.get("egress_interface", "wg-beagle")),

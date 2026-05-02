@@ -86,7 +86,7 @@ Erweitert `docs/refactor/11-security-findings.md` um Architektur-Pflichten der W
 
 - pinning per `requirements.txt` / `package.json` mit reproduzierbarem Build.
 - regelmaessige `pip-audit`/`npm audit` in CI.
-- third-party-Tarballs (Apollo, Moonlight) mit SHA-256-Pin und Signaturverifikation im Build-Skript.
+- third-party-Tarballs (Apollo, Beagle Stream Client) mit SHA-256-Pin und Signaturverifikation im Build-Skript.
 
 ## Compliance-Roadmap
 

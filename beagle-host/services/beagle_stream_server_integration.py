@@ -1,8 +1,8 @@
-"""Sunshine and Moonlight guest-integration helpers.
+"""Beagle Stream Server and Beagle Stream Client guest-integration helpers.
 
-This service owns guest-side Sunshine certificate registration, Sunshine
-server identity discovery, Sunshine access-ticket issuance/resolution, and
-the authenticated Sunshine HTTP proxy flow. The control plane keeps thin
+This service owns guest-side Beagle Stream Server certificate registration, Beagle Stream Server
+server identity discovery, Beagle Stream Server access-ticket issuance/resolution, and
+the authenticated Beagle Stream Server HTTP proxy flow. The control plane keeps thin
 wrappers so handler signatures and response payloads remain stable while the
 streaming-specific logic leaves the HTTP entrypoint.
 """
@@ -22,7 +22,7 @@ from typing import Any, Callable
 from urllib.parse import urlparse, urlunparse
 
 
-class SunshineIntegrationService:
+class BeagleStreamServerIntegrationService:
     def __init__(
         self,
         *,
@@ -31,14 +31,14 @@ class SunshineIntegrationService:
         find_vm: Callable[[int], Any | None],
         get_vm_config: Callable[[str, int], dict[str, Any]],
         guest_exec_script_text: Callable[..., tuple[int, str, str]],
-        load_sunshine_access_token: Callable[[str], dict[str, Any] | None],
+        load_beagle_stream_server_access_token: Callable[[str], dict[str, Any] | None],
         parse_description_meta: Callable[[str], dict[str, str]],
         public_manager_url: str,
         run_subprocess: Callable[..., Any] | None = None,
         safe_slug: Callable[..., str] | None = None,
-        store_sunshine_access_token: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None,
-        sunshine_access_token_is_valid: Callable[[dict[str, Any] | None], bool] | None = None,
-        sunshine_access_token_ttl_seconds: int = 600,
+        store_beagle_stream_server_access_token: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None,
+        beagle_stream_server_access_token_is_valid: Callable[[dict[str, Any] | None], bool] | None = None,
+        beagle_stream_server_access_token_ttl_seconds: int = 600,
         ubuntu_beagle_default_guest_user: str = "beagle",
         utcnow: Callable[[], str] | None = None,
     ) -> None:
@@ -47,14 +47,14 @@ class SunshineIntegrationService:
         self._find_vm = find_vm
         self._get_vm_config = get_vm_config
         self._guest_exec_script_text = guest_exec_script_text
-        self._load_sunshine_access_token = load_sunshine_access_token
+        self._load_beagle_stream_server_access_token = load_beagle_stream_server_access_token
         self._parse_description_meta = parse_description_meta
         self._public_manager_url = str(public_manager_url or "")
         self._run_subprocess = run_subprocess or subprocess.run
         self._safe_slug = safe_slug or (lambda value, default="item": default)
-        self._store_sunshine_access_token = store_sunshine_access_token
-        self._sunshine_access_token_is_valid = sunshine_access_token_is_valid or (lambda payload: False)
-        self._sunshine_access_token_ttl_seconds = int(sunshine_access_token_ttl_seconds)
+        self._store_beagle_stream_server_access_token = store_beagle_stream_server_access_token
+        self._beagle_stream_server_access_token_is_valid = beagle_stream_server_access_token_is_valid or (lambda payload: False)
+        self._beagle_stream_server_access_token_ttl_seconds = int(beagle_stream_server_access_token_ttl_seconds)
         self._ubuntu_beagle_default_guest_user = str(ubuntu_beagle_default_guest_user or "beagle")
         self._utcnow = utcnow or (lambda: datetime.now(timezone.utc).isoformat())
 
@@ -107,12 +107,12 @@ class SunshineIntegrationService:
             poll_interval_seconds=2.0,
         )
 
-    def sunshine_guest_user(self, vm: Any, config: dict[str, Any] | None = None) -> str:
+    def beagle_stream_server_guest_user(self, vm: Any, config: dict[str, Any] | None = None) -> str:
         vm_config = config if isinstance(config, dict) else self._get_vm_config(vm.node, vm.vmid)
         meta = self._parse_description_meta(vm_config.get("description", ""))
-        return str(meta.get("sunshine-guest-user", "")).strip() or self._ubuntu_beagle_default_guest_user
+        return str(meta.get("beagle-stream-server-guest-user", "")).strip() or self._ubuntu_beagle_default_guest_user
 
-    def register_moonlight_certificate_on_vm(
+    def register_beagle_stream_client_certificate_on_vm(
         self,
         vm: Any,
         client_cert_pem: str,
@@ -120,7 +120,7 @@ class SunshineIntegrationService:
         device_name: str,
     ) -> dict[str, Any]:
         config = self._get_vm_config(vm.node, vm.vmid)
-        guest_user = self.sunshine_guest_user(vm, config)
+        guest_user = self.beagle_stream_server_guest_user(vm, config)
         cert_b64 = base64.b64encode(client_cert_pem.encode("utf-8")).decode("ascii")
         safe_device_name = self._safe_slug(device_name or f"beagle-vm{vm.vmid}-client", f"beagle-vm{vm.vmid}-client")
         script = f"""#!/usr/bin/env bash
@@ -128,7 +128,7 @@ set -euo pipefail
 
 guest_user={guest_user!r}
 device_name={safe_device_name!r}
-state_file="/home/{guest_user}/.config/sunshine/sunshine_state.json"
+state_file="/home/{guest_user}/.config/beagle-stream-server/beagle_stream_server_state.json"
 cert_file="$(mktemp /tmp/beagle-cert-XXXXXX.pem)"
 trap 'rm -f "$cert_file"' EXIT
 cat > "$cert_file.b64" <<'__BEAGLE_CERT__'
@@ -157,7 +157,7 @@ def _atomic_write_state(target: Path, payload: dict) -> None:
     Path(tmp_name).replace(target)
 
 if not state_path.exists():
-    raise SystemExit(f"sunshine state file missing: {{state_path}}")
+    raise SystemExit(f"beagle-stream-server state file missing: {{state_path}}")
 
 cert = cert_path.read_text(encoding="utf-8")
 state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -180,7 +180,7 @@ _atomic_write_state(state_path, state)
 sys.stdout.write("registered-new\\n")
 PY
 
-systemctl restart beagle-sunshine.service >/dev/null 2>&1 || true
+systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true
 sleep 2
 """
         exitcode, stdout, stderr = self.guest_exec_text(vm.vmid, script)
@@ -192,10 +192,10 @@ sleep 2
             "stderr": stderr,
         }
 
-    def fetch_sunshine_server_identity(self, vm: Any, guest_user: str) -> dict[str, Any]:
-        state_file = f"/home/{guest_user}/.config/sunshine/sunshine_state.json"
-        cert_file = f"/home/{guest_user}/.config/sunshine/credentials/cacert.pem"
-        conf_file = f"/home/{guest_user}/.config/sunshine/sunshine.conf"
+    def fetch_beagle_stream_server_identity(self, vm: Any, guest_user: str) -> dict[str, Any]:
+        state_file = f"/home/{guest_user}/.config/beagle-stream-server/beagle_stream_server_state.json"
+        cert_file = f"/home/{guest_user}/.config/beagle-stream-server/credentials/cacert.pem"
+        conf_file = f"/home/{guest_user}/.config/beagle-stream-server/beagle-stream-server.conf"
         script = f"""#!/usr/bin/env bash
 set -euo pipefail
 
@@ -213,7 +213,7 @@ conf_path = Path(sys.argv[3])
 payload = {{
     "uniqueid": "",
     "server_cert_pem": "",
-    "sunshine_name": "",
+    "beagle_stream_server_name": "",
     "stream_port": "",
 }}
 
@@ -239,8 +239,8 @@ if conf_path.exists():
             key, value = line.split("=", 1)
             key = key.strip()
             value = value.strip()
-            if key == "sunshine_name":
-                payload["sunshine_name"] = value
+            if key == "beagle_stream_server_name":
+                payload["beagle_stream_server_name"] = value
             elif key == "port":
                 payload["stream_port"] = value
     except Exception:
@@ -256,8 +256,8 @@ if not payload["uniqueid"] and stream_port:
             xml_payload = response.read()
         root = ET.fromstring(xml_payload.decode("utf-8", errors="replace"))
         payload["uniqueid"] = str(root.findtext(".//uniqueid", default="") or "").strip()
-        if not payload["sunshine_name"]:
-            payload["sunshine_name"] = str(root.findtext(".//hostname", default="") or "").strip()
+        if not payload["beagle_stream_server_name"]:
+            payload["beagle_stream_server_name"] = str(root.findtext(".//hostname", default="") or "").strip()
     except Exception:
         pass
 
@@ -273,7 +273,7 @@ PY
                 "stderr": stderr,
                 "uniqueid": "",
                 "server_cert_pem": "",
-                "sunshine_name": "",
+                "beagle_stream_server_name": "",
                 "stream_port": "",
             }
         try:
@@ -287,7 +287,7 @@ PY
             "stderr": stderr,
             "uniqueid": str(payload.get("uniqueid", "") or "").strip(),
             "server_cert_pem": str(payload.get("server_cert_pem", "") or ""),
-            "sunshine_name": str(payload.get("sunshine_name", "") or "").strip(),
+            "beagle_stream_server_name": str(payload.get("beagle_stream_server_name", "") or "").strip(),
             "stream_port": str(payload.get("stream_port", "") or "").strip(),
         }
 
@@ -303,7 +303,7 @@ PY
                                 "stderr": "invalid resolution format",
                         }
 
-                guest_user = self.sunshine_guest_user(vm)
+                guest_user = self.beagle_stream_server_guest_user(vm)
                 script = f"""#!/usr/bin/env bash
 set -euo pipefail
 
@@ -353,48 +353,48 @@ exit 4
                         "guest_user": guest_user,
                 }
 
-    def internal_sunshine_api_url(self, vm: Any, profile: dict[str, Any] | None = None) -> str:
+    def internal_beagle_stream_server_api_url(self, vm: Any, profile: dict[str, Any] | None = None) -> str:
         resolved_profile = profile if isinstance(profile, dict) else self._build_profile(vm)
         public_stream = resolved_profile.get("public_stream") if isinstance(resolved_profile.get("public_stream"), dict) else None
         guest_ip = str(resolved_profile.get("guest_ip", "") or "").strip()
         if public_stream:
             guest_ip = str(public_stream.get("guest_ip", "") or guest_ip).strip()
             ports = public_stream.get("ports", {}) if isinstance(public_stream.get("ports"), dict) else {}
-            api_port = ports.get("sunshine_api_port")
+            api_port = ports.get("beagle_stream_server_api_port")
             if guest_ip and api_port:
                 return f"https://{guest_ip}:{int(api_port)}"
-        base_url = str(resolved_profile.get("sunshine_api_url", "") or "")
+        base_url = str(resolved_profile.get("beagle_stream_server_api_url", "") or "")
         if guest_ip and base_url:
             parsed = urlparse(base_url)
             if parsed.scheme and parsed.port:
                 return urlunparse(parsed._replace(netloc=f"{guest_ip}:{parsed.port}"))
         return base_url
 
-    def resolve_vm_sunshine_pinned_pubkey(self, vm: Any) -> str:
+    def resolve_vm_beagle_stream_server_pinned_pubkey(self, vm: Any) -> str:
         profile = self._build_profile(vm, allow_assignment=False)
-        return self.fetch_https_pinned_pubkey(self.internal_sunshine_api_url(vm, profile))
+        return self.fetch_https_pinned_pubkey(self.internal_beagle_stream_server_api_url(vm, profile))
 
-    def issue_sunshine_access_token(self, vm: Any) -> tuple[str, dict[str, Any]]:
-        if self._store_sunshine_access_token is None:
-            raise RuntimeError("sunshine access token store is not configured")
+    def issue_beagle_stream_server_access_token(self, vm: Any) -> tuple[str, dict[str, Any]]:
+        if self._store_beagle_stream_server_access_token is None:
+            raise RuntimeError("beagle-stream-server access token store is not configured")
         token = secrets.token_urlsafe(32)
         payload = {
             "vmid": vm.vmid,
             "node": vm.node,
             "issued_at": self._utcnow(),
             "expires_at": datetime.fromtimestamp(
-                datetime.now(timezone.utc).timestamp() + self._sunshine_access_token_ttl_seconds,
+                datetime.now(timezone.utc).timestamp() + self._beagle_stream_server_access_token_ttl_seconds,
                 tz=timezone.utc,
             ).isoformat(),
         }
-        self._store_sunshine_access_token(token, payload)
+        self._store_beagle_stream_server_access_token(token, payload)
         return token, payload
 
-    def sunshine_proxy_ticket_url(self, token: str) -> str:
-        return f"{self._public_manager_url}/api/v1/public/sunshine/{token}/"
+    def beagle_stream_server_proxy_ticket_url(self, token: str) -> str:
+        return f"{self._public_manager_url}/api/v1/public/beagle-stream-server/{token}/"
 
     def resolve_ticket_vm(self, path: str) -> tuple[Any | None, str]:
-        prefix = "/api/v1/public/sunshine/"
+        prefix = "/api/v1/public/beagle-stream-server/"
         if not str(path).startswith(prefix):
             return None, ""
         remainder = str(path)[len(prefix):]
@@ -402,14 +402,14 @@ exit 4
         token = parts[0].strip()
         if not token:
             return None, ""
-        payload = self._load_sunshine_access_token(token)
-        if not self._sunshine_access_token_is_valid(payload):
+        payload = self._load_beagle_stream_server_access_token(token)
+        if not self._beagle_stream_server_access_token_is_valid(payload):
             return None, ""
         vm = self._find_vm(int(payload.get("vmid", -1))) if payload else None
         relative = "/" if len(parts) == 1 or not parts[1] else f"/{parts[1]}"
         return vm, relative
 
-    def proxy_sunshine_request(
+    def proxy_beagle_stream_server_request(
         self,
         vm: Any,
         *,
@@ -420,23 +420,23 @@ exit 4
         request_headers: dict[str, str],
     ) -> tuple[int, dict[str, str], bytes]:
         profile = self._build_profile(vm)
-        base_url = self.internal_sunshine_api_url(vm, profile).rstrip("/")
+        base_url = self.internal_beagle_stream_server_api_url(vm, profile).rstrip("/")
         if not base_url:
-            raise RuntimeError("missing sunshine api url")
+            raise RuntimeError("missing beagle-stream-server api url")
         secret = self._ensure_vm_secret(vm)
-        sunshine_user = str(secret.get("sunshine_username", "") or "")
-        sunshine_password = str(secret.get("sunshine_password", "") or "")
-        pinned_pubkey = str(secret.get("sunshine_pinned_pubkey", "") or "")
-        if not sunshine_user or not sunshine_password:
-            raise RuntimeError("missing sunshine credentials")
+        beagle_stream_server_user = str(secret.get("beagle_stream_server_username", "") or "")
+        beagle_stream_server_password = str(secret.get("beagle_stream_server_password", "") or "")
+        pinned_pubkey = str(secret.get("beagle_stream_server_pinned_pubkey", "") or "")
+        if not beagle_stream_server_user or not beagle_stream_server_password:
+            raise RuntimeError("missing beagle-stream-server credentials")
 
         relative = "/" + str(request_path or "").lstrip("/")
         target_url = f"{base_url}{relative}"
         if query:
             target_url = f"{target_url}?{query}"
 
-        header_file = tempfile.NamedTemporaryFile(prefix="beagle-sunshine-hdr-", delete=False)
-        body_file = tempfile.NamedTemporaryFile(prefix="beagle-sunshine-body-", delete=False)
+        header_file = tempfile.NamedTemporaryFile(prefix="beagle-stream-server-hdr-", delete=False)
+        body_file = tempfile.NamedTemporaryFile(prefix="beagle-stream-server-body-", delete=False)
         header_file.close()
         body_file.close()
         input_name = ""
@@ -451,7 +451,7 @@ exit 4
                 "-X",
                 method.upper(),
                 "-u",
-                f"{sunshine_user}:{sunshine_password}",
+                f"{beagle_stream_server_user}:{beagle_stream_server_password}",
                 "--connect-timeout",
                 "5",
                 "--max-time",
@@ -464,7 +464,7 @@ exit 4
                 if value:
                     command.extend(["-H", f"{key}: {value}"])
             if body is not None:
-                input_file = tempfile.NamedTemporaryFile(prefix="beagle-sunshine-in-", delete=False)
+                input_file = tempfile.NamedTemporaryFile(prefix="beagle-stream-server-in-", delete=False)
                 input_file.write(body)
                 input_file.flush()
                 input_name = input_file.name
@@ -481,7 +481,7 @@ exit 4
             header_block = blocks[-1] if blocks else ""
             lines = [line for line in re.split(r"\r?\n", header_block) if line.strip()]
             if not lines or not lines[0].startswith("HTTP/"):
-                raise RuntimeError("invalid sunshine proxy response")
+                raise RuntimeError("invalid beagle-stream-server proxy response")
             status_code = int(lines[0].split()[1])
             response_headers: dict[str, str] = {}
             for line in lines[1:]:

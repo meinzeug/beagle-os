@@ -3,7 +3,7 @@
 This service owns the higher-level `ensure_vm_secret` flow around the
 already-extracted `VmSecretStoreService`. It fills missing secret fields,
 creates SSH keypairs for the USB tunnel, keeps the managed
-`authorized_keys` block in sync, and backfills the Sunshine pinned
+`authorized_keys` block in sync, and backfills the Beagle Stream Server pinned
 pubkey through an injected resolver.
 """
 
@@ -29,7 +29,7 @@ class VmSecretBootstrapService:
         public_stream_host: str,
         random_pin: Callable[[], str],
         random_secret: Callable[[int], str],
-        resolve_sunshine_pinned_pubkey: Callable[[Any], str],
+        resolve_beagle_stream_server_pinned_pubkey: Callable[[Any], str],
         safe_slug: Callable[..., str],
         save_vm_secret: Callable[[str, int, dict[str, Any]], dict[str, Any]],
         session_script_path: Path,
@@ -49,7 +49,7 @@ class VmSecretBootstrapService:
         self._public_stream_host = str(public_stream_host or "")
         self._random_pin = random_pin
         self._random_secret = random_secret
-        self._resolve_sunshine_pinned_pubkey = resolve_sunshine_pinned_pubkey
+        self._resolve_beagle_stream_server_pinned_pubkey = resolve_beagle_stream_server_pinned_pubkey
         self._safe_slug = safe_slug
         self._save_vm_secret = save_vm_secret
         self._session_script_path = Path(session_script_path)
@@ -178,28 +178,28 @@ class VmSecretBootstrapService:
         # beagle-manager 0600). Only the per-VM snippet is owned here.
         os.chmod(snippet_path, 0o600)
 
-    def ensure_vm_sunshine_pinned_pubkey(self, vm: Any, secret: dict[str, Any]) -> dict[str, Any]:
-        if str(secret.get("sunshine_pinned_pubkey", "") or "").strip():
+    def ensure_vm_beagle_stream_server_pinned_pubkey(self, vm: Any, secret: dict[str, Any]) -> dict[str, Any]:
+        if str(secret.get("beagle_stream_server_pinned_pubkey", "") or "").strip():
             return secret
-        pin = str(self._resolve_sunshine_pinned_pubkey(vm) or "").strip()
+        pin = str(self._resolve_beagle_stream_server_pinned_pubkey(vm) or "").strip()
         if not pin:
             return secret
         updated = dict(secret)
-        updated["sunshine_pinned_pubkey"] = pin
+        updated["beagle_stream_server_pinned_pubkey"] = pin
         return self._save_vm_secret(vm.node, vm.vmid, updated)
 
     def ensure_vm_secret(self, vm: Any) -> dict[str, Any]:
         existing = self._load_vm_secret(vm.node, vm.vmid)
         if existing:
             changed = False
-            if not str(existing.get("sunshine_username", "")).strip():
-                existing["sunshine_username"] = f"sunshine-vm{vm.vmid}"
+            if not str(existing.get("beagle_stream_server_username", "")).strip():
+                existing["beagle_stream_server_username"] = f"beagle-stream-server-vm{vm.vmid}"
                 changed = True
-            if not str(existing.get("sunshine_password", "")).strip():
-                existing["sunshine_password"] = self._random_secret(26)
+            if not str(existing.get("beagle_stream_server_password", "")).strip():
+                existing["beagle_stream_server_password"] = self._random_secret(26)
                 changed = True
-            if not str(existing.get("sunshine_pin", "")).strip():
-                existing["sunshine_pin"] = self._random_pin()
+            if not str(existing.get("beagle_stream_server_pin", "")).strip():
+                existing["beagle_stream_server_pin"] = self._random_pin()
                 changed = True
             if not str(existing.get("thinclient_password", "")).strip():
                 existing["thinclient_password"] = self._random_secret(22)
@@ -213,7 +213,7 @@ class VmSecretBootstrapService:
                 existing["usb_tunnel_port"] = self.default_usb_tunnel_port(vm.vmid)
                 changed = True
             secret = self._save_vm_secret(vm.node, vm.vmid, existing) if changed else existing
-            secret = self.ensure_vm_sunshine_pinned_pubkey(vm, secret)
+            secret = self.ensure_vm_beagle_stream_server_pinned_pubkey(vm, secret)
             self.sync_usb_tunnel_authorized_key(vm, secret)
             return secret
 
@@ -222,16 +222,16 @@ class VmSecretBootstrapService:
             vm.node,
             vm.vmid,
             {
-                "sunshine_username": f"sunshine-vm{vm.vmid}",
-                "sunshine_password": self._random_secret(26),
-                "sunshine_pin": self._random_pin(),
+                "beagle_stream_server_username": f"beagle-stream-server-vm{vm.vmid}",
+                "beagle_stream_server_password": self._random_secret(26),
+                "beagle_stream_server_pin": self._random_pin(),
                 "thinclient_password": self._random_secret(22),
-                "sunshine_pinned_pubkey": "",
+                "beagle_stream_server_pinned_pubkey": "",
                 "usb_tunnel_port": self.default_usb_tunnel_port(vm.vmid),
                 "usb_tunnel_private_key": private_key,
                 "usb_tunnel_public_key": public_key,
             },
         )
-        secret = self.ensure_vm_sunshine_pinned_pubkey(vm, secret)
+        secret = self.ensure_vm_beagle_stream_server_pinned_pubkey(vm, secret)
         self.sync_usb_tunnel_authorized_key(vm, secret)
         return secret

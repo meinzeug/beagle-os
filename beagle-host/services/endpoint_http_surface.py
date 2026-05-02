@@ -17,12 +17,12 @@ class EndpointHttpSurfaceService:
         attestation_service: Any,
         fleet_telemetry_service: Any | None,
         alert_service: Any | None,
-        exchange_moonlight_pairing_token: Callable[[Any, dict[str, Any], str], dict[str, Any]],
-        fetch_sunshine_server_identity: Callable[[Any, str], dict[str, Any]],
+        exchange_beagle_stream_client_pairing_token: Callable[[Any, dict[str, Any], str], dict[str, Any]],
+        fetch_beagle_stream_server_identity: Callable[[Any, str], dict[str, Any]],
         find_vm: Callable[[int], Any | None],
-        issue_moonlight_pairing_token: Callable[[Any, dict[str, Any], str], dict[str, Any]],
+        issue_beagle_stream_client_pairing_token: Callable[[Any, dict[str, Any], str], dict[str, Any]],
         pool_manager_service: Any,
-        register_moonlight_certificate_on_vm: Callable[[Any, str], dict[str, Any]],
+        register_beagle_stream_client_certificate_on_vm: Callable[[Any, str], dict[str, Any]],
         service_name: str,
         prepare_virtual_display_on_vm: Callable[[Any, str], dict[str, Any]],
         session_manager_service: Any,
@@ -39,12 +39,12 @@ class EndpointHttpSurfaceService:
         self._attestation = attestation_service
         self._fleet_telemetry = fleet_telemetry_service
         self._alert_service = alert_service
-        self._exchange_moonlight_pairing_token = exchange_moonlight_pairing_token
-        self._fetch_sunshine_server_identity = fetch_sunshine_server_identity
+        self._exchange_beagle_stream_client_pairing_token = exchange_beagle_stream_client_pairing_token
+        self._fetch_beagle_stream_server_identity = fetch_beagle_stream_server_identity
         self._find_vm = find_vm
-        self._issue_moonlight_pairing_token = issue_moonlight_pairing_token
+        self._issue_beagle_stream_client_pairing_token = issue_beagle_stream_client_pairing_token
         self._pool_manager = pool_manager_service
-        self._register_moonlight_certificate_on_vm = register_moonlight_certificate_on_vm
+        self._register_beagle_stream_client_certificate_on_vm = register_beagle_stream_client_certificate_on_vm
         self._prepare_virtual_display_on_vm = prepare_virtual_display_on_vm
         self._session_manager = session_manager_service
         self._service_name = str(service_name or "beagle-control-plane")
@@ -76,10 +76,10 @@ class EndpointHttpSurfaceService:
     def handles_path(path: str) -> bool:
         return path in {
             "/api/v1/session/current",
-            "/api/v1/endpoints/moonlight/register",
-            "/api/v1/endpoints/moonlight/prepare-stream",
-            "/api/v1/endpoints/moonlight/pair-token",
-            "/api/v1/endpoints/moonlight/pair-exchange",
+            "/api/v1/endpoints/beagle-stream-client/register",
+            "/api/v1/endpoints/beagle-stream-client/prepare-stream",
+            "/api/v1/endpoints/beagle-stream-client/pair-token",
+            "/api/v1/endpoints/beagle-stream-client/pair-exchange",
             "/api/v1/endpoints/actions/pull",
             "/api/v1/endpoints/actions/result",
             "/api/v1/endpoints/support-bundles/upload",
@@ -90,10 +90,10 @@ class EndpointHttpSurfaceService:
     @staticmethod
     def requires_json_body(path: str) -> bool:
         return path in {
-            "/api/v1/endpoints/moonlight/register",
-            "/api/v1/endpoints/moonlight/prepare-stream",
-            "/api/v1/endpoints/moonlight/pair-token",
-            "/api/v1/endpoints/moonlight/pair-exchange",
+            "/api/v1/endpoints/beagle-stream-client/register",
+            "/api/v1/endpoints/beagle-stream-client/prepare-stream",
+            "/api/v1/endpoints/beagle-stream-client/pair-token",
+            "/api/v1/endpoints/beagle-stream-client/pair-exchange",
             "/api/v1/endpoints/actions/pull",
             "/api/v1/endpoints/actions/result",
             "/api/v1/endpoints/device/sync",
@@ -175,7 +175,7 @@ class EndpointHttpSurfaceService:
 
             profile = self._build_vm_profile(vm) if callable(self._build_vm_profile) else {}
             stream_host = str(profile.get("stream_host", "") or "").strip()
-            moonlight_port = str(profile.get("moonlight_port", "") or "").strip()
+            beagle_stream_client_port = str(profile.get("beagle_stream_client_port", "") or "").strip()
             pool_id = str(session.get("pool_id") or "").strip()
             network_mode = self._network_mode_for_pool(pool_id)
             wireguard_active = self._wireguard_active_for_identity(identity)
@@ -205,7 +205,7 @@ class EndpointHttpSurfaceService:
                         vmid=session_vmid,
                         current_node=current_node,
                         stream_host=stream_host,
-                        moonlight_port=moonlight_port,
+                        beagle_stream_client_port=beagle_stream_client_port,
                         reconnect_required=reconnect_required,
                         network_mode=network_mode,
                         wireguard_active=wireguard_active,
@@ -361,7 +361,7 @@ class EndpointHttpSurfaceService:
                 },
             )
 
-        if path == "/api/v1/endpoints/moonlight/register":
+        if path == "/api/v1/endpoints/beagle-stream-client/register":
             vmid = int(identity.get("vmid", 0) or 0)
             vm = self._find_vm(vmid)
             if vm is None or str(identity.get("node", "")).strip() != vm.node:
@@ -375,22 +375,22 @@ class EndpointHttpSurfaceService:
             )
             if not client_cert_pem or "BEGIN CERTIFICATE" not in client_cert_pem:
                 return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid payload: missing client certificate"})
-            result = self._register_moonlight_certificate_on_vm(vm, client_cert_pem, device_name=device_name)
+            result = self._register_beagle_stream_client_certificate_on_vm(vm, client_cert_pem, device_name=device_name)
             guest_user = str(result.get("guest_user", "") or "").strip()
-            sunshine_server: dict[str, Any] = {
+            beagle_stream_server: dict[str, Any] = {
                 "ok": False,
                 "uniqueid": "",
                 "server_cert_pem": "",
-                "sunshine_name": "",
+                "beagle_stream_server_name": "",
                 "stream_port": "",
                 "stdout": "",
                 "stderr": "",
             }
             if bool(result.get("ok")) and guest_user:
-                sunshine_server = self._fetch_sunshine_server_identity(vm, guest_user)
-            overall_ok = bool(result.get("ok")) and bool(sunshine_server.get("ok")) and bool(
-                sunshine_server.get("uniqueid")
-            ) and bool(sunshine_server.get("server_cert_pem"))
+                beagle_stream_server = self._fetch_beagle_stream_server_identity(vm, guest_user)
+            overall_ok = bool(result.get("ok")) and bool(beagle_stream_server.get("ok")) and bool(
+                beagle_stream_server.get("uniqueid")
+            ) and bool(beagle_stream_server.get("server_cert_pem"))
             return self._json_response(
                 HTTPStatus.CREATED if overall_ok else HTTPStatus.BAD_GATEWAY,
                 {
@@ -402,20 +402,20 @@ class EndpointHttpSurfaceService:
                         guest_user=result.get("guest_user", ""),
                         stdout=result.get("stdout", ""),
                         stderr=result.get("stderr", ""),
-                        sunshine_server={
-                            "ok": bool(sunshine_server.get("ok")),
-                            "uniqueid": sunshine_server.get("uniqueid", ""),
-                            "server_cert_pem": sunshine_server.get("server_cert_pem", ""),
-                            "sunshine_name": sunshine_server.get("sunshine_name", ""),
-                            "stream_port": sunshine_server.get("stream_port", ""),
-                            "stdout": sunshine_server.get("stdout", ""),
-                            "stderr": sunshine_server.get("stderr", ""),
+                        beagle_stream_server={
+                            "ok": bool(beagle_stream_server.get("ok")),
+                            "uniqueid": beagle_stream_server.get("uniqueid", ""),
+                            "server_cert_pem": beagle_stream_server.get("server_cert_pem", ""),
+                            "beagle_stream_server_name": beagle_stream_server.get("beagle_stream_server_name", ""),
+                            "stream_port": beagle_stream_server.get("stream_port", ""),
+                            "stdout": beagle_stream_server.get("stdout", ""),
+                            "stderr": beagle_stream_server.get("stderr", ""),
                         },
                     ),
                 },
             )
 
-        if path == "/api/v1/endpoints/moonlight/prepare-stream":
+        if path == "/api/v1/endpoints/beagle-stream-client/prepare-stream":
             vmid = int(identity.get("vmid", 0) or 0)
             vm = self._find_vm(vmid)
             if vm is None or str(identity.get("node", "")).strip() != vm.node:
@@ -440,7 +440,7 @@ class EndpointHttpSurfaceService:
                 },
             )
 
-        if path == "/api/v1/endpoints/moonlight/pair-token":
+        if path == "/api/v1/endpoints/beagle-stream-client/pair-token":
             vmid = int(identity.get("vmid", 0) or 0)
             vm = self._find_vm(vmid)
             if vm is None or str(identity.get("node", "")).strip() != vm.node:
@@ -453,7 +453,7 @@ class EndpointHttpSurfaceService:
                 or f"beagle-vm{vmid}-client"
             )
             try:
-                issued = self._issue_moonlight_pairing_token(vm, identity, device_name)
+                issued = self._issue_beagle_stream_client_pairing_token(vm, identity, device_name)
             except Exception as exc:
                 return self._json_response(
                     HTTPStatus.BAD_GATEWAY,
@@ -489,7 +489,7 @@ class EndpointHttpSurfaceService:
                 },
             )
 
-        if path == "/api/v1/endpoints/moonlight/pair-exchange":
+        if path == "/api/v1/endpoints/beagle-stream-client/pair-exchange":
             vmid = int(identity.get("vmid", 0) or 0)
             vm = self._find_vm(vmid)
             if vm is None or str(identity.get("node", "")).strip() != vm.node:
@@ -501,7 +501,7 @@ class EndpointHttpSurfaceService:
                 return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid payload: missing pairing_token"})
 
             try:
-                exchanged = self._exchange_moonlight_pairing_token(vm, identity, token)
+                exchanged = self._exchange_beagle_stream_client_pairing_token(vm, identity, token)
             except Exception as exc:
                 return self._json_response(
                     HTTPStatus.BAD_GATEWAY,

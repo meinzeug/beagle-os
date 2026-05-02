@@ -13,7 +13,7 @@ class VmMutationSurfaceService:
         build_vm_usb_state: Callable[[Any], dict[str, Any]],
         find_vm: Callable[[int], Any | None],
         invalidate_vm_cache: Callable[[int | None, str], None],
-        issue_sunshine_access_token: Callable[[Any], tuple[str, dict[str, Any]]],
+        issue_beagle_stream_server_access_token: Callable[[Any], tuple[str, dict[str, Any]]],
         migrate_vm: Callable[[int, str, bool, bool, str], dict[str, Any]],
         queue_vm_action: Callable[[Any, str, str, dict[str, Any] | None], dict[str, Any]],
         reboot_vm: Callable[[int], str],
@@ -22,7 +22,7 @@ class VmMutationSurfaceService:
         start_installer_prep: Callable[[Any], dict[str, Any]],
         stop_vm: Callable[[int], str],
         summarize_action_result: Callable[[dict[str, Any] | None], dict[str, Any]],
-        sunshine_proxy_ticket_url: Callable[[str], str],
+        beagle_stream_server_proxy_ticket_url: Callable[[str], str],
         usb_action_wait_seconds: float,
         utcnow: Callable[[], str],
         version: str,
@@ -37,7 +37,7 @@ class VmMutationSurfaceService:
         self._build_vm_usb_state = build_vm_usb_state
         self._find_vm = find_vm
         self._invalidate_vm_cache = invalidate_vm_cache
-        self._issue_sunshine_access_token = issue_sunshine_access_token
+        self._issue_beagle_stream_server_access_token = issue_beagle_stream_server_access_token
         self._migrate_vm = migrate_vm
         self._queue_vm_action = queue_vm_action
         self._reboot_vm = reboot_vm
@@ -46,7 +46,7 @@ class VmMutationSurfaceService:
         self._start_installer_prep = start_installer_prep
         self._stop_vm = stop_vm
         self._summarize_action_result = summarize_action_result
-        self._sunshine_proxy_ticket_url = sunshine_proxy_ticket_url
+        self._beagle_stream_server_proxy_ticket_url = beagle_stream_server_proxy_ticket_url
         self._usb_action_wait_seconds = float(usb_action_wait_seconds)
         self._utcnow = utcnow
         self._version = str(version or "")
@@ -86,7 +86,7 @@ class VmMutationSurfaceService:
             or (path.startswith("/api/v1/vms/") and path.endswith("/clone"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/snapshot"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/snapshot/revert"))
-            or (path.startswith("/api/v1/vms/") and path.endswith("/sunshine-access"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/beagle-stream-server-access"))
             or (path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"))
         )
 
@@ -551,20 +551,20 @@ class VmMutationSurfaceService:
                 },
             )
 
-        if path.startswith("/api/v1/vms/") and path.endswith("/sunshine-access"):
+        if path.startswith("/api/v1/vms/") and path.endswith("/beagle-stream-server-access"):
             vm, error = self._vm_from_segment(path, -2)
             if vm is None:
                 status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
                 return self._json_response(status, {"ok": False, "error": error})
-            token, payload = self._issue_sunshine_access_token(vm)
+            token, payload = self._issue_beagle_stream_server_access_token(vm)
             return self._json_response(
                 HTTPStatus.CREATED,
                 {
                     "ok": True,
                     **self._envelope(
-                        sunshine_access={
+                        beagle_stream_server_access={
                             **payload,
-                            "url": self._sunshine_proxy_ticket_url(token),
+                            "url": self._beagle_stream_server_proxy_ticket_url(token),
                         }
                     ),
                 },

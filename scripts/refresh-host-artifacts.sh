@@ -132,7 +132,7 @@ detect_refresh_activity() {
     CURRENT_STEP="thin-client-packages"
     CURRENT_PROGRESS=42
     CURRENT_MESSAGE="Pakete und Treiber werden in das Live-System installiert ..."
-    CURRENT_DETAIL="Debian-Pakete, Firmware, Grafik-/Audio-Komponenten, BeagleStream-/Moonlight-Abhaengigkeiten und Installer-Tools werden installiert."
+    CURRENT_DETAIL="Debian-Pakete, Firmware, Grafik-/Audio-Komponenten, BeagleStream-/Beagle Stream Client-Abhaengigkeiten und Installer-Tools werden installiert."
   elif [[ "$process_blob" == *"binary_rootfs"* || "$process_blob" == *"/usr/lib/live/build/binary"* ]]; then
     CURRENT_STEP="thin-client-binary"
     CURRENT_PROGRESS=64

@@ -22,14 +22,14 @@ class DesktopTemplateContractTests(unittest.TestCase):
             backing_image="local/templates/ubuntu-xfce-gold.qcow2",
             cpu_cores=4,
             memory_mib=8192,
-            software_packages=("sunshine", "qemu-guest-agent"),
+            software_packages=("beagle-stream-server", "qemu-guest-agent"),
         )
         self.assertEqual(spec.template_id, "tmpl-ubuntu-xfce-01")
         self.assertEqual(spec.source_vmid, 150)
         self.assertEqual(spec.storage_pool, "local")
         self.assertEqual(spec.cpu_cores, 4)
         self.assertEqual(spec.memory_mib, 8192)
-        self.assertEqual(spec.software_packages, ("sunshine", "qemu-guest-agent"))
+        self.assertEqual(spec.software_packages, ("beagle-stream-server", "qemu-guest-agent"))
         self.assertEqual(spec.notes, "")
 
     def test_template_info_fields(self) -> None:
@@ -43,7 +43,7 @@ class DesktopTemplateContractTests(unittest.TestCase):
             backing_image="local/templates/ubuntu-xfce-gold.qcow2",
             cpu_cores=4,
             memory_mib=8192,
-            software_packages=("sunshine",),
+            software_packages=("beagle-stream-server",),
             created_at="2026-04-22T08:00:00Z",
             sealed=True,
         )
@@ -56,7 +56,7 @@ class DesktopTemplateContractTests(unittest.TestCase):
         self.assertEqual(info.backing_image, "local/templates/ubuntu-xfce-gold.qcow2")
         self.assertEqual(info.cpu_cores, 4)
         self.assertEqual(info.memory_mib, 8192)
-        self.assertEqual(info.software_packages, ("sunshine",))
+        self.assertEqual(info.software_packages, ("beagle-stream-server",))
         self.assertEqual(info.created_at, "2026-04-22T08:00:00Z")
         self.assertTrue(info.sealed)
         self.assertEqual(info.health, "unknown")

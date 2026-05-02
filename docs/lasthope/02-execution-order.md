@@ -39,7 +39,7 @@ Akzeptanz:
 
 ## Welle 2 - BeagleStream als Produktpfad
 
-Ziel: der Kunde sieht keinen Sunshine/Moonlight-Bastelpfad mehr, sondern BeagleStream.
+Ziel: der Kunde sieht keinen Beagle Stream Server/Beagle Stream Client-Bastelpfad mehr, sondern BeagleStream.
 
 - [ ] `beagle-stream-server` in neuen VMs als bevorzugter Runtime-Pfad pruefen.
 - [ ] `beagle-stream-client` im Thinclient-Image als bevorzugter Runtime-Pfad pruefen.
@@ -124,5 +124,5 @@ Ziel: Firmen koennen das System wiederholt bedienen, ohne Entwicklerkontext.
 Akzeptanz:
 
 - WebUI ist auf Desktop und Tablet bedienbar.
-- keine sichtbaren "Sunshine/Moonlight"-Legacy-Texte im Standardpfad, ausser als bewusst dokumentierter Fallback.
+- keine sichtbaren "Beagle Stream Server/Beagle Stream Client"-Legacy-Texte im Standardpfad, ausser als bewusst dokumentierter Fallback.
 

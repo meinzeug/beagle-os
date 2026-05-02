@@ -11,7 +11,7 @@ Referenz: `docs/refactorv2/11-endpoint-strategy.md`
 
 ### Schritt 1 — Drei Endpoint-Profile definieren und bauen
 
-- [x] `beagle-os/profiles/desktop-thin-client/` — Beagle Endpoint OS + Moonlight Wrapper.
+- [x] `beagle-os/profiles/desktop-thin-client/` — Beagle Endpoint OS + Beagle Stream Client Wrapper.
 - [x] `beagle-os/profiles/gaming-kiosk/` — Electron Kiosk (entspricht heutigem `beagle-kiosk/`).
 - [x] `beagle-os/profiles/engineering-station/` — Multi-Monitor + Wacom + GPU.
 
@@ -19,7 +19,7 @@ Alle drei Profile teilen denselben Basis-Kernel und Basis-Pakete des Beagle Endp
 nur profile-spezifische Pakete und systemd-Targets unterscheiden sich. Dieses Basis-
 Plus-Profil-Modell verhindert Code-Duplikation und vereinfacht Sicherheits-Patches die
 alle drei Profile betreffen (einmal gepatchte Basis, alle Profile profitieren).
-Das `desktop-thin-client`-Profil ist das wichtigste und führt das Moonlight-Client-
+Das `desktop-thin-client`-Profil ist das wichtigste und führt das Beagle Stream Client-Client-
 Fullscreen-Interface nach dem Login direkt. Das `gaming-kiosk`-Profil lädt das
 Electron-Kiosk nach dem graphischen Login. Das `engineering-station`-Profil beinhaltet
 zusätzlich Wacom-Treiber, DVFS-Konfiguration für GPU-Heavy-Workloads und Multi-Monitor-
@@ -57,7 +57,7 @@ Pairing-Dialog. Beim ersten Boot zeigt der Endpoint einen kurzen alphanumerische
 (z.B. `ABCD-1234`) und einen QR-Code der auf die Web Console zeigt. Der Betreiber
 oder User öffnet die Web Console, wählt "Neuen Endpoint enrollen", scannt den QR-Code
 und bestätigt. Der Endpoint erhält dann automatisch: Cluster-CA-Zertifikat, Endpoint-ID,
-Streaming-Server-Konfiguration, Moonlight-Pairing-Material. Der gesamte Enrollment-
+Streaming-Server-Konfiguration, Beagle Stream Client-Pairing-Material. Der gesamte Enrollment-
 Prozess soll unter 2 Minuten dauern. Enrollment-Tokens laufen nach 24 Stunden ab um
 versehentliches Re-Enrollment zu verhindern.
 

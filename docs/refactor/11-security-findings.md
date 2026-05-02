@@ -17,7 +17,7 @@ Stand: 2026-05-02 (ergaenzt: S-042 BeagleStream hostless Enrollment/Endpoint-Aut
   - `thin-client-assistant/runtime/runtime_endpoint_enrollment.sh`
 - Beschreibung:
   - VM-spezifische Live-/Installer-Sticks konnten trotz vorhandenem BeagleStream-Wrapper nach dem Enrollment wieder im Legacy-Direct-Modus landen, weil der Broker-Zustand nicht nach `/etc/beagle/enrollment.conf` persistiert wurde.
-  - Gleichzeitig waren `/api/v1/streams/*` fuer Endpoint-Tokens nicht vollstaendig freigeschaltet; ein hostless Thinclient konnte den Broker damit nicht sauber selbst bedienen und war praktisch wieder auf statische `moonlight_host`-/Sunshine-Ziele angewiesen.
+  - Gleichzeitig waren `/api/v1/streams/*` fuer Endpoint-Tokens nicht vollstaendig freigeschaltet; ein hostless Thinclient konnte den Broker damit nicht sauber selbst bedienen und war praktisch wieder auf statische `beagle_stream_client_host`-/Beagle Stream Server-Ziele angewiesen.
 - Fix:
   - Endpoint-Tokens werden jetzt auf den Stream-Routen akzeptiert, inklusive `X-Beagle-Token`.
   - `POST /api/v1/streams/allocate` unterstuetzt dedizierte VM-Ziele als `vm-<id>` ohne normalen Pool-User.
@@ -27,7 +27,7 @@ Stand: 2026-05-02 (ergaenzt: S-042 BeagleStream hostless Enrollment/Endpoint-Aut
   - `tests/unit/test_beagle_stream_client_broker.py` PASS
   - `tests/integration/test_endpoint_boot_to_streaming.py` PASS
 
-Stand: 2026-05-01 (ergaenzt: S-041 Thinclient-WireGuard/Moonlight-Drift repariert)
+Stand: 2026-05-01 (ergaenzt: S-041 Thinclient-WireGuard/Beagle Stream Client-Drift repariert)
 
 ## S-041 — Thinclient-Live-USB konnte WireGuard nicht zuverlaessig enrollen und fiel auf Public-Streaming zurueck (PATCHED)
 
@@ -52,7 +52,7 @@ Stand: 2026-05-01 (ergaenzt: S-041 Thinclient-WireGuard/Moonlight-Drift reparier
 - Live-Verifikation:
   - VM100-Thinclient `192.168.178.92`: `wg-beagle` handshaket.
   - VM100-Private-Ports `192.168.123.114:50000` und `192.168.123.114:50001` sind vom Thinclient erreichbar.
-  - Laufender Moonlight-Prozess nutzt `192.168.123.114:50000`.
+  - Laufender Beagle Stream Client-Prozess nutzt `192.168.123.114:50000`.
 
 ## S-040 — Viewer-WebUI konnte beim Login unnoetige 403-Operator-Reads ausloesen und RBAC-Browser-Smokes rot machen (PATCHED)
 
@@ -565,13 +565,13 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
 
 ---
 
-## S-018 — BeagleStream (Sunshine-Fork): Unverschlüsselter LAN-Stream ohne WireGuard
+## S-018 — BeagleStream (Beagle Stream Server-Fork): Unverschlüsselter LAN-Stream ohne WireGuard
 
 - Status: **architektonisch bekannt**, Mitigation in Plan 01 (GoEnterprise) dokumentiert
 - Risiko: **Hoch** (Produktionsumgebungen ohne Verschlüsselung auf dem Streaming-Kanal)
-- Betroffene Dateien: `beagle-host/services/sunshine_integration.py`, zukünftig `beagle-stream-server/`
+- Betroffene Dateien: `beagle-host/services/beagle_stream_server_integration.py`, zukünftig `beagle-stream-server/`
 - Beschreibung:
-  - Vanilla Sunshine/Moonlight überträgt Video/Audio über UDP ohne Transportverschlüsselung.
+  - Vanilla Beagle Stream Server/Beagle Stream Client überträgt Video/Audio über UDP ohne Transportverschlüsselung.
   - Im LAN ist ein Angreifer mit physischem Netzwerkzugang in der Lage, Streaming-Traffic mitzulesen oder zu manipulieren (MITM auf UDP-Ebene).
   - Betrifft alle heutigen Beagle-Deployments.
 - Mitigation (in Plan 01 GoEnterprise):
@@ -588,10 +588,10 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
 - Betroffene Datei: `thin-client-assistant/runtime/runtime_value_helpers.sh`
 - Beschreibung:
   - `beagle_curl_tls_args` gab bei konfiguriertem Pinned-Pubkey nur `--pinnedpubkey SHA` aus.
-  - Bei self-signed Sunshine-Certs (keine CA-Kette) scheiterte curl zuerst an `SSL certificate problem: self-signed certificate` (Error 60), bevor der Pubkey-Check greifen konnte.
-  - Effekt: Moonlight-Pairing-API-Calls schlugen fehl; `credentials.env` wurde nicht korrekt evaluiert.
+  - Bei self-signed Beagle Stream Server-Certs (keine CA-Kette) scheiterte curl zuerst an `SSL certificate problem: self-signed certificate` (Error 60), bevor der Pubkey-Check greifen konnte.
+  - Effekt: Beagle Stream Client-Pairing-API-Calls schlugen fehl; `credentials.env` wurde nicht korrekt evaluiert.
 - Fix: `-k` wird nun immer zusammen mit `--pinnedpubkey` ausgegeben (CA-Check bypassen, Pubkey-Pinning bleibt aktiv als Sicherheitsgarantie).
-- Verbleibende Note: Mit `-k --pinnedpubkey` schützt nur der Pubkey-Hash; falls Sunshine-Key rotiert wird, muss `PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY` in `credentials.env` ebenfalls aktualisiert werden.
+- Verbleibende Note: Mit `-k --pinnedpubkey` schützt nur der Pubkey-Hash; falls Beagle Stream Server-Key rotiert wird, muss `PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY` in `credentials.env` ebenfalls aktualisiert werden.
 
 ## S-016 - Cluster-Join-Ziel waere als Installer-Secret in breit konsumierten Env-Dateien geleakt
 
@@ -1120,10 +1120,10 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
 - Beschreibung:
   - Der Server-Fork liest `BEAGLE_STREAM_TOKEN` aus `/etc/beagle/stream-server.env` oder Environment, sendet ihn nur als `X-Beagle-Token` und loggt den Wert nicht.
   - Der Client-Fork liest `enrollment_token` aus `/etc/beagle/enrollment.conf` und sendet ihn nur als `X-Beagle-Token` an `/api/v1/streams/allocate`.
-  - Der HMAC-Pairing-Token aus dem Broker wird als PIN-String in den bestehenden Moonlight/Sunshine-Pairing-Pfad gegeben; das Protokoll wird nicht erweitert.
+  - Der HMAC-Pairing-Token aus dem Broker wird als PIN-String in den bestehenden Beagle Stream Client/Beagle Stream Server-Pairing-Pfad gegeben; das Protokoll wird nicht erweitert.
 - Mitigation:
   - Keine Beispiel- oder Klartext-Tokens wurden in versionierte Dateien geschrieben.
-  - Sunshine-TLS-Verifikation bleibt standardmaessig aktiv; `BEAGLE_TLS_INSECURE=1` ist nur ein expliziter lokaler Test-Opt-out.
+  - Beagle Stream Server-TLS-Verifikation bleibt standardmaessig aktiv; `BEAGLE_TLS_INSECURE=1` ist nur ein expliziter lokaler Test-Opt-out.
   - Beagle-Erweiterungen sind nicht-fatal: fehlende Config faellt auf Vanilla-Verhalten zurueck statt Credentials oder unsichere Defaults zu erraten.
 - 2026-05-02: Removed the operator-home wallpaper dependency from managed desktop provisioning.
   - Previous risk: a desktop default that required `/home/dennis/Downloads/...` would leak workstation-specific assumptions into runtime provisioning and could break or silently drift on real Beagle hosts.

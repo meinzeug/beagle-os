@@ -157,8 +157,8 @@
     return unwrapInstallerPrep(await response.json());
   }
 
-  async function createSunshineAccess(vmid) {
-    var url = await resolveBeagleApiUrl("/api/v1/vms/" + encodeURIComponent(String(vmid || "")) + "/sunshine-access");
+  async function createBeagle Stream ServerAccess(vmid) {
+    var url = await resolveBeagleApiUrl("/api/v1/vms/" + encodeURIComponent(String(vmid || "")) + "/beagle-stream-server-access");
     var response = await fetch(url, {
       credentials: "include",
       headers: await buildBeagleApiHeaders(),
@@ -169,7 +169,7 @@
       throw new Error("Beagle API request failed: " + response.status + " " + response.statusText);
     }
     payload = await response.json();
-    return payload && payload.sunshine_access ? payload.sunshine_access : payload;
+    return payload && payload.beagle_stream_server_access ? payload.beagle_stream_server_access : payload;
   }
 
   async function webUiUrlWithToken(interactive) {
@@ -234,7 +234,7 @@
   window.BeagleExtensionPlatformService = {
     apiGetBeagleJson: apiGetBeagleJson,
     buildBeagleApiHeaders: buildBeagleApiHeaders,
-    createSunshineAccess: createSunshineAccess,
+    createBeagle Stream ServerAccess: createBeagle Stream ServerAccess,
     downloadUrl: downloadUrl,
     fetchInstallerPreparation: fetchInstallerPreparation,
     fetchInstallerTargetEligibility: fetchInstallerTargetEligibility,

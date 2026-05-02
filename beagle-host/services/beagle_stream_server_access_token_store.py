@@ -1,8 +1,8 @@
-"""Persistence and validity helpers for sunshine access tokens.
+"""Persistence and validity helpers for beagle-stream-server access tokens.
 
 This service owns the on-disk representation and lifetime semantics of
-sunshine access tokens (tokens_dir, token_path, store, load, is_valid).
-The higher-level `issue_sunshine_access_token` flow in the control plane
+beagle-stream-server access tokens (tokens_dir, token_path, store, load, is_valid).
+The higher-level `issue_beagle_stream_server_access_token` flow in the control plane
 continues to own payload construction (VM summary + TTL math) and
 delegates the final persistence into this service.
 """
@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 
-class SunshineAccessTokenStoreService:
+class BeagleStreamServerAccessTokenStoreService:
     def __init__(
         self,
         *,
@@ -31,7 +31,7 @@ class SunshineAccessTokenStoreService:
         self._parse_utc_timestamp = parse_utc_timestamp
 
     def tokens_dir(self) -> Path:
-        path = self._data_dir() / "sunshine-access-tokens"
+        path = self._data_dir() / "beagle-stream-server-access-tokens"
         path.mkdir(parents=True, exist_ok=True)
         os.chmod(path, 0o700)
         return path

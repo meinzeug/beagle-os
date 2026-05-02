@@ -28,7 +28,7 @@ if declare -F beagle_streaming_session_active >/dev/null 2>&1 && beagle_streamin
 fi
 
 xorg_state="$(pgrep -f '/usr/lib/xorg/Xorg :0' >/dev/null 2>&1 && printf 1 || printf 0)"
-moonlight_state="$(pgrep -x moonlight >/dev/null 2>&1 && printf 1 || printf 0)"
+beagle_stream_client_state="$(pgrep -x beagle-stream-client >/dev/null 2>&1 && printf 1 || printf 0)"
 kiosk_state="$(pgrep -x beagle-kiosk >/dev/null 2>&1 && printf 1 || printf 0)"
 openbox_state="$(pgrep -x openbox >/dev/null 2>&1 && printf 1 || printf 0)"
 route_state="$(ip route show default 2>/dev/null | head -n 1 || true)"
@@ -38,7 +38,7 @@ last_trace="$(tail -n 1 "$TRACE_FILE" 2>/dev/null || true)"
 {
   printf 'timestamp=%q\n' "$timestamp"
   printf 'xorg=%q\n' "$xorg_state"
-  printf 'moonlight=%q\n' "$moonlight_state"
+  printf 'beagle-stream-client=%q\n' "$beagle_stream_client_state"
   printf 'kiosk=%q\n' "$kiosk_state"
   printf 'openbox=%q\n' "$openbox_state"
   printf 'default_route=%q\n' "$route_state"
@@ -46,7 +46,7 @@ last_trace="$(tail -n 1 "$TRACE_FILE" 2>/dev/null || true)"
   printf 'kernel_tail=%q\n' "$drm_tail"
 } >"$STATUS_FILE"
 
-state_signature="xorg=${xorg_state};moonlight=${moonlight_state};kiosk=${kiosk_state};openbox=${openbox_state};route=${route_state}"
+state_signature="xorg=${xorg_state};beagle-stream-client=${beagle_stream_client_state};kiosk=${kiosk_state};openbox=${openbox_state};route=${route_state}"
 prev_signature="$(cat "$PREV_FILE" 2>/dev/null || true)"
 if [[ "$state_signature" != "$prev_signature" ]]; then
   printf '[%s] phase=heartbeat %s\n' "$timestamp" "$state_signature" >>"$TRACE_FILE" 2>/dev/null || true

@@ -1,17 +1,17 @@
 # 11 — 7.1.1 Streaming v2: Apollo + Virtual Display
 
-Stand: 2026-04-22  
-Priorität: 7.1 (Q1–Q2 2027)  
+Stand: 2026-04-22
+Priorität: 7.1 (Q1–Q2 2027)
 Referenz: `docs/refactorv2/05-streaming-protocol-strategy.md`, Entscheidung `docs/refactor/07-decisions.md#D-031`
 
 ---
 
 ## Ziel
 
-**Linux-Desktops**: Sunshine + Virtual Display (vkms) ohne physischen Monitor.  
-**Windows-Desktops**: Apollo + SudoVDA Virtual Display für HDR, Multi-Monitor (2–4), 4:4:4.  
-Auto-Pairing per signiertem Token aus Web Console (beide Plattformen).  
-Akzeptanz: Linux-VM streamt 3840×2160@60 (Sunshine+vkms), Windows-VM streamt 3840×2160@60 HDR (Apollo) auf Beagle Endpoint OS ohne Artefakte.
+**Linux-Desktops**: Beagle Stream Server + Virtual Display (vkms) ohne physischen Monitor.
+**Windows-Desktops**: Apollo + SudoVDA Virtual Display für HDR, Multi-Monitor (2–4), 4:4:4.
+Auto-Pairing per signiertem Token aus Web Console (beide Plattformen).
+Akzeptanz: Linux-VM streamt 3840×2160@60 (Beagle Stream Server+vkms), Windows-VM streamt 3840×2160@60 HDR (Apollo) auf Beagle Endpoint OS ohne Artefakte.
 
 ---
 
@@ -22,9 +22,9 @@ Für Beagle OS gilt daher:
 
 | Szenario | Backend | Virtual Display | Priorität |
 |----------|---------|-----------------|-----------|
-| Linux Desktop (default) | Sunshine | `vkms` (DRM kernel module) | 2026-Q1 |
+| Linux Desktop (default) | Beagle Stream Server | `vkms` (DRM kernel module) | 2026-Q1 |
 | Windows Desktop (optional) | Apollo | SudoVDA (Windows driver) | 2026-Q1 |
-| Linux Server streaming | Sunshine | kernel `vkms` oder software-fallback | 2026-Q1 |
+| Linux Server streaming | Beagle Stream Server | kernel `vkms` oder software-fallback | 2026-Q1 |
 | Apollo auf Linux (eval only) | Apollo from Source | ❌ nicht vorhanden | 2026-Q2 |
 
 ---
@@ -35,47 +35,47 @@ Für Beagle OS gilt daher:
 
 - [x] PoC: `vkms` (Virtual Kernel Mode Setting) als Virtual-Display-Treiber auf Ubuntu 24.04 XFCE in beagle-100.
 - [x] Firstboot-Skript `virtual-display-setup.sh.tpl`: vkms Modul laden, virtual outputs konfigurieren, X11/XFCE an vkms binden.
-- [x] Moonlight Client auf Endpoint: Auflösung vom Client einlesen (z. B. 3840×2160), vkms via `xrandr` anpassen, Stream starten.
+- [x] Beagle Stream Client auf Endpoint: Auflösung vom Client einlesen (z. B. 3840×2160), vkms via `xrandr` anpassen, Stream starten.
 
 Umsetzung: Endpoint ruft vor Streamstart den Manager-Hook
-`/api/v1/endpoints/moonlight/prepare-stream` auf und uebergibt die lokal erkannte
+`/api/v1/endpoints/beagle-stream-client/prepare-stream` auf und uebergibt die lokal erkannte
 `WIDTHxHEIGHT`-Aufloesung. Der Host setzt die Guest-Aufloesung per `xrandr` via
 Guest-Exec (`DISPLAY=:0`, `XAUTHORITY=/home/<guest>/.Xauthority`) und startet danach
-den normalen Moonlight-Stream.
+den normalen Beagle Stream Client-Stream.
 
 Reproduzierbarer Baseline-Smoke ist jetzt verfuegbar: `scripts/test-streaming-quality-smoke.py`.
 Aktueller Lauf gegen `srv1.beagle-os.com`/`beagle-100` ergab `pass_with_4k_limit`:
-`vkms` geladen, `DISPLAY=:0` + `xrandr` ok, Sunshine API (`/api/apps`) erreichbar,
+`vkms` geladen, `DISPLAY=:0` + `xrandr` ok, Beagle Stream Server API (`/api/apps`) erreichbar,
 4K-Mode vorhanden aber in der aktuellen VM-Grafikpipeline noch `xrandr: Configure crtc 0 failed`.
 
-Ein virtuelles Display ist notwendig damit Sunshine eine Auflösung rendern kann ohne physischen Monitor am Host angeschlossen. `vkms` ist im Mainline-Kernel enthalten und erzeugt einen virtuellen DRM-Framebuffer. Der PoC auf `beagle-100` hat `vkms`-Load, X11-Session-Access (`DISPLAY=:0`) und Sunshine-Laufzeit erfolgreich verifiziert. Der 4K-Mode ist zwar im `xrandr` sichtbar, laeuft in der aktuellen VM-Grafikkonfiguration aber in `xrandr: Configure crtc 0 failed`; daher ist im Setup ein reproduzierbarer Fallback auf 1920x1080 hinterlegt. Falls `vkms` Probleme zeigt wird `xvfb` als Fallback verwendet (software-rendered, kein Hardware-Encode).
+Ein virtuelles Display ist notwendig damit Beagle Stream Server eine Auflösung rendern kann ohne physischen Monitor am Host angeschlossen. `vkms` ist im Mainline-Kernel enthalten und erzeugt einen virtuellen DRM-Framebuffer. Der PoC auf `beagle-100` hat `vkms`-Load, X11-Session-Access (`DISPLAY=:0`) und Beagle Stream Server-Laufzeit erfolgreich verifiziert. Der 4K-Mode ist zwar im `xrandr` sichtbar, laeuft in der aktuellen VM-Grafikkonfiguration aber in `xrandr: Configure crtc 0 failed`; daher ist im Setup ein reproduzierbarer Fallback auf 1920x1080 hinterlegt. Falls `vkms` Probleme zeigt wird `xvfb` als Fallback verwendet (software-rendered, kein Hardware-Encode).
 
 ---
 
 ### Schritt 2 — Auto-Pairing per signiertem Token implementieren
 
 - [x] `beagle-host/services/pairing_service.py` anlegen: Pairing-Token erzeugen, signieren, validieren.
-- [x] Sunshine/Apollo-Pairing-PIN durch Token-Exchange ersetzen.
+- [x] Beagle Stream Server/Apollo-Pairing-PIN durch Token-Exchange ersetzen.
 
 Umsetzung (2026-04-22):
 - Neues Service-Modul `beagle-host/services/pairing_service.py` mit HMAC-SHA256 signierten, kurzlebigen Pairing-Tokens (`issued_at`, `expires_at`, Scope/VM/Endpoint-Bindung).
 - Neue Endpoint-API-Routen:
-	- `POST /api/v1/endpoints/moonlight/pair-token`
-	- `POST /api/v1/endpoints/moonlight/pair-exchange`
+	- `POST /api/v1/endpoints/beagle-stream-client/pair-token`
+	- `POST /api/v1/endpoints/beagle-stream-client/pair-exchange`
 - Control-Plane-Wiring in `beagle-host/bin/beagle-control-plane.py` + Endpoint-Surface in `beagle-host/services/endpoint_http_surface.py` umgesetzt.
 - Endpoint-Runtime umgestellt:
-	- `thin-client-assistant/runtime/moonlight_manager_registration.sh` nutzt Token-Ausgabe + Exchange-Call,
-	- `thin-client-assistant/runtime/moonlight_pairing.sh` versucht zuerst Token-Exchange und faellt bei Bedarf auf Legacy-PIN-Submit zurueck.
+	- `thin-client-assistant/runtime/beagle_stream_client_manager_registration.sh` nutzt Token-Ausgabe + Exchange-Call,
+	- `thin-client-assistant/runtime/beagle_stream_client_pairing.sh` versucht zuerst Token-Exchange und faellt bei Bedarf auf Legacy-PIN-Submit zurueck.
 - Stabilitaetsfix fuer Endpoint-Auth-Token-Lookup auf non-root Runtime:
 	- `beagle-host/services/endpoint_token_store.py` ignoriert `chmod`-Fehler robust statt `500`.
 
 Validierung:
 - Unit-Tests: `python3 -m pytest tests/unit/test_endpoint_token_store.py tests/unit/test_endpoint_http_surface.py tests/unit/test_pairing_service.py -q` => `11 passed`.
 - Live auf `srv1.beagle-os.com`:
-	- `POST /api/v1/endpoints/moonlight/pair-token` => `201` mit signiertem Token + PIN,
+	- `POST /api/v1/endpoints/beagle-stream-client/pair-token` => `201` mit signiertem Token + PIN,
 	- keine `request.unhandled_exception`-Events mehr fuer den vorherigen `PermissionError` im Endpoint-Token-Pfad.
 
-Der manuelle PIN-Pairing-Prozess von Sunshine ist für Enterprise-VDI-Deployments nicht skalierbar. Ein signierter Token aus der Web Console ersetzt den PIN: Der Admin generiert einen Pairing-Token für eine VM (oder Pool) in der Web Console; der Token enthält verschlüsselt: VM-ID, Tenant-ID, Ablaufzeit, Berechtigungsscope. Das Endpoint-OS oder der Browser übergibt diesen Token beim ersten Verbindungsaufbau. Sunshine/Apollo bekommt einen HTTP-Hook den Beagle aufrufen kann um das Pairing automatisch zu bestätigen. Das verhindert dass Endnutzer einen manuellen PIN-Dialog auf der VM sehen müssen.
+Der manuelle PIN-Pairing-Prozess von Beagle Stream Server ist für Enterprise-VDI-Deployments nicht skalierbar. Ein signierter Token aus der Web Console ersetzt den PIN: Der Admin generiert einen Pairing-Token für eine VM (oder Pool) in der Web Console; der Token enthält verschlüsselt: VM-ID, Tenant-ID, Ablaufzeit, Berechtigungsscope. Das Endpoint-OS oder der Browser übergibt diesen Token beim ersten Verbindungsaufbau. Beagle Stream Server/Apollo bekommt einen HTTP-Hook den Beagle aufrufen kann um das Pairing automatisch zu bestätigen. Das verhindert dass Endnutzer einen manuellen PIN-Dialog auf der VM sehen müssen.
 
 ---
 
@@ -116,13 +116,13 @@ Eine feste Encoder-Konfiguration für alle VMs ist nicht optimal da verschiedene
 
 ### Schritt 4 — HDR, Multi-Monitor, Audio-In, Gamepad-Redirect konfigurierbar machen
 
-- [x] Alle relevanten Moonlight/Sunshine-Konfigurationsparameter in `StreamingProfile` abbilden.
+- [x] Alle relevanten Beagle Stream Client/Beagle Stream Server-Konfigurationsparameter in `StreamingProfile` abbilden.
 - [x] Test-Matrix: Audio-Hin und Zurück, Gamepad, Wacom-Tablet, USB-Redirect dokumentieren und testen.
 
 Umsetzung (2026-04-22):
 - `StreamingProfile` erweitert um zwei neue boolean Felder:
-	- `audio_input_enabled`: Moonlight-Protokoll-Version 5 Audio-Input (Mikrofon) aktivieren/deaktivieren,
-	- `gamepad_redirect_enabled`: Moonlight-Input-Protokoll Gamepad-Redirect aktivieren/deaktivieren.
+	- `audio_input_enabled`: Beagle Stream Client-Protokoll-Version 5 Audio-Input (Mikrofon) aktivieren/deaktivieren,
+	- `gamepad_redirect_enabled`: Beagle Stream Client-Input-Protokoll Gamepad-Redirect aktivieren/deaktivieren.
 - Beide Felder in `core/virtualization/streaming_profile.py` typisiert und mit Defaults (`False`) versehen.
 - Pool-Contract (`core/virtualization/desktop_pool.py`) automatisch aktualisiert.
 - Pool-Manager (`beagle-host/services/pool_manager.py`) persistiert und liest beide Felder.
@@ -166,7 +166,7 @@ Reproduzierbare Validierung:
 
 ### Schritt 5 — Stream-Health-Telemetrie im Session-Objekt speichern
 
-- [x] Sunshine/Apollo-Metriken (RTT, FPS, Dropped-Frames, Encoder-Load) per API in `session.stream_health` speichern.
+- [x] Beagle Stream Server/Apollo-Metriken (RTT, FPS, Dropped-Frames, Encoder-Load) per API in `session.stream_health` speichern.
 - [x] Web Console: Stream-Health-Anzeige in der Session-Detailansicht.
 
 Umsetzung (2026-04-22):
@@ -194,27 +194,27 @@ Validierung:
 	- alle API-Schritte erfolgreich (`200/201`),
 	- `GET /api/v1/sessions` zeigt die gespeicherten Metriken korrekt im passenden Session-Objekt.
 
-Stream-Health-Telemetrie ermöglicht proaktives Support-Management: Wenn ein Nutzer hohe Latenz oder Dropped Frames meldet kann der Admin die Session-Metriken einsehen. Sunshine/Apollo bietet eine lokale Stats-API (`/api/v1/stats` oder metrics endpoint). `session_service.py` pollt diese API periodisch und speichert die letzten X Messpunkte im Session-Objekt. Die Web Console zeigt in der Session-Detailansicht ein Live-Graph für Latenz und FPS des aktiven Streams. Session-Health-Daten fließen ebenfalls in den Fleet-Health-Alert-Mechanismus der Web Console ein.
+Stream-Health-Telemetrie ermöglicht proaktives Support-Management: Wenn ein Nutzer hohe Latenz oder Dropped Frames meldet kann der Admin die Session-Metriken einsehen. Beagle Stream Server/Apollo bietet eine lokale Stats-API (`/api/v1/stats` oder metrics endpoint). `session_service.py` pollt diese API periodisch und speichert die letzten X Messpunkte im Session-Objekt. Die Web Console zeigt in der Session-Detailansicht ein Live-Graph für Latenz und FPS des aktiven Streams. Session-Health-Daten fließen ebenfalls in den Fleet-Health-Alert-Mechanismus der Web Console ein.
 
 ---
 
 ### Schritt 6 — Apollo auf Windows Desktop-VM evaluieren und vergleichen
 
 - [x] Separat: Windows Guest-Desktop mit Apollo + SudoVDA evaluieren (optional, 2026-Q2). [DEFERRED — kein Windows-Gast-Host verfügbar; optional per Plan-Beschreibung; Bewertungskriterien in docs/refactor/07-decisions.md#D-031]
-- [x] Benchmarking: Vergleich Sunshine (Linux) vs Apollo (Windows) für gleiche Workload/Resolution. [DEFERRED — abhängig von Apollo-Evaluation oben; kein Windows-Host im aktuellen Cluster]
+- [x] Benchmarking: Vergleich Beagle Stream Server (Linux) vs Apollo (Windows) für gleiche Workload/Resolution. [DEFERRED — abhängig von Apollo-Evaluation oben; kein Windows-Host im aktuellen Cluster]
 - [x] Dokumentation: Performance-Baseline und Backend-Auswahl-Kriterien in `docs/refactor/07-decisions.md#D-031`.
 
-Apollo nutzt SudoVDA als Virtual Display-Treiber (Windows-spezifisch). Der Evaluationsschritt prüft ob Apollo in Windows-Gast-VMs Superior-Features (HDR, Auto-Resolution, Per-Client-Permissions) zu messbarem Performance-Vorteil nutzt. Falls ja wird Apollo optional für Windows-Desktop-Pools empfohlen. Falls nein bleibt Sunshine Default für alle Plattformen.
+Apollo nutzt SudoVDA als Virtual Display-Treiber (Windows-spezifisch). Der Evaluationsschritt prüft ob Apollo in Windows-Gast-VMs Superior-Features (HDR, Auto-Resolution, Per-Client-Permissions) zu messbarem Performance-Vorteil nutzt. Falls ja wird Apollo optional für Windows-Desktop-Pools empfohlen. Falls nein bleibt Beagle Stream Server Default für alle Plattformen.
 
 ---
 
 ## Testpflicht nach Abschluss
 
-- [x] Linux Desktop (beagle-100): vkms Virtual Display funktioniert, Moonlight zeigt Auflösung angepasst auf 3840×2160@60 ohne Artefakte. (Baseline bereits vorhanden: `scripts/test-streaming-quality-smoke.py` => `pass_with_4k_limit`)
-- [x] Linux Desktop (beagle-100): Live-Verifikation 2026-04-24 — Moonlight streamt aktiv von beagle-thinclient KVM-VM auf beagle-100 (Virtual-1 Display, 1280x800/1920x1080 max; vkms nicht geladen — QXL Virtual Display stattdessen aktiv). Pairing, SSL-Pinning und Streaming funktionieren nach Runtime-Bugfixes (siehe Validierung unten).
-- [x] Windows Desktop (optional): Apollo-VM streamt 3840×2160@60 HDR auf Moonlight ohne Artefakte. [DEFERRED — optional; kein Windows-Host im aktuellen Cluster]
-- [x] Auto-Pairing ohne manuellen PIN: Token generieren → Client verbindet automatisch. (`tests/unit/test_auto_pairing_flow.py` 12 tests pass lokal + srv1; Smoke pair-token 201 OK; pair-exchange infrastructure-blocked — kein aktiver Moonlight-Client im CI)
-- [x] Multi-Monitor (Linux): zwei xrandr-Outputs konfiguriert, Moonlight zeigt beide (wenn supported). [DEFERRED — erfordert zweiten virtuellen Monitor im Gast + Moonlight-Client-Test; als vkms nicht geladen auf srv1 aktuell nicht testbar]
+- [x] Linux Desktop (beagle-100): vkms Virtual Display funktioniert, Beagle Stream Client zeigt Auflösung angepasst auf 3840×2160@60 ohne Artefakte. (Baseline bereits vorhanden: `scripts/test-streaming-quality-smoke.py` => `pass_with_4k_limit`)
+- [x] Linux Desktop (beagle-100): Live-Verifikation 2026-04-24 — Beagle Stream Client streamt aktiv von beagle-thinclient KVM-VM auf beagle-100 (Virtual-1 Display, 1280x800/1920x1080 max; vkms nicht geladen — QXL Virtual Display stattdessen aktiv). Pairing, SSL-Pinning und Streaming funktionieren nach Runtime-Bugfixes (siehe Validierung unten).
+- [x] Windows Desktop (optional): Apollo-VM streamt 3840×2160@60 HDR auf Beagle Stream Client ohne Artefakte. [DEFERRED — optional; kein Windows-Host im aktuellen Cluster]
+- [x] Auto-Pairing ohne manuellen PIN: Token generieren → Client verbindet automatisch. (`tests/unit/test_auto_pairing_flow.py` 12 tests pass lokal + srv1; Smoke pair-token 201 OK; pair-exchange infrastructure-blocked — kein aktiver Beagle Stream Client-Client im CI)
+- [x] Multi-Monitor (Linux): zwei xrandr-Outputs konfiguriert, Beagle Stream Client zeigt beide (wenn supported). [DEFERRED — erfordert zweiten virtuellen Monitor im Gast + Beagle Stream Client-Client-Test; als vkms nicht geladen auf srv1 aktuell nicht testbar]
 - [x] Stream-Health-Metriken in Web Console sichtbar während Session läuft.
 
 Validierung (2026-04-23):
@@ -228,17 +228,17 @@ Validierung (2026-04-23):
 Validierung (2026-04-24):
 - Smoke erneut gegen `srv1.beagle-os.com` gefahren: `python3 scripts/test-streaming-quality-smoke.py --host srv1.beagle-os.com --domain beagle-100`.
 - Ergebnis: `result=pass_with_4k_limit`, Exit-Code `0`.
-- `scripts/test-streaming-quality-smoke.py` aktualisiert, damit der Baseline-Check `vkms_sunshine` in VM-Setups mit aktivem Virtual-Output ohne geladenes `vkms`-Modul korrekt als Baseline anerkannt wird (`virtual_output_present=true`).
+- `scripts/test-streaming-quality-smoke.py` aktualisiert, damit der Baseline-Check `vkms_beagle_stream_server` in VM-Setups mit aktivem Virtual-Output ohne geladenes `vkms`-Modul korrekt als Baseline anerkannt wird (`virtual_output_present=true`).
 
 Validierung (2026-04-24, Live-Streaming-Test):
-- Live-Test mit beagle-thinclient KVM-VM (192.168.122.223) als Moonlight-Client gegen beagle-100 auf srv1.
+- Live-Test mit beagle-thinclient KVM-VM (192.168.122.223) als Beagle Stream Client-Client gegen beagle-100 auf srv1.
 - Bugfixes im Runtime-Stack notwendig und reproduzierbar im Repo umgesetzt:
   - `thin-client-assistant/runtime/runtime_value_helpers.sh`: `render_template` und `beagle_curl_tls_args` implementiert (war leer/fehlend → Session-Crash).
   - `beagle_curl_tls_args` Fix: `-k` + `--pinnedpubkey` kombiniert (alleiniges `--pinnedpubkey` bypassed CA-Verifizierung NICHT bei self-signed Certs).
   - `thin-client-assistant/runtime/config_loader.sh` + `runtime_config_persistence.sh`: `NETWORK_FILE` → `NETWORK_ENV_FILE` umbenannt (verhindert Überschreiben von `/etc/pve-thin-client/network.env` mit systemd-networkd INI-Format).
   - `thin-client-assistant/live-build/config/package-lists/pve-thin-client.list.chroot`: `xserver-xorg-video-qxl` ergänzt (X-Crash ohne QXL-Treiber in QEMU-VMs).
-- Port-Forwarding srv1: Port 49995 TCP DNAT zu 192.168.123.116:49995 (Sunshine HTTPS Pairing-Port) ergänzt; FORWARD-Regel vor LIBVIRT_FWI eingefügt (war davor unsichtbar für neue Verbindungen).
-- Ergebnis: Pairing erfolgreich (pairchallenge durchgegangen), Moonlight-Stream aktiv: `Desktop` App, 1024x768@60fps, H.264, Software-Decoder.
+- Port-Forwarding srv1: Port 49995 TCP DNAT zu 192.168.123.116:49995 (Beagle Stream Server HTTPS Pairing-Port) ergänzt; FORWARD-Regel vor LIBVIRT_FWI eingefügt (war davor unsichtbar für neue Verbindungen).
+- Ergebnis: Pairing erfolgreich (pairchallenge durchgegangen), Beagle Stream Client-Stream aktiv: `Desktop` App, 1024x768@60fps, H.264, Software-Decoder.
 - Virtual Display: `Virtual-1` (QXL via QEMU), 1280x800/1920x1080 max. vkms nicht geladen (keine Hardware-Encode-GPU in VM).
 - 3840×2160: In aktueller QEMU-QXL-Konfiguration nicht erreichbar (xrandr Configure crtc 0 failed, bekannte Limitation). Für echte 4K-Streams: vkms + dedizierte GPU oder GPU-Passthrough erforderlich.
 

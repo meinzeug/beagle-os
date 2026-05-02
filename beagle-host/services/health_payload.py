@@ -98,7 +98,7 @@ class HealthPayloadService:
                     status = "pending"
                 elif report_age is not None and int(report_age) > self._stale_endpoint_seconds:
                     status = "stale"
-                elif endpoint.get("moonlight_target_reachable") not in {"1", 1, True}:
+                elif endpoint.get("beagle_stream_client_target_reachable") not in {"1", 1, True}:
                     status = "degraded"
                 else:
                     status = "healthy"

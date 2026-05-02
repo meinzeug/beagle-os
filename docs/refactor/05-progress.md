@@ -93,20 +93,20 @@ zusammenfuehren.
 
 ## Update (2026-05-02, BeagleStream-first in VM-/Thinclient-Builds und Copilot-CI-Fix uebernommen)
 
-**Scope**: Die verbliebenen Beagle-OS-seitigen Integrationsluecken fuer die neuen `beagle-stream-server`- und `beagle-stream-client`-Forks wurden geschlossen, damit neue VMs und Build-Pfade nicht mehr irrefuehrend als Sunshine/Moonlight-Standard erscheinen.
+**Scope**: Die verbliebenen Beagle-OS-seitigen Integrationsluecken fuer die neuen `beagle-stream-server`- und `beagle-stream-client`-Forks wurden geschlossen, damit neue VMs und Build-Pfade nicht mehr irrefuehrend als Beagle Stream Server/Beagle Stream Client-Standard erscheinen.
 
-- VM-Provisioning meldet jetzt explizit `BeagleStream Server` statt `Sunshine`, solange der normale bevorzugte Installationspfad genutzt wird:
+- VM-Provisioning meldet jetzt explizit `BeagleStream Server` statt `Beagle Stream Server`, solange der normale bevorzugte Installationspfad genutzt wird:
   - `beagle-host/services/ubuntu_beagle_provisioning.py`
   - `beagle-host/services/installer_prep.py`
-- Live- und Raw-Image-Builds ziehen jetzt standardmaessig das `beagle-stream-client` AppImage aus dem `beagle-phase-a` Release und fallen nur noch explizit auf Upstream-Moonlight zurueck:
+- Live- und Raw-Image-Builds ziehen jetzt standardmaessig das `beagle-stream-client` AppImage aus dem `beagle-phase-a` Release und fallen nur noch explizit auf externer BeagleStream-Client zurueck:
   - `scripts/build-beagle-os.sh`
-  - `thin-client-assistant/live-build/config/hooks/live/008-install-moonlight.hook.chroot`
-- Artifact-/Update-Texte zeigen die Runtime jetzt konsistent als `BeagleStream-/Moonlight-Abhaengigkeiten` statt nur als Moonlight-only.
+  - `thin-client-assistant/live-build/config/hooks/live/008-install-beagle-stream-client.hook.chroot`
+- Artifact-/Update-Texte zeigen die Runtime jetzt konsistent als `BeagleStream-/Beagle Stream Client-Abhaengigkeiten` statt nur als Beagle Stream Client-only.
 - Der offene Copilot-PR fuer den CI-Importfehler in `tests/unit/test_ubuntu_beagle_stale_runtime.py` wurde technisch uebernommen:
   - `registry.create_provider` wird vor `exec_module()` gemockt
   - `beagle-host/providers` ist im Test-Importpfad enthalten
 - Verifiziert:
-  - `bash -n scripts/build-beagle-os.sh thin-client-assistant/live-build/config/hooks/live/008-install-moonlight.hook.chroot scripts/refresh-host-artifacts.sh`
+  - `bash -n scripts/build-beagle-os.sh thin-client-assistant/live-build/config/hooks/live/008-install-beagle-stream-client.hook.chroot scripts/refresh-host-artifacts.sh`
   - `python3 -m py_compile ...`
   - `python3 -m unittest tests.unit.test_ubuntu_beagle_stale_runtime`
   - filebasierter Harness fuer die neuen Build-/Provisioning-/InstallerPrep-Regressionen: `HARNESS_OK`
@@ -129,12 +129,12 @@ zusammenfuehren.
 
 ## Update (2026-05-02, BeagleStream Hostless-Enrollment fuer VM-Sticks vervollstaendigt)
 
-**Scope**: Der lokale Thinclient-/Live-USB-Pfad wurde von statischem Direct-Moonlight weiter auf den echten hostless BeagleStream-Broker umgestellt, damit VM-spezifische USB-Sticks nach dem Enrollment nicht mehr an festen `stream_host`/Sunshine-Endpunkten haengen.
+**Scope**: Der lokale Thinclient-/Live-USB-Pfad wurde von statischem Direct-Beagle Stream Client weiter auf den echten hostless BeagleStream-Broker umgestellt, damit VM-spezifische USB-Sticks nach dem Enrollment nicht mehr an festen `stream_host`/Beagle Stream Server-Endpunkten haengen.
 
 - `StreamHttpSurfaceService` akzeptiert jetzt Endpoint-Tokens auf `/api/v1/streams/*` inklusive `X-Beagle-Token`, und `POST /api/v1/streams/allocate` kann dedizierte VM-Ziele als `pool_id=vm-<id>` direkt aufloesen.
 - `EndpointEnrollmentService` liefert fuer VM-Sticks jetzt explizit `beagle_stream_mode=broker` plus `beagle_stream_allocation_id=vm-<id>`.
-- VM-spezifische USB-Presets starten mit `beagle-stream` statt statischem `moonlight`-Host und tragen nur noch Broker-/Fallback-Metadaten.
-- `apply_enrollment_config.py` schreibt den Broker-Zustand jetzt persistent nach `/etc/beagle/enrollment.conf`, leert im Broker-Modus alte Direct-Moonlight-/Sunshine-Werte und setzt den Runtime-Bin-Pfad auf `beagle-stream`.
+- VM-spezifische USB-Presets starten mit `beagle-stream` statt statischem `beagle-stream-client`-Host und tragen nur noch Broker-/Fallback-Metadaten.
+- `apply_enrollment_config.py` schreibt den Broker-Zustand jetzt persistent nach `/etc/beagle/enrollment.conf`, leert im Broker-Modus alte Direct-Beagle Stream Client-/Beagle Stream Server-Werte und setzt den Runtime-Bin-Pfad auf `beagle-stream`.
 - Fokussierte Regressionen sind gruen:
   - `tests/unit/test_apply_enrollment_config.py`
   - `tests/unit/test_beagle_stream_client_broker.py`
@@ -150,9 +150,9 @@ zusammenfuehren.
 - `public-site/saas/index.html` bleibt als private Lizenz-/Kontaktseite ohne oeffentliche SaaS-Vermarktung und ohne `noindex`-Verweis in den sichtbaren Menues.
 - Live-Validierung auf `beagle-os.com` zeigt wieder einen konsistenten dunklen Look auf Start- und Download-Seite.
 
-## Update (2026-05-01, VM100 Thinclient WireGuard/Moonlight Live-Stick repariert)
+## Update (2026-05-01, VM100 Thinclient WireGuard/Beagle Stream Client Live-Stick repariert)
 
-**Scope**: Lokal gebooteten VM100-Live-USB-Thinclient (`192.168.178.92`) gegen `srv1` untersuchen und Moonlight-Start ueber WireGuard/VPN wiederherstellen.
+**Scope**: Lokal gebooteten VM100-Live-USB-Thinclient (`192.168.178.92`) gegen `srv1` untersuchen und Beagle Stream Client-Start ueber WireGuard/VPN wiederherstellen.
 
 - Root Cause geschlossen:
   - `prepare-runtime` brach auf Live-USBs vor Enrollment/WireGuard ab, weil nicht-kritische systemd-getty-Drop-in-Rechte (`Operation not permitted`) fatal waren.
@@ -169,7 +169,7 @@ zusammenfuehren.
 - Live-Validierung:
   - Thinclient `wg-beagle` handshaket mit `srv1`.
   - Thinclient erreicht `192.168.123.114:50000` und `192.168.123.114:50001`.
-- Moonlight-Prozess laeuft gegen `192.168.123.114:50000`.
+- Beagle Stream Client-Prozess laeuft gegen `192.168.123.114:50000`.
 
 ## Update (2026-05-01, Copilot Autofix + Auto-Merge)
 
@@ -428,22 +428,22 @@ zusammenfuehren.
 
 ---
 
-## Update (2026-04-30, Sunshine/Moonlight-Smoke-Suite auf srv1 mit PASS-Nachweisen aktualisiert)
+## Update (2026-04-30, Beagle Stream Server/Beagle Stream Client-Smoke-Suite auf srv1 mit PASS-Nachweisen aktualisiert)
 
-**Scope**: Die offenen, live-ausfuehrbaren Sunshine/Moonlight-Punkte wurden auf `srv1` erneut durchgefahren, inklusive belastbarer PASS-Marker je Smoke sowie Runtime-Haertung der Smoke-Skripte fuer den aktuellen Guest-User-/Headless-Betrieb.
+**Scope**: Die offenen, live-ausfuehrbaren Beagle Stream Server/Beagle Stream Client-Punkte wurden auf `srv1` erneut durchgefahren, inklusive belastbarer PASS-Marker je Smoke sowie Runtime-Haertung der Smoke-Skripte fuer den aktuellen Guest-User-/Headless-Betrieb.
 
 - Repo-Fixes:
-  - `scripts/test-moonlight-auto-pairing-smoke.py`
+  - `scripts/test-beagle-stream-client-auto-pairing-smoke.py`
     - neuer Schalter `--require-live-pair-exchange` fuer strikten Modus.
-    - Standard-Smoke toleriert jetzt erwartetes Headless-Szenario ohne aktiv wartenden Moonlight-Pairing-Client (`HTTP 502` mit `sunshine pin exchange rejected`) und meldet es explizit als degradierten PASS-Modus statt Hard-Fail.
-    - Ausgabe erweitert um `MOONLIGHT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT|PASS_STRICT`.
+    - Standard-Smoke toleriert jetzt erwartetes Headless-Szenario ohne aktiv wartenden Beagle Stream Client-Pairing-Client (`HTTP 502` mit `beagle-stream-server pin exchange rejected`) und meldet es explizit als degradierten PASS-Modus statt Hard-Fail.
+    - Ausgabe erweitert um `BEAGLE_STREAM_CLIENT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT|PASS_STRICT`.
   - `scripts/test-streaming-quality-smoke.py`
     - dynamische Erkennung von Guest-User und `.Xauthority` statt harter Annahme `beagle`.
     - X11-/xrandr-Checks laufen damit auf realen Desktop-Usern reproduzierbar (`dennis` auf VM100).
 - Live-Validierung auf `srv1`:
   - `STREAM_HEALTH_ACTIVE_RESULT=PASS`
   - `STREAM_INPUT_MATRIX_RESULT=PASS`
-  - `MOONLIGHT_AUTO_PAIR_RESULT=PASS` mit `MOONLIGHT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT`
+  - `BEAGLE_STREAM_CLIENT_AUTO_PAIR_RESULT=PASS` mit `BEAGLE_STREAM_CLIENT_AUTO_PAIR_MODE=PASS_DEGRADED_NO_PENDING_CLIENT`
   - `PLAN01_STREAM_VM_REGISTER=PASS` (`register_http=201`, `config_http=200`, `events_http=200`)
   - `test-streaming-quality-smoke.py` jetzt `result=pass_with_4k_limit` (vorheriger Hard-Fail durch falschen Guest-User behoben)
   - `ensure-vm-stream-ready.sh --vmid 100 --node beagle-0` erneut mit `RC=0` und Marker `ENSURE_VM_STREAM_READY=PASS`
@@ -461,7 +461,7 @@ zusammenfuehren.
   - `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`
     - `apt_retry(...)` heilt jetzt vor jedem Versuch und nach erfolgreichem Lauf aktiv einen unterbrochenen `dpkg`-State.
     - `repair_interrupted_dpkg()` wertet `dpkg --audit` aus, fuehrt `dpkg --configure -a` plus `apt-get install -f -y` in mehreren Schleifen aus und scheitert nicht mehr still an halbfertigen Desktop-/LightDM-Paketen.
-    - nach den kritischen Installationsphasen (Basis-X11/LightDM, Desktop-Pakete, Zusatzsoftware, Sunshine-DEB) wird der Paketstatus explizit erneut bereinigt, bevor Session-/Display-Manager-Setup und finaler Guest-Reboot laufen.
+    - nach den kritischen Installationsphasen (Basis-X11/LightDM, Desktop-Pakete, Zusatzsoftware, Beagle Stream Server-DEB) wird der Paketstatus explizit erneut bereinigt, bevor Session-/Display-Manager-Setup und finaler Guest-Reboot laufen.
   - `tests/unit/test_ubuntu_beagle_firstboot_regressions.py`
     - Regressionen fixieren die neue `dpkg`-Heal-Logik im Ubuntu-Firstboot-Template.
 - Live-Fix auf `srv1`:
@@ -599,21 +599,21 @@ zusammenfuehren.
 
 ---
 
-## Update (2026-04-29, Sunshine stream-prep runtime fix on srv1 partially validated)
+## Update (2026-04-29, Beagle Stream Server stream-prep runtime fix on srv1 partially validated)
 
-**Scope**: Der offene Sunshine/Moonlight-Rerun fuer `ensure-vm-stream-ready.sh` wurde technisch entblockt (Import-/SCP-Fix), live auf `srv1` neu gefahren und als teil-erledigt dokumentiert.
+**Scope**: Der offene Beagle Stream Server/Beagle Stream Client-Rerun fuer `ensure-vm-stream-ready.sh` wurde technisch entblockt (Import-/SCP-Fix), live auf `srv1` neu gefahren und als teil-erledigt dokumentiert.
 
 - Code:
   - `scripts/ensure-vm-stream-ready.sh`
     - exportiert jetzt den Repo-Root in `PYTHONPATH`, damit Provider-Helper-Imports (`core/*`) in Live-Host-Kontexten nicht mehr mit `ModuleNotFoundError` brechen.
-    - credential-Fallback fuer Sunshine erweitert (VM-Description + installer-state), damit legacy-/teilmigrierte VMs nicht frueh am Secret-Lookup scheitern.
-  - `scripts/configure-sunshine-guest.sh`
+    - credential-Fallback fuer Beagle Stream Server erweitert (VM-Description + installer-state), damit legacy-/teilmigrierte VMs nicht frueh am Secret-Lookup scheitern.
+  - `scripts/configure-beagle-stream-server-guest.sh`
     - exportiert ebenfalls `PYTHONPATH` fuer Provider-Importe.
-    - SSH/SCP-Transferpfad fuer Guest-Setup von `/tmp/pve-sunshine-setup.sh` auf `/home/<guest>/pve-sunshine-setup.sh` umgestellt, um VM-seitige `/tmp`-Permission-Probleme zu umgehen.
+    - SSH/SCP-Transferpfad fuer Guest-Setup von `/tmp/pve-beagle-stream-server-setup.sh` auf `/home/<guest>/pve-beagle-stream-server-setup.sh` umgestellt, um VM-seitige `/tmp`-Permission-Probleme zu umgehen.
 - Validierung:
-  - lokal: `bash -n scripts/ensure-vm-stream-ready.sh scripts/configure-sunshine-guest.sh` => OK
+  - lokal: `bash -n scripts/ensure-vm-stream-ready.sh scripts/configure-beagle-stream-server-guest.sh` => OK
   - `srv1`: Patch nach `/opt/beagle/scripts` deployed und Rerun gestartet.
-    - VM100: erfolgreicher unattended Run (`Configured Sunshine guest VM 100 ...`).
+    - VM100: erfolgreicher unattended Run (`Configured Beagle Stream Server guest VM 100 ...`).
     - VM102: externer Runtime-Blocker, da VM im beagle-provider State nicht gefunden wird (`RuntimeError: VM 102 not found in beagle provider state`, danach keine IPv4-Ermittlung moeglich).
 
 ---
@@ -648,16 +648,16 @@ zusammenfuehren.
 - Code:
   - `scripts/test-stream-persistence-reboot-smoke.sh` (neu)
     - laedt Live-Profil aus der Host-API und prueft `egress_mode`/`egress_type`.
-    - validiert Sunshine-API vor und nach VM-Reboot.
+    - validiert Beagle Stream Server-API vor und nach VM-Reboot.
     - rebootet VM via Provider-Flow und wartet auf `running`.
     - vergleicht Profilfelder nach Reboot auf Unveraendertheit.
-    - enthaelt Sunshine-Check-Fallback (public URL -> private Guest-URL via `moonlight_local_host`) fuer stabile Host-seitige Reachability-Pruefung.
+    - enthaelt Beagle Stream Server-Check-Fallback (public URL -> private Guest-URL via `beagle_stream_client_local_host`) fuer stabile Host-seitige Reachability-Pruefung.
     - exportiert `PYTHONPATH` fuer Provider-Importe (`core`-Module).
 - Validierung:
   - lokal: `bash -n scripts/test-stream-persistence-reboot-smoke.sh` => OK
   - `srv1`: `scripts/test-stream-persistence-reboot-smoke.sh --vmid 100 --node beagle-0`
     - `STREAM_REBOOT_PERSISTENCE_SMOKE=PASS`
-    - Sunshine API vor/nach Reboot erreichbar (`HTTP 401` via `https://192.168.123.116:50001/api/apps`)
+    - Beagle Stream Server API vor/nach Reboot erreichbar (`HTTP 401` via `https://192.168.123.116:50001/api/apps`)
     - VM100 nach Reboot wieder `running`
     - Stream-Profil nach Reboot unveraendert
 
@@ -696,16 +696,16 @@ zusammenfuehren.
   - lokale Thinclient-VM live:
     - WireGuard-Enrollment gegen `https://srv1.beagle-os.com/beagle-api` erfolgreich (`wg-beagle` up, Client-IP `10.88.1.1/32`).
     - Route zur privaten VM100-IP `192.168.123.116` geht ueber `wg-beagle`.
-    - WG-Transferzaehler steigt bei Zugriff auf die private Sunshine-Ziel-IP an (VPN-Datenpfad aktiv).
+    - WG-Transferzaehler steigt bei Zugriff auf die private Beagle Stream Server-Ziel-IP an (VPN-Datenpfad aktiv).
 
 ---
 
-## Update (2026-04-29, Smoke-Scripts stabilisiert + Sunshine/Moonlight Validierungspfad eingeführt)
+## Update (2026-04-29, Smoke-Scripts stabilisiert + Beagle Stream Server/Beagle Stream Client Validierungspfad eingeführt)
 
 **Scope**: Drei offene TODO-Punkte aus `08-todo-global.md` geschlossen:
   1. `test-server-installer-live-smoke.sh` DHCP-Timeout bei frisch gebauter ISO erhöht + ARP-Fallback ergänzt.
   2. `test-standalone-desktop-stream-sim.sh` für echte libvirt-Ausführung stabilisiert (umask 0022, chmod 0644 auf Fake-ISO, chmod o+x auf TMP_DIR).
-  3. Zwei neue Smoke-Skripte für Sunshine-Self-Heal und Moonlight-App-Name-Resolver eingeführt.
+  3. Zwei neue Smoke-Skripte für Beagle Stream Server-Self-Heal und Beagle Stream Client-App-Name-Resolver eingeführt.
 
 - Code:
   - `scripts/test-server-installer-live-smoke.sh`
@@ -715,19 +715,19 @@ zusammenfuehren.
   - `scripts/test-standalone-desktop-stream-sim.sh`
     - `umask 022` am Script-Anfang gesetzt, damit ISO-Cache-Verzeichnis und Dateien von libvirt-qemu gelesen werden können.
     - `chmod 0644 "${FAKE_ISO_PATH}"` und `chmod o+x "${TMP_DIR}"` nach ISO-Erstellung.
-  - `scripts/test-sunshine-selfheal-smoke.sh` (neu)
-    - Prüft `beagle-sunshine-healthcheck.timer` aktiv.
-    - Killst sunshine via `pkill -9`, wartet bis zu `BEAGLE_SMOKE_WAIT_SEC` (default 90s) auf Neustart.
-    - Prüft Sunshine API Antwort nach Neustart.
-    - Führt `beagle-sunshine-healthcheck --repair-only` manuell aus.
-  - `scripts/test-moonlight-appname-smoke.sh` (neu)
-    - Ruft `GET /api/apps` gegen die Sunshine-API auf.
-    - Führt die Resolver-Logik aus `moonlight_remote_api.sh` inline nach.
+  - `scripts/test-beagle-stream-server-selfheal-smoke.sh` (neu)
+    - Prüft `beagle-stream-server-healthcheck.timer` aktiv.
+    - Killst beagle-stream-server via `pkill -9`, wartet bis zu `BEAGLE_SMOKE_WAIT_SEC` (default 90s) auf Neustart.
+    - Prüft Beagle Stream Server API Antwort nach Neustart.
+    - Führt `beagle-stream-server-healthcheck --repair-only` manuell aus.
+  - `scripts/test-beagle-stream-client-appname-smoke.sh` (neu)
+    - Ruft `GET /api/apps` gegen die Beagle Stream Server-API auf.
+    - Führt die Resolver-Logik aus `beagle_stream_client_remote_api.sh` inline nach.
     - Validiert, dass `Desktop` (case-insensitive) auflösbar ist.
-    - Gibt `MOONLIGHT_APPNAME_SMOKE=PASS` oder `WARN` aus.
+    - Gibt `BEAGLE_STREAM_CLIENT_APPNAME_SMOKE=PASS` oder `WARN` aus.
 - Validierung:
   - `bash -n` Syntax-Prüfung aller vier Skripte: OK
-  - srv1-Smoke-Runs für `test-sunshine-selfheal-smoke.sh` und `test-moonlight-appname-smoke.sh` stehen an, sobald die neuen Scripts über den Repo-Auto-Update auf srv1 sind.
+  - srv1-Smoke-Runs für `test-beagle-stream-server-selfheal-smoke.sh` und `test-beagle-stream-client-appname-smoke.sh` stehen an, sobald die neuen Scripts über den Repo-Auto-Update auf srv1 sind.
 
 ---
 
@@ -833,19 +833,19 @@ zusammenfuehren.
     - `DEADLOCK_HINT_PRESENT True`
     - `COPY_STORAGE_FALLBACK_HINT True`
 
-## Update (2026-04-29, Sunshine/Desktop-Guest-Smoke im Provisioning-Ready-Flow erweitert)
+## Update (2026-04-29, Beagle Stream Server/Desktop-Guest-Smoke im Provisioning-Ready-Flow erweitert)
 
 **Scope**: Offenen Global-TODO-Punkt fuer neue WebUI-Desktop-VMs geschlossen: Nach dem Provisioning wird im Stream-Ready-Flow jetzt zusaetzlich geprueft, ob `xset q` auf `DISPLAY=:0` erfolgreich ist und ob `light-locker`/`xfce4-power-manager` nicht laufen.
 
 - Code:
   - `scripts/ensure-vm-stream-ready.sh`
-    - neue Guest-Check-Funktion `sunshine_guest_desktop_smoke_json`
-    - neuer Verify-Schritt nach erfolgreichem Sunshine-API-Check
+    - neue Guest-Check-Funktion `beagle_stream_server_guest_desktop_smoke_json`
+    - neuer Verify-Schritt nach erfolgreichem Beagle Stream Server-API-Check
     - nicht-blockierender Warnpfad (`ready` bleibt erhalten), wenn Desktop-Guard fehlschlaegt
 - Tests:
   - neu `tests/unit/test_ensure_vm_stream_ready_regressions.py`
-  - erweitert `tests/unit/test_configure_sunshine_guest_regressions.py`
-  - lokal: `python3 -m pytest tests/unit/test_ensure_vm_stream_ready_regressions.py tests/unit/test_configure_sunshine_guest_regressions.py -q` => `2 passed`
+  - erweitert `tests/unit/test_configure_beagle_stream_server_guest_regressions.py`
+  - lokal: `python3 -m pytest tests/unit/test_ensure_vm_stream_ready_regressions.py tests/unit/test_configure_beagle_stream_server_guest_regressions.py -q` => `2 passed`
 - Live-Validierung auf `srv1`:
   - Lauf gegen VM 100 (`beagle-0`) mit der geaenderten Script-Version
   - Ergebnis im Installer-Prep-State: `status=ready`, `phase=complete`, Message enthaelt den neuen Desktop-Guard-Warnhinweis
@@ -946,7 +946,7 @@ zusammenfuehren.
 - Plan-Status:
   - `docs/goadvanced/06-state-sqlite-migration.md`: Schritt 1 auf `[x]` gesetzt.
 
-## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 4: Webhook/Stream/Settings/Sunshine/Gaming-Metrics)
+## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 4: Webhook/Stream/Settings/Beagle Stream Server/Gaming-Metrics)
 
 **Scope**: Vierter 3d-Batch umgesetzt; verbleibende direkte Service-JSON-Write-Pfade auf `JsonStateStore`/atomare Helper migriert.
 
@@ -954,7 +954,7 @@ zusammenfuehren.
   - `beagle-host/services/webhook_service.py`
   - `beagle-host/services/stream_http_surface.py`
   - `beagle-host/services/server_settings.py`
-  - `beagle-host/services/sunshine_integration.py`
+  - `beagle-host/services/beagle_stream_server_integration.py`
   - `beagle-host/services/gaming_metrics_service.py`
 - Lokale Tests:
   - `python3 -m pytest tests/unit/test_stream_http_surface.py tests/unit/test_beagle_stream_server_api.py tests/unit/test_beagle_stream_client_broker.py tests/unit/test_server_settings.py tests/unit/test_gaming_metrics.py tests/unit/test_gaming_pool.py tests/unit/test_pools_http_surface.py -q` -> `67 passed`
@@ -980,7 +980,7 @@ zusammenfuehren.
   - non-invasiver Batch-Smoke via `PYTHONPATH=/tmp:/opt/beagle:/opt/beagle/beagle-host/services` mit den drei geaenderten Dateien.
   - Ergebnis: `SRV1_WAVE3D_PART3_SMOKE=PASS`.
 - Rest-Grep nach diesem Batch:
-  - Verbleibende direkte `write_text(json.dumps(`-Pfade in `beagle-host/services`: `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `sunshine_integration.py`, `gaming_metrics_service.py`.
+  - Verbleibende direkte `write_text(json.dumps(`-Pfade in `beagle-host/services`: `webhook_service.py`, `stream_http_surface.py`, `server_settings.py`, `beagle_stream_server_integration.py`, `gaming_metrics_service.py`.
 
 ## Update (2026-04-29, GoAdvanced Plan 01 Welle 3d Teil 2: Maintenance/Installer-Logs/HA-Watchdog)
 
@@ -1176,26 +1176,26 @@ zusammenfuehren.
   - `srv1`: `wg-beagle` aktiv, nftables-Firewall aktiv, UDP `51820` offen, NAT fuer `10.88.0.0/16` aktiv.
   - `srv1`: neuer Root-Reconcile-Pfad aktiv (`beagle-wireguard-reconcile.path`), registrierter Thinclient-Peer live in `wg show wg-beagle`.
   - Thinclient `192.168.178.92`: `beagle-egress` aktiv, `latest handshake` gegen `46.4.96.80:51820`, Route zu `1.1.1.1` laeuft ueber `beagle-egress`.
-  - Ergebnis: der laufende Moonlight-/Sunshine-Pfad fuer VM100 ist jetzt real ueber WireGuard getunnelt statt direkt ueber das lokale Netz.
+  - Ergebnis: der laufende Beagle Stream Client-/Beagle Stream Server-Pfad fuer VM100 ist jetzt real ueber WireGuard getunnelt statt direkt ueber das lokale Netz.
 
 ## Update (2026-04-29, VM100 Black-Screen durch XFCE-Idle/Locker auf `srv1` behoben)
 
 **Scope**: VM100 zeigte beim Connect auf `srv1` einen schwarzen Bildschirm; die Guest-Inspektion ergab aktives `light-locker`, `xfce4-power-manager`, X11-Screensaver-Timeout `600` und aktiviertes DPMS mit `Monitor is Off`.
 
 - Befunde in der laufenden VM (`beagle-100` via QEMU Guest Agent):
-  - Prozesse: `xfce4-session`, `light-locker`, `xfce4-power-manager`, `sunshine`.
+  - Prozesse: `xfce4-session`, `light-locker`, `xfce4-power-manager`, `beagle-stream-server`.
   - `xset q`: `Screen Saver timeout=600`, `DPMS is Enabled`, `Monitor is Off`.
 - Repo-Fix:
-  - `scripts/configure-sunshine-guest.sh`
+  - `scripts/configure-beagle-stream-server-guest.sh`
     - legt jetzt `/etc/X11/Xsession.d/90-beagle-disable-display-idle` an und schaltet dort `xset -dpms`, `xset s off`, `xset s noblank`.
     - legt fuer den Gastbenutzer zusaetzlich `~/.xprofile` mit denselben X11-Guards an.
     - legt fuer XFCE User-Autostart-Overrides mit `Hidden=true` fuer `light-locker`, `xfce4-power-manager` und `xfce4-screensaver` an.
-  - `tests/unit/test_configure_sunshine_guest_regressions.py` prueft die Guardrails als Repo-Regression.
+  - `tests/unit/test_configure_beagle_stream_server_guest_regressions.py` prueft die Guardrails als Repo-Regression.
 - Live-Rollout:
-  - aktualisiertes `configure-sunshine-guest.sh` nach `srv1:/opt/beagle/scripts/` kopiert.
+  - aktualisiertes `configure-beagle-stream-server-guest.sh` nach `srv1:/opt/beagle/scripts/` kopiert.
   - VM100 ueber denselben Provisioning-Pfad live neu konfiguriert (`--no-reboot`), inkl. Display-Manager-Restart.
 - Verifikation nach Rollout:
-  - Prozesse: `xfce4-session` + `sunshine`; `light-locker` und `xfce4-power-manager` laufen nicht mehr.
+  - Prozesse: `xfce4-session` + `beagle-stream-server`; `light-locker` und `xfce4-power-manager` laufen nicht mehr.
   - `xset q`: `Screen Saver timeout=0`, `prefer blanking: no`, `DPMS is Disabled`.
   - Autostart-Overrides auf dem Gast vorhanden, Xsession-Hook und `~/.xprofile` vorhanden.
 
@@ -1319,7 +1319,7 @@ zusammenfuehren.
   - `beagle-host/services/service_registry.py`
     - `stream_http_surface_service()` verdrahtet jetzt Allocate-Callbacks auf echte Runtime-Funktionen
     - WireGuard-Peer-Profil wird aus `wireguard_mesh_service` geladen und als `wg_peer_config` ausgegeben
-    - Pairing-Token wird ueber den bestehenden Pairing-Flow (`issue_moonlight_pairing_token`) fuer Allocate ausgestellt
+    - Pairing-Token wird ueber den bestehenden Pairing-Flow (`issue_beagle_stream_client_pairing_token`) fuer Allocate ausgestellt
 - Validierung:
   - Lokal: `29 passed`
   - `srv1` (staged `/tmp/beagle-os-snap-*`): `29 passed`
@@ -1340,7 +1340,7 @@ zusammenfuehren.
   - `tests/unit/test_stream_http_surface.py` (Route-Handling erweitert)
   - `tests/unit/test_authz_policy.py` (RBAC-Assertion fuer Allocate)
 - Doku:
-  - `docs/goenterprise/01-moonlight-vdi-protocol.md`: Checkbox `Tests: tests/unit/test_beagle_stream_client_broker.py` auf `[x]`
+  - `docs/goenterprise/01-beagle-stream-client-vdi-protocol.md`: Checkbox `Tests: tests/unit/test_beagle_stream_client_broker.py` auf `[x]`
 - Validierung:
   - Lokal: `29 passed`
   - `srv1` (staged `/tmp/beagle-os-plan01-client-broker`): `29 passed`
@@ -1420,7 +1420,7 @@ Wichtig:
     - Event-/Audit-Contract (`POST /api/v1/streams/{vm_id}/events`)
     - `vpn_required`-Ablehnung (`403`) im dedizierten Stream-Server-Scope
 - Doku:
-  - `docs/goenterprise/01-moonlight-vdi-protocol.md`: Checkbox `Tests: tests/unit/test_beagle_stream_server_api.py` auf `[x]`
+  - `docs/goenterprise/01-beagle-stream-client-vdi-protocol.md`: Checkbox `Tests: tests/unit/test_beagle_stream_server_api.py` auf `[x]`
 
 Wichtig:
 - Das schliesst die Testpflicht im Control-Plane-/Contract-Scope.
@@ -1437,7 +1437,7 @@ Wichtig:
     - `POST /api/v1/streams/{vm_id}/events` erzeugt Audit-Event (`stream.session.start`)
   - `tests/unit/test_stream_policy.py` bleibt Referenz fuer die reine Policy-Engine
 - Doku:
-  - `docs/goenterprise/01-moonlight-vdi-protocol.md`: drei Testpflicht-Checkboxen auf `[x]`
+  - `docs/goenterprise/01-beagle-stream-client-vdi-protocol.md`: drei Testpflicht-Checkboxen auf `[x]`
 
 Wichtig:
 - Diese Schliessung gilt bewusst fuer den aktuellen Repo-/Control-Plane-Scope.
@@ -1467,7 +1467,7 @@ Wichtig:
 
 Wichtig:
 - Das schliesst bewusst den innerhalb dieses Repos umsetzbaren Control-Plane-Teil von Plan 01.
-- Offen bleiben weiterhin der echte Sunshine-Fork, HMAC-Token-Pairing im Fork, Paketierung und Live-Abnahme gegen einen real gestarteten Stream-Server.
+- Offen bleiben weiterhin der echte Beagle Stream Server-Fork, HMAC-Token-Pairing im Fork, Paketierung und Live-Abnahme gegen einen real gestarteten Stream-Server.
 
 ## Update (2026-04-28, GoEnterprise Plan 08: Schritt-1-RAID-Mehrdisk geschlossen)
 
@@ -1887,7 +1887,7 @@ Wichtig:
 - Thin-Client-Runtime:
   - [thin-client-assistant/runtime/device_sync.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/device_sync.sh): `confirm-wiped`-API-Hook und saubere Source-Wiring fuer Enrollment-/Curl-Helper
   - [thin-client-assistant/runtime/device_state_enforcement.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/device_state_enforcement.sh): Lock-/Wipe-Enforcement vor Session-Start
-  - [thin-client-assistant/runtime/launch-session.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-session.sh): Enforcement-Hook vor Moonlight/Kiosk/GFN-Launch
+  - [thin-client-assistant/runtime/launch-session.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-session.sh): Enforcement-Hook vor Beagle Stream Client/Kiosk/GFN-Launch
 - Regressionen:
   - [tests/unit/test_endpoint_http_surface.py](/home/dennis/beagle-os/tests/unit/test_endpoint_http_surface.py)
   - [tests/unit/test_device_registry.py](/home/dennis/beagle-os/tests/unit/test_device_registry.py)
@@ -2263,7 +2263,7 @@ Wichtig:
 
 ## Update (2026-04-27, GoEnterprise Plan 06 Schritt 3: Session-Broker + Thin-Client-Reconnect)
 
-**Scope**: Ersten echten Zwei-Host-Produktpfad aus `docs/goenterprise/06-session-handover.md` umgesetzt: Session-Broker ist jetzt endpoint-authenticated verfuegbar, und der Thin-Client fragt vor Moonlight-Start den aktuellen Session-Knoten ab.
+**Scope**: Ersten echten Zwei-Host-Produktpfad aus `docs/goenterprise/06-session-handover.md` umgesetzt: Session-Broker ist jetzt endpoint-authenticated verfuegbar, und der Thin-Client fragt vor Beagle Stream Client-Start den aktuellen Session-Knoten ab.
 
 - Backend:
   - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py): `session_manager_service()` als Singleton verdrahtet.
@@ -2272,16 +2272,16 @@ Wichtig:
   - [beagle-host/services/endpoint_http_surface.py](/home/dennis/beagle-os/beagle-host/services/endpoint_http_surface.py): neuer endpoint-authenticated Broker `GET /api/v1/session/current`.
   - [beagle-host/services/control_plane_handler.py](/home/dennis/beagle-os/beagle-host/services/control_plane_handler.py): `GET /api/v1/session/current` vor normalem Admin-Auth auf Endpoint-Auth verdrahtet.
 - Thin-Client:
-  - [thin-client-assistant/runtime/moonlight_manager_registration.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/moonlight_manager_registration.sh): Manager-Query fuer `GET /api/v1/session/current`.
-  - [thin-client-assistant/runtime/moonlight_host_sync.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/moonlight_host_sync.sh): Broker-Response retargetet jetzt Runtime-Host/Port.
-  - [thin-client-assistant/runtime/launch-moonlight.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-moonlight.sh): fragt den Broker vor Reachability-/Pairing-Flow ab und loggt `moonlight.session-broker`.
+  - [thin-client-assistant/runtime/beagle_stream_client_manager_registration.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/beagle_stream_client_manager_registration.sh): Manager-Query fuer `GET /api/v1/session/current`.
+  - [thin-client-assistant/runtime/beagle_stream_client_host_sync.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/beagle_stream_client_host_sync.sh): Broker-Response retargetet jetzt Runtime-Host/Port.
+  - [thin-client-assistant/runtime/launch-beagle-stream-client.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-beagle-stream-client.sh): fragt den Broker vor Reachability-/Pairing-Flow ab und loggt `beagle-stream-client.session-broker`.
 - Tests:
   - `python3 -m pytest tests/unit/test_session_checkpoint.py tests/unit/test_endpoint_http_surface.py tests/unit/test_pools_http_surface.py -q` => `32 passed`
   - `python3 -m py_compile ...` fuer geaenderte Python-Dateien => OK
-  - `bash -n thin-client-assistant/runtime/moonlight_manager_registration.sh thin-client-assistant/runtime/moonlight_host_sync.sh thin-client-assistant/runtime/launch-moonlight.sh` => OK
+  - `bash -n thin-client-assistant/runtime/beagle_stream_client_manager_registration.sh thin-client-assistant/runtime/beagle_stream_client_host_sync.sh thin-client-assistant/runtime/launch-beagle-stream-client.sh` => OK
 - Live:
   - `srv1` und `srv2`: neue Backend-/Runtime-Dateien ausgerollt, `beagle-control-plane.service` neu gestartet.
-  - `srv1`: echter endpoint-authenticated Smoke gegen `GET /api/v1/session/current?vmid=100` erfolgreich; Response liefert `current_node=srv2`, `stream_host=46.4.96.80`, `moonlight_port=50000`, `reconnect_required=true`.
+  - `srv1`: echter endpoint-authenticated Smoke gegen `GET /api/v1/session/current?vmid=100` erfolgreich; Response liefert `current_node=srv2`, `stream_host=46.4.96.80`, `beagle_stream_client_port=50000`, `reconnect_required=true`.
   - `srv2`: Route und Endpoint-Auth verifiziert; mangels lokaler VM-Inventardaten liefert derselbe Smoke korrekt `404 session not found` statt `401`/`500`.
 - Live-Fund:
   - Das neue `session-manager/` State-Verzeichnis war auf `srv1` initial durch Root-Debug-Lauf als `root:root` angelegt und haette den Dienstpfad fuer `beagle-manager` gebrochen.
@@ -2369,8 +2369,8 @@ Wichtig:
 - `beagle-host/services/thin_client_preset.py`: `build_common_preset()` akzeptiert neue `beagle_*`-Parameter; Legacy-Alias-Args bleiben fuer Backwards-Compat. `build_streaming_mode_input()` liefert `beagle_host`/`beagle_node`/`beagle_vmid` Keys. Die Thin-Client-Compat-Env-Var-Namen bleiben unveraendert.
 - `beagle-host/services/installer_script.py`: Lokale Variablen auf `beagle_*` umgestellt (nur interne Umbenennung; Env-Keys unveraendert).
 - `beagle-host/services/ubuntu_beagle_state.py`: Phase-Name `"beagle-host-create"` → `"beagle-create"`.
-- `beagle-host/services/ubuntu_beagle_provisioning.py`: Phase-Name `"beagle-host-create"` → `"beagle-create"`; `--beagle-host` → `--beagle-host` in configure-sunshine-guest.sh-Aufruf.
-- `scripts/configure-sunshine-guest.sh`: `--beagle-host` als neuer primärer Argument-Name; `--beagle-host` bleibt als Backwards-Compat-Alias.
+- `beagle-host/services/ubuntu_beagle_provisioning.py`: Phase-Name `"beagle-host-create"` → `"beagle-create"`; `--beagle-host` → `--beagle-host` in configure-beagle-stream-server-guest.sh-Aufruf.
+- `scripts/configure-beagle-stream-server-guest.sh`: `--beagle-host` als neuer primärer Argument-Name; `--beagle-host` bleibt als Backwards-Compat-Alias.
 - `beagle-host/services/metrics_collector.py`: Bug-Fix: `read_samples()` und `prune_old_shards()` nutzen jetzt injiziertes `utcnow` statt `datetime.now()` → Test `test_record_and_read_node_sample` gruen nach Fix.
 - 1069 Unit-Tests bestehen nach allen Renames. `beagle-control-plane` wurde auf `srv1`/`srv2` neu gestartet, Services gruen.
 - `docs/goadvanced/11-beagle-host-endbeseitigung.md`: Alle Abnahmekriterien abgehakt.
@@ -3021,7 +3021,7 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 - `scripts/install-beagle-ui-integration.sh`: 206-LOC Installer (fuer geloeschtes `beagle-ui/` Verzeichnis) ersetzt durch 19-Zeilen Deprecation-Stub mit klarer Migrationsmeldung. Aufruf scheitert kontrolliert (`exit 1`) statt mit unklaren `install -D` Fehlern.
 
 ### CI-Guard (Plan 11 Schritt 7)
-- `.github/workflows/no-legacy-provider-references.yml`: Allowlist erweitert um `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-sunshine-guest.sh`, `thin-client-assistant/`, `extension/`, `AGENTS.md`, `prompt.md`.
+- `.github/workflows/no-legacy-provider-references.yml`: Allowlist erweitert um `scripts/lib/provider_shell.sh`, `scripts/ensure-vm-stream-ready.sh`, `scripts/configure-beagle-stream-server-guest.sh`, `thin-client-assistant/`, `extension/`, `AGENTS.md`, `prompt.md`.
 - `grep --exclude-dir` zusaetzlich `--exclude-dir=".venv"`, `thin-client-assistant`, `extension` ergaenzt damit Build-Artefakte und externe Scripts den Guard nicht stoeren.
 - Lokale Simulation: `FOUND=0` nach Migration. Verbleibende `qm`-Aufrufe in `provider_shell.sh` (genutzt fuer Beagle host-Hosts mit Beagle-VMs) sind explizit allowlisted und bleiben fuer spaetere Beagle-libvirt-Migration offen.
 
@@ -3442,13 +3442,13 @@ Aktueller Status: Backend-Fix ist done und getestet. WebUI-Anpassung ist separat
 
 ## Update (2026-04-24, GoFuture Plan 11 Live-Streaming-Verifikation + Runtime-Bugfixes)
 
-- **Plan 11 L213** (Live-Streaming): Moonlight-Stream von beagle-thinclient KVM-VM auf beagle-100/srv1 verifiziert. Pairing, TLS-Pinning und Video-Stream aktiv.
+- **Plan 11 L213** (Live-Streaming): Beagle Stream Client-Stream von beagle-thinclient KVM-VM auf beagle-100/srv1 verifiziert. Pairing, TLS-Pinning und Video-Stream aktiv.
 - **Runtime-Bugfixes** (reproduzierbar im Repo):
   - `thin-client-assistant/runtime/runtime_value_helpers.sh`: `render_template` + `beagle_curl_tls_args` implementiert.
   - `beagle_curl_tls_args`: Fix — `-k` + `--pinnedpubkey` kombiniert (alleiniges `--pinnedpubkey` bypasst CA nicht).
   - `config_loader.sh` + `runtime_config_persistence.sh`: `NETWORK_FILE` → `NETWORK_ENV_FILE` (verhindert network.env-Korruption).
   - `pve-thin-client.list.chroot`: `xserver-xorg-video-qxl` ergänzt.
-- **srv1 Port-Forwarding**: Port 49995 TCP (Sunshine HTTPS Pairing) DNAT + FORWARD + nftables.conf persistiert.
+- **srv1 Port-Forwarding**: Port 49995 TCP (Beagle Stream Server HTTPS Pairing) DNAT + FORWARD + nftables.conf persistiert.
 
 ## Update (2026-04-24, GoFuture Plans 09/11/12/16/18/19 abgeschlossen — commit c6e48b3..63e716c)
 
@@ -3853,8 +3853,8 @@ Alle noch offenen `[ ]`-Items sind infrastructure-blocked (live VMs auf 2 Hosts,
 
 - Plan 11 Schritt 4 erste Parameter-Slice umgesetzt.
 - `StreamingProfile` im Core (`core/virtualization/streaming_profile.py`) erweitert um:
-	- `audio_input_enabled`: Moonlight-Protokoll-Version 5 Audio-Input (Mikrofon),
-	- `gamepad_redirect_enabled`: Moonlight-Input-Protokoll Gamepad-Redirect.
+	- `audio_input_enabled`: Beagle Stream Client-Protokoll-Version 5 Audio-Input (Mikrofon),
+	- `gamepad_redirect_enabled`: Beagle Stream Client-Input-Protokoll Gamepad-Redirect.
 - Pool-Contract, Pool-Manager und Pool-API automatisch synchronisiert (Persistenz/Read-Write funktionieret).
 - Web-Console-Pool-Wizard (`website/index.html`, `website/ui/policies.js`) erweitert um zwei Checkboxes für die neuen Fields.
 - Validierung:
@@ -3906,17 +3906,17 @@ Alle noch offenen `[ ]`-Items sind infrastructure-blocked (live VMs auf 2 Hosts,
 
 - GoFuture Plan 11 Schritt 2 vollstaendig umgesetzt:
 	- `beagle-host/services/pairing_service.py` erstellt (HMAC-signierte Pairing-Tokens mit Ablaufzeit),
-	- neue Endpoint-Routen `POST /api/v1/endpoints/moonlight/pair-token` und `POST /api/v1/endpoints/moonlight/pair-exchange` in der Endpoint-Surface,
+	- neue Endpoint-Routen `POST /api/v1/endpoints/beagle-stream-client/pair-token` und `POST /api/v1/endpoints/beagle-stream-client/pair-exchange` in der Endpoint-Surface,
 	- Control-Plane-Wiring fuer Token-Issue/Exchange in `beagle-control-plane.py` integriert.
 - Endpoint-Runtime auf Token-Flow umgestellt:
-	- `thin-client-assistant/runtime/moonlight_manager_registration.sh` erweitert (pair-token + pair-exchange),
-	- `thin-client-assistant/runtime/moonlight_pairing.sh` verwendet zuerst Token-Exchange, dann Legacy-Fallback.
+	- `thin-client-assistant/runtime/beagle_stream_client_manager_registration.sh` erweitert (pair-token + pair-exchange),
+	- `thin-client-assistant/runtime/beagle_stream_client_pairing.sh` verwendet zuerst Token-Exchange, dann Legacy-Fallback.
 - Live-Fehler auf `srv1.beagle-os.com` (pair-token `500`) root-caused und behoben:
 	- Ursache: `PermissionError` im Endpoint-Token-Store (`chmod` auf bestehendem `endpoint-tokens`-Verzeichnis unter non-root systemd-User),
 	- Fix: `beagle-host/services/endpoint_token_store.py` macht `chmod` best-effort ohne Hard-Fail.
 - Reproduzierbare Validierung:
 	- Unit: `python3 -m pytest tests/unit/test_endpoint_token_store.py tests/unit/test_endpoint_http_surface.py tests/unit/test_pairing_service.py -q` => `11 passed`.
-	- Live: `POST /api/v1/endpoints/moonlight/pair-token` auf `srv1` liefert `201` inkl. signiertem Pairing-Token und PIN.
+	- Live: `POST /api/v1/endpoints/beagle-stream-client/pair-token` auf `srv1` liefert `201` inkl. signiertem Pairing-Token und PIN.
 	- Audit: keine neuen `request.unhandled_exception`-Eintraege fuer den vorherigen Permission-Fehlerpfad.
 
 ## Update (2026-04-22, GoFuture Plan 02 Testpflicht abgeschlossen: Light/Dark Screenshot-Vergleich)
@@ -3938,43 +3938,43 @@ Alle noch offenen `[ ]`-Items sind infrastructure-blocked (live VMs auf 2 Hosts,
 
 ## Update (2026-04-22, GoFuture Plan 11 Schritt 1 abgeschlossen: Endpoint->Manager prepare-stream)
 
-- Offene Schritt-1-Checkbox geschlossen: Moonlight-Client liest lokale Aufloesung und triggert vor Streamstart einen Guest-Display-Prepare-Call.
+- Offene Schritt-1-Checkbox geschlossen: Beagle Stream Client-Client liest lokale Aufloesung und triggert vor Streamstart einen Guest-Display-Prepare-Call.
 - Neuer Endpoint-API-Pfad implementiert:
-	- `POST /api/v1/endpoints/moonlight/prepare-stream`
+	- `POST /api/v1/endpoints/beagle-stream-client/prepare-stream`
 	- in `beagle-host/services/endpoint_http_surface.py`.
-- Neue Guest-Display-Prepare-Logik in `beagle-host/services/sunshine_integration.py`:
+- Neue Guest-Display-Prepare-Logik in `beagle-host/services/beagle_stream_server_integration.py`:
 	- `prepare_virtual_display_on_vm(...)` setzt `DISPLAY=:0` + `XAUTHORITY` und versucht `xrandr --output <out> --mode <resolution>`.
 	- fuer `3840x2160` wird zusaetzlich ein 4K-Modeline-Add/Apply-Fallback versucht.
 - Control-Plane-Wiring in `beagle-host/bin/beagle-control-plane.py` erweitert (Wrapper + Endpoint-Surface-Injektion).
 - Endpoint-Runtime integriert:
-	- `thin-client-assistant/runtime/moonlight_manager_registration.sh` um `prepare_moonlight_stream_via_manager(...)` erweitert.
-	- `thin-client-assistant/runtime/launch-moonlight.sh` ruft den Prepare-Call vor dem eigentlichen Moonlight-Stream auf.
+	- `thin-client-assistant/runtime/beagle_stream_client_manager_registration.sh` um `prepare_beagle_stream_client_stream_via_manager(...)` erweitert.
+	- `thin-client-assistant/runtime/launch-beagle-stream-client.sh` ruft den Prepare-Call vor dem eigentlichen Beagle Stream Client-Stream auf.
 - Testabdeckung erweitert:
 	- `tests/unit/test_endpoint_http_surface.py` neu (prepare-stream path/status/payload).
 	- `python3 -m pytest tests/unit/test_endpoint_http_surface.py tests/unit/test_streaming_backend_service.py -q` => `9 passed`.
 - Runtime-Smoke:
 	- `python3 scripts/test-streaming-quality-smoke.py --host srv1.beagle-os.com --domain beagle-100` => `pass_with_4k_limit`.
-	- `x11_prereq`, `xrandr_query`, `vkms_sunshine`, `sunshine_api_apps` gruen; 4K-Apply weiterhin durch CRTC-Limit begrenzt.
+	- `x11_prereq`, `xrandr_query`, `vkms_beagle_stream_server`, `beagle_stream_server_api_apps` gruen; 4K-Apply weiterhin durch CRTC-Limit begrenzt.
 
 ## Update (2026-04-22, GoFuture Plan 11 Schritt 1 Start: Linux vkms + Windows Apollo Split)
 
 - Plan-11-Strategie auf realen Runtime-Stand gebracht:
 	- `docs/gofuture/11-streaming-v2.md` von pauschalem Apollo-Ziel auf Plattform-Split umgestellt,
-	- Linux-Desktop-Pfad: Sunshine + `vkms` (Virtual Display),
+	- Linux-Desktop-Pfad: Beagle Stream Server + `vkms` (Virtual Display),
 	- Windows-Desktop-Pfad: Apollo + SudoVDA (optional/eval).
 - Architekturentscheidung dokumentiert in `docs/refactor/07-decisions.md`:
 	- neue Entscheidung `D-031` beschreibt den platform-aware Backend-Ansatz,
-	- `guest_os=linux` -> Sunshine+vkms,
+	- `guest_os=linux` -> Beagle Stream Server+vkms,
 	- `guest_os=windows` -> Apollo,
-	- Sunshine bleibt Fallback fuer Apollo-Fehlerpfade.
+	- Beagle Stream Server bleibt Fallback fuer Apollo-Fehlerpfade.
 - Technischer Runtime-Anker umgesetzt:
 	- neues Provisioning-Template `beagle-host/templates/ubuntu-beagle/virtual-display-setup.sh.tpl` angelegt,
 	- `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl` um `configure_virtual_display_vkms()` erweitert,
 	- firstboot laedt jetzt `vkms`, persistiert Modul-Load (`/etc/modules-load.d/vkms.conf`), installiert `vkms-virtual-display.service`, und startet ein XFCE-Autostart-Skript zur 4K-Mode-Setzung via `xrandr`.
-	- neuer platform-aware Selector `beagle-host/services/streaming_backend.py` implementiert (Linux default `sunshine`, Windows default `apollo`, optional `allow_apollo_on_linux` fuer Eval-Pfade).
+	- neuer platform-aware Selector `beagle-host/services/streaming_backend.py` implementiert (Linux default `beagle-stream-server`, Windows default `apollo`, optional `allow_apollo_on_linux` fuer Eval-Pfade).
 	- Unit-Tests fuer Selector (`tests/unit/test_streaming_backend_service.py`) hinzugefuegt (`5 passed`).
 - Live-Check auf `srv1.beagle-os.com` / `beagle-100`:
-	- Sunshine-Version in VM bestaetigt (`2025.924.154138`),
+	- Beagle Stream Server-Version in VM bestaetigt (`2025.924.154138`),
 	- `vkms` per guest-agent erfolgreich geladen (`lsmod` zeigt Modul),
 	- `xrandr` im guest-agent-Kontext liefert erwartbar `Can't open display` (kein DISPLAY im nicht-interaktiven Agent-Kontext), was den bekannten Unterschied zu echter XFCE-Session bestaetigt.
 	- anschliessend in echter Session validiert: `DISPLAY=:0 XAUTHORITY=/home/beagle/.Xauthority xrandr --query` funktioniert und zeigt `Virtual-1` inkl. Modus `3840x2160_60.00`.
@@ -3983,12 +3983,12 @@ Alle noch offenen `[ ]`-Items sind infrastructure-blocked (live VMs auf 2 Hosts,
 		- `x11_prereq`: ok
 		- `xrandr_query`: ok (`Virtual-1`, current `1280x800`, 4K-Mode vorhanden)
 		- `xrandr_set_4k`: nicht erfolgreich (`Configure crtc 0 failed`)
-		- `vkms_sunshine`: ok
-		- `sunshine_api_apps`: ok
+		- `vkms_beagle_stream_server`: ok
+		- `beagle_stream_server_api_apps`: ok
 		- Gesamtresultat: `pass_with_4k_limit`.
 - Ergebnis:
 	- Plan 11 ist gestartet und hat einen reproduzierbaren Linux-vDisplay-Implementierungsanker im Repo,
-	- offene Restarbeit fuer Abschluss von Schritt 1: Moonlight-E2E-Stream-Nachweis gegen den vkms-Guest und Aufloesungs-Uplift auf 4K in kompatibler VM-Grafikkonfiguration.
+	- offene Restarbeit fuer Abschluss von Schritt 1: Beagle Stream Client-E2E-Stream-Nachweis gegen den vkms-Guest und Aufloesungs-Uplift auf 4K in kompatibler VM-Grafikkonfiguration.
 
 ## Update (2026-04-22, GoFuture Plan 10 letzte Testpflicht: Entitlement-Sichtbarkeit)
 
@@ -4977,7 +4977,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 ## Update (2026-04-20, refactorv2 strategic doc set landed in `docs/refactorv2/`)
 
 - Added a 16-document refactor wave 2 doc set under [docs/refactorv2/](../refactorv2/README.md) targeting the 7.0 jump.
-- Scope: position Beagle OS as a full open-source desktop-virtualization platform that competes head-to-head with Beagle host, Omnissa Horizon, Citrix DaaS, Microsoft Windows 365, Parsec for Teams, Sunshine/Apollo, Kasm Workspaces, Harvester HCI.
+- Scope: position Beagle OS as a full open-source desktop-virtualization platform that competes head-to-head with Beagle host, Omnissa Horizon, Citrix DaaS, Microsoft Windows 365, Parsec for Teams, Beagle Stream Server/Apollo, Kasm Workspaces, Harvester HCI.
 - New docs:
   - [00-vision.md](../refactorv2/00-vision.md) — Nordstern + 30-min onboarding promise.
   - [01-competitor-research.md](../refactorv2/01-competitor-research.md) — competitor analysis + feature matrix.
@@ -5217,7 +5217,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Deployed updated template to the live host runtime (`/opt/beagle/beagle-host/templates/ubuntu-beagle/user-data.tpl`) and restarted `beagle-control-plane`.
 - Recreated test VM from API after cleanup:
 	- deleted VM `160`,
-	- created VM `161` with `ubuntu-24.04-desktop-sunshine` + `xfce`.
+	- created VM `161` with `ubuntu-24.04-desktop-beagle-stream-server` + `xfce`.
 - Current live runtime evidence for VM `161`:
 	- API state remains `installing/autoinstall` (no callback yet),
 	- libvirt CPU+disk counters are increasing across samples (`cpu.time`, `vda rd/wr`), proving installer is actively progressing,
@@ -5254,13 +5254,13 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Root cause for repeated `installing/firstboot` stalls was reproduced in VM102:
 	- guest reached tty login only,
 	- `beagle-ubuntu-firstboot.service` repeatedly failed,
-	- `lightdm`/`xfce`/`sunshine` packages were not installed,
+	- `lightdm`/`xfce`/`beagle-stream-server` packages were not installed,
 	- guest had link on `enp1s0` but no IPv4 address/route, so provisioning network bootstrap was fragile.
 - Implemented a repo-level fix in [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl):
 	- `ensure_network_connectivity()` now keeps DHCP as primary path, then falls back to deterministic static IPv4 (`192.168.123.x/24`) derived from VM MAC if DHCP never comes up.
 	- Static fallback writes and applies `/etc/netplan/01-beagle-static.yaml` and configures DNS nameservers.
 	- `apt_retry()` no longer hard-aborts when DNS refresh fails (`ensure_dns_resolution || true`), preserving retry behavior under transient network conditions.
-	- Firstboot startup path now tolerates DNS bootstrap failures (`ensure_dns_resolution || true`) instead of exiting before desktop/Sunshine install.
+	- Firstboot startup path now tolerates DNS bootstrap failures (`ensure_dns_resolution || true`) instead of exiting before desktop/Beagle Stream Server install.
 - Effect:
 	- The fix is now reproducible from repo templates and no longer depends on manual in-VM network hotfix commands.
 	- New ubuntu desktop VMs built from this repo should continue firstboot provisioning even when DHCP is temporarily unavailable.
@@ -5293,8 +5293,8 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 	- **VM100 (pre-fix VM)**: Fallback logic tested via `ensure-vm-stream-ready.sh --vmid 100`:
 		- ✅ Successfully extracted guest_password from provisioning state.
 		- ✅ `installer_guest_password_available: true` in output JSON.
-		- ✅ Passed `--guest-password 'BeaglePass123456789!'` to `configure-sunshine-guest.sh`.
-		- ✅ Workflow progressed to "install/25%" phase (attempted Sunshine installation).
+		- ✅ Passed `--guest-password 'BeaglePass123456789!'` to `configure-beagle-stream-server-guest.sh`.
+		- ✅ Workflow progressed to "install/25%" phase (attempted Beagle Stream Server installation).
 		- Remaining error (`Unable to determine guest IPv4 address`) is a separate network/boot issue, not a credential issue.
 
 - **Proof points**:
@@ -5338,7 +5338,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 	- VM console is at Ubuntu login prompt (`Ubuntu 24.04.4 LTS desktop tty1`), so installed OS boot path is active.
 	- Token state file remained `installing/firstboot` with unchanged `updated_at` before this additional fallback.
 	- No token-specific `/complete` or `/failed` callback ingress lines were visible in nginx logs.
-	- Public Sunshine API endpoint (`https://192.168.122.131:50001/api/apps`) timed out in probe.
+	- Public Beagle Stream Server API endpoint (`https://192.168.122.131:50001/api/apps`) timed out in probe.
 - Artifact pipeline remained in progress:
 	- `/opt/beagle/scripts/prepare-host-downloads.sh` still active with nested live-build/apt install processes,
 	- installer template `/opt/beagle/dist/pve-thin-client-usb-installer-host-latest.sh` still missing at check time.
@@ -5518,38 +5518,38 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 	- `scripts/test-standalone-desktop-stream-sim.sh` revealed multiple local-lab reproducibility issues (domain leftovers, bridge default mismatch, storage-path/permission assumptions, fake-kernel incompatibility under real libvirt/qemu execution).
 	- Script was partially hardened for portability (`bridge` fallback and temp-dir permissions), but full green run is still blocked by host-lab assumptions in the simulation path.
 
-- Hardened thin-client Moonlight runtime against app-name mismatches that still produced `failed to find Application Desktop` even after pairing:
-	- Added Sunshine app inventory fetch + resolver in [thin-client-assistant/runtime/moonlight_remote_api.sh](thin-client-assistant/runtime/moonlight_remote_api.sh).
+- Hardened thin-client Beagle Stream Client runtime against app-name mismatches that still produced `failed to find Application Desktop` even after pairing:
+	- Added Beagle Stream Server app inventory fetch + resolver in [thin-client-assistant/runtime/beagle_stream_client_remote_api.sh](thin-client-assistant/runtime/beagle_stream_client_remote_api.sh).
 	- Resolver now matches app names case-insensitive and includes a Desktop alias fallback before defaulting to the first advertised app.
-	- Launch path now applies resolved app name before `moonlight stream` in [thin-client-assistant/runtime/launch-moonlight.sh](thin-client-assistant/runtime/launch-moonlight.sh).
+	- Launch path now applies resolved app name before `beagle-stream-client stream` in [thin-client-assistant/runtime/launch-beagle-stream-client.sh](thin-client-assistant/runtime/launch-beagle-stream-client.sh).
 - Validation completed:
-	- `bash -n thin-client-assistant/runtime/moonlight_remote_api.sh`
-	- `bash -n thin-client-assistant/runtime/launch-moonlight.sh`
+	- `bash -n thin-client-assistant/runtime/beagle_stream_client_remote_api.sh`
+	- `bash -n thin-client-assistant/runtime/launch-beagle-stream-client.sh`
 
-- Implemented repo-managed Sunshine self-healing for VM guests to keep stream path stable after reboot/crash:
-	- Provisioning now writes hardened `beagle-sunshine.service` with unlimited start retries (`StartLimitIntervalSec=0`) and stronger startup timeout.
-	- Added root-owned guest repair script `/usr/local/bin/beagle-sunshine-healthcheck` that:
-		- verifies `beagle-sunshine.service` and `sunshine` process,
+- Implemented repo-managed Beagle Stream Server self-healing for VM guests to keep stream path stable after reboot/crash:
+	- Provisioning now writes hardened `beagle-stream-server.service` with unlimited start retries (`StartLimitIntervalSec=0`) and stronger startup timeout.
+	- Added root-owned guest repair script `/usr/local/bin/beagle-stream-server-healthcheck` that:
+		- verifies `beagle-stream-server.service` and `beagle-stream-server` process,
 		- performs local API probe (`/api/apps`) against `127.0.0.1`,
-		- restarts/enables Sunshine stack when unhealthy,
+		- restarts/enables Beagle Stream Server stack when unhealthy,
 		- supports forced repair mode (`--repair-only`).
-	- Added `beagle-sunshine-healthcheck.service` + `beagle-sunshine-healthcheck.timer` with persistent periodic checks (`OnBootSec` + `OnUnitActiveSec`).
-	- Healthcheck credentials are provisioned in `/etc/beagle/sunshine-healthcheck.env` with `0600` permissions.
-	- `ensure-vm-stream-ready.sh` now tries guest runtime repair before full Sunshine reinstall when binary exists but service is inactive.
+	- Added `beagle-stream-server-healthcheck.service` + `beagle-stream-server-healthcheck.timer` with persistent periodic checks (`OnBootSec` + `OnUnitActiveSec`).
+	- Healthcheck credentials are provisioned in `/etc/beagle/beagle-stream-server-healthcheck.env` with `0600` permissions.
+	- `ensure-vm-stream-ready.sh` now tries guest runtime repair before full Beagle Stream Server reinstall when binary exists but service is inactive.
 - Validation completed:
-	- `bash -n scripts/configure-sunshine-guest.sh`
+	- `bash -n scripts/configure-beagle-stream-server-guest.sh`
 	- `bash -n scripts/ensure-vm-stream-ready.sh`
 
 - Resolved the primary Desktop stream blocker (`Starting RTSP Handshake` then abort) in the live VM101 path:
-	- Added client-side Moonlight stream output logging in [thin-client-assistant/runtime/launch-moonlight.sh](thin-client-assistant/runtime/launch-moonlight.sh) to capture exact handshake failures and exit codes.
-	- Confirmed root cause from live logs: Sunshine launch response returned `sessionUrl0=rtspenc://192.168.123.100:50053`, while host-level `nft` forward policy dropped RTSP/stream UDP despite existing iptables-style rules.
+	- Added client-side Beagle Stream Client stream output logging in [thin-client-assistant/runtime/launch-beagle-stream-client.sh](thin-client-assistant/runtime/launch-beagle-stream-client.sh) to capture exact handshake failures and exit codes.
+	- Confirmed root cause from live logs: Beagle Stream Server launch response returned `sessionUrl0=rtspenc://192.168.123.100:50053`, while host-level `nft` forward policy dropped RTSP/stream UDP despite existing iptables-style rules.
 	- Applied live host fix in authoritative `nft` forward policy to allow RTSP + stream ports for VM101 (`50053/tcp`, `50041-50047/udp`).
-	- Verified post-fix stream startup in Moonlight log: RTSP handshake completed, control/video/input streams initialized, first video packet received.
-	- Verified active client process after fix (`moonlight stream ...` remains running on thinclient).
+	- Verified post-fix stream startup in Beagle Stream Client log: RTSP handshake completed, control/video/input streams initialized, first video packet received.
+	- Verified active client process after fix (`beagle-stream-client stream ...` remains running on thinclient).
 
 - Hardened runtime for reproducible troubleshooting and host-target consistency:
-	- Added deterministic host retarget/sync improvements in [thin-client-assistant/runtime/moonlight_host_registry.py](thin-client-assistant/runtime/moonlight_host_registry.py) and [thin-client-assistant/runtime/moonlight_host_sync.sh](thin-client-assistant/runtime/moonlight_host_sync.sh).
-	- Added fallback retarget call in [thin-client-assistant/runtime/launch-moonlight.sh](thin-client-assistant/runtime/launch-moonlight.sh) so stale host entries are corrected even when manager payload is not available.
+	- Added deterministic host retarget/sync improvements in [thin-client-assistant/runtime/beagle_stream_client_host_registry.py](thin-client-assistant/runtime/beagle_stream_client_host_registry.py) and [thin-client-assistant/runtime/beagle_stream_client_host_sync.sh](thin-client-assistant/runtime/beagle_stream_client_host_sync.sh).
+	- Added fallback retarget call in [thin-client-assistant/runtime/launch-beagle-stream-client.sh](thin-client-assistant/runtime/launch-beagle-stream-client.sh) so stale host entries are corrected even when manager payload is not available.
 
 - Fixed beagle-provider provisioning failure when libvirt storage pool `local` is missing:
 	- Added pool auto-heal in [beagle-host/providers/beagle_host_provider.py](beagle-host/providers/beagle_host_provider.py): missing `local` pool is now auto-defined (`dir` at `/var/lib/libvirt/images`), built, started, and autostart-enabled before `vol-create-as`.
@@ -5560,49 +5560,49 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 	- Increased timeout for `POST /provisioning/vms` calls to 180 seconds so UI no longer aborts valid provisioning runs after the global 20-second fetch timeout.
 
 - Added reproducible host firewall reconciliation improvements in [scripts/reconcile-public-streams.sh](scripts/reconcile-public-streams.sh):
-	- Expanded forwarded Sunshine UDP set to include `base+12`, `base+14`, `base+15` (not only `base+9/+10/+11/+13`).
+	- Expanded forwarded Beagle Stream Server UDP set to include `base+12`, `base+14`, `base+15` (not only `base+9/+10/+11/+13`).
 	- Added idempotent synchronization of allow-rules with comment marker `beagle-stream-allow` into `inet filter forward` when that chain exists with restrictive policy.
 
 ## Update (2026-04-19, VM100 runtime recovery attempt to reach thinclient stream)
 
 - Established direct root SSH maintenance access to installed `beagleserver` VM from the outer harness and validated live host service state.
 - Root-caused installer-prep hard failure from host log:
-	- `/opt/beagle/scripts/configure-sunshine-guest.sh: line 789: ENV_FILE: unbound variable`.
+	- `/opt/beagle/scripts/configure-beagle-stream-server-guest.sh: line 789: ENV_FILE: unbound variable`.
 - Fixed and validated script rendering issues in repo + live host deployment:
-	- [scripts/configure-sunshine-guest.sh](scripts/configure-sunshine-guest.sh): escaped runtime variables in embedded healthcheck payload to avoid outer heredoc expansion under `set -u`.
-	- [scripts/configure-sunshine-guest.sh](scripts/configure-sunshine-guest.sh): added `--guest-ip` / `GUEST_IP_OVERRIDE` support.
-	- [scripts/configure-sunshine-guest.sh](scripts/configure-sunshine-guest.sh): made guest IP mandatory only when metadata update is enabled.
+	- [scripts/configure-beagle-stream-server-guest.sh](scripts/configure-beagle-stream-server-guest.sh): escaped runtime variables in embedded healthcheck payload to avoid outer heredoc expansion under `set -u`.
+	- [scripts/configure-beagle-stream-server-guest.sh](scripts/configure-beagle-stream-server-guest.sh): added `--guest-ip` / `GUEST_IP_OVERRIDE` support.
+	- [scripts/configure-beagle-stream-server-guest.sh](scripts/configure-beagle-stream-server-guest.sh): made guest IP mandatory only when metadata update is enabled.
 - Live VM100 diagnosis advanced from host API-only probing to direct guest console login:
 	- Guest boot is healthy (TTY login works with `beagle`).
-	- Sunshine is not installed and `beagle-sunshine.service` does not exist yet.
+	- Beagle Stream Server is not installed and `beagle-stream-server.service` does not exist yet.
 	- Guest NIC `ens1` exists but comes up without usable DHCP; manual static config (`192.168.123.100/24`, gw `192.168.123.1`) restores host<->guest reachability.
 - Host-side guest execution reliability improved:
-	- installed `sshpass` on `beagleserver` so `configure-sunshine-guest.sh` can use direct password SSH path when guest IP is known.
-- Sunshine package installation progressed:
-	- host downloaded Sunshine `.deb` and transferred it into VM100,
+	- installed `sshpass` on `beagleserver` so `configure-beagle-stream-server-guest.sh` can use direct password SSH path when guest IP is known.
+- Beagle Stream Server package installation progressed:
+	- host downloaded Beagle Stream Server `.deb` and transferred it into VM100,
 	- base package unpack succeeded but dependency chain is incomplete in current guest runtime.
 - Remaining live blocker at end of this run:
-	- VM100 still lacks completed dependency set + active Sunshine service,
+	- VM100 still lacks completed dependency set + active Beagle Stream Server service,
 
 ## Update (2026-04-19, reproducible stream-prep inputs for next test runs)
 
 - Hardened [scripts/ensure-vm-stream-ready.sh](scripts/ensure-vm-stream-ready.sh) so the install step no longer depends on ad-hoc manual SSH/qga choices:
 	- reads `guest_password` (fallback `password`) from per-VM secrets,
-	- resolves preferred guest target IP from metadata (`sunshine-ip`) with runtime fallback (`guest_ipv4`),
-	- forwards both values to [scripts/configure-sunshine-guest.sh](scripts/configure-sunshine-guest.sh) via `--guest-password` / `--guest-ip` when available.
+	- resolves preferred guest target IP from metadata (`beagle-stream-server-ip`) with runtime fallback (`guest_ipv4`),
+	- forwards both values to [scripts/configure-beagle-stream-server-guest.sh](scripts/configure-beagle-stream-server-guest.sh) via `--guest-password` / `--guest-ip` when available.
 - Installer-prep state payload now exposes reproducibility inputs for debugging:
 	- `installer_guest_ip`,
 	- `installer_guest_password_available`.
 - Validation:
 	- `bash -n scripts/ensure-vm-stream-ready.sh`
-	- `bash -n scripts/configure-sunshine-guest.sh`
+	- `bash -n scripts/configure-beagle-stream-server-guest.sh`
 
 	- public stream ports (`50000/50001`) remain unreachable from thinclient path,
-	- actual Moonlight stream start on thinclient is therefore still pending.
+	- actual Beagle Stream Client stream start on thinclient is therefore still pending.
 
 ## Update (2026-04-19, guest password secret persistence for unattended stream prep)
 
-- Fixed the provisioning/automation secret split that still blocked unattended Sunshine guest setup on freshly created Ubuntu desktops:
+- Fixed the provisioning/automation secret split that still blocked unattended Beagle Stream Server guest setup on freshly created Ubuntu desktops:
 	- [beagle-host/services/ubuntu_beagle_provisioning.py](beagle-host/services/ubuntu_beagle_provisioning.py) now persists `guest_password` into the per-VM secret record and also mirrors it as legacy `password` for existing shell consumers.
 - Added compatibility fallback for already-created VMs so the next stream-prep run does not require a recreate first:
 	- [scripts/ensure-vm-stream-ready.sh](scripts/ensure-vm-stream-ready.sh) now falls back to the latest `ubuntu-beagle-install` state for the VM when `guest_password` is still missing from `vm-secrets`.
@@ -5650,7 +5650,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - `core/security/http_client.py` + `core/security/__init__.py`: SecureSession, get(), post(), TLSSecurityError; verify=False blockiert; BEAGLE_TLS_CA_BUNDLE + BEAGLE_TLS_INSECURE_OVERRIDE env vars
 - `scripts/lib/beagle_curl_safe.sh`: beagle_curl_tls_args() Funktion hinzugefügt (BEAGLE_TLS_PINNED_PUBKEY, BEAGLE_CA_CERT, BEAGLE_TLS_SKIP=1)
 - `tests/unit/test_secure_http_client.py`: 15 Tests
-- `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`: curl -k → --insecure + tls-bypass-allowlist-Marker; SUNSHINE_PINNED_PUBKEY Support in is_api_ready()
+- `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`: curl -k → --insecure + tls-bypass-allowlist-Marker; BEAGLE_STREAM_SERVER_PINNED_PUBKEY Support in is_api_ready()
 - `scripts/test-streaming-quality-smoke.py`: curl -kfsS → --insecure + tls-bypass-allowlist-Kommentar
 
 ### Plan 04 Subprocess Sandboxing (Schritte 1+2+6)
@@ -5791,8 +5791,8 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - Ziel-Disk danach direkt gebootet.
 - Installierte Ziel-Disk validiert:
   - `pve-thin-client/state/thinclient.conf` enthaelt `PVE_THIN_CLIENT_PROFILE_NAME="vm-100"`,
-  - `PVE_THIN_CLIENT_MOONLIGHT_HOST="46.4.96.80"`,
-  - `PVE_THIN_CLIENT_SUNSHINE_API_URL="https://46.4.96.80:50001"`,
+  - `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST="46.4.96.80"`,
+  - `PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL="https://46.4.96.80:50001"`,
   - `BEAGLE_MANAGER_URL` / `BEAGLE_ENROLLMENT_URL` zeigen auf `srv1`,
   - `credentials.env` und `local-auth.env` wurden korrekt geschrieben.
 - `srv1` ausgerollt:
@@ -5806,13 +5806,13 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Lokal: `bash -n thin-client-assistant/usb/pve-thin-client-local-installer.sh` => OK.
 - Lokal: VM100-Installer von `srv1` auf Loop-USB geschrieben und in QEMU gebootet; Preset-Installation lief bis `Installation Complete`.
 - Lokal: installierte Ziel-Disk bootet mit Beagle-GRUB (`Beagle OS Desktop`, `Gaming`, Safe/Legacy/Fallback-Eintraege).
-- Lokal: installierte Runtime-Konfiguration auf der Ziel-Disk enthaelt die erwartete Moonlight-/Sunshine-/Manager-Konfiguration fuer `vm100`.
+- Lokal: installierte Runtime-Konfiguration auf der Ziel-Disk enthaelt die erwartete Beagle Stream Client-/Beagle Stream Server-/Manager-Konfiguration fuer `vm100`.
 - Live auf `srv1`: `scripts/prepare-host-downloads.sh` erfolgreich; gehosteter Bootstrap-Bundle traegt jetzt den gepatchten Installer-SHA.
 
 ### Rest-Risiken
 
 - Der ursprüngliche physische Hardware-Fail auf dem bereits erstellten Alt-USB-Stick wurde nicht 1:1 konserviert; der Fix basiert auf der reproduzierbaren lokalen E2E-Validierung und der gehaerteten Partition-/Target-Logik.
-- Die grafische Moonlight-Session der lokal installierten Runtime wurde in diesem Run nicht per Framebuffer-Screenshot bis zum sichtbaren Stream-Inhalt abgenommen; die installierte Laufzeit-Konfiguration fuer `vm100` ist jedoch korrekt auf der Ziel-Disk vorhanden.
+- Die grafische Beagle Stream Client-Session der lokal installierten Runtime wurde in diesem Run nicht per Framebuffer-Screenshot bis zum sichtbaren Stream-Inhalt abgenommen; die installierte Laufzeit-Konfiguration fuer `vm100` ist jedoch korrekt auf der Ziel-Disk vorhanden.
 ## Update (2026-04-26, Plan 06 Artifact-Watchdog in WebUI + Host-Timer)
 
 - `beagle-host/services/server_settings.py` erweitert:
@@ -6539,9 +6539,9 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - direkter Python-Runner fuer `tests/unit/test_settings_ui_regressions.py`
   - `pytest` war lokal nicht installiert
 
-## Update (2026-05-01, Thin-Client Live-USB: persistente Netzwerk-TUI vor Desktop/Moonlight)
+## Update (2026-05-01, Thin-Client Live-USB: persistente Netzwerk-TUI vor Desktop/Beagle Stream Client)
 
-**Scope**: Live-USB-Boots erzwingen vor dem Desktop/Moonlight-Start einmalig eine lokale Netzwerkauswahl fuer Ethernet oder WLAN. Die Auswahl wird auf dem USB-State persistiert; spaetere Boots zeigen fuer 3 Sekunden ein grosses Override-Banner, bei `N` wird die TUI erneut geoeffnet, sonst startet der Runtime-Pfad mit der gespeicherten Konfiguration.
+**Scope**: Live-USB-Boots erzwingen vor dem Desktop/Beagle Stream Client-Start einmalig eine lokale Netzwerkauswahl fuer Ethernet oder WLAN. Die Auswahl wird auf dem USB-State persistiert; spaetere Boots zeigen fuer 3 Sekunden ein grosses Override-Banner, bei `N` wird die TUI erneut geoeffnet, sonst startet der Runtime-Pfad mit der gespeicherten Konfiguration.
 
 - Runtime-Fix:
   - [thin-client-assistant/runtime/runtime-network-menu.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/runtime-network-menu.sh): neue TUI mit Ethernet-/WLAN-Auswahl, WLAN-Scan, Passwortabfrage, Persistenz und 3-Sekunden-Reconfigure-Banner
@@ -6565,13 +6565,13 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 **Scope**: Der in `fork.md` und Plan 01 geforderte Fork-Grundzustand ist nicht mehr nur Doku. Die beiden externen Upstream-Projekte existieren jetzt als echte Fork-Repositories unter dem realen GitHub-Owner `meinzeug`, inklusive lokaler Klone und Arbeitsbranch `beagle/phase-a`.
 
 - GitHub / lokale Workspaces:
-  - `https://github.com/meinzeug/beagle-stream-server` als Fork von `LizardByte/Sunshine`
-  - `https://github.com/meinzeug/beagle-stream-client` als Fork von `moonlight-stream/moonlight-qt`
+  - `https://github.com/meinzeug/beagle-stream-server` als Fork von `meinzeug/beagle-stream-server`
+  - `https://github.com/meinzeug/beagle-stream-client` als Fork von `meinzeug/beagle-stream-client`
   - lokale Arbeitskopien: `/home/dennis/beagle-stream-server`, `/home/dennis/beagle-stream-client`
   - beide auf Branch `beagle/phase-a`
 - Repo-Doku bereinigt:
   - [fork.md](/home/dennis/beagle-os/fork.md)
-  - [docs/archive/goenterprise/01-moonlight-vdi-protocol.md](/home/dennis/beagle-os/docs/archive/goenterprise/01-moonlight-vdi-protocol.md)
+  - [docs/archive/goenterprise/01-beagle-stream-client-vdi-protocol.md](/home/dennis/beagle-os/docs/archive/goenterprise/01-beagle-stream-client-vdi-protocol.md)
   - [docs/checklists/02-streaming-endpoint.md](/home/dennis/beagle-os/docs/checklists/02-streaming-endpoint.md)
   - harte Verweise auf die nicht existente Org `beagle-os` auf den realen Owner `meinzeug` korrigiert
 - Validierung:
@@ -6659,44 +6659,44 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 
 ## Update (2026-05-01, BeagleStream Phase A Forks)
 
-**Scope**: Sunshine- und Moonlight-Qt-Forks fuer BeagleStream Phase A wurden unter `meinzeug/*` angelegt und auf Branch `beagle/phase-a` umgesetzt. Alle lokalen Build-Prerequisites sind in den Fork-Repos dokumentiert, damit die lokale Toolchain nicht zum impliziten Wissen wird.
+**Scope**: Beagle Stream Server- und Beagle Stream Client-Qt-Forks fuer BeagleStream Phase A wurden unter `meinzeug/*` angelegt und auf Branch `beagle/phase-a` umgesetzt. Alle lokalen Build-Prerequisites sind in den Fork-Repos dokumentiert, damit die lokale Toolchain nicht zum impliziten Wissen wird.
 
-- `meinzeug/beagle-stream-server`: `src/beagle/` mit Config-Loader, Broker-Client und Token-Auth, CMake-Option `BEAGLE_INTEGRATION`, Token-als-PIN-Hook im bestehenden Sunshine-Pairing und `.deb`-Skeleton `beagle-stream-server`.
+- `meinzeug/beagle-stream-server`: `src/beagle/` mit Config-Loader, Broker-Client und Token-Auth, CMake-Option `BEAGLE_INTEGRATION`, Token-als-PIN-Hook im bestehenden Beagle Stream Server-Pairing und `.deb`-Skeleton `beagle-stream-server`.
 - `meinzeug/beagle-stream-client`: `app/beagle/` mit Enrollment-Config, Broker-Allocate und WireGuard-Peer-Aktivierung, Session-Start-Integration, Token-als-PIN-Pairing und BeagleStream-Branding.
 - Reproduzierbarkeit: beide Forks enthalten `docs/beagle-phase-a-build.md` mit Build-Host-Paketen, Submodule- und Build-Kommandos.
 ## Update (2026-05-02, BeagleStream Runtime-Erkennung + Release-Workflow-Härtung)
 
-**Scope**: `beagle-os` erkennt jetzt explizit, ob in VMs der echte `beagle-stream-server` oder nur der bisherige Sunshine-Fallback installiert wurde; gleichzeitig wurden zwei sinnvolle Copilot-Release-Fixes direkt in `main` uebernommen.
+**Scope**: `beagle-os` erkennt jetzt explizit, ob in VMs der echte `beagle-stream-server` oder nur der bisherige Beagle Stream Server-Fallback installiert wurde; gleichzeitig wurden zwei sinnvolle Copilot-Release-Fixes direkt in `main` uebernommen.
 
 - Streaming-Runtime-Kennzeichnung:
-  - [scripts/configure-sunshine-guest.sh](/home/dennis/beagle-os/scripts/configure-sunshine-guest.sh): schreibt nach der Paketinstallation `/etc/beagle/stream-runtime.env` mit `BEAGLE_STREAM_RUNTIME_VARIANT=beagle-stream-server|sunshine-fallback` plus Paket-URL.
+  - [scripts/configure-beagle-stream-server-guest.sh](/home/dennis/beagle-os/scripts/configure-beagle-stream-server-guest.sh): schreibt nach der Paketinstallation `/etc/beagle/stream-runtime.env` mit `BEAGLE_STREAM_RUNTIME_VARIANT=beagle-stream-server|beagle-stream-server-fallback` plus Paket-URL.
   - [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](/home/dennis/beagle-os/beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl): schreibt dieselbe Kennzeichnung fuer neue Ubuntu-Beagle-VMs im Firstboot-Provisioning.
-  - [beagle-host/services/installer_prep.py](/home/dennis/beagle-os/beagle-host/services/installer_prep.py): liest Variant-/Paketstatus per Guest-Probe ein, liefert `stream_runtime` im Payload und unterscheidet in den Readiness-Meldungen zwischen echtem BeagleStream-Server und Sunshine-Fallback.
+  - [beagle-host/services/installer_prep.py](/home/dennis/beagle-os/beagle-host/services/installer_prep.py): liest Variant-/Paketstatus per Guest-Probe ein, liefert `stream_runtime` im Payload und unterscheidet in den Readiness-Meldungen zwischen echtem BeagleStream-Server und Beagle Stream Server-Fallback.
 - Regressionen:
-  - [tests/unit/test_configure_sunshine_guest_regressions.py](/home/dennis/beagle-os/tests/unit/test_configure_sunshine_guest_regressions.py)
+  - [tests/unit/test_configure_beagle_stream_server_guest_regressions.py](/home/dennis/beagle-os/tests/unit/test_configure_beagle_stream_server_guest_regressions.py)
   - [tests/unit/test_ubuntu_beagle_firstboot_regressions.py](/home/dennis/beagle-os/tests/unit/test_ubuntu_beagle_firstboot_regressions.py)
   - [tests/unit/test_installer_prep_stream_runtime.py](/home/dennis/beagle-os/tests/unit/test_installer_prep_stream_runtime.py)
 - Release-/Deploy-Fixes aus Copilot uebernommen:
   - [.github/workflows/release.yml](/home/dennis/beagle-os/.github/workflows/release.yml): Release-Workflow per `concurrency` serialisiert und `gh release create` von Asset-Uploads entkoppelt, damit keine halbfertigen Releases oder Rennbedingungen entstehen.
   - [scripts/publish-public-update-artifacts.sh](/home/dennis/beagle-os/scripts/publish-public-update-artifacts.sh): `rsync` nutzt jetzt `--delete-before --inplace`, damit `beagle-os.com` beim Update nicht erneut am vollen Zielvolume scheitert.
 - Validierung:
-  - `bash -n scripts/configure-sunshine-guest.sh scripts/publish-public-update-artifacts.sh`
+  - `bash -n scripts/configure-beagle-stream-server-guest.sh scripts/publish-public-update-artifacts.sh`
   - `python3 -m py_compile beagle-host/services/installer_prep.py`
   - direkter Python-Harness fuer 10 Regressionen (`HARNESS_OK 10`)
 
 - Checkliste: `docs/checklists/02-streaming-endpoint.md` Phase-A-Forkpunkte abgehakt; Thin-Client-OS-Image-Bundling war zu diesem Zeitpunkt noch der separate naechste Packaging-Schritt.
-- Validierung: lokaler Client-Build ueber `qmake ../moonlight-qt.pro && make -j2` gruen; lokaler Server-Build mit `-DBEAGLE_INTEGRATION=ON` und `cmake --build ... --target sunshine -j2` gruen. Live-Control-Plane-Smoke gegen `srv1` ist der naechste Integrationsschritt.
+- Validierung: lokaler Client-Build ueber `qmake ../beagle-stream-client-qt.pro && make -j2` gruen; lokaler Server-Build mit `-DBEAGLE_INTEGRATION=ON` und `cmake --build ... --target beagle-stream-server -j2` gruen. Live-Control-Plane-Smoke gegen `srv1` ist der naechste Integrationsschritt.
 
 ## Update (2026-05-02, BeagleStream Thin-Client Packaging)
 
-**Scope**: Der BeagleStream-Client-Fork ist im Thin-Client-Buildpfad vorbereitet und der Runtime-Launcher blockiert Enrollment-basierte Broker-Sessions nicht mehr durch die alte statische Moonlight-Host-Pflicht.
+**Scope**: Der BeagleStream-Client-Fork ist im Thin-Client-Buildpfad vorbereitet und der Runtime-Launcher blockiert Enrollment-basierte Broker-Sessions nicht mehr durch die alte statische Beagle Stream Client-Host-Pflicht.
 
 - Thin-Client-Build:
-  - [scripts/build-thin-client-installer.sh](/home/dennis/beagle-os/scripts/build-thin-client-installer.sh): standardmaessiges Staging aus `meinzeug/beagle-stream-client` Release `beagle-phase-a`, ueberschreibbar per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL`/`BEAGLE_STREAM_CLIENT_URL`, mit sicherem Fallback auf das bisherige Moonlight-AppImage.
-  - Der Build erzeugt neben `/usr/local/bin/moonlight` auch `/usr/local/bin/beagle-stream`, wenn das extrahierte AppImage den BeagleStream-Binary enthaelt.
+  - [scripts/build-thin-client-installer.sh](/home/dennis/beagle-os/scripts/build-thin-client-installer.sh): standardmaessiges Staging aus `meinzeug/beagle-stream-client` Release `beagle-phase-a`, ueberschreibbar per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL`/`BEAGLE_STREAM_CLIENT_URL`, ohne externen Fallback; fehlende BeagleStream-Artefakte brechen den Build kontrolliert ab.
+  - Der Build erzeugt neben `/usr/local/bin/beagle-stream-client` auch `/usr/local/bin/beagle-stream`, wenn das extrahierte AppImage den BeagleStream-Binary enthaelt.
 - Runtime:
-  - [thin-client-assistant/runtime/moonlight_runtime_exec.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/moonlight_runtime_exec.sh): erkennt hostless BeagleStream ueber `/etc/beagle/enrollment.conf` und baut `beagle-stream stream "<App>"` statt `moonlight stream <Host> "<App>"`.
-  - [thin-client-assistant/runtime/launch-moonlight.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-moonlight.sh): ueberspringt Legacy-Host-Sync, Reichweitenprobe, manuelles Pairing und Manager-Prepare fuer hostless Broker-Sessions.
+  - [thin-client-assistant/runtime/beagle_stream_client_runtime_exec.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/beagle_stream_client_runtime_exec.sh): erkennt hostless BeagleStream ueber `/etc/beagle/enrollment.conf` und baut `beagle-stream stream "<App>"` statt `beagle-stream-client stream <Host> "<App>"`.
+  - [thin-client-assistant/runtime/launch-beagle-stream-client.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-beagle-stream-client.sh): ueberspringt Legacy-Host-Sync, Reichweitenprobe, manuelles Pairing und Manager-Prepare fuer hostless Broker-Sessions.
   - [thin-client-assistant/runtime/launch-session.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/launch-session.sh): Launch-Status zeigt bei Enrollment ohne Host `broker:<App>` und `beagle-stream`.
   - [beagle-os/overlay/usr/local/sbin/beagle-healthcheck](/home/dennis/beagle-os/beagle-os/overlay/usr/local/sbin/beagle-healthcheck): meldet fehlendes `beagle-stream` explizit als Health-Failure, wenn hostless Enrollment aktiv ist.
 - Regression:
@@ -6704,20 +6704,20 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Validierung:
   - `bash -n` fuer geaenderte Shell-Skripte.
   - Direkter Python-Runner fuer `tests/unit/test_thin_client_live_build_regressions.py`, weil `pytest` lokal nicht installiert ist.
-  - Manuelle Shell-Probe: hostless Enrollment erzeugt `beagle-stream stream Desktop ...`; statischer Host erzeugt weiter `moonlight stream <host> Desktop ...`.
+  - Manuelle Shell-Probe: hostless Enrollment erzeugt `beagle-stream stream Desktop ...`; statischer Host erzeugt weiter `beagle-stream-client stream <host> Desktop ...`.
 
 ## Update (2026-05-02, BeagleStream Server Package Hook)
 
-**Scope**: VM-Guest-Prep und Ubuntu-Beagle-Firstboot versuchen jetzt zuerst das BeagleStream-Server-Paket und behalten Sunshine nur als Fallback, bis das Server-Fork-Release-Asset verfuegbar ist.
+**Scope**: VM-Guest-Prep und Ubuntu-Beagle-Firstboot versuchen jetzt zuerst das BeagleStream-Server-Paket und behalten Beagle Stream Server nur als Fallback, bis das Server-Fork-Release-Asset verfuegbar ist.
 
-- [scripts/configure-sunshine-guest.sh](/home/dennis/beagle-os/scripts/configure-sunshine-guest.sh): `BEAGLE_STREAM_SERVER_URL` mit Default auf `meinzeug/beagle-stream-server` Release `beagle-phase-a`; bei Downloadfehlern Fallback auf upstream `SUNSHINE_URL`.
+- [scripts/configure-beagle-stream-server-guest.sh](/home/dennis/beagle-os/scripts/configure-beagle-stream-server-guest.sh): `BEAGLE_STREAM_SERVER_URL` mit Default auf `meinzeug/beagle-stream-server` Release `beagle-phase-a`; bei Downloadfehlern Fallback auf upstream `BEAGLE_STREAM_SERVER_URL`.
 - [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](/home/dennis/beagle-os/beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl): gleicher BeagleStream-first/Fallback-Pfad fuer neue VM-Firstboot-Installationen.
 - [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py) und [beagle-host/services/ubuntu_beagle_provisioning.py](/home/dennis/beagle-os/beagle-host/services/ubuntu_beagle_provisioning.py): Profil-Label/Streaming auf BeagleStream angepasst und Template-URL injiziert.
 - Regression:
-  - [tests/unit/test_configure_sunshine_guest_regressions.py](/home/dennis/beagle-os/tests/unit/test_configure_sunshine_guest_regressions.py)
+  - [tests/unit/test_configure_beagle_stream_server_guest_regressions.py](/home/dennis/beagle-os/tests/unit/test_configure_beagle_stream_server_guest_regressions.py)
   - [tests/unit/test_ubuntu_beagle_firstboot_regressions.py](/home/dennis/beagle-os/tests/unit/test_ubuntu_beagle_firstboot_regressions.py)
 - Validierung:
-  - `bash -n scripts/configure-sunshine-guest.sh`
+  - `bash -n scripts/configure-beagle-stream-server-guest.sh`
   - `python3 -m py_compile beagle-host/services/service_registry.py beagle-host/services/ubuntu_beagle_provisioning.py`
   - Direkter Python-Runner fuer die beiden Regression-Dateien.
 
@@ -6768,7 +6768,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 ## Update (2026-05-02, Thinclient broker presets stop falling back to direct mode)
 
 - Scope:
-  - fix VM-specific live/install USB presets so `beagle_stream_mode=broker` really boots into the broker/enrollment path instead of silently defaulting back to direct Moonlight mode
+  - fix VM-specific live/install USB presets so `beagle_stream_mode=broker` really boots into the broker/enrollment path instead of silently defaulting back to direct Beagle Stream Client mode
   - ensure already-enrolled clients also rewrite their runtime connection method to `broker`
 - Changed:
   - [beagle-host/services/thin_client_preset.py](/home/dennis/beagle-os/beagle-host/services/thin_client_preset.py): broker presets now emit `PVE_THIN_CLIENT_PRESET_CONNECTION_METHOD=broker`

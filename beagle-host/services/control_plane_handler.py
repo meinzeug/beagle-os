@@ -65,7 +65,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             )
             return
 
-        response = public_sunshine_surface_service().route_request(
+        response = public_beagle_stream_server_surface_service().route_request(
             parsed.path,
             query=query_text,
             method="GET",
@@ -598,18 +598,18 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 self._write_json(response["status"], response["payload"])
             return
 
-        sunshine_body: bytes | None = None
-        if path.startswith("/api/v1/public/sunshine/"):
+        beagle_stream_server_body: bytes | None = None
+        if path.startswith("/api/v1/public/beagle-stream-server/"):
             try:
-                sunshine_body = self._read_binary_body(max_bytes=16 * 1024 * 1024)
+                beagle_stream_server_body = self._read_binary_body(max_bytes=16 * 1024 * 1024)
             except Exception as exc:
                 self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid content length: {exc}"})
                 return
-            response = public_sunshine_surface_service().route_request(
+            response = public_beagle_stream_server_surface_service().route_request(
                 parsed.path,
                 query=parsed.query,
                 method="POST",
-                body=sunshine_body,
+                body=beagle_stream_server_body,
                 request_headers={
                     "Content-Type": self.headers.get("Content-Type", ""),
                     "Accept": self.headers.get("Accept", ""),

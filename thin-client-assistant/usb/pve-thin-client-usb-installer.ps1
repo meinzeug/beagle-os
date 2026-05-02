@@ -411,11 +411,11 @@ function Write-LiveRuntimeState {
         $stateDir = Join-Path $TargetDrive "pve-thin-client\state"
         New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 
-        $mode = Get-PresetValue -Preset $preset -Key "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE" -Default "MOONLIGHT"
-        if ([string]::IsNullOrWhiteSpace($mode) -and -not [string]::IsNullOrWhiteSpace((Get-PresetValue -Preset $preset -Key "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST"))) {
-            $mode = "MOONLIGHT"
+        $mode = Get-PresetValue -Preset $preset -Key "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE" -Default "BEAGLE_STREAM_CLIENT"
+        if ([string]::IsNullOrWhiteSpace($mode) -and -not [string]::IsNullOrWhiteSpace((Get-PresetValue -Preset $preset -Key "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_HOST"))) {
+            $mode = "BEAGLE_STREAM_CLIENT"
         }
-        if ($mode -ne "MOONLIGHT") {
+        if ($mode -ne "BEAGLE_STREAM_CLIENT") {
             throw "Live USB preset does not define a supported default mode."
         }
 
@@ -427,20 +427,20 @@ function Write-LiveRuntimeState {
             ('PVE_THIN_CLIENT_PROFILE_NAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_PROFILE_NAME" "default"))
             ('PVE_THIN_CLIENT_HOSTNAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE" "beagle-live"))
             ('PVE_THIN_CLIENT_CONNECTION_METHOD="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_CONNECTION_METHOD" "direct"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_HOST="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_LOCAL_HOST="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_LOCAL_HOST"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_PORT="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_PORT"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_APP="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP" "Desktop"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_BIN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN" "moonlight"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_RESOLUTION="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION" "auto"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_FPS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS" "60"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_BITRATE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE" "20000"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_VIDEO_CODEC="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC" "H.264"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_VIDEO_DECODER="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER" "auto"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_AUDIO_CONFIG="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG" "stereo"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_ABSOLUTE_MOUSE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE" "1"))
-            ('PVE_THIN_CLIENT_MOONLIGHT_QUIT_AFTER="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER" "0"))
-            ('PVE_THIN_CLIENT_SUNSHINE_API_URL="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_HOST"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_LOCAL_HOST"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_PORT"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_APP" "Desktop"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_BIN" "beagle-stream-client"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_RESOLUTION" "auto"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_FPS" "60"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_BITRATE" "20000"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_VIDEO_CODEC" "H.264"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_VIDEO_DECODER" "auto"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG" "stereo"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE" "1"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_QUIT_AFTER="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_QUIT_AFTER" "0"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_API_URL"))
             ('PVE_THIN_CLIENT_BEAGLE_SCHEME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_SCHEME" "https"))
             ('PVE_THIN_CLIENT_BEAGLE_HOST="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_HOST"))
             ('PVE_THIN_CLIENT_BEAGLE_PORT="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_PORT" "8006"))
@@ -498,14 +498,14 @@ function Write-LiveRuntimeState {
             ('PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_TOKEN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_ENROLLMENT_TOKEN"))
             ('PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRIVATE_KEY="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRIVATE_KEY"))
             ('PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRESHARED_KEY="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_EGRESS_WG_PRESHARED_KEY"))
-            ('PVE_THIN_CLIENT_SUNSHINE_USERNAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME"))
-            ('PVE_THIN_CLIENT_SUNSHINE_PASSWORD="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD"))
-            ('PVE_THIN_CLIENT_SUNSHINE_PIN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN"))
-            ('PVE_THIN_CLIENT_SUNSHINE_PINNED_PUBKEY="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_PINNED_PUBKEY"))
-            ('PVE_THIN_CLIENT_SUNSHINE_SERVER_NAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_NAME"))
-            ('PVE_THIN_CLIENT_SUNSHINE_SERVER_STREAM_PORT="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_STREAM_PORT"))
-            ('PVE_THIN_CLIENT_SUNSHINE_SERVER_UNIQUEID="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_UNIQUEID"))
-            ('PVE_THIN_CLIENT_SUNSHINE_SERVER_CERT_B64="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_SUNSHINE_SERVER_CERT_B64"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_USERNAME"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PASSWORD"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PIN"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PINNED_PUBKEY"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_NAME="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_NAME"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_STREAM_PORT="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_STREAM_PORT"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_UNIQUEID="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_UNIQUEID"))
+            ('PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_CERT_B64="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_CERT_B64"))
         ) -join "`n"
 
         $localAuthEnv = ('PVE_THIN_CLIENT_RUNTIME_PASSWORD="{0}"' -f (Get-PresetValue $preset "PVE_THIN_CLIENT_PRESET_THINCLIENT_PASSWORD"))

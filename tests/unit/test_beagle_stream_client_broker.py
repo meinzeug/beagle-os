@@ -65,7 +65,7 @@ def _service(
 
     return StreamHttpSurfaceService(
         state_file=tmp_path / "streams" / "servers.json",
-        build_vm_profile=lambda _vm: {"stream_host": "10.10.10.5", "moonlight_port": 47984},
+        build_vm_profile=lambda _vm: {"stream_host": "10.10.10.5", "beagle_stream_client_port": 47984},
         find_vm=lambda vmid: vm if int(vmid) == 303 else None,
         pool_manager_service=pool_manager,
         stream_policy_service=policy_service,

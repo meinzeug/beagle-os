@@ -315,8 +315,8 @@ main() {
   fi
 
   while true; do
-    choice="$(dialog_menu "Beagle OS Netzwerk" "Vor dem Desktop/Moonlight muss die Netzwerkverbindung gewaehlt werden." "${items[@]}")" || {
-      dialog_msgbox "Netzwerk erforderlich" "Bitte Ethernet oder WLAN auswaehlen. Beagle OS Live startet danach Desktop und Moonlight."
+    choice="$(dialog_menu "Beagle OS Netzwerk" "Vor dem Desktop/Beagle Stream Client muss die Netzwerkverbindung gewaehlt werden." "${items[@]}")" || {
+      dialog_msgbox "Netzwerk erforderlich" "Bitte Ethernet oder WLAN auswaehlen. Beagle OS Live startet danach Desktop und Beagle Stream Client."
       continue
     }
     [[ "$choice" =~ ^[0-9]+$ ]] && choice="${items[$(((choice - 1) * 2))]}"

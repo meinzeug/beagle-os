@@ -188,13 +188,13 @@ if command -v curl >/dev/null 2>&1; then
     check_fail "session_api_alive" "sessions API unreachable (HTTP ${SESSION_STATUS})"
   fi
 
-  # Sunshine/stream-server service check
-  if systemctl is-active --quiet sunshine 2>/dev/null; then
-    check_pass "stream_server_active" "sunshine stream server is active"
-  elif systemctl list-units --type=service 2>/dev/null | grep -q sunshine; then
-    check_fail "stream_server_active" "sunshine stream server is installed but not active"
+  # Beagle Stream Server/stream-server service check
+  if systemctl is-active --quiet beagle-stream-server 2>/dev/null; then
+    check_pass "stream_server_active" "beagle-stream-server stream server is active"
+  elif systemctl list-units --type=service 2>/dev/null | grep -q beagle-stream-server; then
+    check_fail "stream_server_active" "beagle-stream-server stream server is installed but not active"
   else
-    check_pass "stream_server_active" "sunshine not installed on this host — skipped"
+    check_pass "stream_server_active" "beagle-stream-server not installed on this host — skipped"
   fi
 fi
 

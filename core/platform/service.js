@@ -90,8 +90,8 @@
     return usbApi.apiGetVmCredentials(vmid);
   }
 
-  function createSunshineAccess(vmid) {
-    return usbApi.apiCreateSunshineAccess(vmid);
+  function createBeagle Stream ServerAccess(vmid) {
+    return usbApi.apiCreateBeagle Stream ServerAccess(vmid);
   }
 
   function fetchVmUsbState(vmid) {
@@ -149,7 +149,7 @@
     fetchInstallerPreparation: fetchInstallerPreparation,
     prepareInstallerTarget: prepareInstallerTarget,
     fetchVmCredentials: fetchVmCredentials,
-    createSunshineAccess: createSunshineAccess,
+    createBeagle Stream ServerAccess: createBeagle Stream ServerAccess,
     fetchVmUsbState: fetchVmUsbState,
     refreshVmUsb: refreshVmUsb,
     attachUsb: attachUsb,

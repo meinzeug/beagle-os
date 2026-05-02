@@ -1,7 +1,7 @@
 #!/bin/bash
 # Virtual Display Setup for Beagle Desktop VMs
 # Sets up vkms (Virtual Kernel Mode Setting) as a virtual display driver
-# Enables Sunshine/Apollo streaming without physical monitors
+# Enables Beagle Stream Server/Apollo streaming without physical monitors
 # 
 # Ref: docs/gofuture/11-streaming-v2.md, D-031
 
@@ -151,9 +151,9 @@ log "  - xrandr auto-config: ready (runs after XFCE starts)"
 log ""
 log "After VM boots, xrandr will detect vkms Virtual-X output"
 log "and configure it to 3840x2160@60Hz automatically."
-log "Sunshine will then see the virtual display and stream correctly."
+log "Beagle Stream Server will then see the virtual display and stream correctly."
 log ""
-log "Expected Moonlight behavior:"
-log "  - Client connects to Sunshine"
-log "  - Sunshine detects Virtual-X@3840x2160 and streams at that resolution"
+log "Expected Beagle Stream Client behavior:"
+log "  - Client connects to Beagle Stream Server"
+log "  - Beagle Stream Server detects Virtual-X@3840x2160 and streams at that resolution"
 log "  - No physical monitor required on host"

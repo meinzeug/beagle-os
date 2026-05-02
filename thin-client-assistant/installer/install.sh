@@ -14,7 +14,7 @@ apply_installer_env_defaults
 
 usage() {
   cat <<EOF
-Usage: $0 [--mode MOONLIGHT] [--runtime-user USER] [--moonlight-host HOST] [--moonlight-local-host HOST] [--moonlight-app APP] [--sunshine-api-url URL]
+Usage: $0 [--mode BEAGLE_STREAM_CLIENT] [--runtime-user USER] [--beagle-stream-client-host HOST] [--beagle-stream-client-local-host HOST] [--beagle-stream-client-app APP] [--beagle-stream-server-api-url URL]
 EOF
 }
 
@@ -46,11 +46,11 @@ apply_shell_assignments() {
     declare -p "$key" >/dev/null 2>&1 || continue
     printf -v "$key" '%s' "$value"
   done < <(
-    printf '%s\n' "$payload" | python3 - <<'PY'
+    python3 - "$payload" <<'PY'
 import shlex
 import sys
 
-for raw_line in sys.stdin:
+for raw_line in sys.argv[1].splitlines():
     line = raw_line.strip()
     if not line:
         continue
@@ -78,20 +78,20 @@ parse_args() {
       --network-prefix) NETWORK_STATIC_PREFIX="$2"; shift 2 ;;
       --network-gateway) NETWORK_GATEWAY="$2"; shift 2 ;;
       --network-dns) NETWORK_DNS_SERVERS="$2"; shift 2 ;;
-      --moonlight-host) MOONLIGHT_HOST="$2"; shift 2 ;;
-      --moonlight-local-host) MOONLIGHT_LOCAL_HOST="$2"; shift 2 ;;
-      --moonlight-port) MOONLIGHT_PORT="$2"; shift 2 ;;
-      --moonlight-app) MOONLIGHT_APP="$2"; shift 2 ;;
-      --moonlight-bin) MOONLIGHT_BIN="$2"; shift 2 ;;
-      --moonlight-resolution) MOONLIGHT_RESOLUTION="$2"; shift 2 ;;
-      --moonlight-fps) MOONLIGHT_FPS="$2"; shift 2 ;;
-      --moonlight-bitrate) MOONLIGHT_BITRATE="$2"; shift 2 ;;
-      --moonlight-video-codec) MOONLIGHT_VIDEO_CODEC="$2"; shift 2 ;;
-      --moonlight-video-decoder) MOONLIGHT_VIDEO_DECODER="$2"; shift 2 ;;
-      --moonlight-audio-config) MOONLIGHT_AUDIO_CONFIG="$2"; shift 2 ;;
-      --moonlight-absolute-mouse) MOONLIGHT_ABSOLUTE_MOUSE="$2"; shift 2 ;;
-      --moonlight-quit-after) MOONLIGHT_QUIT_AFTER="$2"; shift 2 ;;
-      --sunshine-api-url) SUNSHINE_API_URL="$2"; shift 2 ;;
+      --beagle-stream-client-host) BEAGLE_STREAM_CLIENT_HOST="$2"; shift 2 ;;
+      --beagle-stream-client-local-host) BEAGLE_STREAM_CLIENT_LOCAL_HOST="$2"; shift 2 ;;
+      --beagle-stream-client-port) BEAGLE_STREAM_CLIENT_PORT="$2"; shift 2 ;;
+      --beagle-stream-client-app) BEAGLE_STREAM_CLIENT_APP="$2"; shift 2 ;;
+      --beagle-stream-client-bin) BEAGLE_STREAM_CLIENT_BIN="$2"; shift 2 ;;
+      --beagle-stream-client-resolution) BEAGLE_STREAM_CLIENT_RESOLUTION="$2"; shift 2 ;;
+      --beagle-stream-client-fps) BEAGLE_STREAM_CLIENT_FPS="$2"; shift 2 ;;
+      --beagle-stream-client-bitrate) BEAGLE_STREAM_CLIENT_BITRATE="$2"; shift 2 ;;
+      --beagle-stream-client-video-codec) BEAGLE_STREAM_CLIENT_VIDEO_CODEC="$2"; shift 2 ;;
+      --beagle-stream-client-video-decoder) BEAGLE_STREAM_CLIENT_VIDEO_DECODER="$2"; shift 2 ;;
+      --beagle-stream-client-audio-config) BEAGLE_STREAM_CLIENT_AUDIO_CONFIG="$2"; shift 2 ;;
+      --beagle-stream-client-absolute-mouse) BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE="$2"; shift 2 ;;
+      --beagle-stream-client-quit-after) BEAGLE_STREAM_CLIENT_QUIT_AFTER="$2"; shift 2 ;;
+      --beagle-stream-server-api-url) BEAGLE_STREAM_SERVER_API_URL="$2"; shift 2 ;;
       --beagle-scheme) BEAGLE_SCHEME="$2"; shift 2 ;;
       --beagle-host) BEAGLE_HOST="$2"; shift 2 ;;
       --beagle-port) BEAGLE_PORT="$2"; shift 2 ;;
@@ -102,9 +102,9 @@ parse_args() {
       --connection-username) CONNECTION_USERNAME="$2"; shift 2 ;;
       --connection-password) CONNECTION_PASSWORD="$2"; shift 2 ;;
       --connection-token) CONNECTION_TOKEN="$2"; shift 2 ;;
-      --sunshine-username) SUNSHINE_USERNAME="$2"; shift 2 ;;
-      --sunshine-password) SUNSHINE_PASSWORD="$2"; shift 2 ;;
-      --sunshine-pin) SUNSHINE_PIN="$2"; shift 2 ;;
+      --beagle-stream-server-username) BEAGLE_STREAM_SERVER_USERNAME="$2"; shift 2 ;;
+      --beagle-stream-server-password) BEAGLE_STREAM_SERVER_PASSWORD="$2"; shift 2 ;;
+      --beagle-stream-server-pin) BEAGLE_STREAM_SERVER_PIN="$2"; shift 2 ;;
       -h|--help) usage; exit 0 ;;
       *)
         echo "Unknown argument: $1" >&2
@@ -130,19 +130,19 @@ load_answers() {
     NETWORK_STATIC_PREFIX="$NETWORK_STATIC_PREFIX" \
     NETWORK_GATEWAY="$NETWORK_GATEWAY" \
     NETWORK_DNS_SERVERS="$NETWORK_DNS_SERVERS" \
-    MOONLIGHT_HOST="$MOONLIGHT_HOST" \
-    MOONLIGHT_PORT="$MOONLIGHT_PORT" \
-    MOONLIGHT_APP="$MOONLIGHT_APP" \
-    MOONLIGHT_BIN="$MOONLIGHT_BIN" \
-    MOONLIGHT_RESOLUTION="$MOONLIGHT_RESOLUTION" \
-    MOONLIGHT_FPS="$MOONLIGHT_FPS" \
-    MOONLIGHT_BITRATE="$MOONLIGHT_BITRATE" \
-    MOONLIGHT_VIDEO_CODEC="$MOONLIGHT_VIDEO_CODEC" \
-    MOONLIGHT_VIDEO_DECODER="$MOONLIGHT_VIDEO_DECODER" \
-    MOONLIGHT_AUDIO_CONFIG="$MOONLIGHT_AUDIO_CONFIG" \
-    MOONLIGHT_ABSOLUTE_MOUSE="$MOONLIGHT_ABSOLUTE_MOUSE" \
-    MOONLIGHT_QUIT_AFTER="$MOONLIGHT_QUIT_AFTER" \
-    SUNSHINE_API_URL="$SUNSHINE_API_URL" \
+    BEAGLE_STREAM_CLIENT_HOST="$BEAGLE_STREAM_CLIENT_HOST" \
+    BEAGLE_STREAM_CLIENT_PORT="$BEAGLE_STREAM_CLIENT_PORT" \
+    BEAGLE_STREAM_CLIENT_APP="$BEAGLE_STREAM_CLIENT_APP" \
+    BEAGLE_STREAM_CLIENT_BIN="$BEAGLE_STREAM_CLIENT_BIN" \
+    BEAGLE_STREAM_CLIENT_RESOLUTION="$BEAGLE_STREAM_CLIENT_RESOLUTION" \
+    BEAGLE_STREAM_CLIENT_FPS="$BEAGLE_STREAM_CLIENT_FPS" \
+    BEAGLE_STREAM_CLIENT_BITRATE="$BEAGLE_STREAM_CLIENT_BITRATE" \
+    BEAGLE_STREAM_CLIENT_VIDEO_CODEC="$BEAGLE_STREAM_CLIENT_VIDEO_CODEC" \
+    BEAGLE_STREAM_CLIENT_VIDEO_DECODER="$BEAGLE_STREAM_CLIENT_VIDEO_DECODER" \
+    BEAGLE_STREAM_CLIENT_AUDIO_CONFIG="$BEAGLE_STREAM_CLIENT_AUDIO_CONFIG" \
+    BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE="$BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE" \
+    BEAGLE_STREAM_CLIENT_QUIT_AFTER="$BEAGLE_STREAM_CLIENT_QUIT_AFTER" \
+    BEAGLE_STREAM_SERVER_API_URL="$BEAGLE_STREAM_SERVER_API_URL" \
     BEAGLE_SCHEME="$BEAGLE_SCHEME" \
     BEAGLE_HOST="$BEAGLE_HOST" \
     BEAGLE_PORT="$BEAGLE_PORT" \
@@ -153,9 +153,9 @@ load_answers() {
     CONNECTION_USERNAME="$CONNECTION_USERNAME" \
     CONNECTION_PASSWORD="$CONNECTION_PASSWORD" \
     CONNECTION_TOKEN="$CONNECTION_TOKEN" \
-    SUNSHINE_USERNAME="$SUNSHINE_USERNAME" \
-    SUNSHINE_PASSWORD="$SUNSHINE_PASSWORD" \
-    SUNSHINE_PIN="$SUNSHINE_PIN" \
+    BEAGLE_STREAM_SERVER_USERNAME="$BEAGLE_STREAM_SERVER_USERNAME" \
+    BEAGLE_STREAM_SERVER_PASSWORD="$BEAGLE_STREAM_SERVER_PASSWORD" \
+    BEAGLE_STREAM_SERVER_PIN="$BEAGLE_STREAM_SERVER_PIN" \
     "$ROOT_DIR/installer/setup-menu.sh"
   )"
   apply_shell_assignments "$output"
@@ -168,7 +168,7 @@ install_runtime_assets() {
   cp -a "$ROOT_DIR/templates" "$INSTALL_ROOT/"
   copy_file "$ROOT_DIR/runtime/launch-session.sh" "$INSTALL_ROOT/launch-session.sh"
   copy_file "$ROOT_DIR/runtime/prepare-runtime.sh" "$INSTALL_ROOT/prepare-runtime.sh"
-  copy_file "$ROOT_DIR/runtime/launch-moonlight.sh" "$INSTALL_ROOT/launch-moonlight.sh"
+  copy_file "$ROOT_DIR/runtime/launch-beagle-stream-client.sh" "$INSTALL_ROOT/launch-beagle-stream-client.sh"
   copy_file "$ROOT_DIR/runtime/common.sh" "$INSTALL_ROOT/common.sh"
   copy_file "$ROOT_DIR/runtime/apply-network-config.sh" "$INSTALL_ROOT/apply-network-config.sh"
   copy_file "$ROOT_DIR/installer/setup-menu.sh" "$INSTALL_ROOT/setup-menu.sh"
@@ -194,20 +194,20 @@ write_config() {
   NETWORK_STATIC_PREFIX="$NETWORK_STATIC_PREFIX" \
   NETWORK_GATEWAY="$NETWORK_GATEWAY" \
   NETWORK_DNS_SERVERS="$NETWORK_DNS_SERVERS" \
-  MOONLIGHT_HOST="$MOONLIGHT_HOST" \
-  MOONLIGHT_LOCAL_HOST="$MOONLIGHT_LOCAL_HOST" \
-  MOONLIGHT_PORT="$MOONLIGHT_PORT" \
-  MOONLIGHT_APP="$MOONLIGHT_APP" \
-  MOONLIGHT_BIN="$MOONLIGHT_BIN" \
-  MOONLIGHT_RESOLUTION="$MOONLIGHT_RESOLUTION" \
-  MOONLIGHT_FPS="$MOONLIGHT_FPS" \
-  MOONLIGHT_BITRATE="$MOONLIGHT_BITRATE" \
-  MOONLIGHT_VIDEO_CODEC="$MOONLIGHT_VIDEO_CODEC" \
-  MOONLIGHT_VIDEO_DECODER="$MOONLIGHT_VIDEO_DECODER" \
-  MOONLIGHT_AUDIO_CONFIG="$MOONLIGHT_AUDIO_CONFIG" \
-  MOONLIGHT_ABSOLUTE_MOUSE="$MOONLIGHT_ABSOLUTE_MOUSE" \
-  MOONLIGHT_QUIT_AFTER="$MOONLIGHT_QUIT_AFTER" \
-  SUNSHINE_API_URL="$SUNSHINE_API_URL" \
+  BEAGLE_STREAM_CLIENT_HOST="$BEAGLE_STREAM_CLIENT_HOST" \
+  BEAGLE_STREAM_CLIENT_LOCAL_HOST="$BEAGLE_STREAM_CLIENT_LOCAL_HOST" \
+  BEAGLE_STREAM_CLIENT_PORT="$BEAGLE_STREAM_CLIENT_PORT" \
+  BEAGLE_STREAM_CLIENT_APP="$BEAGLE_STREAM_CLIENT_APP" \
+  BEAGLE_STREAM_CLIENT_BIN="$BEAGLE_STREAM_CLIENT_BIN" \
+  BEAGLE_STREAM_CLIENT_RESOLUTION="$BEAGLE_STREAM_CLIENT_RESOLUTION" \
+  BEAGLE_STREAM_CLIENT_FPS="$BEAGLE_STREAM_CLIENT_FPS" \
+  BEAGLE_STREAM_CLIENT_BITRATE="$BEAGLE_STREAM_CLIENT_BITRATE" \
+  BEAGLE_STREAM_CLIENT_VIDEO_CODEC="$BEAGLE_STREAM_CLIENT_VIDEO_CODEC" \
+  BEAGLE_STREAM_CLIENT_VIDEO_DECODER="$BEAGLE_STREAM_CLIENT_VIDEO_DECODER" \
+  BEAGLE_STREAM_CLIENT_AUDIO_CONFIG="$BEAGLE_STREAM_CLIENT_AUDIO_CONFIG" \
+  BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE="$BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE" \
+  BEAGLE_STREAM_CLIENT_QUIT_AFTER="$BEAGLE_STREAM_CLIENT_QUIT_AFTER" \
+  BEAGLE_STREAM_SERVER_API_URL="$BEAGLE_STREAM_SERVER_API_URL" \
   BEAGLE_SCHEME="$BEAGLE_SCHEME" \
   BEAGLE_HOST="$BEAGLE_HOST" \
   BEAGLE_PORT="$BEAGLE_PORT" \
@@ -218,9 +218,9 @@ write_config() {
   CONNECTION_USERNAME="$CONNECTION_USERNAME" \
   CONNECTION_PASSWORD="$CONNECTION_PASSWORD" \
   CONNECTION_TOKEN="$CONNECTION_TOKEN" \
-  SUNSHINE_USERNAME="$SUNSHINE_USERNAME" \
-  SUNSHINE_PASSWORD="$SUNSHINE_PASSWORD" \
-  SUNSHINE_PIN="$SUNSHINE_PIN" \
+  BEAGLE_STREAM_SERVER_USERNAME="$BEAGLE_STREAM_SERVER_USERNAME" \
+  BEAGLE_STREAM_SERVER_PASSWORD="$BEAGLE_STREAM_SERVER_PASSWORD" \
+  BEAGLE_STREAM_SERVER_PIN="$BEAGLE_STREAM_SERVER_PIN" \
   "$ROOT_DIR/installer/write-config.sh" "$CONFIG_DIR"
 }
 
@@ -234,8 +234,8 @@ ensure_user_exists() {
 
 install_packages_hint() {
   case "$MODE" in
-    MOONLIGHT)
-      echo "Suggested package or wrapper: moonlight"
+    BEAGLE_STREAM_CLIENT)
+      echo "Suggested package or wrapper: beagle-stream-client"
       ;;
     *)
       echo "Unsupported mode in summary: $MODE" >&2
@@ -266,8 +266,8 @@ EOF
 
 require_root
 parse_args "$@"
-if [[ "$MODE" != "MOONLIGHT" ]]; then
-  echo "Beagle OS supports only --mode MOONLIGHT." >&2
+if [[ "$MODE" != "BEAGLE_STREAM_CLIENT" ]]; then
+  echo "Beagle OS supports only --mode BEAGLE_STREAM_CLIENT." >&2
   exit 1
 fi
 load_answers

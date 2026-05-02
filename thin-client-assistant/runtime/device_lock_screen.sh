@@ -123,7 +123,7 @@ lock_screen_backend() {
 }
 
 lock_screen_kill_active_clients() {
-  pkill -f '/usr/local/lib/pve-thin-client/runtime/launch-moonlight.sh' >/dev/null 2>&1 || true
+  pkill -f '/usr/local/lib/pve-thin-client/runtime/launch-beagle-stream-client.sh' >/dev/null 2>&1 || true
   pkill -f '/usr/local/sbin/beagle-kiosk-launch' >/dev/null 2>&1 || true
   pkill -f 'flatpak run com.nvidia.geforcenow' >/dev/null 2>&1 || true
   pkill -f '/usr/local/bin/start-pve-thin-client-kiosk-session' >/dev/null 2>&1 || true

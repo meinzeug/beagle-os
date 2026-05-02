@@ -75,7 +75,7 @@ def _service(
 
     service = StreamHttpSurfaceService(
         state_file=tmp_path / "streams" / "servers.json",
-        build_vm_profile=lambda found_vm: {"stream_host": "srv2.beagle-os.com", "moonlight_port": 47984},
+        build_vm_profile=lambda found_vm: {"stream_host": "srv2.beagle-os.com", "beagle_stream_client_port": 47984},
         find_vm=lambda vmid: vm if int(vmid) == 303 else None,
         pool_manager_service=_PoolManager(),
         stream_policy_service=policy_service,
@@ -280,7 +280,7 @@ def test_events_timeout_audit_supports_dict_signature_writer(tmp_path: Path) -> 
 
     service = StreamHttpSurfaceService(
         state_file=tmp_path / "streams" / "servers.json",
-        build_vm_profile=lambda found_vm: {"stream_host": "srv2.beagle-os.com", "moonlight_port": 47984},
+        build_vm_profile=lambda found_vm: {"stream_host": "srv2.beagle-os.com", "beagle_stream_client_port": 47984},
         find_vm=lambda vmid: vm if int(vmid) == 303 else None,
         pool_manager_service=_Pm(),
         stream_policy_service=policy_service,

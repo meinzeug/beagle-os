@@ -23,17 +23,17 @@
         name: profile.name,
         status: profile.status,
         stream_host: profile.streamHost,
-        sunshine_api_url: profile.sunshineApiUrl,
-        sunshine_username: profile.sunshineUsername,
-        sunshine_password_configured: Boolean(profile.sunshinePassword),
-        sunshine_pin: profile.sunshinePin,
-        moonlight_app: profile.app,
-        moonlight_resolution: profile.resolution,
-        moonlight_fps: profile.fps,
-        moonlight_bitrate: profile.bitrate,
-        moonlight_video_codec: profile.codec,
-        moonlight_video_decoder: profile.decoder,
-        moonlight_audio_config: profile.audio,
+        beagle_stream_server_api_url: profile.beagle-stream-serverApiUrl,
+        beagle_stream_server_username: profile.beagle-stream-serverUsername,
+        beagle_stream_server_password_configured: Boolean(profile.beagle-stream-serverPassword),
+        beagle_stream_server_pin: profile.beagle-stream-serverPin,
+        beagle_stream_client_app: profile.app,
+        beagle_stream_client_resolution: profile.resolution,
+        beagle_stream_client_fps: profile.fps,
+        beagle_stream_client_bitrate: profile.bitrate,
+        beagle_stream_client_video_codec: profile.codec,
+        beagle_stream_client_video_decoder: profile.decoder,
+        beagle_stream_client_audio_config: profile.audio,
         manager_url: profile.managerUrl,
         installer_url: profile.installerUrl,
         installer_windows_url: profile.installerWindowsUrl,
@@ -63,7 +63,7 @@
         <div class="beagle-header">\
           <div>\
             <h2 class="beagle-title">Beagle Profil fuer VM ' + escapeHtml(profile.name) + " (#" + String(profile.vmid) + ')</h2>\
-            <p class="beagle-subtitle">Moonlight-Endpunkt, Sunshine-Ziel und Beagle-Bereitstellung in einer Sicht.</p>\
+            <p class="beagle-subtitle">Beagle Stream Client-Endpunkt, Beagle Stream Server-Ziel und Beagle-Bereitstellung in einer Sicht.</p>\
           </div>\
           <button type="button" class="beagle-close" aria-label="Schliessen">×</button>\
         </div>\
@@ -77,7 +77,7 @@
             <button type="button" class="beagle-btn secondary" data-beagle-action="open-web-ui">Open Web UI</button>\
             <button type="button" class="beagle-btn secondary" data-beagle-action="copy-json">Profil JSON kopieren</button>\
             <button type="button" class="beagle-btn secondary" data-beagle-action="copy-env">Endpoint Env kopieren</button>\
-            <button type="button" class="beagle-btn secondary" data-beagle-action="open-sunshine">Sunshine Web UI</button>\
+            <button type="button" class="beagle-btn secondary" data-beagle-action="open-beagle-stream-server">Beagle Stream Server Web UI</button>\
             <button type="button" class="beagle-btn secondary" data-beagle-action="open-health">Control Plane Status</button>\
           </div>\
           <div class="beagle-grid">\
@@ -90,8 +90,8 @@
             </div></section>\
             <section class="beagle-card"><h3>Streaming</h3><div class="beagle-kv">\
               ' + kvRow("Stream Host", escapeHtml(profile.streamHost || "")) + '\
-              ' + kvRow("Moonlight Port", escapeHtml(profile.moonlightPort || "default")) + '\
-              ' + kvRow("Sunshine API", escapeHtml(profile.sunshineApiUrl || "")) + '\
+              ' + kvRow("Beagle Stream Client Port", escapeHtml(profile.beagle-stream-clientPort || "default")) + '\
+              ' + kvRow("Beagle Stream Server API", escapeHtml(profile.beagle-stream-serverApiUrl || "")) + '\
               ' + kvRow("App", escapeHtml(profile.app)) + '\
               ' + kvRow("Manager", escapeHtml(profile.managerUrl || "")) + '\
               ' + kvRow("Assigned Target", escapeHtml(profile.assignedTarget ? profile.assignedTarget.name + " (#" + profile.assignedTarget.vmid + ")" : "")) + '\
@@ -111,9 +111,9 @@
               ' + kvRow("Audio", escapeHtml(profile.audio)) + '\
             </div></section>\
             <section class="beagle-card"><h3>Pairing</h3><div class="beagle-kv">\
-              ' + kvRow("Sunshine User", escapeHtml(profile.sunshineUsername || "")) + '\
-              ' + kvRow("Sunshine Password", escapeHtml(maskSecret(profile.sunshinePassword))) + '\
-              ' + kvRow("Pairing PIN", escapeHtml(profile.sunshinePin || "")) + '\
+              ' + kvRow("Beagle Stream Server User", escapeHtml(profile.beagle-stream-serverUsername || "")) + '\
+              ' + kvRow("Beagle Stream Server Password", escapeHtml(maskSecret(profile.beagle-stream-serverPassword))) + '\
+              ' + kvRow("Pairing PIN", escapeHtml(profile.beagle-stream-serverPin || "")) + '\
             </div></section>\
             <section class="beagle-card"><h3>Endpoint State</h3><div class="beagle-kv">\
               ' + kvRow("Compliance", escapeHtml(profile.compliance && profile.compliance.status || "")) + '\
@@ -121,8 +121,8 @@
               ' + kvRow("Alert Count", escapeHtml(String(profile.compliance && profile.compliance.alert_count || 0))) + '\
               ' + kvRow("Pending Actions", escapeHtml(String(profile.pendingActionCount || 0))) + '\
               ' + kvRow("Last Seen", escapeHtml(profile.endpointSummary && profile.endpointSummary.reported_at || "")) + '\
-              ' + kvRow("Target Reachable", escapeHtml(profile.endpointSummary && profile.endpointSummary.moonlight_target_reachable || "")) + '\
-              ' + kvRow("Sunshine Reachable", escapeHtml(profile.endpointSummary && profile.endpointSummary.sunshine_api_reachable || "")) + '\
+              ' + kvRow("Target Reachable", escapeHtml(profile.endpointSummary && profile.endpointSummary.beagle_stream_client_target_reachable || "")) + '\
+              ' + kvRow("Beagle Stream Server Reachable", escapeHtml(profile.endpointSummary && profile.endpointSummary.beagle_stream_server_api_reachable || "")) + '\
               ' + kvRow("Prepare", escapeHtml(profile.endpointSummary && profile.endpointSummary.prepare_state || "")) + '\
               ' + kvRow("Last Launch", escapeHtml(profile.endpointSummary && profile.endpointSummary.last_launch_mode || "")) + '\
               ' + kvRow("Launch Target", escapeHtml(profile.endpointSummary && profile.endpointSummary.last_launch_target || "")) + '\
@@ -230,12 +230,12 @@
         case "copy-env":
           await copyText(profile.endpointEnv, "Beagle Endpoint-Umgebung kopiert.");
           break;
-        case "open-sunshine":
+        case "open-beagle-stream-server":
           try {
-            var access = await platformService.createSunshineAccess(profile.vmid);
-            window.open(access && access.url || profile.sunshineApiUrl, "_blank", "noopener,noreferrer");
+            var access = await platformService.createBeagle Stream ServerAccess(profile.vmid);
+            window.open(access && access.url || profile.beagle-stream-serverApiUrl, "_blank", "noopener,noreferrer");
           } catch (error3) {
-            window.alert("Sunshine Web UI konnte nicht geoeffnet werden: " + (error3 && error3.message || error3));
+            window.alert("Beagle Stream Server Web UI konnte nicht geoeffnet werden: " + (error3 && error3.message || error3));
           }
           break;
         case "open-health":

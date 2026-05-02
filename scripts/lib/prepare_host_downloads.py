@@ -101,26 +101,26 @@ def _merge_stream_meta(
     parse_description_meta: Callable[[str], dict[str, str]],
 ) -> dict[str, str]:
     stream_keys = [
-        "moonlight-host",
-        "moonlight-app",
-        "moonlight-resolution",
-        "moonlight-fps",
-        "moonlight-bitrate",
-        "moonlight-video-codec",
-        "moonlight-video-decoder",
-        "moonlight-audio-config",
-        "moonlight-absolute-mouse",
-        "moonlight-quit-after",
-        "sunshine-host",
-        "sunshine-ip",
-        "sunshine-api-url",
-        "sunshine-user",
-        "sunshine-password",
-        "sunshine-pin",
-        "sunshine-app",
+        "beagle-stream-client-host",
+        "beagle-stream-client-app",
+        "beagle-stream-client-resolution",
+        "beagle-stream-client-fps",
+        "beagle-stream-client-bitrate",
+        "beagle-stream-client-video-codec",
+        "beagle-stream-client-video-decoder",
+        "beagle-stream-client-audio-config",
+        "beagle-stream-client-absolute-mouse",
+        "beagle-stream-client-quit-after",
+        "beagle-stream-server-host",
+        "beagle-stream-server-ip",
+        "beagle-stream-server-api-url",
+        "beagle-stream-server-user",
+        "beagle-stream-server-password",
+        "beagle-stream-server-pin",
+        "beagle-stream-server-app",
         "thinclient-default-mode",
     ]
-    if any(meta.get(key) for key in ("moonlight-host", "sunshine-host", "sunshine-ip")):
+    if any(meta.get(key) for key in ("beagle-stream-client-host", "beagle-stream-server-host", "beagle-stream-server-ip")):
         return dict(meta)
 
     target_vmid = (meta.get("beagle-target-vmid") or meta.get("thinclient-target-vmid") or "").strip()
@@ -167,25 +167,25 @@ def _build_vm_catalog_entry(
     beagle_port = meta.get("beagle-port", "8006")
     beagle_realm = meta.get("beagle-realm", "pam")
     beagle_verify_tls = meta.get("beagle-verify-tls", "1")
-    moonlight_host = (
-        stream_meta.get("moonlight-host")
-        or stream_meta.get("sunshine-host")
-        or stream_meta.get("sunshine-ip")
+    beagle_stream_client_host = (
+        stream_meta.get("beagle-stream-client-host")
+        or stream_meta.get("beagle-stream-server-host")
+        or stream_meta.get("beagle-stream-server-ip")
         or ""
     )
-    sunshine_api_url = stream_meta.get("sunshine-api-url") or (
-        f"https://{moonlight_host}:47990" if moonlight_host else ""
+    beagle_stream_server_api_url = stream_meta.get("beagle-stream-server-api-url") or (
+        f"https://{beagle_stream_client_host}:47990" if beagle_stream_client_host else ""
     )
-    moonlight_resolution = (stream_meta.get("moonlight-resolution") or "").strip()
-    if not moonlight_resolution or moonlight_resolution in {"1080", "native", "auto"}:
-        moonlight_resolution = "auto"
+    beagle_stream_client_resolution = (stream_meta.get("beagle-stream-client-resolution") or "").strip()
+    if not beagle_stream_client_resolution or beagle_stream_client_resolution in {"1080", "native", "auto"}:
+        beagle_stream_client_resolution = "auto"
 
     preset = {
         "PVE_THIN_CLIENT_PRESET_PROFILE_NAME": f"vm-{vmid}",
         "PVE_THIN_CLIENT_PRESET_VM_NAME": vm_name,
         "PVE_THIN_CLIENT_PRESET_HOSTNAME_VALUE": _legacy_safe_hostname(vm_name, vmid),
         "PVE_THIN_CLIENT_PRESET_AUTOSTART": meta.get("thinclient-autostart", "1"),
-        "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE": "MOONLIGHT" if moonlight_host else "",
+        "PVE_THIN_CLIENT_PRESET_DEFAULT_MODE": "BEAGLE_STREAM_CLIENT" if beagle_stream_client_host else "",
         "PVE_THIN_CLIENT_PRESET_NETWORK_MODE": meta.get("thinclient-network-mode", "dhcp"),
         "PVE_THIN_CLIENT_PRESET_NETWORK_INTERFACE": meta.get("thinclient-network-interface", "eth0"),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_SCHEME": beagle_scheme,
@@ -214,27 +214,27 @@ def _build_vm_catalog_entry(
         "PVE_THIN_CLIENT_PRESET_DCV_PASSWORD": "",
         "PVE_THIN_CLIENT_PRESET_DCV_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_DCV_SESSION": "",
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST": moonlight_host,
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_APP": stream_meta.get(
-            "moonlight-app",
-            stream_meta.get("sunshine-app", "Desktop"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_HOST": beagle_stream_client_host,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_APP": stream_meta.get(
+            "beagle-stream-client-app",
+            stream_meta.get("beagle-stream-server-app", "Desktop"),
         ),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BIN": stream_meta.get("moonlight-bin", "moonlight"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_RESOLUTION": moonlight_resolution,
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_FPS": stream_meta.get("moonlight-fps", "60"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_BITRATE": stream_meta.get("moonlight-bitrate", "20000"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_CODEC": stream_meta.get("moonlight-video-codec", "H.264"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_VIDEO_DECODER": stream_meta.get("moonlight-video-decoder", "auto"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_AUDIO_CONFIG": stream_meta.get("moonlight-audio-config", "stereo"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_ABSOLUTE_MOUSE": stream_meta.get("moonlight-absolute-mouse", "1"),
-        "PVE_THIN_CLIENT_PRESET_MOONLIGHT_QUIT_AFTER": stream_meta.get("moonlight-quit-after", "0"),
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL": sunshine_api_url,
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_USERNAME": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_SUNSHINE_PIN": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_BIN": stream_meta.get("beagle-stream-client-bin", "beagle-stream-client"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_RESOLUTION": beagle_stream_client_resolution,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_FPS": stream_meta.get("beagle-stream-client-fps", "60"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_BITRATE": stream_meta.get("beagle-stream-client-bitrate", "20000"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_VIDEO_CODEC": stream_meta.get("beagle-stream-client-video-codec", "H.264"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_VIDEO_DECODER": stream_meta.get("beagle-stream-client-video-decoder", "auto"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG": stream_meta.get("beagle-stream-client-audio-config", "stereo"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE": stream_meta.get("beagle-stream-client-absolute-mouse", "1"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_QUIT_AFTER": stream_meta.get("beagle-stream-client-quit-after", "0"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_API_URL": beagle_stream_server_api_url,
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_USERNAME": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PASSWORD": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PIN": "",
     }
-    available_modes = ["MOONLIGHT"] if preset["PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST"] else []
-    preset["PVE_THIN_CLIENT_PRESET_DEFAULT_MODE"] = "MOONLIGHT" if available_modes else ""
+    available_modes = ["BEAGLE_STREAM_CLIENT"] if preset["PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_HOST"] else []
+    preset["PVE_THIN_CLIENT_PRESET_DEFAULT_MODE"] = "BEAGLE_STREAM_CLIENT" if available_modes else ""
     preset_name = preset.get("PVE_THIN_CLIENT_PRESET_PROFILE_NAME") or f"vm-{vmid}"
     _ = _encode_preset(preset)
 
@@ -245,8 +245,8 @@ def _build_vm_catalog_entry(
             "installer_windows_url": f"/beagle-api/api/v1/vms/{vmid}/installer.ps1",
             "live_usb_windows_url": f"/beagle-api/api/v1/vms/{vmid}/live-usb.ps1",
             "installer_iso_url": installer_iso_url,
-            "stream_host": preset.get("PVE_THIN_CLIENT_PRESET_MOONLIGHT_HOST", ""),
-            "sunshine_api_url": preset.get("PVE_THIN_CLIENT_PRESET_SUNSHINE_API_URL", ""),
+            "stream_host": preset.get("PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_HOST", ""),
+            "beagle_stream_server_api_url": preset.get("PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_API_URL", ""),
             "expected_profile_name": preset_name,
         },
         vmid=vmid,

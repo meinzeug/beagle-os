@@ -39,8 +39,8 @@ def test_apply_enrollment_config_persists_device_id(tmp_path: Path) -> None:
     config_text = config.read_text(encoding="utf-8")
     assert 'PVE_THIN_CLIENT_BEAGLE_DEVICE_ID="endpoint-001"' in config_text
     assert 'PVE_THIN_CLIENT_CONNECTION_METHOD="broker"' in config_text
-    assert 'PVE_THIN_CLIENT_MOONLIGHT_HOST=""' in config_text
-    assert 'PVE_THIN_CLIENT_MOONLIGHT_BIN="beagle-stream"' in config_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST=""' in config_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN="beagle-stream"' in config_text
     assert enrollment_conf.read_text(encoding="utf-8").splitlines() == [
         'control_plane="https://srv1.beagle-os.com"',
         'enrollment_token="manager-token"',

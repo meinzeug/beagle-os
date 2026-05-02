@@ -74,7 +74,7 @@
 - Thinclient preset installer disk-selection hardening in [thin-client-assistant/usb/pve-thin-client-local-installer.sh](thin-client-assistant/usb/pve-thin-client-local-installer.sh) is endpoint-runtime logic only and does not add provider-specific coupling.
 
 - RTSP stream-fix work stayed provider-neutral in host/runtime layers:
-	- Runtime-side Moonlight host retarget/sync hardening was implemented in thinclient runtime modules, not in provider-specific APIs.
+	- Runtime-side Beagle Stream Client host retarget/sync hardening was implemented in thinclient runtime modules, not in provider-specific APIs.
 	- Public stream firewall reconciliation changes were implemented in [scripts/reconcile-public-streams.sh](scripts/reconcile-public-streams.sh), which already operates on generic stream inventory/ports and not on Beagle host-only APIs.
 	- No new direct coupling to `qm`, `pvesh`, `/api2/json`, or `PVE.*` was introduced by the RTSP fix path.
 
@@ -123,4 +123,4 @@
 	- Validation on live beagleserver confirmed:
 		- VM102 (post-fix): guest_password persisted in generic vm-secrets JSON ✅
 		- VM100 (pre-fix): fallback successfully extracted guest_password from provisioning state ✅
-		- Stream-ready workflow progressed past credential retrieval barrier to Sunshine installation attempt ✅
+		- Stream-ready workflow progressed past credential retrieval barrier to Beagle Stream Server installation attempt ✅

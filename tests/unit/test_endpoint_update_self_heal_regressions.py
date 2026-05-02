@@ -74,7 +74,7 @@ def test_healthcheck_marks_update_status_for_repair_reporting() -> None:
     assert "health_failure_reasons" in script
     assert "beagle-update-client mark-health-failed" in script
     assert "rollback_recommended" not in script  # owned by update-client status payload
-    assert "moonlight target unreachable" in script
+    assert "beagle-stream-client target unreachable" in script
     assert "secure egress not ready" in script
 
 

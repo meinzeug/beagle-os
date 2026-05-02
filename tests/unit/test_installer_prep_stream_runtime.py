@@ -20,13 +20,13 @@ def _service(tmp_path: Path, guest_json: str) -> InstallerPrepService:
         build_profile=lambda vm: {
             "installer_target_eligible": True,
             "stream_host": f"10.0.0.{vm.vmid}",
-            "moonlight_port": "47984",
+            "beagle_stream_client_port": "47984",
         },
         data_dir=lambda: tmp_path,
         ensure_vm_secret=lambda _vm: {
-            "sunshine_username": "sunshine",
-            "sunshine_password": "secret",
-            "sunshine_pin": "1234",
+            "beagle_stream_server_username": "beagle-stream-server",
+            "beagle_stream_server_password": "secret",
+            "beagle_stream_server_pin": "1234",
         },
         guest_exec_out_data=lambda _vmid, _command: guest_json,
         installer_prep_script_file=tmp_path / "prep.sh",
@@ -38,8 +38,8 @@ def _service(tmp_path: Path, guest_json: str) -> InstallerPrepService:
             "live_usb_windows_url": f"/vm/{vmid}/live.ps1",
             "installer_iso_url": installer_iso_url,
             "stream_host": profile.get("stream_host", ""),
-            "moonlight_port": profile.get("moonlight_port", ""),
-            "sunshine_api_url": "",
+            "beagle_stream_client_port": profile.get("beagle_stream_client_port", ""),
+            "beagle_stream_server_api_url": "",
             "installer_target_eligible": bool(profile.get("installer_target_eligible")),
             "installer_target_message": "",
         },
@@ -53,27 +53,27 @@ def _service(tmp_path: Path, guest_json: str) -> InstallerPrepService:
     )
 
 
-def test_quick_sunshine_status_parses_stream_runtime_variant(tmp_path: Path) -> None:
+def test_quick_beagle_stream_server_status_parses_stream_runtime_variant(tmp_path: Path) -> None:
     payload = json.dumps(
         {
             "binary": 1,
             "service": 1,
             "process": 1,
             "beagle_package": 1,
-            "sunshine_package": 0,
+            "beagle_stream_server_package": 0,
             "variant": "beagle-stream-server",
             "package_url": "https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb",
         }
     )
     service = _service(tmp_path, payload)
 
-    status = service.quick_sunshine_status(100)
+    status = service.quick_beagle_stream_server_status(100)
 
     assert status["binary"] is True
     assert status["service"] is True
     assert status["process"] is True
     assert status["beagle_package"] is True
-    assert status["sunshine_package"] is False
+    assert status["beagle_stream_server_package"] is False
     assert status["variant"] == "beagle-stream-server"
 
 
@@ -84,7 +84,7 @@ def test_default_state_prefers_beaglestream_ready_message(tmp_path: Path) -> Non
             "service": 1,
             "process": 1,
             "beagle_package": 1,
-            "sunshine_package": 0,
+            "beagle_stream_server_package": 0,
             "variant": "beagle-stream-server",
             "package_url": "https://example.invalid/beagle-stream-server.deb",
         }
@@ -98,16 +98,16 @@ def test_default_state_prefers_beaglestream_ready_message(tmp_path: Path) -> Non
     assert state["stream_runtime"]["variant"] == "beagle-stream-server"
 
 
-def test_default_state_marks_upstream_fallback_when_only_sunshine_is_present(tmp_path: Path) -> None:
+def test_default_state_marks_compatibility_mode_when_only_server_runtime_is_present(tmp_path: Path) -> None:
     payload = json.dumps(
         {
             "binary": 1,
             "service": 1,
             "process": 1,
             "beagle_package": 0,
-            "sunshine_package": 1,
-            "variant": "sunshine-fallback",
-            "package_url": "https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb",
+            "beagle_stream_server_package": 1,
+            "variant": "beagle-stream-server-fallback",
+            "package_url": "https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb",
         }
     )
     service = _service(tmp_path, payload)
@@ -115,5 +115,5 @@ def test_default_state_marks_upstream_fallback_when_only_sunshine_is_present(tmp
     state = service.default_state(SimpleNamespace(vmid=101, node="srv1"))
 
     assert state["status"] == "ready"
-    assert "Sunshine-Fallback" in state["message"]
-    assert state["stream_runtime"]["variant"] == "sunshine-fallback"
+    assert "Kompatibilitaetsmodus" in state["message"]
+    assert state["stream_runtime"]["variant"] == "beagle-stream-server-fallback"

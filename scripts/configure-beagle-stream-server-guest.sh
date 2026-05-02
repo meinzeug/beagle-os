@@ -26,16 +26,15 @@ BEAGLE_USER="${BEAGLE_USER:-}"
 BEAGLE_PASSWORD="${BEAGLE_PASSWORD:-}"
 BEAGLE_TOKEN="${BEAGLE_TOKEN:-}"
 GUEST_IP_OVERRIDE="${GUEST_IP_OVERRIDE:-}"
-SUNSHINE_USER="${SUNSHINE_USER:-sunshine}"
-SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD:-}"
-SUNSHINE_PIN="${SUNSHINE_PIN:-}"
-SUNSHINE_PORT="${SUNSHINE_PORT:-}"
+BEAGLE_STREAM_SERVER_USER="${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
+BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD:-}"
+BEAGLE_STREAM_SERVER_PIN="${BEAGLE_STREAM_SERVER_PIN:-}"
+BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-}"
 BEAGLE_STREAM_SERVER_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb"
 BEAGLE_STREAM_SERVER_URL="${BEAGLE_STREAM_SERVER_URL:-$BEAGLE_STREAM_SERVER_DEFAULT_URL}"
-SUNSHINE_URL="${SUNSHINE_URL:-https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb}"
-SUNSHINE_ORIGIN_WEB_UI_ALLOWED="${SUNSHINE_ORIGIN_WEB_UI_ALLOWED:-wan}"
-SUNSHINE_HEALTHCHECK_INTERVAL_SEC="${SUNSHINE_HEALTHCHECK_INTERVAL_SEC:-45}"
-SUNSHINE_HEALTHCHECK_BOOT_DELAY_SEC="${SUNSHINE_HEALTHCHECK_BOOT_DELAY_SEC:-90}"
+BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED="${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED:-wan}"
+BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC:-45}"
+BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC:-90}"
 PUBLIC_STREAM_HOST_RAW="${PUBLIC_STREAM_HOST:-}"
 UPDATE_METADATA="${UPDATE_METADATA:-1}"
 VM_REBOOT="${VM_REBOOT:-1}"
@@ -82,7 +81,7 @@ STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"
 
 usage() {
   cat <<EOF
-Usage: $0 --vmid VMID [--beagle-host HOST] [--guest-user USER] [--guest-password PASS] [--identity-locale LOCALE] [--identity-keymap KEYMAP] [--desktop-id ID] [--desktop-label LABEL] [--desktop-session SESSION] [--desktop-package PKG]... [--software-package PKG]... [--package-preset ID]... [--extra-package PKG]... [--beagle-user USER@REALM] [--beagle-password PASS|--beagle-token TOKEN] [--sunshine-user USER] --sunshine-password PASS [--sunshine-pin PIN] [--sunshine-port PORT] [--public-stream-host HOST]
+Usage: $0 --vmid VMID [--beagle-host HOST] [--guest-user USER] [--guest-password PASS] [--identity-locale LOCALE] [--identity-keymap KEYMAP] [--desktop-id ID] [--desktop-label LABEL] [--desktop-session SESSION] [--desktop-package PKG]... [--software-package PKG]... [--package-preset ID]... [--extra-package PKG]... [--beagle-user USER@REALM] [--beagle-password PASS|--beagle-token TOKEN] [--beagle-stream-server-user USER] --beagle-stream-server-password PASS [--beagle-stream-server-pin PIN] [--beagle-stream-server-port PORT] [--public-stream-host HOST]
 EOF
 }
 
@@ -181,12 +180,12 @@ parse_args() {
       --beagle-user) BEAGLE_USER="$2"; shift 2 ;;
       --beagle-password) BEAGLE_PASSWORD="$2"; shift 2 ;;
       --beagle-token) BEAGLE_TOKEN="$2"; shift 2 ;;
-      --sunshine-user) SUNSHINE_USER="$2"; shift 2 ;;
-      --sunshine-password) SUNSHINE_PASSWORD="$2"; shift 2 ;;
-      --sunshine-pin) SUNSHINE_PIN="$2"; shift 2 ;;
-      --sunshine-port) SUNSHINE_PORT="$2"; shift 2 ;;
-      --sunshine-url) SUNSHINE_URL="$2"; shift 2 ;;
-      --sunshine-origin-web-ui-allowed) SUNSHINE_ORIGIN_WEB_UI_ALLOWED="$2"; shift 2 ;;
+      --beagle-stream-server-user) BEAGLE_STREAM_SERVER_USER="$2"; shift 2 ;;
+      --beagle-stream-server-password) BEAGLE_STREAM_SERVER_PASSWORD="$2"; shift 2 ;;
+      --beagle-stream-server-pin) BEAGLE_STREAM_SERVER_PIN="$2"; shift 2 ;;
+      --beagle-stream-server-port) BEAGLE_STREAM_SERVER_PORT="$2"; shift 2 ;;
+      --beagle-stream-server-url) BEAGLE_STREAM_SERVER_URL="$2"; shift 2 ;;
+      --beagle-stream-server-origin-web-ui-allowed) BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED="$2"; shift 2 ;;
       --public-stream-host) PUBLIC_STREAM_HOST="$2"; shift 2 ;;
       --no-metadata) UPDATE_METADATA="0"; shift ;;
       --no-reboot) VM_REBOOT="0"; shift ;;
@@ -221,7 +220,7 @@ guest_exec_script() {
   if [[ -n "$GUEST_PASSWORD" && -n "$guest_ip" ]] && command -v sshpass >/dev/null 2>&1; then
     local ssh_target="${GUEST_USER}@${guest_ip}"
     local tmp_script
-    local remote_script_path="/home/${GUEST_USER}/pve-sunshine-setup.sh"
+    local remote_script_path="/home/${GUEST_USER}/pve-beagle-stream-server-setup.sh"
     tmp_script="$(mktemp)"
     printf '%s' "$script" >"$tmp_script"
     SSHPASS="$GUEST_PASSWORD" sshpass -e scp \
@@ -244,13 +243,13 @@ guest_exec_script() {
 
   script_b64="$(printf '%s' "$script" | base64 -w0)"
 
-  qm_guest_exec_sync "rm -f /tmp/pve-sunshine-setup.sh /tmp/pve-sunshine-setup.sh.b64 && touch /tmp/pve-sunshine-setup.sh.b64 && chmod 600 /tmp/pve-sunshine-setup.sh.b64" >/dev/null
+  qm_guest_exec_sync "rm -f /tmp/pve-beagle-stream-server-setup.sh /tmp/pve-beagle-stream-server-setup.sh.b64 && touch /tmp/pve-beagle-stream-server-setup.sh.b64 && chmod 600 /tmp/pve-beagle-stream-server-setup.sh.b64" >/dev/null
   while [[ -n "$script_b64" ]]; do
     chunk="${script_b64:0:$chunk_size}"
     script_b64="${script_b64:$chunk_size}"
-    qm_guest_exec_sync "printf '%s' '$chunk' >> /tmp/pve-sunshine-setup.sh.b64" >/dev/null
+    qm_guest_exec_sync "printf '%s' '$chunk' >> /tmp/pve-beagle-stream-server-setup.sh.b64" >/dev/null
   done
-  qm_guest_exec_sync "base64 -d /tmp/pve-sunshine-setup.sh.b64 >/tmp/pve-sunshine-setup.sh && chmod +x /tmp/pve-sunshine-setup.sh && /tmp/pve-sunshine-setup.sh" >/dev/null
+  qm_guest_exec_sync "base64 -d /tmp/pve-beagle-stream-server-setup.sh.b64 >/tmp/pve-beagle-stream-server-setup.sh && chmod +x /tmp/pve-beagle-stream-server-setup.sh && /tmp/pve-beagle-stream-server-setup.sh" >/dev/null
 }
 
 detect_guest_ip() {
@@ -273,7 +272,7 @@ reboot_current_vm() {
 update_vm_metadata() {
   local guest_ip="$1"
   local stream_host="${PUBLIC_STREAM_HOST:-$guest_ip}"
-  local stream_port="${SUNSHINE_PORT:-}"
+  local stream_port="${BEAGLE_STREAM_SERVER_PORT:-}"
   local stream_api_url=""
   local encoded_desc new_desc_b64
   if [[ -n "$stream_port" ]]; then
@@ -284,7 +283,7 @@ update_vm_metadata() {
   encoded_desc="$(current_vm_description)"
 
   new_desc_b64="$(
-    python3 - "$encoded_desc" "$guest_ip" "$stream_host" "$stream_port" "$stream_api_url" "$SUNSHINE_USER" "$SUNSHINE_PASSWORD" "$SUNSHINE_PIN" "$BEAGLE_USER" "$BEAGLE_PASSWORD" "$BEAGLE_TOKEN" "$GUEST_USER" "$IDENTITY_LOCALE" "$IDENTITY_KEYMAP" "$DESKTOP_ID" "$DESKTOP_LABEL" "$DESKTOP_SESSION" "$(join_csv "${PACKAGE_PRESETS[@]}")" "$(join_csv "${EXTRA_PACKAGES[@]}")" <<'PY'
+    python3 - "$encoded_desc" "$guest_ip" "$stream_host" "$stream_port" "$stream_api_url" "$BEAGLE_STREAM_SERVER_USER" "$BEAGLE_STREAM_SERVER_PASSWORD" "$BEAGLE_STREAM_SERVER_PIN" "$BEAGLE_USER" "$BEAGLE_PASSWORD" "$BEAGLE_TOKEN" "$GUEST_USER" "$IDENTITY_LOCALE" "$IDENTITY_KEYMAP" "$DESKTOP_ID" "$DESKTOP_LABEL" "$DESKTOP_SESSION" "$(join_csv "${PACKAGE_PRESETS[@]}")" "$(join_csv "${EXTRA_PACKAGES[@]}")" <<'PY'
 import base64
 import sys
 from urllib.parse import unquote
@@ -295,9 +294,9 @@ from urllib.parse import unquote
     stream_host,
     stream_port,
     stream_api_url,
-    sunshine_user,
-    sunshine_password,
-    sunshine_pin,
+    beagle_stream_server_user,
+    beagle_stream_server_password,
+    beagle_stream_server_pin,
     beagle_user,
     beagle_password,
     beagle_token,
@@ -311,29 +310,29 @@ from urllib.parse import unquote
     extra_packages,
 ) = sys.argv[1:20]
 skip = {
-    "sunshine-guest-user",
-    "sunshine-host",
-    "sunshine-ip",
-    "sunshine-api-url",
-    "sunshine-user",
-    "sunshine-password",
-    "sunshine-pin",
+    "beagle-stream-server-guest-user",
+    "beagle-stream-server-host",
+    "beagle-stream-server-ip",
+    "beagle-stream-server-api-url",
+    "beagle-stream-server-user",
+    "beagle-stream-server-password",
+    "beagle-stream-server-pin",
     "beagle-user",
     "beagle-password",
     "beagle-token",
     "beagle-public-stream-host",
-    "beagle-public-moonlight-port",
-    "beagle-public-sunshine-api-url",
-    "sunshine-app",
-    "moonlight-host",
-    "moonlight-port",
-    "moonlight-app",
-    "moonlight-resolution",
-    "moonlight-fps",
-    "moonlight-bitrate",
-    "moonlight-video-codec",
-    "moonlight-video-decoder",
-    "moonlight-audio-config",
+    "beagle-public-beagle-stream-client-port",
+    "beagle-public-beagle-stream-server-api-url",
+    "beagle-stream-server-app",
+    "beagle-stream-client-host",
+    "beagle-stream-client-port",
+    "beagle-stream-client-app",
+    "beagle-stream-client-resolution",
+    "beagle-stream-client-fps",
+    "beagle-stream-client-bitrate",
+    "beagle-stream-client-video-codec",
+    "beagle-stream-client-video-decoder",
+    "beagle-stream-client-audio-config",
     "thinclient-default-mode",
     "beagle-identity-locale",
     "beagle-identity-keymap",
@@ -357,21 +356,21 @@ for raw_line in text.splitlines():
 
 lines.extend(
     [
-        f"sunshine-guest-user: {guest_user}",
-        f"sunshine-host: {stream_host}",
-        f"sunshine-ip: {guest_ip}",
-        f"sunshine-api-url: {stream_api_url}",
-        "sunshine-app: Desktop",
-        f"moonlight-host: {stream_host}",
-        f"moonlight-port: {stream_port}",
-        "moonlight-app: Desktop",
-        "moonlight-resolution: auto",
-        "moonlight-fps: 60",
-        "moonlight-bitrate: 20000",
-        "moonlight-video-codec: H.264",
-        "moonlight-video-decoder: auto",
-        "moonlight-audio-config: stereo",
-        "thinclient-default-mode: MOONLIGHT",
+        f"beagle-stream-server-guest-user: {guest_user}",
+        f"beagle-stream-server-host: {stream_host}",
+        f"beagle-stream-server-ip: {guest_ip}",
+        f"beagle-stream-server-api-url: {stream_api_url}",
+        "beagle-stream-server-app: Desktop",
+        f"beagle-stream-client-host: {stream_host}",
+        f"beagle-stream-client-port: {stream_port}",
+        "beagle-stream-client-app: Desktop",
+        "beagle-stream-client-resolution: auto",
+        "beagle-stream-client-fps: 60",
+        "beagle-stream-client-bitrate: 20000",
+        "beagle-stream-client-video-codec: H.264",
+        "beagle-stream-client-video-decoder: auto",
+        "beagle-stream-client-audio-config: stereo",
+        "thinclient-default-mode: BEAGLE_STREAM_CLIENT",
         f"beagle-identity-locale: {identity_locale}",
         f"beagle-identity-keymap: {identity_keymap}",
         f"beagle-desktop: {desktop_label}",
@@ -387,8 +386,8 @@ if stream_port:
     lines.extend(
         [
             f"beagle-public-stream-host: {stream_host}",
-            f"beagle-public-moonlight-port: {stream_port}",
-            f"beagle-public-sunshine-api-url: {stream_api_url}",
+            f"beagle-public-beagle-stream-client-port: {stream_port}",
+            f"beagle-public-beagle-stream-server-api-url: {stream_api_url}",
         ]
     )
 
@@ -413,13 +412,13 @@ main() {
     echo "--vmid is required" >&2
     exit 1
   }
-  [[ -n "$SUNSHINE_PASSWORD" ]] || {
-    echo "--sunshine-password is required" >&2
+  [[ -n "$BEAGLE_STREAM_SERVER_PASSWORD" ]] || {
+    echo "--beagle-stream-server-password is required" >&2
     exit 1
   }
 
-  if [[ -z "$SUNSHINE_PIN" ]]; then
-    SUNSHINE_PIN="$(printf '%04d' $(( VMID % 10000 )))"
+  if [[ -z "$BEAGLE_STREAM_SERVER_PIN" ]]; then
+    BEAGLE_STREAM_SERVER_PIN="$(printf '%04d' $(( VMID % 10000 )))"
   fi
 
   guest_script="$(cat <<EOF
@@ -435,14 +434,14 @@ DESKTOP_ID='${DESKTOP_ID}'
 DESKTOP_SESSION='${DESKTOP_SESSION}'
 DESKTOP_PACKAGES='$(join_words "${DESKTOP_PACKAGES[@]}")'
 SOFTWARE_PACKAGES='$(join_words "${SOFTWARE_PACKAGES[@]}")'
-SUNSHINE_USER='${SUNSHINE_USER}'
-SUNSHINE_PASSWORD='${SUNSHINE_PASSWORD}'
-SUNSHINE_PORT='${SUNSHINE_PORT}'
+BEAGLE_STREAM_SERVER_USER='${BEAGLE_STREAM_SERVER_USER}'
+BEAGLE_STREAM_SERVER_PASSWORD='${BEAGLE_STREAM_SERVER_PASSWORD}'
+BEAGLE_STREAM_SERVER_PORT='${BEAGLE_STREAM_SERVER_PORT}'
 BEAGLE_STREAM_SERVER_URL='${BEAGLE_STREAM_SERVER_URL}'
-SUNSHINE_URL='${SUNSHINE_URL}'
-SUNSHINE_ORIGIN_WEB_UI_ALLOWED='${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}'
-SUNSHINE_HEALTHCHECK_INTERVAL_SEC='${SUNSHINE_HEALTHCHECK_INTERVAL_SEC}'
-SUNSHINE_HEALTHCHECK_BOOT_DELAY_SEC='${SUNSHINE_HEALTHCHECK_BOOT_DELAY_SEC}'
+BEAGLE_STREAM_SERVER_URL='${BEAGLE_STREAM_SERVER_URL}'
+BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED='${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}'
+BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC='${BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC}'
+BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC='${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC}'
 
 configure_system_locale() {
   local locale="\${IDENTITY_LOCALE:-de_DE.UTF-8}"
@@ -590,15 +589,10 @@ fi
 
 tmpdir=\$(mktemp -d)
 trap 'rm -rf "\$tmpdir"' EXIT
-stream_runtime_variant="beagle-stream-server"
 stream_runtime_package_url="\$BEAGLE_STREAM_SERVER_URL"
-if ! curl -fsSLo "\$tmpdir/sunshine.deb" "\$BEAGLE_STREAM_SERVER_URL"; then
-  echo "BeagleStream server package unavailable, falling back to upstream Sunshine package." >&2
-  stream_runtime_variant="sunshine-fallback"
-  stream_runtime_package_url="\$SUNSHINE_URL"
-  curl -fsSLo "\$tmpdir/sunshine.deb" "\$SUNSHINE_URL"
-fi
-apt-get install -y "\$tmpdir/sunshine.deb"
+stream_runtime_variant="beagle-stream-server"
+curl -fsSLo "\$tmpdir/beagle-stream-server.deb" "\$BEAGLE_STREAM_SERVER_URL"
+apt-get install -y "\$tmpdir/beagle-stream-server.deb"
 write_stream_runtime_status "\$stream_runtime_variant" "\$stream_runtime_package_url"
 configure_system_locale
 configure_keyboard_layout
@@ -616,7 +610,7 @@ GUESTCFG
 install -d -m 0700 -o "\$GUEST_USER" -g "\$GUEST_USER" \
   "/home/\$GUEST_USER/.config" \
   "/home/\$GUEST_USER/.config/autostart" \
-  "/home/\$GUEST_USER/.config/sunshine" \
+  "/home/\$GUEST_USER/.config/beagle-stream-server" \
   "/home/\$GUEST_USER/.local" \
   "/home/\$GUEST_USER/.local/state" \
   "/home/\$GUEST_USER/.local/state/wireplumber" \
@@ -701,21 +695,21 @@ fi
 XPROFILE
 chmod 0755 "/home/\$GUEST_USER/.xprofile"
 
-cat > "/home/\$GUEST_USER/.config/sunshine/sunshine.conf" <<SUNCONF
-sunshine_name = ${GUEST_USER}-sunshine
+cat > "/home/\$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" <<SUNCONF
+beagle_stream_server_name = ${GUEST_USER}-beagle-stream-server
 min_log_level = info
-origin_web_ui_allowed = ${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}
-origin_pin_allowed = ${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}
+origin_web_ui_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
+origin_pin_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
 encoder = software
 sw_preset = superfast
 sw_tune = zerolatency
 capture = x11
 hevc_mode = 0
 av1_mode = 0
-$( if [[ -n "${SUNSHINE_PORT}" ]]; then printf 'port = %s\n' "${SUNSHINE_PORT}"; fi )
+$( if [[ -n "${BEAGLE_STREAM_SERVER_PORT}" ]]; then printf 'port = %s\n' "${BEAGLE_STREAM_SERVER_PORT}"; fi )
 SUNCONF
 
-cat > "/home/\$GUEST_USER/.config/sunshine/apps.json" <<'APPS'
+cat > "/home/\$GUEST_USER/.config/beagle-stream-server/apps.json" <<'APPS'
 {
   "env": {
     "PATH": "\$(PATH):\$(HOME)/.local/bin"
@@ -766,13 +760,13 @@ chown -R "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.config" "/home/\$GUEST
 chown "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.xprofile"
 configure_default_browser
 
-# Detect the sunshine binary path — beagle-stream-server installs to /usr/bin/sunshine,
-# the upstream fallback deb installs to /usr/local/bin/sunshine.
-SUNSHINE_EXEC="\$(command -v sunshine 2>/dev/null || echo /usr/bin/sunshine)"
+# Detect the beagle-stream-server binary path — beagle-stream-server installs to /usr/bin/beagle-stream-server,
+# the upstream fallback deb installs to /usr/local/bin/beagle-stream-server.
+BEAGLE_STREAM_SERVER_EXEC="\$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
 
-cat > /etc/systemd/system/beagle-sunshine.service <<SUNSHINESVC
+cat > /etc/systemd/system/beagle-stream-server.service <<BEAGLE_STREAM_SERVERSVC
 [Unit]
-Description=Beagle Sunshine
+Description=Beagle Beagle Stream Server
 After=network-online.target display-manager.service graphical.target sound.target
 Wants=network-online.target
 StartLimitIntervalSec=0
@@ -789,44 +783,44 @@ Environment=XDG_RUNTIME_DIR=/run/user/\$GUEST_UID
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$GUEST_UID/bus
 Environment=PULSE_SERVER=unix:/run/user/\$GUEST_UID/pulse/native
 ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/\$GUEST_UID/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/\$GUEST_USER/.Xauthority && -d /run/user/\$GUEST_UID && -S /run/user/\$GUEST_UID/bus && -S "\\\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/\$GUEST_USER/.Xauthority xrandr --query >/dev/null 2>&1 && DISPLAY=:0 XAUTHORITY=/home/\$GUEST_USER/.Xauthority xrandr --query | grep -q " connected"; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
-ExecStart=\$SUNSHINE_EXEC
+ExecStart=\$BEAGLE_STREAM_SERVER_EXEC
 Restart=always
 RestartSec=3
 TimeoutStartSec=210
 
 [Install]
 WantedBy=graphical.target
-SUNSHINESVC
+BEAGLE_STREAM_SERVERSVC
 
 install -d -m 0755 /etc/beagle
-cat > /etc/beagle/sunshine-healthcheck.env <<HEALTHENV
-SUNSHINE_USER=\$SUNSHINE_USER
-SUNSHINE_PASSWORD=\$SUNSHINE_PASSWORD
-SUNSHINE_PORT=\$SUNSHINE_PORT
+cat > /etc/beagle/beagle-stream-server-healthcheck.env <<HEALTHENV
+BEAGLE_STREAM_SERVER_USER=\$BEAGLE_STREAM_SERVER_USER
+BEAGLE_STREAM_SERVER_PASSWORD=\$BEAGLE_STREAM_SERVER_PASSWORD
+BEAGLE_STREAM_SERVER_PORT=\$BEAGLE_STREAM_SERVER_PORT
 GUEST_USER=\$GUEST_USER
 GUEST_UID=\$GUEST_UID
 HEALTHENV
-chmod 0600 /etc/beagle/sunshine-healthcheck.env
+chmod 0600 /etc/beagle/beagle-stream-server-healthcheck.env
 
-cat > /usr/local/bin/beagle-sunshine-healthcheck <<'HEALTHCHECK'
+cat > /usr/local/bin/beagle-stream-server-healthcheck <<'HEALTHCHECK'
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_FILE="/etc/beagle/sunshine-healthcheck.env"
+ENV_FILE="/etc/beagle/beagle-stream-server-healthcheck.env"
 [[ -r "\$ENV_FILE" ]] || exit 1
 # shellcheck disable=SC1090
 source "\$ENV_FILE"
 
-SUNSHINE_USER="\${SUNSHINE_USER:-sunshine}"
-SUNSHINE_PASSWORD="\${SUNSHINE_PASSWORD:-}"
-SUNSHINE_PORT="\${SUNSHINE_PORT:-}"
+BEAGLE_STREAM_SERVER_USER="\${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
+BEAGLE_STREAM_SERVER_PASSWORD="\${BEAGLE_STREAM_SERVER_PASSWORD:-}"
+BEAGLE_STREAM_SERVER_PORT="\${BEAGLE_STREAM_SERVER_PORT:-}"
 GUEST_USER="\${GUEST_USER:-beagle}"
 GUEST_UID="\${GUEST_UID:-\$(id -u "\$GUEST_USER" 2>/dev/null || echo 1000)}"
 
 repair="\${1:-}"
 api_port=47990
-if [[ -n "\$SUNSHINE_PORT" ]]; then
-  api_port="\$((SUNSHINE_PORT + 1))"
+if [[ -n "\$BEAGLE_STREAM_SERVER_PORT" ]]; then
+  api_port="\$((BEAGLE_STREAM_SERVER_PORT + 1))"
 fi
 
 ensure_runtime() {
@@ -839,17 +833,17 @@ ensure_runtime() {
 restart_stack() {
   ensure_runtime
   systemctl daemon-reload >/dev/null 2>&1 || true
-  systemctl enable beagle-sunshine.service >/dev/null 2>&1 || true
-  systemctl restart beagle-sunshine.service >/dev/null 2>&1 || true
+  systemctl enable beagle-stream-server.service >/dev/null 2>&1 || true
+  systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true
 }
 
 ensure_timer() {
-  systemctl enable --now beagle-sunshine-healthcheck.timer >/dev/null 2>&1 || true
+  systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
 }
 
 is_api_ready() {
-  [[ -n "\$SUNSHINE_PASSWORD" ]] || return 1
-  curl -kfsS --connect-timeout 3 --max-time 5 --user "\${SUNSHINE_USER}:\${SUNSHINE_PASSWORD}" "https://127.0.0.1:\${api_port}/api/apps" >/dev/null # tls-bypass-allowlist: loopback health check against local Sunshine self-signed API
+  [[ -n "\$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
+  curl -kfsS --connect-timeout 3 --max-time 5 --user "\${BEAGLE_STREAM_SERVER_USER}:\${BEAGLE_STREAM_SERVER_PASSWORD}" "https://127.0.0.1:\${api_port}/api/apps" >/dev/null # tls-bypass-allowlist: loopback health check against local Beagle Stream Server self-signed API
 }
 
 ensure_timer
@@ -859,12 +853,12 @@ if [[ "\$repair" == "--repair-only" ]]; then
   exit 0
 fi
 
-if ! systemctl is-active --quiet beagle-sunshine.service; then
+if ! systemctl is-active --quiet beagle-stream-server.service; then
   restart_stack
   exit 0
 fi
 
-if ! pgrep -x sunshine >/dev/null 2>&1; then
+if ! pgrep -x beagle-stream-server >/dev/null 2>&1; then
   restart_stack
   exit 0
 fi
@@ -873,46 +867,46 @@ if ! is_api_ready; then
   restart_stack
 fi
 HEALTHCHECK
-chmod 0755 /usr/local/bin/beagle-sunshine-healthcheck
+chmod 0755 /usr/local/bin/beagle-stream-server-healthcheck
 
-cat > /etc/systemd/system/beagle-sunshine-healthcheck.service <<'HEALTHSVC'
+cat > /etc/systemd/system/beagle-stream-server-healthcheck.service <<'HEALTHSVC'
 [Unit]
-Description=Beagle Sunshine Healthcheck and Repair
-After=network-online.target beagle-sunshine.service
+Description=Beagle Beagle Stream Server Healthcheck and Repair
+After=network-online.target beagle-stream-server.service
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/beagle-sunshine-healthcheck
+ExecStart=/usr/local/bin/beagle-stream-server-healthcheck
 HEALTHSVC
 
-cat > /etc/systemd/system/beagle-sunshine-healthcheck.timer <<HEALTHTIMER
+cat > /etc/systemd/system/beagle-stream-server-healthcheck.timer <<HEALTHTIMER
 [Unit]
-Description=Run Beagle Sunshine healthcheck periodically
+Description=Run Beagle Beagle Stream Server healthcheck periodically
 
 [Timer]
-OnBootSec=\${SUNSHINE_HEALTHCHECK_BOOT_DELAY_SEC}s
-OnUnitActiveSec=\${SUNSHINE_HEALTHCHECK_INTERVAL_SEC}s
+OnBootSec=\${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC}s
+OnUnitActiveSec=\${BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC}s
 Persistent=true
 RandomizedDelaySec=5s
-Unit=beagle-sunshine-healthcheck.service
+Unit=beagle-stream-server-healthcheck.service
 
 [Install]
 WantedBy=timers.target
 HEALTHTIMER
 
-systemctl disable sunshine >/dev/null 2>&1 || true
-systemctl stop sunshine >/dev/null 2>&1 || true
-su - "\$GUEST_USER" -c "systemctl --user disable --now sunshine.service >/dev/null 2>&1 || true" || true
-rm -f "/home/\$GUEST_USER/.config/autostart/sunshine.desktop"
-pkill -u "\$GUEST_USER" -x sunshine >/dev/null 2>&1 || true
+systemctl disable beagle-stream-server >/dev/null 2>&1 || true
+systemctl stop beagle-stream-server >/dev/null 2>&1 || true
+su - "\$GUEST_USER" -c "systemctl --user disable --now beagle-stream-server.service >/dev/null 2>&1 || true" || true
+rm -f "/home/\$GUEST_USER/.config/autostart/beagle-stream-server.desktop"
+pkill -u "\$GUEST_USER" -x beagle-stream-server >/dev/null 2>&1 || true
 systemctl disable gdm3 >/dev/null 2>&1 || true
 printf '/usr/sbin/lightdm\n' > /etc/X11/default-display-manager
 ln -sf /usr/lib/systemd/system/lightdm.service /etc/systemd/system/display-manager.service
 systemctl daemon-reload
 systemctl set-default graphical.target >/dev/null
 
-su - "\$GUEST_USER" -c "HOME=/home/\$GUEST_USER XDG_CONFIG_HOME=/home/\$GUEST_USER/.config sunshine --creds '\$SUNSHINE_USER' '\$SUNSHINE_PASSWORD'"
+su - "\$GUEST_USER" -c "HOME=/home/\$GUEST_USER XDG_CONFIG_HOME=/home/\$GUEST_USER/.config beagle-stream-server --creds '\$BEAGLE_STREAM_SERVER_USER' '\$BEAGLE_STREAM_SERVER_PASSWORD'"
 systemctl restart display-manager.service >/dev/null 2>&1 || true
 loginctl enable-linger "\$GUEST_USER" >/dev/null 2>&1 || true
 for _ in {1..60}; do
@@ -922,9 +916,9 @@ for _ in {1..60}; do
   fi
   sleep 1
 done
-systemctl enable --now beagle-sunshine.service >/dev/null 2>&1 || true
-systemctl enable --now beagle-sunshine-healthcheck.timer >/dev/null 2>&1 || true
-/usr/local/bin/beagle-sunshine-healthcheck >/dev/null 2>&1 || true
+systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true
+systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
+/usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1 || true
 EOF
 )"
 
@@ -945,7 +939,7 @@ EOF
   if [[ "$VM_REBOOT" == "1" ]]; then
     reboot_current_vm
   fi
-  echo "Configured Sunshine guest VM $VMID on $BEAGLE_HOST (guest IP: ${guest_ip:-unknown})"
+  echo "Configured Beagle Stream Server guest VM $VMID on $BEAGLE_HOST (guest IP: ${guest_ip:-unknown})"
 }
 
 main "$@"

@@ -21,7 +21,7 @@ class _Vm:
 
 def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") -> EndpointHttpSurfaceService:
     vm = _Vm(100, "beagle-0")
-    profiles = {100: {"stream_host": "srv2.beagle-os.com", "moonlight_port": "47984"}}
+    profiles = {100: {"stream_host": "srv2.beagle-os.com", "beagle_stream_client_port": "47984"}}
     sessions = {
         "pool-a:100": {
             "session_id": "pool-a:100",
@@ -172,10 +172,10 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
         attestation_service=_AttestationService(),
         fleet_telemetry_service=_FleetTelemetry(),
         alert_service=_AlertService(),
-        exchange_moonlight_pairing_token=lambda vm, endpoint_identity, pairing_token: {"ok": pairing_token == "valid-token"},
-        fetch_sunshine_server_identity=lambda vm, guest_user: {},
+        exchange_beagle_stream_client_pairing_token=lambda vm, endpoint_identity, pairing_token: {"ok": pairing_token == "valid-token"},
+        fetch_beagle_stream_server_identity=lambda vm, guest_user: {},
         find_vm=_find,
-        issue_moonlight_pairing_token=lambda vm, endpoint_identity, device_name: {
+        issue_beagle_stream_client_pairing_token=lambda vm, endpoint_identity, device_name: {
             "ok": True,
             "token": "valid-token",
             "pin": "1234",
@@ -183,7 +183,7 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
         },
         pool_manager_service=_PoolManager(),
         prepare_virtual_display_on_vm=_prepare,
-        register_moonlight_certificate_on_vm=lambda vm, cert, device_name: {"ok": True},
+        register_beagle_stream_client_certificate_on_vm=lambda vm, cert, device_name: {"ok": True},
         service_name="beagle-control-plane",
         session_manager_service=type(
             "SessionManagerStub",
@@ -212,10 +212,10 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
 
 
 def test_handles_prepare_stream_path() -> None:
-    assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/moonlight/prepare-stream") is True
-    assert EndpointHttpSurfaceService.requires_json_body("/api/v1/endpoints/moonlight/prepare-stream") is True
-    assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/moonlight/pair-token") is True
-    assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/moonlight/pair-exchange") is True
+    assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/beagle-stream-client/prepare-stream") is True
+    assert EndpointHttpSurfaceService.requires_json_body("/api/v1/endpoints/beagle-stream-client/prepare-stream") is True
+    assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/beagle-stream-client/pair-token") is True
+    assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/beagle-stream-client/pair-exchange") is True
     assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/device/sync") is True
     assert EndpointHttpSurfaceService.handles_path("/api/v1/endpoints/device/confirm-wiped") is True
     assert EndpointHttpSurfaceService.handles_path("/api/v1/session/current") is True
@@ -224,7 +224,7 @@ def test_handles_prepare_stream_path() -> None:
 def test_prepare_stream_route_success() -> None:
     service = _service(prepare_ok=True)
     response = service.route_post(
-        "/api/v1/endpoints/moonlight/prepare-stream",
+        "/api/v1/endpoints/beagle-stream-client/prepare-stream",
         endpoint_identity={"vmid": 100, "node": "beagle-0"},
         query={},
         json_payload={"resolution": "1920x1080"},
@@ -238,7 +238,7 @@ def test_prepare_stream_route_success() -> None:
 def test_prepare_stream_route_failure_propagates_gateway_status() -> None:
     service = _service(prepare_ok=False)
     response = service.route_post(
-        "/api/v1/endpoints/moonlight/prepare-stream",
+        "/api/v1/endpoints/beagle-stream-client/prepare-stream",
         endpoint_identity={"vmid": 100, "node": "beagle-0"},
         query={},
         json_payload={"resolution": "3840x2160"},
@@ -251,7 +251,7 @@ def test_prepare_stream_route_failure_propagates_gateway_status() -> None:
 def test_prepare_stream_route_requires_resolution() -> None:
     service = _service(prepare_ok=True)
     response = service.route_post(
-        "/api/v1/endpoints/moonlight/prepare-stream",
+        "/api/v1/endpoints/beagle-stream-client/prepare-stream",
         endpoint_identity={"vmid": 100, "node": "beagle-0"},
         query={},
         json_payload={},
@@ -264,7 +264,7 @@ def test_prepare_stream_route_requires_resolution() -> None:
 def test_pair_token_route_success() -> None:
     service = _service()
     response = service.route_post(
-        "/api/v1/endpoints/moonlight/pair-token",
+        "/api/v1/endpoints/beagle-stream-client/pair-token",
         endpoint_identity={"vmid": 100, "node": "beagle-0", "hostname": "endpoint-a"},
         query={},
         json_payload={"device_name": "endpoint-a"},
@@ -279,7 +279,7 @@ def test_pair_token_route_success() -> None:
 def test_pair_exchange_requires_token() -> None:
     service = _service()
     response = service.route_post(
-        "/api/v1/endpoints/moonlight/pair-exchange",
+        "/api/v1/endpoints/beagle-stream-client/pair-exchange",
         endpoint_identity={"vmid": 100, "node": "beagle-0", "hostname": "endpoint-a"},
         query={},
         json_payload={},
@@ -292,7 +292,7 @@ def test_pair_exchange_requires_token() -> None:
 def test_pair_exchange_success() -> None:
     service = _service()
     response = service.route_post(
-        "/api/v1/endpoints/moonlight/pair-exchange",
+        "/api/v1/endpoints/beagle-stream-client/pair-exchange",
         endpoint_identity={"vmid": 100, "node": "beagle-0", "hostname": "endpoint-a"},
         query={},
         json_payload={"pairing_token": "valid-token"},
@@ -320,7 +320,7 @@ def test_session_current_route_uses_vmid_from_endpoint_identity() -> None:
     assert response["payload"]["ok"] is True
     assert response["payload"]["current_node"] == "beagle-2"
     assert response["payload"]["stream_host"] == "srv2.beagle-os.com"
-    assert response["payload"]["moonlight_port"] == "47984"
+    assert response["payload"]["beagle_stream_client_port"] == "47984"
     assert response["payload"]["reconnect_required"] is True
     assert response["payload"]["network_mode"] == "vpn_preferred"
     assert response["payload"]["wireguard_active"] is True

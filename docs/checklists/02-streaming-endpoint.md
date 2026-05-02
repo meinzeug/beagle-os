@@ -5,13 +5,13 @@
 
 ---
 
-## BeagleStream Protocol (Sunshine/Moonlight Fork)
+## BeagleStream Protocol (Beagle Stream Server/Beagle Stream Client Fork)
 
-- [x] **Phase A 8.0.x** — Fork `LizardByte/Sunshine` → `meinzeug/beagle-stream-server`
+- [x] **Phase A 8.0.x** — Fork `meinzeug/beagle-stream-server` → `meinzeug/beagle-stream-server`
   - [x] `src/beagle/BeagleBrokerClient.cpp` (Broker-getriebenes Pairing)
   - [x] `src/beagle/BeagleAuth.cpp` (Token-basiert)
-  - [x] `.deb`-Paket `beagle-stream-server` ersetzt `sunshine.deb` in VM-Images
-- [x] **Phase A 8.0.x** — Fork `moonlight-stream/moonlight-qt` → `meinzeug/beagle-stream-client`
+  - [x] `.deb`-Paket `beagle-stream-server` ersetzt `beagle-stream-server.deb` in VM-Images
+- [x] **Phase A 8.0.x** — Fork `meinzeug/beagle-stream-client` → `meinzeug/beagle-stream-client`
   - [x] `app/beagle/BeagleBroker.cpp` (Broker-Discovery)
   - [x] `app/beagle/BeagleVPN.cpp` (WireGuard-Integration)
   - [x] Beagle-Branding (Name, Icons, About)
@@ -23,13 +23,13 @@
 ## WireGuard Mesh
 
 - [ ] WireGuard-Mesh: Thin-Client + VM-Node, Ping ≤ raw + 0.01 ms
-- [ ] WireGuard-Stream: Moonlight-Stream durch Tunnel, Latenz ≤ direct + 0.1 ms
+- [ ] WireGuard-Stream: Beagle Stream Client-Stream durch Tunnel, Latenz ≤ direct + 0.1 ms
 
 ## Endpoint OS / Thin Client
 
 - [x] Thin Client Install / Enrollment / QR-Pairing live
 - [x] Streaming-Stream-Persistenz ueber Voll-Reboot (srv1 PASS)
-- [x] Sunshine Stream-Prep unattended (`ensure-vm-stream-ready.sh`) — VM100 PASS
+- [x] Beagle Stream Server Stream-Prep unattended (`ensure-vm-stream-ready.sh`) — VM100 PASS
 - [x] VM102 Provider-State unblocken + Rerun (externe Inventar-Diskrepanz) — auf `srv1` als echte zweite VM `beagle-102` neu aufgebaut, eigene Guest-IP `192.168.123.116` gesetzt, `ensure-vm-stream-ready.sh --vmid 102 --node beagle-0` mit `RC=0`.
 - [ ] Endpoint-Update-Architektur live in Hardware-Test-Matrix
 

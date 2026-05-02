@@ -5,7 +5,7 @@ GoAdvanced Plan 10 Schritt 2.
 Tests the full lifecycle:
 1. Control plane issues an enrollment token for a VM
 2. Thin-client endpoint presents the token → receives bearer + stream config
-3. Stream config contains Moonlight/Sunshine coordinates
+3. Stream config contains Beagle Stream Client/Beagle Stream Server coordinates
 4. Token is single-use: a second endpoint is rejected
 5. Same endpoint can re-enroll (idempotent)
 6. Expired token is rejected
@@ -130,11 +130,11 @@ def _make_enrollment_service(
             "update_enabled": True,
             "update_channel": "stable",
             "update_behavior": "prompt",
-            "sunshine_api_url": f"https://vm-{vm.vmid}.internal:47990",
+            "beagle_stream_server_api_url": f"https://vm-{vm.vmid}.internal:47990",
             "stream_host": f"vm-{vm.vmid}.internal",
-            "moonlight_local_host": f"192.168.100.{vm.vmid}",
-            "moonlight_port": "47984",
-            "moonlight_app": "Desktop",
+            "beagle_stream_client_local_host": f"192.168.100.{vm.vmid}",
+            "beagle_stream_client_port": "47984",
+            "beagle_stream_client_app": "Desktop",
             "egress_mode": "full",
             "egress_type": "wireguard",
             "egress_interface": "wg-beagle",
@@ -144,10 +144,10 @@ def _make_enrollment_service(
         key = (vm.node, vm.vmid)
         if key not in vm_secrets:
             vm_secrets[key] = {
-                "sunshine_username": "beagle",
-                "sunshine_password": f"pw-{vm.vmid}",
-                "sunshine_pin": "1234",
-                "sunshine_pinned_pubkey": "",
+                "beagle_stream_server_username": "beagle",
+                "beagle_stream_server_password": f"pw-{vm.vmid}",
+                "beagle_stream_server_pin": "1234",
+                "beagle_stream_server_pinned_pubkey": "",
                 "usb_tunnel_port": 2222,
                 "usb_tunnel_private_key": "MOCK_PRIVATE_KEY",
                 "thinclient_password": f"tc-pw-{vm.vmid}",
@@ -163,7 +163,7 @@ def _make_enrollment_service(
     def _mark_enrollment_token_used(token, payload, endpoint_id):
         enrollment_store.mark_used(token, payload, endpoint_id=endpoint_id)
 
-    def _resolve_vm_sunshine_pinned_pubkey(vm):
+    def _resolve_vm_beagle_stream_server_pinned_pubkey(vm):
         return ""
 
     def _save_vm_secret(node, vmid, secret):
@@ -189,7 +189,7 @@ def _make_enrollment_service(
         mark_enrollment_token_used=_mark_enrollment_token_used,
         public_manager_url="https://beagle.internal",
         public_server_name="srv1",
-        resolve_vm_sunshine_pinned_pubkey=_resolve_vm_sunshine_pinned_pubkey,
+        resolve_vm_beagle_stream_server_pinned_pubkey=_resolve_vm_beagle_stream_server_pinned_pubkey,
         save_vm_secret=_save_vm_secret,
         service_name="beagle-host",
         store_endpoint_token=_store_endpoint_token,
@@ -279,10 +279,10 @@ class TestEndpointEnrollment:
         })
 
         config = result["config"]
-        assert config["moonlight_host"] == "vm-201.internal"
-        assert config["sunshine_api_url"] == "https://vm-201.internal:47990"
-        assert config["sunshine_username"] == "beagle"
-        assert config["sunshine_password"] != ""
+        assert config["beagle_stream_client_host"] == "vm-201.internal"
+        assert config["beagle_stream_server_api_url"] == "https://vm-201.internal:47990"
+        assert config["beagle_stream_server_username"] == "beagle"
+        assert config["beagle_stream_server_password"] != ""
         assert config["beagle_manager_url"] == "https://beagle.internal"
 
     def test_enroll_result_contains_bearer_token(self, enrollment_store, endpoint_store):

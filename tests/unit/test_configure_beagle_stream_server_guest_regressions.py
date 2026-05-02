@@ -2,10 +2,10 @@ from pathlib import Path
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT_DIR / "scripts" / "configure-sunshine-guest.sh"
+SCRIPT = ROOT_DIR / "scripts" / "configure-beagle-stream-server-guest.sh"
 
 
-def test_configure_sunshine_guest_disables_display_idle_and_lockers() -> None:
+def test_configure_beagle_stream_server_guest_disables_display_idle_and_lockers() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 
     assert "/etc/X11/Xsession.d/19-beagle-lightdm-session-compat" in content
@@ -33,21 +33,21 @@ def test_configure_sunshine_guest_disables_display_idle_and_lockers() -> None:
     )
 
 
-def test_configure_sunshine_guest_prefers_beaglestream_server_package() -> None:
+def test_configure_beagle_stream_server_guest_prefers_beaglestream_server_package() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 
     assert 'STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"' in content
     assert 'write_stream_runtime_status() {' in content
     assert "BEAGLE_STREAM_SERVER_DEFAULT_URL" in content
     assert "beagle-stream-server-latest-ubuntu-24.04-amd64.deb" in content
-    assert "BeagleStream server package unavailable, falling back to upstream Sunshine package." in content
+    assert "BeagleStream server package unavailable" not in content
     assert 'stream_runtime_variant="beagle-stream-server"' in content
-    assert 'stream_runtime_variant="sunshine-fallback"' in content
+    assert 'stream_runtime_variant="beagle-stream-server-fallback"' not in content
     assert 'write_stream_runtime_status "\\$stream_runtime_variant" "\\$stream_runtime_package_url"' in content
-    assert 'curl -fsSLo "\\$tmpdir/sunshine.deb" "\\$BEAGLE_STREAM_SERVER_URL"' in content
+    assert 'curl -fsSLo "\\$tmpdir/beagle-stream-server.deb" "\\$BEAGLE_STREAM_SERVER_URL"' in content
 
 
-def test_configure_sunshine_guest_bootstraps_vscode_repository() -> None:
+def test_configure_beagle_stream_server_guest_bootstraps_vscode_repository() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 
     assert "install_visual_studio_code_repo()" in content
@@ -56,12 +56,12 @@ def test_configure_sunshine_guest_bootstraps_vscode_repository() -> None:
     assert "install_visual_studio_code_repo" in content
 
 
-def test_configure_sunshine_guest_detects_sunshine_exec_path_dynamically() -> None:
+def test_configure_beagle_stream_server_guest_detects_beagle_stream_server_exec_path_dynamically() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 
     # Binary path is detected at runtime — not hardcoded.
     # The script generates a guest script via heredoc, so $ is escaped as \$.
-    assert 'SUNSHINE_EXEC="\\$(command -v sunshine 2>/dev/null || echo /usr/bin/sunshine)"' in content
-    assert 'ExecStart=\\$SUNSHINE_EXEC' in content
-    assert 'ExecStart=/usr/bin/sunshine' not in content
-    assert 'ExecStart=/usr/local/bin/sunshine' not in content
+    assert 'BEAGLE_STREAM_SERVER_EXEC="\\$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"' in content
+    assert 'ExecStart=\\$BEAGLE_STREAM_SERVER_EXEC' in content
+    assert 'ExecStart=/usr/bin/beagle-stream-server\n' not in content
+    assert 'ExecStart=/usr/local/bin/beagle-stream-server\n' not in content

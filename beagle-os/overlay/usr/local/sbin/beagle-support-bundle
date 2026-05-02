@@ -26,7 +26,7 @@ secret_markers = (
     "secret",
     "private_key",
     "preshared_key",
-    "sunshine_pin",
+    "beagle_stream_server_pin",
     "thinclient_password",
     "guest_password",
     "authcookie",

@@ -10,7 +10,7 @@ Mehrere Skripte verwenden `curl -k` / `curl --insecure`, was TLS-Verifikation de
 
 - `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl:742`
 - `scripts/test-streaming-quality-smoke.py:196`
-- `scripts/configure-sunshine-guest.sh:715`
+- `scripts/configure-beagle-stream-server-guest.sh:715`
 - `server-installer/live-build/config/includes.chroot/usr/local/bin/beagle-live-server-bootstrap:122`
 
 Zusaetzlich fehlt der HSTS-Header in der Beagle-Proxy-Nginx-Konfiguration (`scripts/install-beagle-proxy.sh:578`).
@@ -39,9 +39,9 @@ Es gibt bereits den Helper `beagle_curl_tls_args` in `thin-client-assistant/runt
 
 - [x] **Schritt 3** — Skripte umstellen (in 4 PRs)
   - [x] PR 3a: `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl` → `beagle_curl_tls_args`; `-k` durch `--insecure` + tls-bypass-allowlist-Kommentar ersetzt; `callback_tls_args()` annotiert
-  - [x] PR 3b: `scripts/configure-sunshine-guest.sh` → loopback `is_api_ready` in healthcheck-Skript mit `# tls-bypass-allowlist: loopback health check against local Sunshine self-signed API` dokumentiert; kein freies `-k` ohne Begruendung
+  - [x] PR 3b: `scripts/configure-beagle-stream-server-guest.sh` → loopback `is_api_ready` in healthcheck-Skript mit `# tls-bypass-allowlist: loopback health check against local Beagle Stream Server self-signed API` dokumentiert; kein freies `-k` ohne Begruendung
   - [x] PR 3c: `server-installer/live-build/.../beagle-live-server-bootstrap` → `--insecure` im bootstrap-Pfad mit `# tls-bypass-allowlist: live-bootstrap — proxy not yet provisioned with valid cert at this stage` dokumentiert
-  - [x] PR 3d: `scripts/test-streaming-quality-smoke.py` → `-k` durch `--insecure` + tls-bypass-allowlist-Kommentar ersetzt (guest-exec loopback zu Sunshine)
+  - [x] PR 3d: `scripts/test-streaming-quality-smoke.py` → `-k` durch `--insecure` + tls-bypass-allowlist-Kommentar ersetzt (guest-exec loopback zu Beagle Stream Server)
 
 - [x] **Schritt 4** — Nginx HSTS + Security-Header
   - [x] `scripts/install-beagle-proxy.sh`: HSTS-Header implementiert (Zeilen 503-508 + 619-627):
@@ -59,7 +59,7 @@ Es gibt bereits den Helper `beagle_curl_tls_args` in `thin-client-assistant/runt
 
 - [x] **Schritt 6** — Verifikation auf srv1
   - [x] `curl -skI https://localhost/beagle-api/api/v1/health` auf srv1 zeigt: `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy` (2026-04-29 bestaetigt)
-  - [x] Streaming-Smoke-Test: `test-streaming-quality-smoke.py` nutzt `--insecure` mit tls-bypass-allowlist-Kommentar fuer loopback Sunshine-API; kein freies `-k`
+  - [x] Streaming-Smoke-Test: `test-streaming-quality-smoke.py` nutzt `--insecure` mit tls-bypass-allowlist-Kommentar fuer loopback Beagle Stream Server-API; kein freies `-k`
   - [x] `docs/refactor/05-progress.md` + `docs/goadvanced/02-tls-hardening.md` aktualisiert
 
 ## Abnahmekriterien

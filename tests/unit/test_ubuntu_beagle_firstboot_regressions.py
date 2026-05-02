@@ -24,7 +24,7 @@ def test_firstboot_repairs_dpkg_after_each_desktop_install_phase() -> None:
     assert "x11vnc\n  repair_interrupted_dpkg\n  if [[ -n \"$DESKTOP_PACKAGES\" ]]; then" in script
     assert "apt_retry apt-get install -y --fix-missing --no-install-recommends ${DESKTOP_PACKAGES}\n    repair_interrupted_dpkg" in script
     assert "apt_retry apt-get install -y --fix-missing --no-install-recommends ${SOFTWARE_PACKAGES}\n    repair_interrupted_dpkg" in script
-    assert "apt_retry apt-get install -y --no-install-recommends \"$TMPDIR_WORK/sunshine.deb\"\n  repair_interrupted_dpkg" in script
+    assert "apt_retry apt-get install -y --no-install-recommends \"$TMPDIR_WORK/beagle-stream-server.deb\"\n  repair_interrupted_dpkg" in script
 
 
 def test_firstboot_installs_guest_agent_before_heavy_desktop_payload() -> None:
@@ -41,12 +41,11 @@ def test_firstboot_prefers_beaglestream_server_package() -> None:
     assert 'STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"' in script
     assert 'write_stream_runtime_status() {' in script
     assert 'BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"' in script
-    assert 'curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$BEAGLE_STREAM_SERVER_URL"' in script
-    assert "BeagleStream server package unavailable, falling back to upstream Sunshine package." in script
+    assert 'curl -fsSLo "$TMPDIR_WORK/beagle-stream-server.deb" "$BEAGLE_STREAM_SERVER_URL"' in script
     assert 'stream_runtime_variant="beagle-stream-server"' in script
-    assert 'stream_runtime_variant="sunshine-fallback"' in script
+    assert 'stream_runtime_variant="beagle-stream-server-fallback"' not in script
     assert 'write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"' in script
-    assert 'curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"' in script
+    assert 'curl -fsSLo "$TMPDIR_WORK/beagle-stream-server.deb" "$BEAGLE_STREAM_SERVER_URL"' in script
 
 
 def test_firstboot_bootstraps_vscode_repository() -> None:
@@ -58,15 +57,15 @@ def test_firstboot_bootstraps_vscode_repository() -> None:
     assert "packages.microsoft.gpg" in script
 
 
-def test_firstboot_detects_sunshine_exec_path_dynamically() -> None:
+def test_firstboot_detects_beagle_stream_server_exec_path_dynamically() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 
     # After deb install, the binary path is detected at runtime — not hardcoded.
-    # beagle-stream-server installs to /usr/bin/sunshine; the fallback deb to /usr/local/bin/sunshine.
-    assert 'SUNSHINE_EXEC="$(command -v sunshine 2>/dev/null || echo /usr/bin/sunshine)"' in script
-    assert "ExecStart=${SUNSHINE_EXEC}" in script
-    assert "ExecStart=/usr/bin/sunshine" not in script
-    assert "ExecStart=/usr/local/bin/sunshine" not in script
+    # beagle-stream-server installs to /usr/bin/beagle-stream-server; the fallback deb to /usr/local/bin/beagle-stream-server.
+    assert 'BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"' in script
+    assert "ExecStart=${BEAGLE_STREAM_SERVER_EXEC}" in script
+    assert "ExecStart=/usr/bin/beagle-stream-server\n" not in script
+    assert "ExecStart=/usr/local/bin/beagle-stream-server\n" not in script
 
 
 def test_firstboot_disables_display_idle_and_lockers_for_streaming() -> None:

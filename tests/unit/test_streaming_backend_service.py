@@ -20,12 +20,12 @@ def test_windows_defaults_to_apollo() -> None:
     assert decision.reason == "windows_default"
 
 
-def test_linux_defaults_to_sunshine() -> None:
+def test_linux_defaults_to_beagle_stream_server() -> None:
     service = StreamingBackendService()
 
     decision = service.select_backend(guest_os="linux")
 
-    assert decision.backend == "sunshine"
+    assert decision.backend == "beagle-stream-server"
     assert decision.virtual_display_supported is True
     assert decision.reason == "linux_default"
 
@@ -35,7 +35,7 @@ def test_linux_rejects_apollo_preference_by_default() -> None:
 
     decision = service.select_backend(guest_os="linux", preferred_backend="apollo")
 
-    assert decision.backend == "sunshine"
+    assert decision.backend == "beagle-stream-server"
     assert decision.reason == "apollo_linux_not_supported"
 
 
@@ -50,9 +50,9 @@ def test_linux_can_allow_apollo_for_eval() -> None:
 
 
 def test_unknown_os_uses_fallback() -> None:
-    service = StreamingBackendService(fallback_backend="sunshine")
+    service = StreamingBackendService(fallback_backend="beagle-stream-server")
 
     decision = service.select_backend(guest_os="freebsd")
 
-    assert decision.backend == "sunshine"
+    assert decision.backend == "beagle-stream-server"
     assert decision.reason == "unknown_guest_os"

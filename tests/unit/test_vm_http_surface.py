@@ -34,9 +34,9 @@ def _surface(tmp_path: Path) -> VmHttpSurfaceService:
         ensure_vm_secret=lambda item: {
             "thinclient_password": "thin-secret",
             "guest_password": "guest-secret",
-            "sunshine_username": "sunshine",
-            "sunshine_password": "sun-secret",
-            "sunshine_pin": "1234",
+            "beagle_stream_server_username": "beagle-stream-server",
+            "beagle_stream_server_password": "sun-secret",
+            "beagle_stream_server_pin": "1234",
             "usb_tunnel_port": 2200,
         },
         find_vm=lambda vmid: vm if int(vmid) == vm.vmid else None,
