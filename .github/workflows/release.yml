@@ -12,8 +12,8 @@ permissions:
   contents: write
   # Required for Cosign keyless signing via OIDC
   id-token: write
-  # Required to push tags referencing commits that contain workflow file changes
-  workflows: write
+  # Required for maintenance actions around workflow-triggered release runs
+  actions: write
 
 jobs:
   detect-artifact-changes:
