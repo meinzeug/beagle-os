@@ -15,6 +15,10 @@ def test_configure_sunshine_guest_disables_display_idle_and_lockers() -> None:
     assert 'xset -dpms >/dev/null 2>&1 || true' in content
     assert 'xset s off >/dev/null 2>&1 || true' in content
     assert 'xset s noblank >/dev/null 2>&1 || true' in content
+    assert '/home/\\$GUEST_USER/.local' in content
+    assert '/home/\\$GUEST_USER/.local/state' in content
+    assert '/home/\\$GUEST_USER/.local/state/wireplumber' in content
+    assert 'chown -R "\\$GUEST_USER:\\$GUEST_USER" "/home/\\$GUEST_USER/.config" "/home/\\$GUEST_USER/.local"' in content
     assert (
         '/home/$GUEST_USER/.config/autostart/light-locker.desktop' in content
         or '/home/\\$GUEST_USER/.config/autostart/light-locker.desktop' in content

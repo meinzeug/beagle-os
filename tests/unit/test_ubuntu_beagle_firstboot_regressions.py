@@ -70,9 +70,13 @@ def test_firstboot_disables_display_idle_and_lockers_for_streaming() -> None:
     assert "xset -dpms >/dev/null 2>&1 || true" in script
     assert "xset s off >/dev/null 2>&1 || true" in script
     assert "xset s noblank >/dev/null 2>&1 || true" in script
+    assert '"/home/$GUEST_USER/.local"' in script
+    assert '"/home/$GUEST_USER/.local/state"' in script
+    assert '"/home/$GUEST_USER/.local/state/wireplumber"' in script
     assert '"/home/$GUEST_USER/.config/autostart/light-locker.desktop"' in script
     assert '"/home/$GUEST_USER/.config/autostart/xfce4-power-manager.desktop"' in script
     assert '"/home/$GUEST_USER/.config/autostart/xfce4-screensaver.desktop"' in script
+    assert 'chown -R "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config" "/home/$GUEST_USER/.local"' in script
     assert '"/home/$GUEST_USER/.xprofile"' in script
 
 

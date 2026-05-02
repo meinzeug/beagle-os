@@ -603,6 +603,9 @@ install -d -m 0700 -o "\$GUEST_USER" -g "\$GUEST_USER" \
   "/home/\$GUEST_USER/.config" \
   "/home/\$GUEST_USER/.config/autostart" \
   "/home/\$GUEST_USER/.config/sunshine" \
+  "/home/\$GUEST_USER/.local" \
+  "/home/\$GUEST_USER/.local/state" \
+  "/home/\$GUEST_USER/.local/state/wireplumber" \
   "/home/\$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml"
 install -d -m 0755 /etc/X11/xorg.conf.d
 GUEST_UID="\$(id -u "\$GUEST_USER")"
@@ -745,7 +748,7 @@ Hidden=true
 AUTOSTARTSCREENSAVER
 fi
 
-chown -R "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.config"
+chown -R "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.config" "/home/\$GUEST_USER/.local"
 chown "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.xprofile"
 configure_default_browser
 
