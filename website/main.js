@@ -456,7 +456,14 @@ function loadDetail(vmid) {
       '<div class="detail-panel" data-detail-panel="credentials"><div class="banner info">Wird geladen...</div></div>' +
       '<div class="detail-panel" data-detail-panel="config"><div class="banner info">Konfiguration wird geladen...</div></div>' +
       '<div class="detail-panel" data-detail-panel="bundles"><div class="banner info">Wird geladen...</div></div>';
-    setActiveDetailPanel(state.activeDetailPanel || 'summary');
+    const hashState = parseAppHash();
+    const activeDetailPanel = hashState.detail || state.activeDetailPanel || 'summary';
+    setActiveDetailPanel(activeDetailPanel);
+    if (activeDetailPanel === 'metrics') {
+      // Auto-refresh re-renders the stack; restart metrics rendering/stream for
+      // the fresh metrics panel DOM so the tab does not appear empty.
+      startMetricsIfNeeded(numericVmid);
+    }
   }
 
   syncHash();
