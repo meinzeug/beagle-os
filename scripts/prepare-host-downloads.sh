@@ -10,6 +10,8 @@ source "$ROOT_DIR/scripts/lib/artifact_lock.sh"
 beagle_artifact_lock_acquire "prepare-host-downloads"
 DIST_DIR="$ROOT_DIR/dist"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
+INSTALLED_COMMIT_FILE="$ROOT_DIR/.beagle-installed-commit"
+THIN_CLIENT_ARTIFACT_STAMP="$DIST_DIR/.thin-client-artifacts-source.json"
 CONFIG_DIR="${PVE_DCV_CONFIG_DIR:-/etc/beagle}"
 HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-/etc/beagle/host.env}"
 PROXY_ENV_FILE="${PVE_DCV_PROXY_ENV_FILE:-$CONFIG_DIR/beagle-proxy.env}"
@@ -91,6 +93,61 @@ ensure_dist_permissions() {
   find "$DIST_DIR" -type d -exec chmod 0755 {} +
   find "$DIST_DIR" -type f -exec chmod 0644 {} +
   find "$DIST_DIR" -type f -name '*.sh' -exec chmod 0755 {} +
+}
+
+resolve_source_revision() {
+  if [[ -f "$INSTALLED_COMMIT_FILE" ]]; then
+    tr -d ' \n\r' < "$INSTALLED_COMMIT_FILE"
+    return 0
+  fi
+  if command -v git >/dev/null 2>&1 && git -C "$ROOT_DIR" rev-parse HEAD >/dev/null 2>&1; then
+    git -C "$ROOT_DIR" rev-parse HEAD
+    return 0
+  fi
+  printf 'unknown\n'
+}
+
+artifact_stamp_matches_source() {
+  local expected_revision="$1"
+  [[ -f "$THIN_CLIENT_ARTIFACT_STAMP" ]] || return 1
+  python3 - "$THIN_CLIENT_ARTIFACT_STAMP" "$VERSION" "$expected_revision" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+expected_version = sys.argv[2]
+expected_revision = sys.argv[3]
+
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+
+if payload.get("version") != expected_version:
+    raise SystemExit(1)
+if payload.get("source_revision") != expected_revision:
+    raise SystemExit(1)
+PY
+}
+
+write_thin_client_artifact_stamp() {
+  local source_revision="$1"
+  python3 - "$THIN_CLIENT_ARTIFACT_STAMP" "$VERSION" "$source_revision" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = {
+    "version": sys.argv[2],
+    "source_revision": sys.argv[3],
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+}
+path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+  chmod 0644 "$THIN_CLIENT_ARTIFACT_STAMP" || true
 }
 
 copy_if_missing_or_older() {
@@ -213,6 +270,7 @@ recover_packaged_artifacts_from_existing_builds() {
 
 ensure_current_packaged_artifacts() {
   local needs_package=0
+  local source_revision=""
   local installer_build_iso="$DIST_DIR/pve-thin-client-installer/beagle-os-installer-amd64.iso"
   local installer_build_rootfs="$DIST_DIR/pve-thin-client-installer/live/filesystem.squashfs"
   local root_iso="$DIST_DIR/beagle-os-installer-amd64.iso"
@@ -235,6 +293,7 @@ ensure_current_packaged_artifacts() {
     "$ROOT_DIR/scripts/package.sh"
     "$ROOT_DIR/scripts/prepare-host-downloads.sh"
   )
+  source_revision="$(resolve_source_revision)"
 
   recover_packaged_artifacts_from_existing_builds
 
@@ -266,10 +325,16 @@ ensure_current_packaged_artifacts() {
     needs_package=1
   fi
 
+  if [[ "$needs_package" -eq 0 ]] && ! artifact_stamp_matches_source "$source_revision"; then
+    needs_package=1
+  fi
+
   if [[ "$needs_package" -eq 1 ]]; then
     BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS="$BEAGLE_HOST_BUILD_SERVER_RELEASE_ARTIFACTS" \
       "$ROOT_DIR/scripts/package.sh"
   fi
+
+  write_thin_client_artifact_stamp "$source_revision"
 }
 
 # Fast path: if bootstrap is missing but the ISO is already deployed, build it
