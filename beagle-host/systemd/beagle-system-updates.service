@@ -1,0 +1,18 @@
+[Unit]
+Description=Apply Beagle host system updates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=__INSTALL_DIR__/scripts/apply-system-updates.sh
+WorkingDirectory=__INSTALL_DIR__
+User=root
+Group=root
+NoNewPrivileges=no
+PrivateTmp=yes
+ProtectHome=yes
+ReadWritePaths=__INSTALL_DIR__ /var/lib/beagle /etc/apt /var/cache/apt /var/lib/apt /var/log/apt
+
+[Install]
+WantedBy=multi-user.target

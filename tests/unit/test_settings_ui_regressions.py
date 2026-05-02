@@ -17,12 +17,12 @@ def test_settings_ipam_requests_use_api_relative_paths() -> None:
     assert "request('/api/v1/network/ipam/zones')" not in js
 
 
-def test_settings_updates_panel_states_apt_policy_as_manual_only() -> None:
+def test_settings_updates_panel_mentions_background_system_update_automation() -> None:
     js = SETTINGS_JS.read_text(encoding="utf-8")
     html = INDEX_HTML.read_text(encoding="utf-8")
 
-    assert "APT-Updates bleiben absichtlich manuell" in js
-    assert "Installation erfolgt bewusst erst nach Klick." in js
+    assert "Systemupdates koennen sofort manuell gestartet werden" in js
+    assert "regelmaessig im Hintergrund installiert" in js
     assert 'id="upd-policy-message"' in html
 
 

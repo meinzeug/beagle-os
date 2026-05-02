@@ -591,11 +591,14 @@ export function loadSettingsUpdates(options) {
   }
   return request('/settings/updates', { __timeoutMs: 60000 }).then((data) => {
     const packageCount = Number(data.upgradable_count || 0);
+    const autoEnabled = Boolean(data && data.repo_auto_update && data.repo_auto_update.config && data.repo_auto_update.config.enabled);
     text('upd-count', String(packageCount));
     text('upd-source', String(data.source || 'apt').toUpperCase());
     const policyMessage = qs('upd-policy-message');
     if (policyMessage) {
-      policyMessage.textContent = 'APT-Updates bleiben absichtlich manuell. Die Automatik gilt nur fuer den GitHub-Repo-Update-Pfad.';
+      policyMessage.textContent = autoEnabled
+        ? 'Systemupdates koennen sofort manuell gestartet werden und werden bei aktiver Vollautomatik regelmaessig im Hintergrund installiert.'
+        : 'Systemupdates koennen hier sofort manuell gestartet werden. Mit Vollautomatik werden sie ausserdem regelmaessig im Hintergrund installiert.';
       policyMessage.className = 'settings-update-status-banner subtle';
     }
     const updateSummary = qs('upd-summary-message');
@@ -604,10 +607,14 @@ export function loadSettingsUpdates(options) {
         updateSummary.textContent = 'Der Server ist aktuell. Momentan sind keine neuen Betriebssystem-Updates noetig.';
         updateSummary.className = 'banner info';
       } else if (packageCount === 1) {
-        updateSummary.textContent = 'Es ist 1 Betriebssystem-Update verfuegbar. Installation erfolgt bewusst erst nach Klick.';
+        updateSummary.textContent = autoEnabled
+          ? 'Es ist 1 Betriebssystem-Update verfuegbar. Die Vollautomatik installiert es im Hintergrund; per Klick kannst du es sofort anstossen.'
+          : 'Es ist 1 Betriebssystem-Update verfuegbar. Per Klick kannst du die Installation sofort starten.';
         updateSummary.className = 'banner warn';
       } else {
-        updateSummary.textContent = 'Es sind ' + String(packageCount) + ' Betriebssystem-Updates verfuegbar. Installation erfolgt bewusst erst nach Klick.';
+        updateSummary.textContent = autoEnabled
+          ? 'Es sind ' + String(packageCount) + ' Betriebssystem-Updates verfuegbar. Die Vollautomatik installiert sie im Hintergrund; per Klick kannst du sofort starten.'
+          : 'Es sind ' + String(packageCount) + ' Betriebssystem-Updates verfuegbar. Per Klick kannst du die Installation sofort starten.';
         updateSummary.className = 'banner warn';
       }
     }
@@ -1022,7 +1029,7 @@ export function runArtifactWatchdog() {
 }
 
 export function enableFullAutoMaintenance() {
-  settingsHooks.setBanner('Vollautomatik wird aktiviert...', 'info');
+  settingsHooks.setBanner('Vollautomatik wird aktiviert. Repo-, Artefakt- und Systemupdates werden vorbereitet...', 'info');
   return request('/settings/maintenance/auto-enable', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1031,7 +1038,7 @@ export function enableFullAutoMaintenance() {
   })
     .then(() => Promise.all([loadSettingsUpdates(), loadArtifactStatus({ silent: true })]))
     .then(() => {
-      settingsHooks.setBanner('Vollautomatik aktiv: Repo-Checks und Artefakt-Reparatur laufen jetzt automatisch.', 'info');
+      settingsHooks.setBanner('Vollautomatik aktiv: Repo-Checks, Artefakt-Reparatur und Systemupdates laufen jetzt automatisch.', 'info');
     })
     .catch((error) => {
       settingsHooks.setBanner('Vollautomatik konnte nicht vollstaendig aktiviert werden: ' + error.message, 'warn');
@@ -1104,7 +1111,7 @@ export function applyUpdates() {
   if (!window.confirm('Alle verfuegbaren Updates jetzt installieren?')) {
     return;
   }
-  settingsHooks.setBanner('Updates werden installiert...', 'info');
+  settingsHooks.setBanner('Systemupdates werden gestartet...', 'info');
   request('/settings/updates/apply', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1112,7 +1119,7 @@ export function applyUpdates() {
     __timeoutMs: 600000
   }).then((data) => {
     if (data.ok) {
-      settingsHooks.setBanner('Updates erfolgreich installiert.', 'info');
+      settingsHooks.setBanner('Systemupdate-Installation wurde gestartet. Der Status aktualisiert sich automatisch.', 'info');
       loadSettingsUpdates();
     } else {
       settingsHooks.setBanner('Update fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');

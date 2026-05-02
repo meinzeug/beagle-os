@@ -39,6 +39,8 @@ _MANAGED_SERVICES = [
     "beagle-artifacts-watchdog.timer",
     "beagle-repo-auto-update",
     "beagle-repo-auto-update.timer",
+    "beagle-system-updates",
+    "beagle-system-updates.timer",
     "nginx",
 ]
 
@@ -85,6 +87,10 @@ _ARTIFACT_WATCHDOG_RULE_FILE = Path("/etc/polkit-1/rules.d/49-beagle-artifacts-w
 _REPO_AUTO_UPDATE_STATUS_FILE = Path("/var/lib/beagle/repo-auto-update-status.json")
 _REPO_AUTO_UPDATE_FORCE_FILE = Path("/var/lib/beagle/repo-auto-update-force")
 _REPO_AUTO_UPDATE_RULE_FILE = Path("/etc/polkit-1/rules.d/49-beagle-repo-auto-update.rules")
+_SYSTEM_UPDATES_STATUS_FILE = Path("/var/lib/beagle/system-updates-status.json")
+_SYSTEM_UPDATES_RULE_FILE = Path("/etc/polkit-1/rules.d/49-beagle-system-updates.rules")
+_SYSTEM_UPDATES_SERVICE_NAME = "beagle-system-updates.service"
+_SYSTEM_UPDATES_TIMER_NAME = "beagle-system-updates.timer"
 _DEFAULT_REPO_AUTO_UPDATE_URL = "https://github.com/meinzeug/beagle-os.git"
 _DEFAULT_REPO_AUTO_UPDATE_BRANCH = "main"
 _DEFAULT_REPO_AUTO_UPDATE_ENABLED = True
@@ -637,6 +643,7 @@ class ServerSettingsService:
             "upgradable_count": len(upgradable),
             "upgradable": upgradable[:100],
             "source": "apt",
+            "system_updates": self.get_system_updates_status(),
             "repo_auto_update": self.get_repo_auto_update(),
         }
 
@@ -679,6 +686,7 @@ class ServerSettingsService:
             signature = json.dumps(
                 {
                     "repo": payload.get("repo_auto_update", {}),
+                    "system_updates": payload.get("system_updates", {}),
                     "artifact_refresh": (payload.get("artifacts", {}) or {}).get("refresh_status", {}),
                     "artifact_missing": (payload.get("artifacts", {}) or {}).get("missing", []),
                     "artifact_services": (payload.get("artifacts", {}) or {}).get("services", {}),
@@ -735,6 +743,30 @@ class ServerSettingsService:
             "start_capable": _can_start_systemd_unit("beagle-repo-auto-update.service", rule_file=_REPO_AUTO_UPDATE_RULE_FILE),
         }
 
+    def get_system_updates_status(self) -> dict[str, Any]:
+        status: dict[str, Any] = {}
+        try:
+            if _SYSTEM_UPDATES_STATUS_FILE.is_file():
+                loaded = json.loads(_SYSTEM_UPDATES_STATUS_FILE.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    status.update(loaded)
+        except (OSError, json.JSONDecodeError):
+            status = {"status": "unknown", "error": "unreadable"}
+        settings = self._load_settings()
+        auto_enabled = bool(settings.get("repo_auto_update_enabled", _DEFAULT_REPO_AUTO_UPDATE_ENABLED))
+        status.setdefault("status", "idle")
+        status.setdefault("message", "Noch keine Systemupdate-Ausfuehrung vorhanden.")
+        status.setdefault("reboot_required", Path("/run/reboot-required").exists())
+        return {
+            "auto_enabled": auto_enabled,
+            "status": status,
+            "services": {
+                _SYSTEM_UPDATES_SERVICE_NAME: _run_cmd(["systemctl", "is-active", _SYSTEM_UPDATES_SERVICE_NAME], fallback="unknown") or "unknown",
+                _SYSTEM_UPDATES_TIMER_NAME: _run_cmd(["systemctl", "is-active", _SYSTEM_UPDATES_TIMER_NAME], fallback="unknown") or "unknown",
+            },
+            "start_capable": _can_start_systemd_unit(_SYSTEM_UPDATES_SERVICE_NAME, rule_file=_SYSTEM_UPDATES_RULE_FILE),
+        }
+
     def update_repo_auto_update(self, payload: dict[str, Any]) -> dict[str, Any]:
         settings = self._load_settings()
         errors: list[str] = []
@@ -784,6 +816,13 @@ class ServerSettingsService:
                     "errors": [f"repo-auto-update timer update failed: {(timer_result.stderr or timer_result.stdout).strip()[:240]}"],
                     "repo_auto_update": self.get_repo_auto_update(),
                 }
+            system_updates_result = self._set_system_updates_timer(requested_enabled)
+            if system_updates_result.returncode != 0:
+                return {
+                    "ok": False,
+                    "errors": [f"system-updates timer update failed: {(system_updates_result.stderr or system_updates_result.stdout).strip()[:240]}"],
+                    "repo_auto_update": self.get_repo_auto_update(),
+                }
         return {"ok": True, "repo_auto_update": self.get_repo_auto_update()}
 
     def _set_repo_auto_update_timer(self, enabled: bool) -> subprocess.CompletedProcess[str]:
@@ -792,6 +831,16 @@ class ServerSettingsService:
         stop_service = _run_systemctl_privileged(["stop", "beagle-repo-auto-update.service"], timeout=30)
         timer = _run_systemctl_privileged(["disable", "--now", "beagle-repo-auto-update.timer"], timeout=30)
         _run_systemctl_privileged(["reset-failed", "beagle-repo-auto-update.service"], timeout=30)
+        if timer.returncode != 0:
+            return timer
+        return stop_service if stop_service.returncode != 0 else timer
+
+    def _set_system_updates_timer(self, enabled: bool) -> subprocess.CompletedProcess[str]:
+        if enabled:
+            return _run_systemctl_privileged(["enable", "--now", _SYSTEM_UPDATES_TIMER_NAME], timeout=30)
+        stop_service = _run_systemctl_privileged(["stop", _SYSTEM_UPDATES_SERVICE_NAME], timeout=30)
+        timer = _run_systemctl_privileged(["disable", "--now", _SYSTEM_UPDATES_TIMER_NAME], timeout=30)
+        _run_systemctl_privileged(["reset-failed", _SYSTEM_UPDATES_SERVICE_NAME], timeout=30)
         if timer.returncode != 0:
             return timer
         return stop_service if stop_service.returncode != 0 else timer
@@ -1269,16 +1318,19 @@ class ServerSettingsService:
 
         # Kick both automations once immediately to verify runtime paths.
         repo_run = self.run_repo_auto_update()
+        system_updates_run = self.apply_updates()
         watchdog_run = self.run_artifact_watchdog()
 
         return {
-            "ok": bool(repo_run.get("ok") and watchdog_run.get("ok")),
+            "ok": bool(repo_run.get("ok") and system_updates_run.get("ok") and watchdog_run.get("ok")),
             "maintenance": {
                 "auto_enabled": True,
                 "repo_auto_update": self.get_repo_auto_update(),
+                "system_updates": self.get_system_updates_status(),
                 "artifact_watchdog": self.get_artifact_watchdog(),
                 "trigger": {
                     "repo_check": repo_run,
+                    "system_updates": system_updates_run,
                     "watchdog_check": watchdog_run,
                 },
             },
@@ -1287,16 +1339,19 @@ class ServerSettingsService:
     def run_maintenance_now(self) -> dict[str, Any]:
         """Trigger a full maintenance cycle (repo check + watchdog + artifact refresh)."""
         repo_run = self.run_repo_auto_update()
+        system_updates_run = self.apply_updates()
         watchdog_run = self.run_artifact_watchdog()
         refresh_run = self.start_artifact_refresh()
 
         return {
-            "ok": bool(repo_run.get("ok") and watchdog_run.get("ok") and refresh_run.get("ok")),
+            "ok": bool(repo_run.get("ok") and system_updates_run.get("ok") and watchdog_run.get("ok") and refresh_run.get("ok")),
             "maintenance": {
                 "repo_check": repo_run,
+                "system_updates": system_updates_run,
                 "watchdog_check": watchdog_run,
                 "artifact_refresh": refresh_run,
                 "repo_auto_update": self.get_repo_auto_update(),
+                "system_updates_status": self.get_system_updates_status(),
                 "artifact_watchdog": self.get_artifact_watchdog(),
             },
         }
@@ -1381,14 +1436,14 @@ class ServerSettingsService:
             return
 
     def apply_updates(self) -> dict[str, Any]:
-        r = subprocess.run(
-            ["apt-get", "upgrade", "-y", "-qq"],
-            capture_output=True, text=True, timeout=600,
-        )
+        r = _run_systemctl_privileged(["--no-block", "start", _SYSTEM_UPDATES_SERVICE_NAME], timeout=30)
         if r.returncode != 0:
-            return {"ok": False, "error": f"upgrade failed: {r.stderr.strip()[:500]}"}
-
-        return {"ok": True, "message": "Updates applied successfully", "output": (r.stdout or "").strip()[-1000:]}
+            return {"ok": False, "error": f"system update start failed: {(r.stderr or r.stdout).strip()[:300]}"}
+        return {
+            "ok": True,
+            "message": "Systemupdates wurden im Hintergrund gestartet.",
+            "system_updates": self.get_system_updates_status(),
+        }
 
     # ------------------------------------------------------------------
     # Backup

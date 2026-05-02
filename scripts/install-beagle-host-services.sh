@@ -13,6 +13,8 @@ WATCHDOG_SERVICE_NAME="beagle-artifacts-watchdog.service"
 WATCHDOG_TIMER_NAME="beagle-artifacts-watchdog.timer"
 REPO_AUTO_UPDATE_SERVICE_NAME="beagle-repo-auto-update.service"
 REPO_AUTO_UPDATE_TIMER_NAME="beagle-repo-auto-update.timer"
+SYSTEM_UPDATES_SERVICE_NAME="beagle-system-updates.service"
+SYSTEM_UPDATES_TIMER_NAME="beagle-system-updates.timer"
 UI_REAPPLY_SERVICE="beagle-ui-reapply.service"
 UI_REAPPLY_PATH="beagle-ui-reapply.path"
 BEAGLE_CONTROL_SERVICE="beagle-control-plane.service"
@@ -25,6 +27,7 @@ POLKIT_RULES_DIR="/etc/polkit-1/rules.d"
 ARTIFACT_POLKIT_RULE_NAME="49-beagle-artifacts-refresh.rules"
 ARTIFACT_WATCHDOG_POLKIT_RULE_NAME="49-beagle-artifacts-watchdog.rules"
 REPO_AUTO_UPDATE_POLKIT_RULE_NAME="49-beagle-repo-auto-update.rules"
+SYSTEM_UPDATES_POLKIT_RULE_NAME="49-beagle-system-updates.rules"
 BEAGLE_NOVNC_PROXY_SERVICE="beagle-novnc-proxy.service"
 BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
 IDENTITY_PROVIDER_REGISTRY_FILE="${BEAGLE_IDENTITY_PROVIDER_REGISTRY_FILE:-$CONFIG_DIR/identity-providers.json}"
@@ -496,6 +499,8 @@ install_unit "$ROOT_DIR/beagle-host/systemd/$WATCHDOG_SERVICE_NAME" "$SYSTEMD_DI
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$WATCHDOG_TIMER_NAME" "$SYSTEMD_DIR/$WATCHDOG_TIMER_NAME"
 install_unit "$ROOT_DIR/beagle-host/systemd/$REPO_AUTO_UPDATE_SERVICE_NAME" "$SYSTEMD_DIR/$REPO_AUTO_UPDATE_SERVICE_NAME"
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$REPO_AUTO_UPDATE_TIMER_NAME" "$SYSTEMD_DIR/$REPO_AUTO_UPDATE_TIMER_NAME"
+install_unit "$ROOT_DIR/beagle-host/systemd/$SYSTEM_UPDATES_SERVICE_NAME" "$SYSTEMD_DIR/$SYSTEM_UPDATES_SERVICE_NAME"
+install -m 0644 "$ROOT_DIR/beagle-host/systemd/$SYSTEM_UPDATES_TIMER_NAME" "$SYSTEMD_DIR/$SYSTEM_UPDATES_TIMER_NAME"
 if has_ui_reapply_units; then
   install_unit "$ROOT_DIR/beagle-host/systemd/$UI_REAPPLY_SERVICE" "$SYSTEMD_DIR/$UI_REAPPLY_SERVICE"
   install -m 0644 "$ROOT_DIR/beagle-host/systemd/$UI_REAPPLY_PATH" "$SYSTEMD_DIR/$UI_REAPPLY_PATH"
@@ -909,12 +914,16 @@ cat > /etc/sudoers.d/beagle-artifacts-refresh <<'SUDOERS'
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-refresh.service, /bin/systemctl show -p Id beagle-artifacts-refresh.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-watchdog.service, /bin/systemctl show -p Id beagle-artifacts-watchdog.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-repo-auto-update.service, /bin/systemctl show -p Id beagle-repo-auto-update.service
+beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-system-updates.service, /bin/systemctl show -p Id beagle-system-updates.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl enable --now beagle-repo-auto-update.timer, /bin/systemctl disable --now beagle-repo-auto-update.timer, /bin/systemctl stop beagle-repo-auto-update.service, /bin/systemctl reset-failed beagle-repo-auto-update.service
+beagle-manager ALL=(root) NOPASSWD: /bin/systemctl enable --now beagle-system-updates.timer, /bin/systemctl disable --now beagle-system-updates.timer, /bin/systemctl stop beagle-system-updates.service, /bin/systemctl reset-failed beagle-system-updates.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl enable --now beagle-artifacts-watchdog.timer, /bin/systemctl disable --now beagle-artifacts-watchdog.timer, /bin/systemctl stop beagle-artifacts-watchdog.service, /bin/systemctl reset-failed beagle-artifacts-watchdog.service
 beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-artifacts-refresh.service, /usr/bin/systemctl show -p Id beagle-artifacts-refresh.service
 beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-artifacts-watchdog.service, /usr/bin/systemctl show -p Id beagle-artifacts-watchdog.service
 beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-repo-auto-update.service, /usr/bin/systemctl show -p Id beagle-repo-auto-update.service
+beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-system-updates.service, /usr/bin/systemctl show -p Id beagle-system-updates.service
 beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl enable --now beagle-repo-auto-update.timer, /usr/bin/systemctl disable --now beagle-repo-auto-update.timer, /usr/bin/systemctl stop beagle-repo-auto-update.service, /usr/bin/systemctl reset-failed beagle-repo-auto-update.service
+beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl enable --now beagle-system-updates.timer, /usr/bin/systemctl disable --now beagle-system-updates.timer, /usr/bin/systemctl stop beagle-system-updates.service, /usr/bin/systemctl reset-failed beagle-system-updates.service
 beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl enable --now beagle-artifacts-watchdog.timer, /usr/bin/systemctl disable --now beagle-artifacts-watchdog.timer, /usr/bin/systemctl stop beagle-artifacts-watchdog.service, /usr/bin/systemctl reset-failed beagle-artifacts-watchdog.service
 beagle-manager ALL=(root) NOPASSWD: /opt/beagle/scripts/apply-beagle-firewall.sh --enable, /opt/beagle/scripts/apply-beagle-firewall.sh --disable, /opt/beagle/scripts/apply-beagle-firewall.sh --status, /opt/beagle/scripts/apply-beagle-firewall.sh --add-extra-rule *, /opt/beagle/scripts/apply-beagle-firewall.sh --delete-extra-rule *
 SUDOERS
@@ -924,6 +933,7 @@ install -d -m 0755 "$POLKIT_RULES_DIR"
 install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-artifacts-refresh.rules" "$POLKIT_RULES_DIR/$ARTIFACT_POLKIT_RULE_NAME"
 install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-artifacts-watchdog.rules" "$POLKIT_RULES_DIR/$ARTIFACT_WATCHDOG_POLKIT_RULE_NAME"
 install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-repo-auto-update.rules" "$POLKIT_RULES_DIR/$REPO_AUTO_UPDATE_POLKIT_RULE_NAME"
+install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-system-updates.rules" "$POLKIT_RULES_DIR/$SYSTEM_UPDATES_POLKIT_RULE_NAME"
 if [[ -f /var/lib/beagle/refresh.status.json ]]; then
   chgrp beagle-manager /var/lib/beagle/refresh.status.json 2>/dev/null || true
   chmod 0640 /var/lib/beagle/refresh.status.json 2>/dev/null || true
@@ -935,6 +945,10 @@ fi
 if [[ -f /var/lib/beagle/repo-auto-update-status.json ]]; then
   chgrp beagle-manager /var/lib/beagle/repo-auto-update-status.json 2>/dev/null || true
   chmod 0640 /var/lib/beagle/repo-auto-update-status.json 2>/dev/null || true
+fi
+if [[ -f /var/lib/beagle/system-updates-status.json ]]; then
+  chgrp beagle-manager /var/lib/beagle/system-updates-status.json 2>/dev/null || true
+  chmod 0640 /var/lib/beagle/system-updates-status.json 2>/dev/null || true
 fi
 
 systemctl enable "$TIMER_NAME" 2>/dev/null || true
@@ -972,9 +986,12 @@ else
 fi
 if [[ "$repo_auto_update_enabled" == "1" ]]; then
   systemctl enable "$REPO_AUTO_UPDATE_TIMER_NAME" 2>/dev/null || true
+  systemctl enable "$SYSTEM_UPDATES_TIMER_NAME" 2>/dev/null || true
 else
   systemctl disable "$REPO_AUTO_UPDATE_TIMER_NAME" 2>/dev/null || true
   systemctl stop "$REPO_AUTO_UPDATE_TIMER_NAME" "$REPO_AUTO_UPDATE_SERVICE_NAME" 2>/dev/null || true
+  systemctl disable "$SYSTEM_UPDATES_TIMER_NAME" 2>/dev/null || true
+  systemctl stop "$SYSTEM_UPDATES_TIMER_NAME" "$SYSTEM_UPDATES_SERVICE_NAME" 2>/dev/null || true
 fi
 if has_ui_reapply_units; then
   systemctl enable "$UI_REAPPLY_SERVICE" 2>/dev/null || true
@@ -1000,7 +1017,7 @@ if [[ "$artifact_watchdog_enabled" == "1" ]]; then
   start_units+=("$WATCHDOG_TIMER_NAME")
 fi
 if [[ "$repo_auto_update_enabled" == "1" ]]; then
-  start_units+=("$REPO_AUTO_UPDATE_TIMER_NAME")
+  start_units+=("$REPO_AUTO_UPDATE_TIMER_NAME" "$SYSTEM_UPDATES_TIMER_NAME")
 fi
 if has_ui_reapply_units; then
   start_units+=("$UI_REAPPLY_PATH")
@@ -1027,4 +1044,4 @@ fi
 
 write_installed_commit_stamp
 
-echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $WATCHDOG_SERVICE_NAME, $WATCHDOG_TIMER_NAME, $REPO_AUTO_UPDATE_SERVICE_NAME, $REPO_AUTO_UPDATE_TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_CLUSTER_AUTO_JOIN_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER, $BEAGLE_NOVNC_PROXY_SERVICE"
+echo "Installed host services: $SERVICE_NAME, $TIMER_NAME, $WATCHDOG_SERVICE_NAME, $WATCHDOG_TIMER_NAME, $REPO_AUTO_UPDATE_SERVICE_NAME, $REPO_AUTO_UPDATE_TIMER_NAME, $SYSTEM_UPDATES_SERVICE_NAME, $SYSTEM_UPDATES_TIMER_NAME, $UI_REAPPLY_SERVICE, $UI_REAPPLY_PATH, $BEAGLE_CONTROL_SERVICE, $BEAGLE_CLUSTER_AUTO_JOIN_SERVICE, $BEAGLE_PUBLIC_STREAM_SERVICE, $BEAGLE_PUBLIC_STREAM_TIMER, $BEAGLE_NOVNC_PROXY_SERVICE"
