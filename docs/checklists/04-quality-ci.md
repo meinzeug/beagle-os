@@ -58,9 +58,9 @@
 - [x] i18n-Modul `website/ui/i18n.js` (de/en, 68 Keys, 21 Tests gruen)
 - [x] `website/ui/error-handler.js` standardisiert (showError/Warning/Success/Info, handleFetchError)
 - [x] 5 `alert()`/`console.error()`-Calls migriert
-- [ ] Migration aller hard-coded Strings in UI-Modulen auf `t()` — begonnen mit aktuellem Modulzuschnitt `auth.js` (Validation/Auth-Lock/Provider-Fallbacks); historische Startmodule `auth_admin.js`/`vms_panel.js` existieren im aktuellen `website/ui/` nicht mehr
+- [ ] Migration aller hard-coded Strings in UI-Modulen auf `t()` — erweitert auf `auth.js`, `sessions.js`, `activity.js` und `audit.js` (Validation/Auth-Lock, Session-/Audit-Empty+Error-States, Auto-Refresh/Fleet-Alert); Restmodule weiter offen
 - [x] axe-core CLI gegen `https://srv1.beagle-os.com` — 0 Critical/Serious (`npx -y @axe-core/cli ... --tags wcag2a,wcag2aa`: 0 violations, 2026-04-30)
 - [ ] Lighthouse Mobile-Score > 90, Accessibility > 90
 - [ ] Mobile-Responsive (Breakpoints 360/600/900/1200, Touch-Targets >= 44px)
 - [x] Dark-Mode persistiert + `prefers-color-scheme`-Default — `website/ui/theme.js` liest `prefers-color-scheme` wenn kein expliziter `localStorage`-Eintrag vorhanden (2026-04-30)
-- [ ] Skeleton-Loader + Empty-States + Error-States mit Retry-Button
+- [x] Skeleton-Loader + Empty-States + Error-States mit Retry-Button — Sessions- und Audit-Panel zeigen jetzt Loading-/Empty-/Error-States inkl. Retry-Button (`data-sessions-retry`, `data-audit-retry`) und Event-Wiring in `events.js` (2026-05-02)

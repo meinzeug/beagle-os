@@ -436,6 +436,19 @@ export function bindEvents() {
       eventHooks.loadAuditReport();
     });
   }
+  if (qs('audit-table-body')) {
+    qs('audit-table-body').addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      if (!target.closest('[data-audit-retry]')) {
+        return;
+      }
+      markSessionActivity();
+      eventHooks.loadAuditReport();
+    });
+  }
   if (qs('audit-reset')) {
     qs('audit-reset').addEventListener('click', () => {
       eventHooks.resetAuditFilters();

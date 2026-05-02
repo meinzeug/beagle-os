@@ -1,3 +1,13 @@
+## Update (2026-05-02, UX-State-Slice Sessions/Audit + i18n-Fortschritt)
+
+**Scope**: Direkt codierbaren UX-/i18n-Restpfad aus `docs/checklists/04-quality-ci.md` weiter schließen, ohne Hardware-/Runtime-Gates künstlich als erledigt zu markieren.
+
+- `website/ui/sessions.js` hat jetzt echte Loading-/Empty-/Error-Zustände mit Retry-Button (`data-sessions-retry`) und konsistenten Banner-Meldungen.
+- `website/ui/audit.js` hat jetzt echte Loading-/Empty-/Error-Zustände mit Retry-Button (`data-audit-retry`); `events.js` triggert den erneuten Report-Load per Delegation.
+- `website/ui/activity.js` wurde auf `t()` erweitert (Auto-Refresh-Status, Fleet-Health-Alert, Empty-State).
+- Neue Locale-Keys in `website/locales/de.json` und `website/locales/en.json` für Sessions/Audit/Activity eingeführt.
+- Validierung: `node --check` für `sessions.js`, `activity.js`, `audit.js`, `events.js`; JSON-Parse beider Locale-Dateien; fokussierte Backend-Regressions (`30 passed`).
+
 ## Update (2026-05-02, Docs-Triage gegen Repo, GitHub und Runtime)
 
 **Scope**: Offene Doku-Checkboxen in den aktiven Checklisten und im historischen `08-todo-global.md` gegen aktuellen Repo-/Runtime-Stand pruefen und nur belegte Punkte abhaken.

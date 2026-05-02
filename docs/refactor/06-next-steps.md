@@ -1,5 +1,17 @@
 # Next Steps
 
+## Stand (2026-05-02, UX-State-Slice Sessions/Audit real umgesetzt)
+
+**Zuletzt erledigt**:
+- Sessions-/Audit-Panels haben jetzt reproduzierbare Loading-/Empty-/Error-Zustände mit Retry-Buttons und Event-Wiring im Frontend.
+- i18n-Migration wurde auf `sessions.js`, `activity.js` und `audit.js` ausgeweitet; neue Keys liegen in `website/locales/de.json` und `website/locales/en.json`.
+
+**Naechste konkrete Schritte**:
+
+1. i18n-Restpfad weiterziehen: naechste Module mit vielen Hardcoded-Strings (`virtualization.js`, `cluster.js`, `policies.js`) auf `t()` umstellen.
+2. UX-Restpfad nachziehen: vergleichbare Loading/Error/Retry-States fuer weitere datenlastige Panels (Virtualization, Cluster, Policies) standardisieren.
+3. Danach die nicht lokal codierbaren R1/R3-Hardware-Gates weiter auf `srv1`/`srv2` abarbeiten (Clean-Install, GPU-Live-Validation, Stream-E2E).
+
 ## Stand (2026-05-02, Docs-Triage und Checklisten gegen Repo/Runtime abgeglichen)
 
 **Zuletzt erledigt**:

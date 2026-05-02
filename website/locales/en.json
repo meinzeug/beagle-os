@@ -54,6 +54,24 @@
   "auto_refresh.on": "Auto-refresh on",
   "auto_refresh.off": "Auto-refresh off",
 
+  "activity.none_logged": "No actions logged yet.",
+  "activity.auto_refresh_enabled": "Auto-refresh enabled again.",
+  "activity.auto_refresh_paused": "Auto-refresh paused.",
+  "activity.fleet_unhealthy": "⚠ {count} endpoint(s) with issues: {names}{more}",
+
+  "sessions.telemetry_none": "no telemetry",
+  "sessions.none_selected": "No session selected.",
+  "sessions.count_active": "{count} active",
+  "sessions.loading": "Loading sessions ...",
+  "sessions.refreshed": "Sessions refreshed.",
+  "sessions.load_failed": "Failed to load sessions: {error}",
+  "sessions.load_failed_inline": "Failed to load sessions ({error}).",
+
+  "audit.no_extra_filters": "No extra filters",
+  "audit.loading": "Loading audit report ...",
+  "audit.no_events_current_filter": "No audit events for the current filter.",
+  "audit.load_failed_inline": "Failed to load audit report ({error}).",
+
   "updates.active_up_to_date": "Automatic Beagle updates are active. This server is already up to date.",
   "updates.active_update_pending": "A new Beagle update is available or being prepared.",
   "updates.active_needs_attention": "The automatic GitHub check needs attention. Details are below in the status.",

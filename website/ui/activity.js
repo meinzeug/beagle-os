@@ -3,6 +3,7 @@ import {
   state
 } from './state.js';
 import { chip, escapeHtml, formatDate, qs } from './dom.js';
+import { t } from './i18n.js';
 
 let dashboardPollInterval = null;
 
@@ -42,7 +43,7 @@ export function renderActivityLog() {
     return;
   }
   if (!activityLog.length) {
-    body.innerHTML = '<tr><td colspan="4" class="empty-cell">Noch keine Aktionen protokolliert.</td></tr>';
+    body.innerHTML = '<tr><td colspan="4" class="empty-cell">' + escapeHtml(t('activity.none_logged')) + '</td></tr>';
     return;
   }
   body.innerHTML = activityLog.slice(0, 20).map((entry) => {
@@ -71,8 +72,11 @@ export function updateFleetHealthAlert() {
     const names = unhealthy.slice(0, 5).map((ep) => {
       return ep.hostname || ep.endpoint_id || 'endpoint';
     });
-    alertNode.textContent = '\u26a0 ' + String(unhealthy.length) + ' Endpoint(s) mit Problemen: ' +
-      names.join(', ') + (unhealthy.length > 5 ? ' \u2026' : '');
+    alertNode.textContent = t('activity.fleet_unhealthy', {
+      count: unhealthy.length,
+      names: names.join(', '),
+      more: unhealthy.length > 5 ? ' ...' : ''
+    });
   } else {
     alertNode.classList.add('hidden');
   }
@@ -108,10 +112,10 @@ export function toggleAutoRefresh() {
   state.autoRefresh = !state.autoRefresh;
   if (state.autoRefresh) {
     startDashboardPoll();
-    activityHooks.setBanner('Auto-Aktualisierung wieder aktiv.', 'info');
+    activityHooks.setBanner(t('activity.auto_refresh_enabled'), 'info');
   } else {
     stopDashboardPoll();
-    activityHooks.setBanner('Auto-Aktualisierung pausiert.', 'warn');
+    activityHooks.setBanner(t('activity.auto_refresh_paused'), 'warn');
   }
   updateAutoRefreshButton();
 }
@@ -122,10 +126,10 @@ export function updateAutoRefreshButton() {
     return;
   }
   if (state.autoRefresh) {
-    btn.textContent = 'Auto-Refresh an';
+    btn.textContent = t('auto_refresh.on');
     btn.className = 'button ghost';
   } else {
-    btn.textContent = 'Auto-Refresh aus';
+    btn.textContent = t('auto_refresh.off');
     btn.className = 'button paused';
   }
 }

@@ -2,6 +2,7 @@ import { fetchWithTimeout, resolveApiTarget, request, runSingleFlight } from './
 import { buildAuthHeaders } from './auth.js';
 import { escapeHtml, qs } from './dom.js';
 import { state } from './state.js';
+import { t } from './i18n.js';
 
 const auditHooks = {
   setBanner() {}
@@ -106,7 +107,7 @@ function describeFilters(filters) {
   if (filters.action) parts.push('Action ' + filters.action);
   if (filters.resource_type) parts.push('Resource ' + filters.resource_type);
   if (filters.tenant_id) parts.push('Tenant ' + filters.tenant_id);
-  return parts.join(', ') || 'Keine Zusatzfilter';
+  return parts.join(', ') || t('audit.no_extra_filters');
 }
 
 function resultChip(result) {
@@ -121,9 +122,21 @@ function renderAuditRows() {
   if (!body) {
     return;
   }
+  if (state.auditLoading) {
+    body.innerHTML = '<tr><td colspan="7" class="empty-cell loading">' + escapeHtml(t('audit.loading')) + '</td></tr>';
+    return;
+  }
+  if (state.auditError) {
+    body.innerHTML = '<tr><td colspan="7" class="empty-cell">' +
+      escapeHtml(t('audit.load_failed_inline', { error: String(state.auditError || '') })) +
+      ' <button class="button ghost small" type="button" data-audit-retry="1">' +
+      escapeHtml(t('action.retry')) +
+      '</button></td></tr>';
+    return;
+  }
   const events = Array.isArray(state.auditReport) ? state.auditReport : [];
   if (!events.length) {
-    body.innerHTML = '<tr><td colspan="7" class="empty-cell">Keine Audit-Events fuer den aktuellen Filter.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="empty-cell">' + escapeHtml(t('audit.no_events_current_filter')) + '</td></tr>';
     return;
   }
   body.innerHTML = events.map((event) => {
@@ -225,14 +238,21 @@ export function renderAudit() {
 export function loadAuditReport() {
   const filters = readAuditFiltersFromDom();
   state.auditFilters = filters;
+  state.auditLoading = true;
+  state.auditError = '';
+  renderAudit();
   const params = buildQueryFromFilters(filters);
   return runSingleFlight('audit-report-load', () => {
     return request('/audit/report?' + params.toString()).then((payload) => {
+      state.auditLoading = false;
+      state.auditError = '';
       state.auditReport = Array.isArray(payload && payload.events) ? payload.events : [];
       renderAudit();
       auditHooks.setBanner('Audit-Report aktualisiert.', 'info');
       return payload;
     }).catch((error) => {
+      state.auditLoading = false;
+      state.auditError = String(error && error.message ? error.message : error || 'unknown');
       state.auditReport = [];
       renderAudit();
       auditHooks.setBanner('Audit-Report laden fehlgeschlagen: ' + error.message, 'warn');
