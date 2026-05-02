@@ -61,18 +61,44 @@
   color: var(--color-text-muted, #8a94a6);
 }
 
-.vm-metric-bar-track {
+/* Progress bar — styled without inline styles (style-src 'self' CSP) */
+progress.vm-metric-bar {
+  display: block;
+  width: 100%;
   height: 6px;
+  border: none;
   border-radius: 3px;
-  background: var(--color-surface-sunken, rgba(255,255,255,.06));
-  overflow: hidden;
   margin: 0.15rem 0;
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+  background: var(--color-surface-sunken, rgba(255,255,255,.06));
 }
 
-.vm-metric-bar-fill {
-  height: 100%;
+progress.vm-metric-bar::-webkit-progress-bar {
+  background: var(--color-surface-sunken, rgba(255,255,255,.06));
+  border-radius: 3px;
+}
+
+progress.vm-metric-bar::-webkit-progress-value {
   border-radius: 3px;
   background: var(--color-ok, #4caf7d);
-  transition: width 0.8s ease, background-color 0.5s ease;
-  will-change: width;
+  transition: width 0.8s ease;
+}
+progress.vm-metric-bar.bar-warn::-webkit-progress-value {
+  background: var(--color-warn, #f5a623);
+}
+progress.vm-metric-bar.bar-crit::-webkit-progress-value {
+  background: var(--color-bad, #e05252);
+}
+
+progress.vm-metric-bar::-moz-progress-bar {
+  border-radius: 3px;
+  background: var(--color-ok, #4caf7d);
+}
+progress.vm-metric-bar.bar-warn::-moz-progress-bar {
+  background: var(--color-warn, #f5a623);
+}
+progress.vm-metric-bar.bar-crit::-moz-progress-bar {
+  background: var(--color-bad, #e05252);
 }

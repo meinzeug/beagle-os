@@ -230,6 +230,27 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
                 self._write_json(response["status"], response["payload"])
             return
 
+        # Live metrics SSE stream — uses query-param access_token (EventSource can't
+        # set Authorization headers), so it MUST be checked before the global
+        # _is_authenticated() guard that would reject requests without a Bearer header.
+        _metrics_match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/metrics-stream$", path)
+        if _metrics_match:
+            _msse_principal = self._stream_principal(parsed)
+            if _msse_principal is None:
+                self._stream_auth_error(HTTPStatus.UNAUTHORIZED)
+                return
+            _msse_role = str(_msse_principal.get("role") or "viewer").strip().lower() or "viewer"
+            _msse_perm = authz_policy_service().required_permission("GET", path)
+            if _msse_perm is not None and not authz_policy_service().is_allowed(
+                _msse_role, _msse_perm, auth_session_service().role_permissions(_msse_role)
+            ):
+                self._stream_auth_error(HTTPStatus.FORBIDDEN)
+                return
+            _msse_vmid = int(_metrics_match.group("vmid"))
+            from vm_metrics_sse import VmMetricsSseService as _VmMetricsSse
+            self._stream_sse_job(_VmMetricsSse().stream(_msse_vmid))
+            return
+
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
@@ -335,24 +356,6 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             if not self._authorize_or_respond("GET", path):
                 return
             self._write_json(HTTPStatus.OK, node_install_check_service().list_payload())
-            return
-        # Live metrics SSE stream — must be checked before the generic vms/* handler
-        _metrics_match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/metrics-stream$", path)
-        if _metrics_match:
-            _msse_principal = self._stream_principal(parsed)
-            if _msse_principal is None:
-                self._stream_auth_error(HTTPStatus.UNAUTHORIZED)
-                return
-            _msse_role = str(_msse_principal.get("role") or "viewer").strip().lower() or "viewer"
-            _msse_perm = authz_policy_service().required_permission("GET", path)
-            if _msse_perm is not None and not authz_policy_service().is_allowed(
-                _msse_role, _msse_perm, auth_session_service().role_permissions(_msse_role)
-            ):
-                self._stream_auth_error(HTTPStatus.FORBIDDEN)
-                return
-            _msse_vmid = int(_metrics_match.group("vmid"))
-            from vm_metrics_sse import VmMetricsSseService as _VmMetricsSse
-            self._stream_sse_job(_VmMetricsSse().stream(_msse_vmid))
             return
 
         if path.startswith("/api/v1/vms/"):

@@ -49,26 +49,20 @@ function buildPanelHtml() {
         <div class="vm-metric-card">
           <div class="vm-metric-label">CPU</div>
           <div class="vm-metric-value" id="vdp-m-cpu-pct">—</div>
-          <div class="vm-metric-bar-track">
-            <div class="vm-metric-bar-fill" id="vdp-m-cpu-bar" style="width:0%"></div>
-          </div>
+          <progress class="vm-metric-bar bar-ok" id="vdp-m-cpu-bar" value="0" max="100"></progress>
         </div>
 
         <div class="vm-metric-card">
           <div class="vm-metric-label">RAM</div>
           <div class="vm-metric-value" id="vdp-m-ram-pct">—</div>
-          <div class="vm-metric-bar-track">
-            <div class="vm-metric-bar-fill" id="vdp-m-ram-bar" style="width:0%"></div>
-          </div>
+          <progress class="vm-metric-bar bar-ok" id="vdp-m-ram-bar" value="0" max="100"></progress>
           <div class="vm-metric-sub" id="vdp-m-ram-detail">—</div>
         </div>
 
         <div class="vm-metric-card">
           <div class="vm-metric-label">Disk (Dateisystem)</div>
           <div class="vm-metric-value" id="vdp-m-disk-pct">—</div>
-          <div class="vm-metric-bar-track">
-            <div class="vm-metric-bar-fill" id="vdp-m-disk-bar" style="width:0%"></div>
-          </div>
+          <progress class="vm-metric-bar bar-ok" id="vdp-m-disk-bar" value="0" max="100"></progress>
           <div class="vm-metric-sub" id="vdp-m-disk-detail">—</div>
         </div>
 
@@ -106,18 +100,18 @@ function buildPanelHtml() {
 // Bar fill tone
 // -------------------------------------------------------------------------
 
-function barTone(pct) {
-  if (pct >= 90) return 'var(--color-bad, #e05252)';
-  if (pct >= 75) return 'var(--color-warn, #f5a623)';
-  return 'var(--color-ok, #4caf7d)';
-}
-
+// Update progress bar value and color-tone class without using inline styles
+// (CSP blocks element.style assignments when style-src 'self' is active).
+// <progress>.value is a DOM property change — not blocked by style-src.
 function updateBar(barId, pct) {
   const el = document.getElementById(barId);
   if (!el) return;
   const clamped = Math.min(100, Math.max(0, Number(pct || 0)));
-  el.style.width = clamped + '%';
-  el.style.backgroundColor = barTone(clamped);
+  el.value = clamped;  // DOM property on <progress>, NOT an inline style
+  el.classList.remove('bar-ok', 'bar-warn', 'bar-crit');
+  if (clamped >= 90)      el.classList.add('bar-crit');
+  else if (clamped >= 75) el.classList.add('bar-warn');
+  else                    el.classList.add('bar-ok');
 }
 
 function updateText(id, value) {
