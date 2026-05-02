@@ -86,7 +86,7 @@ STATUS_MESSAGE="Verfuegbare Systemupdates werden installiert ..."
 write_status "running"
 upgrade_output="$(
   DEBIAN_FRONTEND=noninteractive \
-    apt-get upgrade -y -qq -o Dpkg::Options::=--force-confold 2>&1
+    apt-get upgrade --with-new-pkgs -y -qq -o Dpkg::Options::=--force-confold 2>&1
 )"
 OUTPUT_EXCERPT="${upgrade_output: -2000}"
 
