@@ -29,15 +29,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
-rsync -a --delete "$SITE_SRC_DIR/" "$render_dir/"
+rsync -a --delete --exclude '.git/' "$SITE_SRC_DIR/" "$render_dir/"
 
 python3 "$ROOT_DIR/scripts/render-site-templates.py" \
   "$render_dir" "$RELEASE_TAG" "$GITHUB_RELEASE_URL" "${PUBLIC_UPDATE_BASE_URL%/}"
 
-rsync -av --delete --exclude 'beagle-updates/' "$render_dir/" "$SITE_TARGET"
+rsync -av --delete --exclude 'beagle-updates/' --exclude '.git/' "$render_dir/" "$SITE_TARGET"
 
 if [[ -n "$SITE_APP_TARGET" && "$SITE_APP_TARGET" != "$SITE_TARGET" ]]; then
-  rsync -av --delete --exclude 'beagle-updates/' "$render_dir/" "$SITE_APP_TARGET"
+  rsync -av --delete --exclude 'beagle-updates/' --exclude '.git/' "$render_dir/" "$SITE_APP_TARGET"
 fi
 
 echo "Published public website to $SITE_TARGET"
