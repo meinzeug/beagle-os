@@ -870,6 +870,49 @@ Section "InputClass"
 EndSection
 EOF
 
+  cat > /etc/X11/Xsession.d/19-beagle-lightdm-session-compat <<'EOF'
+#!/bin/sh
+# LightDM may source Xsession.d snippets directly without the helpers from
+# /etc/X11/Xsession. Provide safe fallbacks so downstream snippets stay valid.
+
+: "${OPTIONFILE:=/etc/X11/Xsession.options}"
+: "${SYSRESOURCES:=/etc/X11/Xresources}"
+: "${USRRESOURCES:=$HOME/.Xresources}"
+: "${USERXSESSION:=$HOME/.xsession}"
+: "${USERXSESSIONRC:=$HOME/.xsessionrc}"
+: "${ALTUSERXSESSION:=$HOME/.Xsession}"
+
+if ! type has_option >/dev/null 2>&1; then
+  OPTIONS="$({
+    [ -r "$OPTIONFILE" ] && cat "$OPTIONFILE"
+    if [ -d /etc/X11/Xsession.options.d ]; then
+      run-parts --list --regex '\\.conf$' /etc/X11/Xsession.options.d | xargs -d '\n' cat
+    fi
+  } 2>/dev/null)"
+
+  has_option() {
+    if [ "$(echo "$OPTIONS" | grep -Eo "^(no-)?$1\\>" | tail -n 1)" = "$1" ]; then
+      return 0
+    fi
+    return 1
+  }
+fi
+
+if ! type message >/dev/null 2>&1; then
+  message() {
+    echo "Xsession: $*" >&2
+  }
+fi
+
+if ! type errormsg >/dev/null 2>&1; then
+  errormsg() {
+    message "$*"
+    return 1
+  }
+fi
+EOF
+  chmod 0755 /etc/X11/Xsession.d/19-beagle-lightdm-session-compat
+
   cat > /etc/X11/Xsession.d/90-beagle-disable-display-idle <<'EOF'
 #!/bin/sh
 if command -v xset >/dev/null 2>&1; then
@@ -975,7 +1018,7 @@ Environment=XDG_RUNTIME_DIR=/run/user/${GUEST_UID}
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${GUEST_UID}/bus
 Environment=PULSE_SERVER=unix:/run/user/${GUEST_UID}/pulse/native
 ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/${GUEST_UID}/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/${GUEST_USER}/.Xauthority && -d /run/user/${GUEST_UID} && -S /run/user/${GUEST_UID}/bus && -S "\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xrandr --query >/dev/null 2>&1; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
-ExecStart=/usr/bin/sunshine
+ExecStart=/usr/local/bin/sunshine
 Restart=always
 RestartSec=2
 TimeoutStartSec=210

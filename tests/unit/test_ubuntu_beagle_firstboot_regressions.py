@@ -52,6 +52,9 @@ def test_firstboot_prefers_beaglestream_server_package() -> None:
 def test_firstboot_disables_display_idle_and_lockers_for_streaming() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 
+    assert "/etc/X11/Xsession.d/19-beagle-lightdm-session-compat" in script
+    assert "if ! type has_option >/dev/null 2>&1; then" in script
+    assert ': "${OPTIONFILE:=/etc/X11/Xsession.options}"' in script
     assert "/etc/X11/Xsession.d/90-beagle-disable-display-idle" in script
     assert "xset -dpms >/dev/null 2>&1 || true" in script
     assert "xset s off >/dev/null 2>&1 || true" in script
