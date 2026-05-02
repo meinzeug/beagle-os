@@ -6551,6 +6551,26 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - `meinzeug/beagle-stream-server`: `src/beagle/` mit Config-Loader, Broker-Client und Token-Auth, CMake-Option `BEAGLE_INTEGRATION`, Token-als-PIN-Hook im bestehenden Sunshine-Pairing und `.deb`-Skeleton `beagle-stream-server`.
 - `meinzeug/beagle-stream-client`: `app/beagle/` mit Enrollment-Config, Broker-Allocate und WireGuard-Peer-Aktivierung, Session-Start-Integration, Token-als-PIN-Pairing und BeagleStream-Branding.
 - Reproduzierbarkeit: beide Forks enthalten `docs/beagle-phase-a-build.md` mit Build-Host-Paketen, Submodule- und Build-Kommandos.
+## Update (2026-05-02, BeagleStream Runtime-Erkennung + Release-Workflow-Härtung)
+
+**Scope**: `beagle-os` erkennt jetzt explizit, ob in VMs der echte `beagle-stream-server` oder nur der bisherige Sunshine-Fallback installiert wurde; gleichzeitig wurden zwei sinnvolle Copilot-Release-Fixes direkt in `main` uebernommen.
+
+- Streaming-Runtime-Kennzeichnung:
+  - [scripts/configure-sunshine-guest.sh](/home/dennis/beagle-os/scripts/configure-sunshine-guest.sh): schreibt nach der Paketinstallation `/etc/beagle/stream-runtime.env` mit `BEAGLE_STREAM_RUNTIME_VARIANT=beagle-stream-server|sunshine-fallback` plus Paket-URL.
+  - [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](/home/dennis/beagle-os/beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl): schreibt dieselbe Kennzeichnung fuer neue Ubuntu-Beagle-VMs im Firstboot-Provisioning.
+  - [beagle-host/services/installer_prep.py](/home/dennis/beagle-os/beagle-host/services/installer_prep.py): liest Variant-/Paketstatus per Guest-Probe ein, liefert `stream_runtime` im Payload und unterscheidet in den Readiness-Meldungen zwischen echtem BeagleStream-Server und Sunshine-Fallback.
+- Regressionen:
+  - [tests/unit/test_configure_sunshine_guest_regressions.py](/home/dennis/beagle-os/tests/unit/test_configure_sunshine_guest_regressions.py)
+  - [tests/unit/test_ubuntu_beagle_firstboot_regressions.py](/home/dennis/beagle-os/tests/unit/test_ubuntu_beagle_firstboot_regressions.py)
+  - [tests/unit/test_installer_prep_stream_runtime.py](/home/dennis/beagle-os/tests/unit/test_installer_prep_stream_runtime.py)
+- Release-/Deploy-Fixes aus Copilot uebernommen:
+  - [.github/workflows/release.yml](/home/dennis/beagle-os/.github/workflows/release.yml): Release-Workflow per `concurrency` serialisiert und `gh release create` von Asset-Uploads entkoppelt, damit keine halbfertigen Releases oder Rennbedingungen entstehen.
+  - [scripts/publish-public-update-artifacts.sh](/home/dennis/beagle-os/scripts/publish-public-update-artifacts.sh): `rsync` nutzt jetzt `--delete-before --inplace`, damit `beagle-os.com` beim Update nicht erneut am vollen Zielvolume scheitert.
+- Validierung:
+  - `bash -n scripts/configure-sunshine-guest.sh scripts/publish-public-update-artifacts.sh`
+  - `python3 -m py_compile beagle-host/services/installer_prep.py`
+  - direkter Python-Harness fuer 10 Regressionen (`HARNESS_OK 10`)
+
 - Checkliste: `docs/checklists/02-streaming-endpoint.md` Phase-A-Forkpunkte abgehakt; Thin-Client-OS-Image-Bundling war zu diesem Zeitpunkt noch der separate naechste Packaging-Schritt.
 - Validierung: lokaler Client-Build ueber `qmake ../moonlight-qt.pro && make -j2` gruen; lokaler Server-Build mit `-DBEAGLE_INTEGRATION=ON` und `cmake --build ... --target sunshine -j2` gruen. Live-Control-Plane-Smoke gegen `srv1` ist der naechste Integrationsschritt.
 

@@ -20,6 +20,10 @@ permissions:
   # Required for maintenance actions around workflow-triggered release runs
   actions: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   detect-artifact-changes:
     name: Detect artifact rebuild scope
@@ -582,9 +586,12 @@ jobs:
             gh release create "$TAG" \
               --title "$RELEASE_TITLE" \
               --latest \
-              "${notes_args[@]}" \
-              "${assets[@]}" 2>&1 | tee /tmp/beagle-release-create.log
+              "${notes_args[@]}" 2>&1 | tee /tmp/beagle-release-create.log
             rc=${PIPESTATUS[0]}
+            if [ "$rc" -eq 0 ]; then
+              gh release upload "$TAG" --clobber "${assets[@]}" 2>&1 | tee -a /tmp/beagle-release-create.log
+              rc=${PIPESTATUS[0]}
+            fi
           fi
           if [ "$rc" -ne 0 ]; then
             python - <<'PY'

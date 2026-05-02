@@ -29,9 +29,14 @@ def test_firstboot_repairs_dpkg_after_each_desktop_install_phase() -> None:
 def test_firstboot_prefers_beaglestream_server_package() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 
+    assert 'STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"' in script
+    assert 'write_stream_runtime_status() {' in script
     assert 'BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"' in script
     assert 'curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$BEAGLE_STREAM_SERVER_URL"' in script
     assert "BeagleStream server package unavailable, falling back to upstream Sunshine package." in script
+    assert 'stream_runtime_variant="beagle-stream-server"' in script
+    assert 'stream_runtime_variant="sunshine-fallback"' in script
+    assert 'write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"' in script
     assert 'curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"' in script
 
 

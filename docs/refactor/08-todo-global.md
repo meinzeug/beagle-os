@@ -5,6 +5,9 @@
 
 - [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen.
 
+- [ ] BeagleStream Runtime-Status in der WebUI sichtbar machen: `stream_runtime.variant` fuer VM-/Installer-Readiness und spaeter analog fuer Thin-Client-Artefakte/Health verwenden.
+- [ ] BeagleStream End-to-End-Abnahme fuer VM100 auf `srv1` reproduzierbar abschliessen: Thinclient boot -> Broker-Allocate -> WireGuard -> sichtbarer Desktop-Stream.
+
 - [x] R1-VM-Lifecycle ueber API reproduzierbar geschlossen: `scripts/test-vm-lifecycle-r1-smoke.py` fuehrt `create -> start -> snapshot -> reboot -> delete` gegen `srv1` aus (PASS, 2026-04-30, inkl. Cleanup).
 
 - [x] VM102-Provider-State auf `srv1` repariert und Dual-VM-Readiness neu gefahren: `beagle-102` als zweite VM aufgebaut, eigene Guest-IP `192.168.123.116` gesetzt, `ensure-vm-stream-ready.sh --vmid 102 --node beagle-0` auf `RC=0` stabilisiert.

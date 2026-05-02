@@ -29,7 +29,12 @@ def test_configure_sunshine_guest_disables_display_idle_and_lockers() -> None:
 def test_configure_sunshine_guest_prefers_beaglestream_server_package() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 
+    assert 'STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"' in content
+    assert 'write_stream_runtime_status() {' in content
     assert "BEAGLE_STREAM_SERVER_DEFAULT_URL" in content
     assert "beagle-stream-server-latest-ubuntu-24.04-amd64.deb" in content
     assert "BeagleStream server package unavailable, falling back to upstream Sunshine package." in content
+    assert 'stream_runtime_variant="beagle-stream-server"' in content
+    assert 'stream_runtime_variant="sunshine-fallback"' in content
+    assert 'write_stream_runtime_status "\\$stream_runtime_variant" "\\$stream_runtime_package_url"' in content
     assert 'curl -fsSLo "\\$tmpdir/sunshine.deb" "\\$BEAGLE_STREAM_SERVER_URL"' in content

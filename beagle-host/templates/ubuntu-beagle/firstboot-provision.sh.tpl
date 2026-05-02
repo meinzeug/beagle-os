@@ -30,11 +30,25 @@ CALLBACK_DONE_FILE="/var/lib/beagle/ubuntu-firstboot-callback.done"
 TMPDIR_WORK=""
 BEAGLE_WALLPAPER_DIR="/usr/local/share/beagle/wallpapers"
 BEAGLE_WALLPAPER_PATH=""
+STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"
 
 cleanup_tmpdir() {
   if [[ -n "$TMPDIR_WORK" && -d "$TMPDIR_WORK" ]]; then
     rm -rf "$TMPDIR_WORK"
   fi
+}
+
+write_stream_runtime_status() {
+  local variant="$1"
+  local package_url="$2"
+
+  install -d -m 0755 /etc/beagle
+  cat > "$STREAM_RUNTIME_STATUS_FILE" <<EOF
+BEAGLE_STREAM_RUNTIME_VARIANT=${variant}
+BEAGLE_STREAM_RUNTIME_PACKAGE_URL=${package_url}
+BEAGLE_STREAM_RUNTIME_UPDATED_AT=$(date -Iseconds)
+EOF
+  chmod 0644 "$STREAM_RUNTIME_STATUS_FILE"
 }
 
 disable_cdrom_apt_sources() {
@@ -801,12 +815,17 @@ if [[ ! -f "$DONE_FILE" ]]; then
   resolve_desktop_session
 
   TMPDIR_WORK="$(mktemp -d)"
+  stream_runtime_variant="beagle-stream-server"
+  stream_runtime_package_url="$BEAGLE_STREAM_SERVER_URL"
   if ! curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$BEAGLE_STREAM_SERVER_URL"; then
     echo "BeagleStream server package unavailable, falling back to upstream Sunshine package." >&2
+    stream_runtime_variant="sunshine-fallback"
+    stream_runtime_package_url="$SUNSHINE_URL"
     curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"
   fi
   apt_retry apt-get install -y "$TMPDIR_WORK/sunshine.deb"
   repair_interrupted_dpkg
+  write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"
   configure_system_locale
   configure_keyboard_layout
   install_desktop_wallpaper

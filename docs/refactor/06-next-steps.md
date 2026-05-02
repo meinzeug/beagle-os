@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-05-02, BeagleStream Runtime-Erkennung im Host integriert)
+
+**Zuletzt erledigt**:
+- VM-Guest-Prep und Ubuntu-Firstboot schreiben jetzt einen expliziten Runtime-Marker fuer `beagle-stream-server` vs. `sunshine-fallback`.
+- `InstallerPrepService` wertet diesen Marker aus und kann damit den echten Fork-Stand statt nur „Sunshine aktiv“ zurueckmelden.
+- Zwei sinnvolle Copilot-PR-Fixes fuer Release-Konkurrenz und platzsparendes Public-Artifact-Rsync wurden direkt in `main` uebernommen.
+
+**Naechste konkrete Schritte**:
+
+1. Die `stream_runtime`-Information im VM-/Installer-Bereich der WebUI sichtbar machen, damit Operatoren sofort sehen, ob eine VM bereits auf echtem BeagleStream-Server laeuft.
+2. Den echten VM100-End-to-End-Pfad weiterfahren: Thinclient booten -> Broker-Allocate -> WireGuard -> sichtbarer Desktop-Stream ueber `beagle-stream-client`.
+3. Danach den Runtime-Status auch fuer den Thin-Client-Fork angleichen, damit nicht nur Server-, sondern auch Client-Fallbacks explizit im Artefakt-/Health-Pfad auftauchen.
+
 ## Stand (2026-05-02, Runtime-Version/Update-UI auf 8.0.2 synchronisiert)
 
 **Zuletzt erledigt**:

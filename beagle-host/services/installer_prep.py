@@ -70,21 +70,32 @@ class InstallerPrepService:
     def quick_sunshine_status(self, vmid: int) -> dict[str, Any]:
         output = self._guest_exec_out_data(
             vmid,
-            "binary=0; service=0; process=0; "
+            "binary=0; service=0; process=0; beagle_package=0; sunshine_package=0; variant=''; package_url=''; "
             "command -v sunshine >/dev/null 2>&1 && binary=1; "
             "(systemctl is-active sunshine >/dev/null 2>&1 || systemctl is-active beagle-sunshine.service >/dev/null 2>&1) && service=1; "
             "pgrep -x sunshine >/dev/null 2>&1 && process=1; "
-            "printf '{\"binary\":%s,\"service\":%s,\"process\":%s}\\n' \"$binary\" \"$service\" \"$process\"",
+            "dpkg-query -W -f='${Status}' beagle-stream-server 2>/dev/null | grep -q 'install ok installed' && beagle_package=1; "
+            "dpkg-query -W -f='${Status}' sunshine 2>/dev/null | grep -q 'install ok installed' && sunshine_package=1; "
+            "if [ -r /etc/beagle/stream-runtime.env ]; then "
+            "variant=$(awk -F= '$1 == \"BEAGLE_STREAM_RUNTIME_VARIANT\" {print substr($0, index($0, \"=\") + 1); exit}' /etc/beagle/stream-runtime.env 2>/dev/null); "
+            "package_url=$(awk -F= '$1 == \"BEAGLE_STREAM_RUNTIME_PACKAGE_URL\" {print substr($0, index($0, \"=\") + 1); exit}' /etc/beagle/stream-runtime.env 2>/dev/null); "
+            "fi; "
+            "printf '{\"binary\":%s,\"service\":%s,\"process\":%s,\"beagle_package\":%s,\"sunshine_package\":%s,\"variant\":\"%s\",\"package_url\":\"%s\"}\\n' "
+            "\"$binary\" \"$service\" \"$process\" \"$beagle_package\" \"$sunshine_package\" \"$variant\" \"$package_url\"",
         )
         text = output.strip().splitlines()[-1] if output.strip() else ""
         try:
             payload = json.loads(text)
         except json.JSONDecodeError:
-            payload = {"binary": 0, "service": 0, "process": 0}
+            payload = {"binary": 0, "service": 0, "process": 0, "beagle_package": 0, "sunshine_package": 0, "variant": "", "package_url": ""}
         return {
             "binary": bool(payload.get("binary")),
             "service": bool(payload.get("service")),
             "process": bool(payload.get("process")),
+            "beagle_package": bool(payload.get("beagle_package")),
+            "sunshine_package": bool(payload.get("sunshine_package")),
+            "variant": str(payload.get("variant") or "").strip(),
+            "package_url": str(payload.get("package_url") or "").strip(),
         }
 
     def default_state(self, vm: Any, sunshine_status: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -112,7 +123,10 @@ class InstallerPrepService:
             status = "ready"
             phase = "complete"
             progress = 100
-            message = "Sunshine ist aktiv. Das VM-spezifische USB-Installer-Skript ist sofort verfuegbar."
+            if str(quick.get("variant") or "").strip() == "beagle-stream-server":
+                message = "BeagleStream Server ist aktiv. Das VM-spezifische USB-Installer-Skript ist sofort verfuegbar."
+            else:
+                message = "Sunshine ist aktiv, aber die VM laeuft noch im Upstream-Fallback statt mit dem echten BeagleStream-Server."
         else:
             status = "idle"
             phase = "inspect"
@@ -133,6 +147,12 @@ class InstallerPrepService:
                 "service": bool(quick.get("service")),
                 "process": bool(quick.get("process")),
             },
+            "stream_runtime": {
+                "variant": str(quick.get("variant") or "").strip(),
+                "package_url": str(quick.get("package_url") or "").strip(),
+                "beagle_package": bool(quick.get("beagle_package")),
+                "sunshine_package": bool(quick.get("sunshine_package")),
+            },
             "ready": ready,
         }
 
@@ -149,6 +169,12 @@ class InstallerPrepService:
             "binary": bool(quick.get("binary")),
             "service": bool(quick.get("service")),
             "process": bool(quick.get("process")),
+        }
+        payload["stream_runtime"] = {
+            "variant": str(quick.get("variant") or "").strip(),
+            "package_url": str(quick.get("package_url") or "").strip(),
+            "beagle_package": bool(quick.get("beagle_package")),
+            "sunshine_package": bool(quick.get("sunshine_package")),
         }
         payload["ready"] = str(payload.get("status", "")).strip().lower() == "ready"
         payload.setdefault("vmid", vm.vmid)

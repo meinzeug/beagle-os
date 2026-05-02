@@ -78,11 +78,25 @@ PY
 }
 
 PUBLIC_STREAM_HOST="$(resolve_public_stream_host "$PUBLIC_STREAM_HOST_RAW")"
+STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"
 
 usage() {
   cat <<EOF
 Usage: $0 --vmid VMID [--beagle-host HOST] [--guest-user USER] [--guest-password PASS] [--identity-locale LOCALE] [--identity-keymap KEYMAP] [--desktop-id ID] [--desktop-label LABEL] [--desktop-session SESSION] [--desktop-package PKG]... [--software-package PKG]... [--package-preset ID]... [--extra-package PKG]... [--beagle-user USER@REALM] [--beagle-password PASS|--beagle-token TOKEN] [--sunshine-user USER] --sunshine-password PASS [--sunshine-pin PIN] [--sunshine-port PORT] [--public-stream-host HOST]
 EOF
+}
+
+write_stream_runtime_status() {
+  local variant="$1"
+  local package_url="$2"
+
+  install -d -m 0755 /etc/beagle
+  cat > "$STREAM_RUNTIME_STATUS_FILE" <<EOF
+BEAGLE_STREAM_RUNTIME_VARIANT=${variant}
+BEAGLE_STREAM_RUNTIME_PACKAGE_URL=${package_url}
+BEAGLE_STREAM_RUNTIME_UPDATED_AT=$(date -Iseconds)
+EOF
+  chmod 0644 "$STREAM_RUNTIME_STATUS_FILE"
 }
 
 apply_desktop_defaults() {
@@ -562,11 +576,16 @@ fi
 
 tmpdir=\$(mktemp -d)
 trap 'rm -rf "\$tmpdir"' EXIT
+stream_runtime_variant="beagle-stream-server"
+stream_runtime_package_url="\$BEAGLE_STREAM_SERVER_URL"
 if ! curl -fsSLo "\$tmpdir/sunshine.deb" "\$BEAGLE_STREAM_SERVER_URL"; then
   echo "BeagleStream server package unavailable, falling back to upstream Sunshine package." >&2
+  stream_runtime_variant="sunshine-fallback"
+  stream_runtime_package_url="\$SUNSHINE_URL"
   curl -fsSLo "\$tmpdir/sunshine.deb" "\$SUNSHINE_URL"
 fi
 apt-get install -y "\$tmpdir/sunshine.deb"
+write_stream_runtime_status "\$stream_runtime_variant" "\$stream_runtime_package_url"
 configure_system_locale
 configure_keyboard_layout
 install_google_chrome
