@@ -15,7 +15,7 @@
   - [x] `app/beagle/BeagleBroker.cpp` (Broker-Discovery)
   - [x] `app/beagle/BeagleVPN.cpp` (WireGuard-Integration)
   - [x] Beagle-Branding (Name, Icons, About)
-  - [x] In Thin-Client-OS-Image gebundelt: Build kann BeagleStream-AppImage via `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL` stage'n; Runtime startet bei Enrollment ohne statischen Host hostless gegen den Broker.
+  - [x] In Thin-Client-OS-Image gebundelt: Build versucht standardmaessig `meinzeug/beagle-stream-client` Release `beagle-phase-a` und kann per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL` ueberschrieben werden; Runtime startet bei Enrollment ohne statischen Host hostless gegen den Broker.
 - [ ] **Phase B 8.1.x** — NVENC/VAAPI/QSV Tuning, AV1 default
 - [ ] **Phase C 8.2.x** — WebRTC-Modus (Browser-Stream ohne Client-Install)
 - [ ] **Phase D 9.0.x** — BeagleStream Native Protocol (eigener Codec/Transport)

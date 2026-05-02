@@ -1255,6 +1255,6 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 ## Naechster Schritt (2026-05-01, BeagleStream Phase A)
 
 1. Auf einer VM mit `/etc/beagle/stream-server.env` den Sunshine-Fork mit `BEAGLE_INTEGRATION=ON` starten und `Beagle broker active for VM ...` plus Registrierung gegen `srv1.beagle-os.com:9088` pruefen.
-2. Release-/CI-Pipeline fuer `meinzeug/beagle-stream-client` so erweitern, dass ein BeagleStream-AppImage veroeffentlicht wird und `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL` im Thin-Client-Artefaktbuild gesetzt werden kann.
+2. BeagleStream-Client-Release `beagle-phase-a` beobachten; sobald `BeagleStream-latest-x86_64.AppImage` veroeffentlicht ist, muss der naechste Thin-Client-Artefaktbuild diesen Default statt des Fallback-Moonlight-AppImage stage'n.
 3. Auf einem Thin-Client mit `/etc/beagle/enrollment.conf` den gebundelten `beagle-stream` starten, Broker-Allocate ausfuehren, WireGuard-Peer-Aktivierung pruefen und Token-als-PIN-Pairing gegen die VM verifizieren.
 4. `beagle-stream-server` in die VM-Image-/Guest-Prep-Pipeline aufnehmen und danach den kompletten srv1-Flow VM -> Stream-Server-Register -> Thin-Client-Allocate -> Desktop-Stream live abnehmen.

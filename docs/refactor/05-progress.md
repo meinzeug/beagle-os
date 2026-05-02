@@ -6529,7 +6529,7 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 **Scope**: Der BeagleStream-Client-Fork ist im Thin-Client-Buildpfad vorbereitet und der Runtime-Launcher blockiert Enrollment-basierte Broker-Sessions nicht mehr durch die alte statische Moonlight-Host-Pflicht.
 
 - Thin-Client-Build:
-  - [scripts/build-thin-client-installer.sh](/home/dennis/beagle-os/scripts/build-thin-client-installer.sh): optionales `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL`/`BEAGLE_STREAM_CLIENT_URL` staging fuer BeagleStream-AppImages, mit sicherem Fallback auf das bisherige Moonlight-AppImage.
+  - [scripts/build-thin-client-installer.sh](/home/dennis/beagle-os/scripts/build-thin-client-installer.sh): standardmaessiges Staging aus `meinzeug/beagle-stream-client` Release `beagle-phase-a`, ueberschreibbar per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL`/`BEAGLE_STREAM_CLIENT_URL`, mit sicherem Fallback auf das bisherige Moonlight-AppImage.
   - Der Build erzeugt neben `/usr/local/bin/moonlight` auch `/usr/local/bin/beagle-stream`, wenn das extrahierte AppImage den BeagleStream-Binary enthaelt.
 - Runtime:
   - [thin-client-assistant/runtime/moonlight_runtime_exec.sh](/home/dennis/beagle-os/thin-client-assistant/runtime/moonlight_runtime_exec.sh): erkennt hostless BeagleStream ueber `/etc/beagle/enrollment.conf` und baut `beagle-stream stream "<App>"` statt `moonlight stream <Host> "<App>"`.

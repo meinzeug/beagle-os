@@ -68,6 +68,8 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
 def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
     build_text = BUILD_THIN_CLIENT.read_text(encoding="utf-8")
 
+    assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in build_text
+    assert "BeagleStream-latest-x86_64.AppImage" in build_text
     assert "BEAGLE_STREAM_CLIENT_URL" in build_text
     assert "BeagleStream client download failed; falling back to upstream Moonlight AppImage." in build_text
     assert 'beagle_wrapper_path="$BUILD_DIR/config/includes.chroot/usr/local/bin/beagle-stream"' in build_text
