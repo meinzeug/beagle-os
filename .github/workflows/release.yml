@@ -663,6 +663,7 @@ jobs:
         with:
           repository: meinzeug/beagle-os.com
           path: beagle-os.com
+          token: ${{ secrets.BEAGLE_PUBLIC_WEBSITE_REPO_TOKEN || secrets.COPILOT_ASSIGNMENT_TOKEN || github.token }}
 
       - name: Publish public website
         env:
