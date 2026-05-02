@@ -24,3 +24,12 @@ def test_configure_sunshine_guest_disables_display_idle_and_lockers() -> None:
         '/home/$GUEST_USER/.config/autostart/xfce4-screensaver.desktop' in content
         or '/home/\\$GUEST_USER/.config/autostart/xfce4-screensaver.desktop' in content
     )
+
+
+def test_configure_sunshine_guest_prefers_beaglestream_server_package() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+
+    assert "BEAGLE_STREAM_SERVER_DEFAULT_URL" in content
+    assert "beagle-stream-server-latest-ubuntu-24.04-amd64.deb" in content
+    assert "BeagleStream server package unavailable, falling back to upstream Sunshine package." in content
+    assert 'curl -fsSLo "\\$tmpdir/sunshine.deb" "\\$BEAGLE_STREAM_SERVER_URL"' in content

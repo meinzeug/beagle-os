@@ -26,6 +26,15 @@ def test_firstboot_repairs_dpkg_after_each_desktop_install_phase() -> None:
     assert "apt_retry apt-get install -y \"$TMPDIR_WORK/sunshine.deb\"\n  repair_interrupted_dpkg" in script
 
 
+def test_firstboot_prefers_beaglestream_server_package() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"' in script
+    assert 'curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$BEAGLE_STREAM_SERVER_URL"' in script
+    assert "BeagleStream server package unavailable, falling back to upstream Sunshine package." in script
+    assert 'curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"' in script
+
+
 def test_firstboot_disables_display_idle_and_lockers_for_streaming() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 

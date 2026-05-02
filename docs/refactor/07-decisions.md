@@ -450,3 +450,11 @@ Die Fork-Implementierung arbeitet ab jetzt gegen diese beiden Repositories. Doku
 - Grund: Bestehende Installationen mit statischem Moonlight-Ziel duerfen nicht brechen, waehrend neue BeagleStream-Endpunkte Broker-Allocate, WireGuard und Token-Pairing im Client-Fork ausfuehren.
 - Konsequenz: Ohne gebundelten `beagle-stream` meldet der Endpoint-Healthcheck im hostless Enrollment-Modus einen klaren Health-Failure statt still auf den alten Moonlight-Pfad mit falscher CLI-Signatur zu fallen.
 - Dateien: `scripts/build-thin-client-installer.sh`, `thin-client-assistant/runtime/moonlight_runtime_exec.sh`, `thin-client-assistant/runtime/launch-moonlight.sh`, `thin-client-assistant/runtime/launch-session.sh`, `beagle-os/overlay/usr/local/sbin/beagle-healthcheck`.
+
+## BeagleStream Server-Paket ersetzt Sunshine nur mit Fallback (2026-05-02)
+
+- Entscheidung: VM-Guest-Prep und Ubuntu-Beagle-Firstboot versuchen zuerst das mutable Server-Fork-Release `https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb`.
+- Entscheidung: Wenn dieses Paket noch nicht verfuegbar ist oder der Download fehlschlaegt, wird weiter das bekannte upstream Sunshine `.deb` installiert.
+- Grund: Neue VMs sollen reproduzierbar auf den eigenen BeagleStream-Server wechseln, ohne VM-Provisioning komplett zu blockieren, solange die Server-Fork-Release-Pipeline noch laeuft.
+- Konsequenz: Service-/Metadaten-Namen bleiben vorerst kompatibel (`beagle-sunshine.service`, Sunshine API), waehrend das installierte Binary/Paket aus dem BeagleStream-Fork kommen kann.
+- Dateien: `scripts/configure-sunshine-guest.sh`, `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`, `beagle-host/services/service_registry.py`, `beagle-host/services/ubuntu_beagle_provisioning.py`.

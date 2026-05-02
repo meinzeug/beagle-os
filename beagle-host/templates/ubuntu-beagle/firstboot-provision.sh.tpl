@@ -17,6 +17,7 @@ NETWORK_MAC="__NETWORK_MAC__"
 SUNSHINE_USER="__SUNSHINE_USER__"
 SUNSHINE_PASSWORD="__SUNSHINE_PASSWORD__"
 SUNSHINE_PORT="__SUNSHINE_PORT__"
+BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"
 SUNSHINE_URL="__SUNSHINE_URL__"
 SUNSHINE_ORIGIN_WEB_UI_ALLOWED="__SUNSHINE_ORIGIN_WEB_UI_ALLOWED__"
 CALLBACK_URL="__CALLBACK_URL__"
@@ -602,7 +603,10 @@ if [[ ! -f "$DONE_FILE" ]]; then
   resolve_desktop_session
 
   TMPDIR_WORK="$(mktemp -d)"
-  curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"
+  if ! curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$BEAGLE_STREAM_SERVER_URL"; then
+    echo "BeagleStream server package unavailable, falling back to upstream Sunshine package." >&2
+    curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"
+  fi
   apt_retry apt-get install -y "$TMPDIR_WORK/sunshine.deb"
   repair_interrupted_dpkg
   configure_system_locale

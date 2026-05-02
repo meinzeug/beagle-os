@@ -6542,3 +6542,18 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `bash -n` fuer geaenderte Shell-Skripte.
   - Direkter Python-Runner fuer `tests/unit/test_thin_client_live_build_regressions.py`, weil `pytest` lokal nicht installiert ist.
   - Manuelle Shell-Probe: hostless Enrollment erzeugt `beagle-stream stream Desktop ...`; statischer Host erzeugt weiter `moonlight stream <host> Desktop ...`.
+
+## Update (2026-05-02, BeagleStream Server Package Hook)
+
+**Scope**: VM-Guest-Prep und Ubuntu-Beagle-Firstboot versuchen jetzt zuerst das BeagleStream-Server-Paket und behalten Sunshine nur als Fallback, bis das Server-Fork-Release-Asset verfuegbar ist.
+
+- [scripts/configure-sunshine-guest.sh](/home/dennis/beagle-os/scripts/configure-sunshine-guest.sh): `BEAGLE_STREAM_SERVER_URL` mit Default auf `meinzeug/beagle-stream-server` Release `beagle-phase-a`; bei Downloadfehlern Fallback auf upstream `SUNSHINE_URL`.
+- [beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl](/home/dennis/beagle-os/beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl): gleicher BeagleStream-first/Fallback-Pfad fuer neue VM-Firstboot-Installationen.
+- [beagle-host/services/service_registry.py](/home/dennis/beagle-os/beagle-host/services/service_registry.py) und [beagle-host/services/ubuntu_beagle_provisioning.py](/home/dennis/beagle-os/beagle-host/services/ubuntu_beagle_provisioning.py): Profil-Label/Streaming auf BeagleStream angepasst und Template-URL injiziert.
+- Regression:
+  - [tests/unit/test_configure_sunshine_guest_regressions.py](/home/dennis/beagle-os/tests/unit/test_configure_sunshine_guest_regressions.py)
+  - [tests/unit/test_ubuntu_beagle_firstboot_regressions.py](/home/dennis/beagle-os/tests/unit/test_ubuntu_beagle_firstboot_regressions.py)
+- Validierung:
+  - `bash -n scripts/configure-sunshine-guest.sh`
+  - `python3 -m py_compile beagle-host/services/service_registry.py beagle-host/services/ubuntu_beagle_provisioning.py`
+  - Direkter Python-Runner fuer die beiden Regression-Dateien.

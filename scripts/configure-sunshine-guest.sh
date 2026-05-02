@@ -30,6 +30,8 @@ SUNSHINE_USER="${SUNSHINE_USER:-sunshine}"
 SUNSHINE_PASSWORD="${SUNSHINE_PASSWORD:-}"
 SUNSHINE_PIN="${SUNSHINE_PIN:-}"
 SUNSHINE_PORT="${SUNSHINE_PORT:-}"
+BEAGLE_STREAM_SERVER_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb"
+BEAGLE_STREAM_SERVER_URL="${BEAGLE_STREAM_SERVER_URL:-$BEAGLE_STREAM_SERVER_DEFAULT_URL}"
 SUNSHINE_URL="${SUNSHINE_URL:-https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb}"
 SUNSHINE_ORIGIN_WEB_UI_ALLOWED="${SUNSHINE_ORIGIN_WEB_UI_ALLOWED:-wan}"
 SUNSHINE_HEALTHCHECK_INTERVAL_SEC="${SUNSHINE_HEALTHCHECK_INTERVAL_SEC:-45}"
@@ -422,6 +424,7 @@ SOFTWARE_PACKAGES='$(join_words "${SOFTWARE_PACKAGES[@]}")'
 SUNSHINE_USER='${SUNSHINE_USER}'
 SUNSHINE_PASSWORD='${SUNSHINE_PASSWORD}'
 SUNSHINE_PORT='${SUNSHINE_PORT}'
+BEAGLE_STREAM_SERVER_URL='${BEAGLE_STREAM_SERVER_URL}'
 SUNSHINE_URL='${SUNSHINE_URL}'
 SUNSHINE_ORIGIN_WEB_UI_ALLOWED='${SUNSHINE_ORIGIN_WEB_UI_ALLOWED}'
 SUNSHINE_HEALTHCHECK_INTERVAL_SEC='${SUNSHINE_HEALTHCHECK_INTERVAL_SEC}'
@@ -559,7 +562,10 @@ fi
 
 tmpdir=\$(mktemp -d)
 trap 'rm -rf "\$tmpdir"' EXIT
-curl -fsSLo "\$tmpdir/sunshine.deb" "\$SUNSHINE_URL"
+if ! curl -fsSLo "\$tmpdir/sunshine.deb" "\$BEAGLE_STREAM_SERVER_URL"; then
+  echo "BeagleStream server package unavailable, falling back to upstream Sunshine package." >&2
+  curl -fsSLo "\$tmpdir/sunshine.deb" "\$SUNSHINE_URL"
+fi
 apt-get install -y "\$tmpdir/sunshine.deb"
 configure_system_locale
 configure_keyboard_layout

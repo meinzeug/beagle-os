@@ -425,13 +425,17 @@ UBUNTU_BEAGLE_PROFILE_ID = "ubuntu-24.04-desktop-sunshine"
 UBUNTU_BEAGLE_PROFILE_LEGACY_IDS = {
     "ubuntu-24.04-xfce-sunshine": "xfce",
 }
-UBUNTU_BEAGLE_PROFILE_LABEL = "Ubuntu 24.04 LTS Desktop mit Sunshine"
+UBUNTU_BEAGLE_PROFILE_LABEL = "Ubuntu 24.04 LTS Desktop mit BeagleStream"
 UBUNTU_BEAGLE_PROFILE_RELEASE = "24.04 LTS"
-UBUNTU_BEAGLE_PROFILE_STREAMING = "Sunshine"
+UBUNTU_BEAGLE_PROFILE_STREAMING = "BeagleStream"
 UBUNTU_BEAGLE_MIN_PASSWORD_LENGTH = int(os.environ.get("BEAGLE_UBUNTU_MIN_PASSWORD_LENGTH", "8"))
 UBUNTU_BEAGLE_SUNSHINE_URL = os.environ.get(
     "BEAGLE_UBUNTU_SUNSHINE_URL",
     "https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-amd64.deb",
+).strip()
+UBUNTU_BEAGLE_STREAM_SERVER_URL = os.environ.get(
+    "BEAGLE_UBUNTU_STREAM_SERVER_URL",
+    "https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb",
 ).strip()
 UBUNTU_BEAGLE_LOCAL_ISO_DIR = Path(
     os.environ.get("BEAGLE_UBUNTU_LOCAL_ISO_DIR", "/var/lib/vz/template/iso").strip() or "/var/lib/vz/template/iso"
@@ -2687,6 +2691,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             ubuntu_beagle_profile_release=UBUNTU_BEAGLE_PROFILE_RELEASE,
             ubuntu_beagle_profile_streaming=UBUNTU_BEAGLE_PROFILE_STREAMING,
             ubuntu_beagle_software_presets=UBUNTU_BEAGLE_SOFTWARE_PRESETS,
+            ubuntu_beagle_stream_server_url=UBUNTU_BEAGLE_STREAM_SERVER_URL,
             ubuntu_beagle_sunshine_url=UBUNTU_BEAGLE_SUNSHINE_URL,
             ubuntu_beagle_tokens_dir=ubuntu_beagle_tokens_dir,
             utcnow=utcnow,

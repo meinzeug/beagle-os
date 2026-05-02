@@ -474,4 +474,5 @@
 - [x] BeagleStream Phase A Forks unter `meinzeug/*` umsetzen: Sunshine-Server mit Broker-Integration/Token-als-PIN und Moonlight-Qt-Client mit Broker-Allocate/WireGuard/Branding auf Branch `beagle/phase-a`.
 - [x] BeagleStream Phase A Thin-Client-Runtime vorbereiten: hostless Enrollment startet `beagle-stream stream <App>`, Build kann BeagleStream-AppImage stage'n und Healthcheck meldet fehlenden `beagle-stream` bei Broker-Modus.
 - [ ] BeagleStream Phase A Runtime-Abnahme auf `srv1`: Server-Fork registriert VM, Client-Fork alloziert Session, aktiviert WireGuard-Peer und paired per HMAC-Token-als-PIN.
-- [ ] BeagleStream Phase A Packaging-Abschluss: `beagle-stream-server` in VM-Image-/Guest-Prep-Pipeline aufnehmen und live bestaetigen, dass der Thin-Client-Artefaktbuild das `beagle-phase-a` AppImage statt des Fallbacks staged.
+- [x] BeagleStream Phase A Packaging-Hooks: Thin-Client-Build und VM-Guest-Prep versuchen standardmaessig die `beagle-phase-a` Releases von `beagle-stream-client`/`beagle-stream-server` und fallen bei fehlendem Asset auf upstream Moonlight/Sunshine zurueck.
+- [ ] BeagleStream Phase A Packaging-Abschluss live bestaetigen: Client-AppImage und Server-DEB sind im `beagle-phase-a` Release vorhanden; Thin-Client-Artefaktbuild und VM-Guest-Prep stage'n die eigenen Fork-Artefakte statt der Fallbacks.

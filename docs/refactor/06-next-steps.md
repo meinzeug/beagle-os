@@ -1256,5 +1256,6 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 
 1. Auf einer VM mit `/etc/beagle/stream-server.env` den Sunshine-Fork mit `BEAGLE_INTEGRATION=ON` starten und `Beagle broker active for VM ...` plus Registrierung gegen `srv1.beagle-os.com:9088` pruefen.
 2. BeagleStream-Client-Release `beagle-phase-a` beobachten; sobald `BeagleStream-latest-x86_64.AppImage` veroeffentlicht ist, muss der naechste Thin-Client-Artefaktbuild diesen Default statt des Fallback-Moonlight-AppImage stage'n.
-3. Auf einem Thin-Client mit `/etc/beagle/enrollment.conf` den gebundelten `beagle-stream` starten, Broker-Allocate ausfuehren, WireGuard-Peer-Aktivierung pruefen und Token-als-PIN-Pairing gegen die VM verifizieren.
-4. `beagle-stream-server` in die VM-Image-/Guest-Prep-Pipeline aufnehmen und danach den kompletten srv1-Flow VM -> Stream-Server-Register -> Thin-Client-Allocate -> Desktop-Stream live abnehmen.
+3. BeagleStream-Server-Release `beagle-phase-a` erzeugen; sobald `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` veroeffentlicht ist, muss die VM-Guest-Prep dieses Paket statt des Fallback-Sunshine-Pakets stage'n.
+4. Auf einem Thin-Client mit `/etc/beagle/enrollment.conf` den gebundelten `beagle-stream` starten, Broker-Allocate ausfuehren, WireGuard-Peer-Aktivierung pruefen und Token-als-PIN-Pairing gegen die VM verifizieren.
+5. Danach den kompletten srv1-Flow VM -> Stream-Server-Register -> Thin-Client-Allocate -> Desktop-Stream live abnehmen.

@@ -80,6 +80,7 @@ class UbuntuBeagleProvisioningService:
         ubuntu_beagle_profile_release: str,
         ubuntu_beagle_profile_streaming: str,
         ubuntu_beagle_software_presets: dict[str, dict[str, Any]],
+        ubuntu_beagle_stream_server_url: str,
         ubuntu_beagle_sunshine_url: str,
         ubuntu_beagle_tokens_dir: Callable[[], Path],
         utcnow: Callable[[], str],
@@ -143,6 +144,7 @@ class UbuntuBeagleProvisioningService:
         self._ubuntu_beagle_profile_release = str(ubuntu_beagle_profile_release or "")
         self._ubuntu_beagle_profile_streaming = str(ubuntu_beagle_profile_streaming or "")
         self._ubuntu_beagle_software_presets = dict(ubuntu_beagle_software_presets or {})
+        self._ubuntu_beagle_stream_server_url = str(ubuntu_beagle_stream_server_url or "")
         self._ubuntu_beagle_sunshine_url = str(ubuntu_beagle_sunshine_url or "")
         self._ubuntu_beagle_tokens_dir = ubuntu_beagle_tokens_dir
         self._utcnow = utcnow
@@ -649,6 +651,7 @@ class UbuntuBeagleProvisioningService:
                 "__SUNSHINE_USER__": sunshine_user,
                 "__SUNSHINE_PASSWORD__": sunshine_password,
                 "__SUNSHINE_PORT__": str(int(sunshine_port)) if sunshine_port else "",
+                "__BEAGLE_STREAM_SERVER_URL__": self._ubuntu_beagle_stream_server_url,
                 "__SUNSHINE_URL__": self._ubuntu_beagle_sunshine_url,
                 "__SUNSHINE_ORIGIN_WEB_UI_ALLOWED__": "wan",
                 "__IDENTITY_LOCALE__": identity_locale,
