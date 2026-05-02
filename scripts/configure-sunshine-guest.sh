@@ -749,6 +749,10 @@ chown -R "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.config"
 chown "\$GUEST_USER:\$GUEST_USER" "/home/\$GUEST_USER/.xprofile"
 configure_default_browser
 
+# Detect the sunshine binary path — beagle-stream-server installs to /usr/bin/sunshine,
+# the upstream fallback deb installs to /usr/local/bin/sunshine.
+SUNSHINE_EXEC="\$(command -v sunshine 2>/dev/null || echo /usr/bin/sunshine)"
+
 cat > /etc/systemd/system/beagle-sunshine.service <<SUNSHINESVC
 [Unit]
 Description=Beagle Sunshine
@@ -768,7 +772,7 @@ Environment=XDG_RUNTIME_DIR=/run/user/\$GUEST_UID
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$GUEST_UID/bus
 Environment=PULSE_SERVER=unix:/run/user/\$GUEST_UID/pulse/native
 ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/\$GUEST_UID/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/\$GUEST_USER/.Xauthority && -d /run/user/\$GUEST_UID && -S /run/user/\$GUEST_UID/bus && -S "\\\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/\$GUEST_USER/.Xauthority xrandr --query >/dev/null 2>&1 && DISPLAY=:0 XAUTHORITY=/home/\$GUEST_USER/.Xauthority xrandr --query | grep -q " connected"; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
-ExecStart=/usr/local/bin/sunshine
+ExecStart=\$SUNSHINE_EXEC
 Restart=always
 RestartSec=3
 TimeoutStartSec=210

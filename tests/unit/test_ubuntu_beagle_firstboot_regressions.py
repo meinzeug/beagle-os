@@ -49,6 +49,17 @@ def test_firstboot_prefers_beaglestream_server_package() -> None:
     assert 'curl -fsSLo "$TMPDIR_WORK/sunshine.deb" "$SUNSHINE_URL"' in script
 
 
+def test_firstboot_detects_sunshine_exec_path_dynamically() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    # After deb install, the binary path is detected at runtime — not hardcoded.
+    # beagle-stream-server installs to /usr/bin/sunshine; the fallback deb to /usr/local/bin/sunshine.
+    assert 'SUNSHINE_EXEC="$(command -v sunshine 2>/dev/null || echo /usr/bin/sunshine)"' in script
+    assert "ExecStart=${SUNSHINE_EXEC}" in script
+    assert "ExecStart=/usr/bin/sunshine" not in script
+    assert "ExecStart=/usr/local/bin/sunshine" not in script
+
+
 def test_firstboot_disables_display_idle_and_lockers_for_streaming() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 

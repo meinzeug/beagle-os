@@ -41,3 +41,14 @@ def test_configure_sunshine_guest_prefers_beaglestream_server_package() -> None:
     assert 'stream_runtime_variant="sunshine-fallback"' in content
     assert 'write_stream_runtime_status "\\$stream_runtime_variant" "\\$stream_runtime_package_url"' in content
     assert 'curl -fsSLo "\\$tmpdir/sunshine.deb" "\\$BEAGLE_STREAM_SERVER_URL"' in content
+
+
+def test_configure_sunshine_guest_detects_sunshine_exec_path_dynamically() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+
+    # Binary path is detected at runtime — not hardcoded.
+    # The script generates a guest script via heredoc, so $ is escaped as \$.
+    assert 'SUNSHINE_EXEC="\\$(command -v sunshine 2>/dev/null || echo /usr/bin/sunshine)"' in content
+    assert 'ExecStart=\\$SUNSHINE_EXEC' in content
+    assert 'ExecStart=/usr/bin/sunshine' not in content
+    assert 'ExecStart=/usr/local/bin/sunshine' not in content

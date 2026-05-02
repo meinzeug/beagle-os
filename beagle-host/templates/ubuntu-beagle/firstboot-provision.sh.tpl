@@ -832,6 +832,9 @@ if [[ ! -f "$DONE_FILE" ]]; then
   apt_retry apt-get install -y --no-install-recommends "$TMPDIR_WORK/sunshine.deb"
   repair_interrupted_dpkg
   write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"
+  # Detect the sunshine binary path — beagle-stream-server installs to /usr/bin/sunshine,
+  # the upstream fallback deb installs to /usr/local/bin/sunshine.
+  SUNSHINE_EXEC="$(command -v sunshine 2>/dev/null || echo /usr/bin/sunshine)"
   configure_system_locale
   configure_keyboard_layout
   install_desktop_wallpaper
@@ -1018,7 +1021,7 @@ Environment=XDG_RUNTIME_DIR=/run/user/${GUEST_UID}
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${GUEST_UID}/bus
 Environment=PULSE_SERVER=unix:/run/user/${GUEST_UID}/pulse/native
 ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/${GUEST_UID}/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/${GUEST_USER}/.Xauthority && -d /run/user/${GUEST_UID} && -S /run/user/${GUEST_UID}/bus && -S "\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xrandr --query >/dev/null 2>&1; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
-ExecStart=/usr/local/bin/sunshine
+ExecStart=${SUNSHINE_EXEC}
 Restart=always
 RestartSec=2
 TimeoutStartSec=210
