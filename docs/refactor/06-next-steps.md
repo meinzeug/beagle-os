@@ -1278,6 +1278,12 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 
 **Naechste konkrete Schritte**:
 
+## Naechster Schritt (2026-05-02, Release/runtime consistency after 8.0.8)
+
+1. Den naechsten GitHub-Release-Run fuer `8.0.8` beobachten, bestaetigen dass `VERSION`, Tag und Release-Assets denselben Patch-Stand tragen und kein weiterer `8.0.2`/`8.0.7`-Drift mehr entsteht.
+2. Auf `srv1` die Updates-WebUI noch einmal im Browser gegen den Live-SSE-Status pruefen: `Installiert`, `Remote` und der Rueckkanal fuer `Systemupdates installieren` muessen konsistent `8.0.8` bzw. den neuen Background-Runner zeigen.
+3. Danach den offenen BeagleStream-Livepfad weiter abnehmen: frischen `vm100`-USB-Stick booten, Thinclient-Enrollment, WireGuard, `POST /api/v1/streams/allocate` und sichtbaren Desktop-Stream des `beagle-stream-client` pruefen.
+
 1. **Plan 04 vertiefen**: Heatmap-Visualisierung und differenzierte Saved-CPU-Hours pro Pool/User statt nur Gesamtwert nachziehen.
 2. **Plan 04 haerten**: Green-Hours nicht nur anzeigen, sondern die zeitfensterbasierte Placement-/Prewarm-Entscheidung tiefer in den produktiven Scheduler-Pfad ziehen und mit eigener Regression absichern.
 3. **Plan 09 vervollstaendigen**: Gruene-Stunden-Heatmap im Energy-Panel aus echten Carbon-/Strommix-Daten rendern.

@@ -6683,3 +6683,20 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Validation:
   - `bash -n thin-client-assistant/live-build/config/includes.chroot/usr/local/bin/start-pve-thin-client-session beagle-os/overlay/usr/local/bin/start-beagle-session thin-client-assistant/usb/usb_writer_write_stage.sh scripts/build-thin-client-installer.sh`
   - `python3 -m py_compile beagle-os/overlay/usr/local/sbin/beagle-update-client`
+
+## Update (2026-05-02, Repo version + system updates runtime hardened)
+
+- Scope:
+  - keep `VERSION` aligned with patch releases and surface the same runtime version on `srv1`
+  - fix `/api/v1/settings/updates/apply` so WebUI-triggered system updates no longer run unprivileged `apt-get`
+  - make repo deployments reload long-running Beagle services so fresh Python code is actually live after an update
+- Changed:
+  - [.github/workflows/release.yml](/home/dennis/beagle-os/.github/workflows/release.yml), [.github/workflows/public-website.yml](/home/dennis/beagle-os/.github/workflows/public-website.yml) and [VERSION](/home/dennis/beagle-os/VERSION): release flow now persists the bumped `VERSION` back to `main` and skips recursive self-trigger loops; repo version is currently `8.0.8`
+  - [scripts/apply-system-updates.sh](/home/dennis/beagle-os/scripts/apply-system-updates.sh), [beagle-host/systemd/beagle-system-updates.service](/home/dennis/beagle-os/beagle-host/systemd/beagle-system-updates.service), [beagle-host/systemd/beagle-system-updates.timer](/home/dennis/beagle-os/beagle-host/systemd/beagle-system-updates.timer) and [beagle-host/polkit/beagle-system-updates.rules](/home/dennis/beagle-os/beagle-host/polkit/beagle-system-updates.rules): root-owned background update runner with persisted status JSON and timer-based automation
+  - [beagle-host/services/server_settings.py](/home/dennis/beagle-os/beagle-host/services/server_settings.py), [website/ui/settings.js](/home/dennis/beagle-os/website/ui/settings.js) and [website/index.html](/home/dennis/beagle-os/website/index.html): Updates panel/API now report installed/remote version plus background system-update state and start updates asynchronously instead of pretending a foreground install finished
+  - [scripts/install-beagle-host-services.sh](/home/dennis/beagle-os/scripts/install-beagle-host-services.sh): repo deploys now restart active runtime services (`beagle-control-plane`, public streams, noVNC proxy) after `daemon-reload`, preventing stale code/runtime-version drift on `srv1`
+  - Regression coverage: [tests/unit/test_server_settings.py](/home/dennis/beagle-os/tests/unit/test_server_settings.py) and [tests/unit/test_settings_ui_regressions.py](/home/dennis/beagle-os/tests/unit/test_settings_ui_regressions.py)
+- Validation:
+  - `bash -n scripts/install-beagle-host-services.sh scripts/apply-system-updates.sh`
+  - `python3 -m unittest tests.unit.test_server_settings tests.unit.test_settings_ui_regressions`
+  - live on `srv1`: `/opt/beagle/VERSION` and `repo-auto-update-status.json` both show `8.0.8`; `POST /api/v1/settings/updates/apply` now returns `200` and starts `beagle-system-updates.service`

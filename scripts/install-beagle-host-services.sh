@@ -93,6 +93,14 @@ install_file_if_needed() {
   install -m "$mode" "$source_file" "$target_file"
 }
 
+restart_unit_if_active() {
+  local unit_name="$1"
+
+  if systemctl is-active --quiet "$unit_name"; then
+    systemctl restart "$unit_name" 2>/dev/null || true
+  fi
+}
+
 write_installed_commit_stamp() {
   local commit=""
 
@@ -908,6 +916,9 @@ fi
 
 systemctl daemon-reload 2>/dev/null || true
 systemctl restart ssh.service >/dev/null 2>&1 || systemctl restart sshd.service >/dev/null 2>&1 || true
+restart_unit_if_active "$BEAGLE_CONTROL_SERVICE"
+restart_unit_if_active "$BEAGLE_PUBLIC_STREAM_SERVICE"
+restart_unit_if_active "$BEAGLE_NOVNC_PROXY_SERVICE"
 
 cat > /etc/sudoers.d/beagle-artifacts-refresh <<'SUDOERS'
 # Managed by install-beagle-host-services.sh — do not edit by hand.
