@@ -198,7 +198,7 @@ require_file "$DIST_DIR/kiosk-release-hash.txt"
 write_public_status_json
 prepare_publish_stage
 
-rsync -av --progress --delete \
+rsync -av --progress --delete-before --inplace \
   --exclude '.htaccess' \
   "$PUBLISH_STAGE_DIR/" \
   "$REMOTE_TARGET/"
