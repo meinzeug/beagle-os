@@ -64,7 +64,7 @@ def test_management_timers_run_after_prepare_network_and_health() -> None:
     assert prepare.index('run_optional_runtime_hook "/usr/local/sbin/beagle-egress-apply"') < prepare.index("ensure_beagle_management_units")
     for unit in SYSTEMD_UNITS:
         text = unit.read_text(encoding="utf-8")
-        assert "pve-thin-client-prepare.service" in text
+        assert "beagle-thin-client-prepare.service" in text
         assert "network-online.target" in text
 
 
