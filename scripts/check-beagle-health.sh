@@ -5,6 +5,7 @@
 # VM/session/stream health, backup age, and optional webhook alerting.
 #
 # Usage: bash check-beagle-health.sh [--alert-threshold <pct>]
+#                                     [--host <fqdn-or-host>]
 #                                     [--backup-dir <path>]
 #                                     [--backup-max-age-hours <hours>]
 #                                     [--webhook-url <url>]
@@ -26,12 +27,22 @@ WEBHOOK_URL="${BEAGLE_ALERT_WEBHOOK_URL:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --alert-threshold) ALERT_THRESHOLD="$2"; shift 2 ;;
+    --host) HOST="$2"; shift 2 ;;
     --backup-dir) BACKUP_DIR="$2"; shift 2 ;;
     --backup-max-age-hours) BACKUP_MAX_AGE_HOURS="$2"; shift 2 ;;
     --webhook-url) WEBHOOK_URL="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+if [[ ! "$ALERT_THRESHOLD" =~ ^[0-9]+$ ]]; then
+  echo "Invalid --alert-threshold: $ALERT_THRESHOLD" >&2
+  exit 2
+fi
+if [[ ! "$BACKUP_MAX_AGE_HOURS" =~ ^[0-9]+$ ]]; then
+  echo "Invalid --backup-max-age-hours: $BACKUP_MAX_AGE_HOURS" >&2
+  exit 2
+fi
 
 PASS=0
 FAIL=0
@@ -42,15 +53,33 @@ declare -a RESULTS=()
 # --------------------------------------------------------------------------
 check_pass() {
   local name="$1" detail="$2"
-  RESULTS+=("{\"check\":\"${name}\",\"status\":\"PASS\",\"detail\":\"${detail}\"}")
+  RESULTS+=("{\"check\":\"$(json_escape "$name")\",\"status\":\"PASS\",\"detail\":\"$(json_escape "$detail")\"}")
   PASS=$((PASS+1))
 }
 
 check_fail() {
   local name="$1" detail="$2"
-  RESULTS+=("{\"check\":\"${name}\",\"status\":\"FAIL\",\"detail\":\"${detail}\"}")
+  RESULTS+=("{\"check\":\"$(json_escape "$name")\",\"status\":\"FAIL\",\"detail\":\"$(json_escape "$detail")\"}")
   FAIL=$((FAIL+1))
   echo "  [FAIL] ${name}: ${detail}" >&2
+}
+
+json_escape() {
+  local input="$1"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$input" <<'PY'
+import json
+import sys
+print(json.dumps(sys.argv[1])[1:-1])
+PY
+    return 0
+  fi
+  input="${input//\\/\\\\}"
+  input="${input//\"/\\\"}"
+  input="${input//$'\n'/\\n}"
+  input="${input//$'\r'/\\r}"
+  input="${input//$'\t'/\\t}"
+  printf '%s' "$input"
 }
 
 # --------------------------------------------------------------------------
@@ -110,8 +139,8 @@ done
 # 4. Control plane health endpoint
 # --------------------------------------------------------------------------
 if command -v curl >/dev/null 2>&1; then
-  CP_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "${CONTROL_PLANE_URL}" 2>/dev/null || echo "000") # tls-bypass-allowlist: health probe may target localhost/self-signed control plane
-  CP_BODY=$(curl -sk "${CONTROL_PLANE_URL}" 2>/dev/null || echo "{}") # tls-bypass-allowlist: health probe may target localhost/self-signed control plane
+  CP_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "${CONTROL_PLANE_URL}" 2>/dev/null || echo "000")
+  CP_BODY=$(curl -sk "${CONTROL_PLANE_URL}" 2>/dev/null || echo "{}")
   if [[ "$CP_STATUS" == "200" ]]; then
     check_pass "control_plane_health" "control plane health endpoint returned 200"
   else
@@ -148,7 +177,7 @@ fi
 # --------------------------------------------------------------------------
 if command -v curl >/dev/null 2>&1; then
   SESSION_URL="http://localhost:9088/api/v1/sessions"
-  SESSION_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "${SESSION_URL}" 2>/dev/null || echo "000") # tls-bypass-allowlist: local sessions API probe against self-signed control plane
+  SESSION_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "${SESSION_URL}" 2>/dev/null || echo "000")
   if [[ "$SESSION_STATUS" == "200" || "$SESSION_STATUS" == "401" || "$SESSION_STATUS" == "403" ]]; then
     # 401/403 = auth required = service is alive
     check_pass "session_api_alive" "sessions API endpoint responding (HTTP ${SESSION_STATUS})"
@@ -206,7 +235,7 @@ OVERALL="PASS"
 
 RESULTS_JSON=$(printf '%s\n' "${RESULTS[@]}" | paste -sd ',' -)
 SUMMARY=$(printf '{"timestamp":"%s","overall":"%s","pass":%d,"fail":%d,"checks":[%s]}\n' \
-  "$TIMESTAMP" "$OVERALL" "$PASS" "$FAIL" "$RESULTS_JSON")
+  "$(json_escape "$TIMESTAMP")" "$(json_escape "$OVERALL")" "$PASS" "$FAIL" "$RESULTS_JSON")
 
 echo "$SUMMARY"
 
