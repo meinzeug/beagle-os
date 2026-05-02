@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-05-02, BeagleStream-first in VM-/Thinclient-Builds verdrahtet)
+
+**Zuletzt erledigt**:
+- Neue Ubuntu-Beagle-VMs sprechen im Provisioning-Status jetzt korrekt von `BeagleStream Server` statt pauschal von `Sunshine`.
+- Live-/Raw-Image-Builds ziehen standardmaessig `beagle-stream-client`; Upstream-Moonlight bleibt nur noch Fallback.
+- Der offene Copilot-CI-Fix fuer `test_ubuntu_beagle_stale_runtime.py` ist direkt in `main` uebernommen.
+
+**Naechste konkrete Schritte**:
+
+1. Den Patch auf `srv1` deployen und dort die WebUI-/API-Texte live pruefen: neue VM-Erstellung muss `BeagleStream Server` statt `Sunshine` zeigen.
+2. `vm100` bis durch den aktuellen Ubuntu-Autoinstall-/Firstboot-/Reboot-Pfad beobachten und verifizieren, dass der Status am Ende sauber auf Desktop/Stream-Bereitschaft kippt.
+3. Den offenen Restpfad fuer den separaten `beagle-stream-server`-Fork weiterziehen: serverseitigen Enforcement-/Event-Pfad spaeter auch direkt im Fork statt nur in `beagle-os` verankern.
+
 ## Stand (2026-05-02, BeagleStream Runtime-Erkennung im Host integriert)
 
 **Zuletzt erledigt**:

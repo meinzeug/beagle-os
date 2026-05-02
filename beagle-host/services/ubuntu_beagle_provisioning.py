@@ -1090,9 +1090,9 @@ class UbuntuBeagleProvisioningService:
         state["status"] = "installing" if start_after_create else "created"
         state["phase"] = "autoinstall" if start_after_create else "awaiting-start"
         state["message"] = (
-            f"Ubuntu-Autoinstall laeuft. {desktop['label']}, LightDM und Sunshine werden im Guest eingerichtet."
+            f"Ubuntu-Autoinstall laeuft. {desktop['label']}, LightDM und BeagleStream Server werden im Guest eingerichtet."
             if start_after_create
-            else f"VM angelegt. Starten Sie die VM, um Ubuntu, {desktop['label']}, LightDM und Sunshine zu provisionieren."
+            else f"VM angelegt. Starten Sie die VM, um Ubuntu, {desktop['label']}, LightDM und BeagleStream Server zu provisionieren."
         )
         state["started"] = start_after_create
         state["updated_at"] = self._utcnow()

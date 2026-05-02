@@ -1129,7 +1129,7 @@ class ServerSettingsService:
             progress = progress_floor(54)
         elif "chroot_install-packages" in command_blob or "apt-get" in command_blob or "dpkg" in command_blob:
             label = "Pakete werden in das Live-System installiert"
-            detail = "Debian-Pakete, Treiber, Firmware, Moonlight-Abhaengigkeiten und Installer-Tools werden in das chroot installiert."
+            detail = "Debian-Pakete, Treiber, Firmware, BeagleStream-/Moonlight-Abhaengigkeiten und Installer-Tools werden in das chroot installiert."
             hint = "Download und Paketkonfiguration sind der laengste Teil des Build-Prozesses."
             progress = progress_floor(42)
         elif "binary_rootfs" in command_blob or "/usr/lib/live/build/binary" in command_blob:

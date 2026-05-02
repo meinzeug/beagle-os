@@ -115,5 +115,5 @@ def test_default_state_marks_upstream_fallback_when_only_sunshine_is_present(tmp
     state = service.default_state(SimpleNamespace(vmid=101, node="srv1"))
 
     assert state["status"] == "ready"
-    assert "Upstream-Fallback" in state["message"]
+    assert "Sunshine-Fallback" in state["message"]
     assert state["stream_runtime"]["variant"] == "sunshine-fallback"

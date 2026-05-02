@@ -1,5 +1,6 @@
 # Global TODO
 
+- [x] BeagleStream-first in VM-/Thinclient-Builds vervollstaendigen: Provisioning-Texte auf `BeagleStream Server` umstellen, `scripts/build-beagle-os.sh` und den Live-Build-Hook standardmaessig auf `beagle-stream-client` ziehen und den offenen Copilot-CI-Fix fuer `test_ubuntu_beagle_stale_runtime.py` integrieren.
 - [x] Runtime-/Public-Release-Versionsdrift schliessen: Repo/Host-WebUI/Repo-Auto-Update auf `8.0.2` synchronisieren, lesbare installierte Version im Updates-Panel anzeigen und Copilot-PR/Issue fuer die fehlgeschlagenen Plasma-Assertions bereinigen.
 - [ ] Release-Versionierungslogik weiter haerten, damit kuenftige Patch-Releases nicht nur auf GitHub/Public-Artefakten entstehen, sondern auch die committed Runtime-Version eindeutig mitziehen.
 

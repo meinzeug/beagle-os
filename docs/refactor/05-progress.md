@@ -1,3 +1,23 @@
+## Update (2026-05-02, BeagleStream-first in VM-/Thinclient-Builds und Copilot-CI-Fix uebernommen)
+
+**Scope**: Die verbliebenen Beagle-OS-seitigen Integrationsluecken fuer die neuen `beagle-stream-server`- und `beagle-stream-client`-Forks wurden geschlossen, damit neue VMs und Build-Pfade nicht mehr irrefuehrend als Sunshine/Moonlight-Standard erscheinen.
+
+- VM-Provisioning meldet jetzt explizit `BeagleStream Server` statt `Sunshine`, solange der normale bevorzugte Installationspfad genutzt wird:
+  - `beagle-host/services/ubuntu_beagle_provisioning.py`
+  - `beagle-host/services/installer_prep.py`
+- Live- und Raw-Image-Builds ziehen jetzt standardmaessig das `beagle-stream-client` AppImage aus dem `beagle-phase-a` Release und fallen nur noch explizit auf Upstream-Moonlight zurueck:
+  - `scripts/build-beagle-os.sh`
+  - `thin-client-assistant/live-build/config/hooks/live/008-install-moonlight.hook.chroot`
+- Artifact-/Update-Texte zeigen die Runtime jetzt konsistent als `BeagleStream-/Moonlight-Abhaengigkeiten` statt nur als Moonlight-only.
+- Der offene Copilot-PR fuer den CI-Importfehler in `tests/unit/test_ubuntu_beagle_stale_runtime.py` wurde technisch uebernommen:
+  - `registry.create_provider` wird vor `exec_module()` gemockt
+  - `beagle-host/providers` ist im Test-Importpfad enthalten
+- Verifiziert:
+  - `bash -n scripts/build-beagle-os.sh thin-client-assistant/live-build/config/hooks/live/008-install-moonlight.hook.chroot scripts/refresh-host-artifacts.sh`
+  - `python3 -m py_compile ...`
+  - `python3 -m unittest tests.unit.test_ubuntu_beagle_stale_runtime`
+  - filebasierter Harness fuer die neuen Build-/Provisioning-/InstallerPrep-Regressionen: `HARNESS_OK`
+
 ## Update (2026-05-02, Runtime-Version und Update-UI auf 8.0.2 geradegezogen)
 
 **Scope**: Der Versions-Drift zwischen GitHub/Public-Release und laufender Host-WebUI wurde reproduzierbar geschlossen, damit `srv1` nicht weiter `8.0.0` anzeigt, waehrend bereits `8.0.2`-Artefakte live sind.

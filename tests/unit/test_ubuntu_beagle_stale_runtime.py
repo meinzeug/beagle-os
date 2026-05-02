@@ -8,18 +8,19 @@ from unittest import mock
 
 
 SERVICES_DIR = Path(__file__).resolve().parents[2] / "beagle-host" / "services"
+PROVIDERS_DIR = Path(__file__).resolve().parents[2] / "beagle-host" / "providers"
 BIN_DIR = Path(__file__).resolve().parents[2] / "beagle-host" / "bin"
-if str(SERVICES_DIR) not in sys.path:
-    sys.path.insert(0, str(SERVICES_DIR))
-if str(BIN_DIR) not in sys.path:
-    sys.path.insert(0, str(BIN_DIR))
+for _directory in (SERVICES_DIR, PROVIDERS_DIR, BIN_DIR):
+    if str(_directory) not in sys.path:
+        sys.path.insert(0, str(_directory))
 
 SERVICE_REGISTRY_PATH = SERVICES_DIR / "service_registry.py"
 SPEC = importlib.util.spec_from_file_location("beagle_service_registry", SERVICE_REGISTRY_PATH)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC is not None and SPEC.loader is not None
 sys.modules[SPEC.name] = MODULE
-SPEC.loader.exec_module(MODULE)
+with mock.patch("registry.create_provider", return_value=mock.MagicMock()):
+    SPEC.loader.exec_module(MODULE)
 
 
 def _stale_state() -> dict:

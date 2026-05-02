@@ -118,7 +118,7 @@ class InstallerPrepService:
             status = "unsupported"
             phase = "target"
             progress = 100
-            message = str(profile.get("installer_target_message") or "Diese VM ist kein geeignetes Sunshine-Streaming-Ziel.")
+            message = str(profile.get("installer_target_message") or "Diese VM ist kein geeignetes BeagleStream-Ziel.")
         elif ready:
             status = "ready"
             phase = "complete"
@@ -126,12 +126,12 @@ class InstallerPrepService:
             if str(quick.get("variant") or "").strip() == "beagle-stream-server":
                 message = "BeagleStream Server ist aktiv. Das VM-spezifische USB-Installer-Skript ist sofort verfuegbar."
             else:
-                message = "Sunshine ist aktiv, aber die VM laeuft noch im Upstream-Fallback statt mit dem echten BeagleStream-Server."
+                message = "Der Upstream-Sunshine-Fallback ist aktiv, aber die VM laeuft noch nicht mit dem echten BeagleStream-Server."
         else:
             status = "idle"
             phase = "inspect"
             progress = 0
-            message = "Download startet zuerst die Sunshine-Pruefung und die Stream-Vorbereitung fuer diese VM."
+            message = "Download startet zuerst die BeagleStream-Pruefung und die Stream-Vorbereitung fuer diese VM."
         return {
             "vmid": vm.vmid,
             "node": vm.node,
@@ -247,7 +247,7 @@ class InstallerPrepService:
                 "status": "running",
                 "phase": "queue",
                 "progress": 1,
-                "message": f"Sunshine-Pruefung fuer VM {vm.vmid} wurde gestartet.",
+                "message": f"BeagleStream-Pruefung fuer VM {vm.vmid} wurde gestartet.",
                 "requested_at": self._utcnow(),
                 "started_at": self._utcnow(),
                 "updated_at": self._utcnow(),

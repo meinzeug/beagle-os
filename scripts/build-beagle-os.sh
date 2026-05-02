@@ -17,7 +17,9 @@ HOSTNAME_VALUE="${BEAGLE_OS_HOSTNAME:-beagle-os}"
 RUNTIME_USER="${BEAGLE_OS_USER:-thinclient}"
 IMAGE_SIZE_GB="${BEAGLE_OS_IMAGE_SIZE_GB:-8}"
 JOBS="${BEAGLE_OS_JOBS:-$(nproc)}"
-MOONLIGHT_URL="${BEAGLE_OS_MOONLIGHT_URL:-https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/Moonlight-6.1.0-x86_64.AppImage}"
+BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage"
+MOONLIGHT_FALLBACK_URL="https://github.com/moonlight-stream/moonlight-qt/releases/download/v6.1.0/Moonlight-6.1.0-x86_64.AppImage"
+MOONLIGHT_URL="${BEAGLE_OS_MOONLIGHT_URL:-$BEAGLE_STREAM_CLIENT_DEFAULT_URL}"
 MOONLIGHT_HOST="${BEAGLE_OS_MOONLIGHT_HOST:-}"
 MOONLIGHT_PORT="${BEAGLE_OS_MOONLIGHT_PORT:-}"
 MOONLIGHT_APP="${BEAGLE_OS_MOONLIGHT_APP:-Desktop}"
@@ -438,18 +440,19 @@ apply_profile_overlay() {
 }
 
 install_moonlight_into_rootfs() {
-  local work_dir target_dir wrapper_path
+  local appimage_url work_dir target_dir wrapper_path
 
   work_dir="$(mktemp -d "$WORK_DIR/moonlight.XXXXXX")"
   target_dir="$ROOTFS_DIR/opt/moonlight"
   wrapper_path="$ROOTFS_DIR/usr/local/bin/moonlight"
+  appimage_url="$MOONLIGHT_URL"
 
   cleanup_stage() {
     rm -rf "${work_dir:-}"
   }
   trap cleanup_stage RETURN
 
-  curl -fL \
+  if ! curl -fL \
     --retry 8 \
     --retry-delay 3 \
     --retry-connrefused \
@@ -457,7 +460,23 @@ install_moonlight_into_rootfs() {
     --speed-limit 5000 \
     --speed-time 30 \
     -o "$work_dir/Moonlight.AppImage" \
-    "$MOONLIGHT_URL"
+    "$appimage_url"; then
+    if [[ "$appimage_url" != "$MOONLIGHT_FALLBACK_URL" ]]; then
+      echo "BeagleStream client download failed; falling back to upstream Moonlight AppImage." >&2
+      rm -f "$work_dir/Moonlight.AppImage"
+      curl -fL \
+        --retry 8 \
+        --retry-delay 3 \
+        --retry-connrefused \
+        --continue-at - \
+        --speed-limit 5000 \
+        --speed-time 30 \
+        -o "$work_dir/Moonlight.AppImage" \
+        "$MOONLIGHT_FALLBACK_URL"
+    else
+      return 1
+    fi
+  fi
 
   chmod +x "$work_dir/Moonlight.AppImage"
   (
