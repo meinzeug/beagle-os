@@ -22,10 +22,26 @@ source "$RUNTIME_DEBUG_REPORT_SH"
 
 load_runtime_config_with_retry
 
+network_runtime_ready() {
+  local iface="$1"
+  local current_ip=""
+
+  [[ -n "$iface" ]] || return 1
+  current_ip="$(current_ipv4_address "$iface" 2>/dev/null || true)"
+  [[ -n "$current_ip" ]] || return 1
+  wait_for_default_route "$iface" || return 1
+  wait_for_dns_targets || return 1
+}
+
 main() {
   local iface dhcp_ipv4=""
 
   iface="$(pick_interface)" || exit 0
+  if [[ "${PVE_THIN_CLIENT_NETWORK_MODE:-dhcp}" == "dhcp" ]] && network_runtime_ready "$iface"; then
+    beagle_log_event "network.reuse" "iface=${iface} mode=dhcp ipv4=$(current_ipv4_address "$iface" 2>/dev/null || true)"
+    write_runtime_debug_report "network-applied" "$iface" || true
+    return 0
+  fi
   if have_networkmanager; then
     write_networkmanager_no_random_mac_config || true
     write_nmconnection "$iface"

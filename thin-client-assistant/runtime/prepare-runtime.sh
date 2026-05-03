@@ -35,16 +35,62 @@ source "$DEVICE_SYNC_SH"
 
 load_runtime_config_with_retry
 BOOT_MODE="${PVE_THIN_CLIENT_BOOT_MODE:-$(detect_runtime_boot_mode)}"
+
+prepare_runtime_state_file() {
+  local state_dir
+  ensure_beagle_state_dir
+  state_dir="$(beagle_state_dir)"
+  printf '%s/prepare-runtime-state.env\n' "$state_dir"
+}
+
+prepare_runtime_current_boot_id() {
+  runtime_boot_id 2>/dev/null || cat /proc/sys/kernel/random/boot_id 2>/dev/null || true
+}
+
+prepare_runtime_already_ready() {
+  local state_file current_boot recorded_boot recorded_state
+  [[ "${PVE_THIN_CLIENT_FORCE_PREPARE_RECONFIGURE:-0}" == "1" ]] && return 1
+  state_file="$(prepare_runtime_state_file)"
+  [[ -r "$state_file" ]] || return 1
+  current_boot="$(prepare_runtime_current_boot_id)"
+  recorded_boot="$(awk -F= '$1=="boot_id" {print substr($0, index($0, "=")+1); exit}' "$state_file")"
+  recorded_state="$(awk -F= '$1=="state" {print substr($0, index($0, "=")+1); exit}' "$state_file")"
+  [[ -n "$current_boot" && "$recorded_boot" == "$current_boot" && "$recorded_state" == "ready" ]]
+}
+
+prepare_runtime_mark_ready() {
+  local state_file current_boot
+  state_file="$(prepare_runtime_state_file)"
+  current_boot="$(prepare_runtime_current_boot_id)"
+  {
+    printf 'boot_id=%s\n' "$current_boot"
+    printf 'state=ready\n'
+    printf 'updated_at=%s\n' "$(date -Iseconds 2>/dev/null || date)"
+  } >"$state_file"
+  chmod 0644 "$state_file" >/dev/null 2>&1 || true
+}
+
+prepare_runtime_reentry=0
+if prepare_runtime_already_ready; then
+  prepare_runtime_reentry=1
+fi
+
 beagle_log_event "prepare-runtime.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default} mode=${PVE_THIN_CLIENT_MODE:-UNSET}"
 write_runtime_debug_report "prepare-start" || true
 
 plymouth_status "Loading Beagle OS profile..."
 sync_runtime_config_to_system
-ensure_runtime_user
+if [[ "$prepare_runtime_reentry" -eq 0 ]]; then
+  ensure_runtime_user
+else
+  beagle_log_event "prepare-runtime.reentry" "skipping password rotation and network/ssh reconfigure for current boot"
+fi
 adjust_secret_permissions
 persist_runtime_config_to_live_state
 sync_local_hostname
-apply_runtime_ssh_config
+if [[ "$prepare_runtime_reentry" -eq 0 ]]; then
+  apply_runtime_ssh_config
+fi
 ensure_getty_overrides || beagle_log_event "prepare-runtime.getty-overrides-error" "getty override setup failed"
 normalize_boot_services || beagle_log_event "prepare-runtime.boot-services-error" "boot service normalization failed"
 if command -v ip >/dev/null 2>&1; then
@@ -55,7 +101,7 @@ if command -v ip >/dev/null 2>&1; then
   ip -6 route delete 8000::/1 dev "$stale_wg_iface" 2>/dev/null || true
 fi
 
-if [[ -x "$SCRIPT_DIR/apply-network-config.sh" ]]; then
+if [[ "$prepare_runtime_reentry" -eq 0 && -x "$SCRIPT_DIR/apply-network-config.sh" ]]; then
   plymouth_status "Configuring network..."
   beagle_log_event "prepare-runtime.network" "applying network configuration"
   "$SCRIPT_DIR/apply-network-config.sh" || beagle_log_event "prepare-runtime.network-error" "network configuration failed"
@@ -66,12 +112,15 @@ plymouth_status "Connecting device to Beagle Manager..."
 enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"
 enroll_wireguard_if_needed || beagle_log_event "prepare-runtime.wireguard-error" "wireguard enrollment failed"
 adjust_secret_permissions
-ensure_runtime_ssh_host_keys
+if [[ "$prepare_runtime_reentry" -eq 0 ]]; then
+  ensure_runtime_ssh_host_keys
+fi
 persist_runtime_config_to_live_state
 ensure_usb_tunnel_service
 ensure_kiosk_runtime || true
 run_optional_runtime_hook "/usr/local/sbin/beagle-identity-apply" "Applying system identity..."
 run_optional_runtime_hook "/usr/local/sbin/beagle-egress-apply" "Preparing secure connection..."
+prepare_runtime_mark_ready
 sync_device_runtime_state || beagle_log_event "prepare-runtime.device-sync-error" "initial sync failed"
 ensure_beagle_management_units
 beagle_log_event "prepare-runtime.system" "runtime_user=${PVE_THIN_CLIENT_RUNTIME_USER:-UNSET} hostname=${PVE_THIN_CLIENT_HOSTNAME:-UNSET}"

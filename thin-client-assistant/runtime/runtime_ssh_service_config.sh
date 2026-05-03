@@ -55,13 +55,16 @@ runtime_start_service_if_valid() {
   service_name="$(runtime_sshd_service_name)"
 
   if command -v "$sshd_bin" >/dev/null 2>&1 && "$sshd_bin" -t -f "$sshd_config" >/dev/null 2>&1; then
+    if "$systemctl_bin" is-active "$service_name" >/dev/null 2>&1; then
+      return 0
+    fi
     "$systemctl_bin" reset-failed "$service_name" >/dev/null 2>&1 || true
     "$systemctl_bin" start "$service_name" >/dev/null 2>&1 || true
   fi
 }
 
 apply_runtime_ssh_config() {
-  local sshd_config begin_marker end_marker temp_file
+  local sshd_config begin_marker end_marker temp_file block_file changed=0
 
   sshd_config="$(runtime_sshd_config_path)"
   begin_marker="$(managed_ssh_begin_marker)"
@@ -70,20 +73,34 @@ apply_runtime_ssh_config() {
   [[ -f "$sshd_config" ]] || return 0
 
   temp_file="$(mktemp)"
+  block_file="$(mktemp)"
   strip_managed_ssh_block "$sshd_config" "$begin_marker" "$end_marker" >"$temp_file" || cp -f "$sshd_config" "$temp_file"
+  cat >"$block_file" <<EOF
+$begin_marker
+PasswordAuthentication yes
+KbdInteractiveAuthentication yes
+PermitEmptyPasswords no
+PermitRootLogin yes
+$end_marker
+EOF
 
   {
     cat "$temp_file"
-    printf '\n%s\n' "$begin_marker"
-    printf 'PasswordAuthentication yes\n'
-    printf 'KbdInteractiveAuthentication yes\n'
-    printf 'PermitEmptyPasswords no\n'
-    printf 'PermitRootLogin yes\n'
-    printf '%s\n' "$end_marker"
-  } >"$sshd_config"
+    printf '\n'
+    cat "$block_file"
+  } >"${sshd_config}.tmp"
 
-  rm -f "$temp_file"
+  if ! cmp -s "${sshd_config}.tmp" "$sshd_config"; then
+    mv -f "${sshd_config}.tmp" "$sshd_config"
+    changed=1
+  else
+    rm -f "${sshd_config}.tmp"
+  fi
+
+  rm -f "$temp_file" "$block_file"
   chmod 0600 "$sshd_config" >/dev/null 2>&1 || true
 
-  runtime_restart_service_if_valid "$sshd_config"
+  if [[ "$changed" -eq 1 ]]; then
+    runtime_restart_service_if_valid "$sshd_config"
+  fi
 }

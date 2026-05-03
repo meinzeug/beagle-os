@@ -21,6 +21,8 @@ CREATE_THINCLIENT_USER_HOOK = ROOT / "thin-client-assistant" / "live-build" / "c
 BEAGLE_STREAM_CLIENT_TARGETING = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_targeting.sh"
 BEAGLE_STREAM_CLIENT_API_URL = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_api_url.sh"
 RUNTIME_USER_SETUP = ROOT / "thin-client-assistant" / "runtime" / "runtime_user_setup.sh"
+RUNTIME_NETWORK_BACKEND = ROOT / "thin-client-assistant" / "runtime" / "runtime_network_backend.sh"
+RUNTIME_SSH_SERVICE_CONFIG = ROOT / "thin-client-assistant" / "runtime" / "runtime_ssh_service_config.sh"
 
 
 def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None:
@@ -45,6 +47,10 @@ def test_prepare_runtime_does_not_block_enrollment_on_getty_bootstrap_failure() 
     assert prepare_text.index("ip route delete 0.0.0.0/1") < prepare_text.index('"$SCRIPT_DIR/apply-network-config.sh"')
     assert prepare_text.index("ensure_getty_overrides ||") < prepare_text.index("enroll_endpoint_if_needed ||")
     assert prepare_text.index("enroll_endpoint_if_needed ||") < prepare_text.index("enroll_wireguard_if_needed ||")
+    assert "prepare_runtime_already_ready()" in prepare_text
+    assert 'prepare_runtime_reentry=1' in prepare_text
+    assert 'prepare-runtime.reentry' in prepare_text
+    assert 'if [[ "$prepare_runtime_reentry" -eq 0 ]]; then' in prepare_text
 
 
 def test_prepare_runtime_persists_redacted_live_usb_debug_reports() -> None:
@@ -159,3 +165,20 @@ def test_live_image_bundles_libopengl_for_beaglestream_client() -> None:
     package_text = PACKAGE_LIST.read_text(encoding="utf-8")
 
     assert "libopengl0" in package_text
+
+
+def test_runtime_network_fallback_does_not_release_live_dhcp_lease() -> None:
+    network_backend_text = RUNTIME_NETWORK_BACKEND.read_text(encoding="utf-8")
+    apply_network_text = (ROOT / "thin-client-assistant" / "runtime" / "apply-network-config.sh").read_text(encoding="utf-8")
+
+    assert '"$dhclient_bin" -4 -r "$iface"' not in network_backend_text
+    assert "network_runtime_ready()" in apply_network_text
+    assert 'beagle_log_event "network.reuse"' in apply_network_text
+
+
+def test_runtime_ssh_config_only_restarts_sshd_when_config_changes() -> None:
+    ssh_config_text = RUNTIME_SSH_SERVICE_CONFIG.read_text(encoding="utf-8")
+
+    assert 'if "$systemctl_bin" is-active "$service_name" >/dev/null 2>&1; then' in ssh_config_text
+    assert 'if ! cmp -s "${sshd_config}.tmp" "$sshd_config"; then' in ssh_config_text
+    assert 'if [[ "$changed" -eq 1 ]]; then' in ssh_config_text

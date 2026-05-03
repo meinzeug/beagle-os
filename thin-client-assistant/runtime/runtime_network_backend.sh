@@ -41,7 +41,6 @@ acquire_dhcp_ipv4_fallback() {
   ip link set "$iface" up >/dev/null 2>&1 || true
 
   if command -v "$dhclient_bin" >/dev/null 2>&1; then
-    "$dhclient_bin" -4 -r "$iface" >/dev/null 2>&1 || true
     "$dhclient_bin" -4 -1 -v "$iface" >/dev/null 2>&1 && return 0
   fi
 

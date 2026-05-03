@@ -456,7 +456,11 @@ sync_device_runtime_state() {
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
   mapfile -t tls_args < <(beagle_curl_tls_args "$sync_url" "$manager_pin" "$manager_ca_cert")
-  curl_args+=("${tls_args[@]}")
+  local tls_arg
+  for tls_arg in "${tls_args[@]}"; do
+    [[ -n "$tls_arg" ]] || continue
+    curl_args+=("$tls_arg")
+  done
   http_status="$("${curl_args[@]}" --data-binary "@${payload_file}" "$sync_url" || true)"
 
   if [[ "$http_status" == "200" ]]; then
@@ -489,7 +493,11 @@ confirm_device_wiped_runtime() {
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
   mapfile -t tls_args < <(beagle_curl_tls_args "$confirm_url" "$manager_pin" "$manager_ca_cert")
-  curl_args+=("${tls_args[@]}")
+  local tls_arg
+  for tls_arg in "${tls_args[@]}"; do
+    [[ -n "$tls_arg" ]] || continue
+    curl_args+=("$tls_arg")
+  done
   http_status="$("${curl_args[@]}" --data '{}' "$confirm_url" || true)"
 
   if [[ "$http_status" == "200" ]]; then
