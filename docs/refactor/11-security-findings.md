@@ -1,5 +1,32 @@
 # Security Findings
 
+Stand: 2026-05-03 (ergaenzt: S-043 Thinclient-Broker/WireGuard-Streampfad gegen Runtime-/Compat-Drift gehaertet)
+
+## S-043 — Thinclient-Broker-Streaming konnte trotz Enrollment auf Client-/Server-Drift und lokale WireGuard-Rechte scheitern (PATCHED)
+
+- Status: **gepatcht** (2026-05-03)
+- Risiko: **Hoch**
+- Betroffene Dateien:
+  - `beagle-host/services/stream_http_surface.py`
+  - `thin-client-assistant/runtime/apply_enrollment_config.py`
+  - `thin-client-assistant/runtime/runtime_user_setup.sh`
+  - `thin-client-assistant/live-build/config/package-lists/pve-thin-client.list.chroot`
+  - `thin-client-assistant/live-build/config/hooks/live/011-verify-runtime-deps.hook.chroot`
+- Beschreibung:
+  - Der laufende Thinclient konnte zwar enrollen und WireGuard aufbauen, aber der Desktop-Stream scheiterte an drei Driftpunkten:
+    1. `/etc/beagle/enrollment.conf` war fuer den Runtime-User nicht lesbar.
+    2. `POST /api/v1/streams/allocate` lieferte nur das neue verschachtelte JSON-Format, waehrend der aktuelle BeagleStream-Client auf dem Endpoint noch flache Kompatibilitaetsfelder erwartete.
+    3. Der Endpoint konnte `wg set ...` im User-Kontext nicht ausfuehren, obwohl der Broker den Peer korrekt zuteilte.
+- Fix:
+  - Enrollment-Datei und Verzeichnis werden jetzt reproduzierbar als `root:thinclient` mit `0750` bzw. `0640` geschrieben.
+  - `streams/allocate` liefert wieder flache Kompatibilitaetsfelder fuer `host_ip`, `port`, `token` und ein client-kompatibles `wg_peer_config`, behält aber die neue Envelope bei.
+  - Wenn ein WireGuard-Peer vorhanden ist, wird fuer Endpoints die interne VM-Stream-Adresse bevorzugt.
+  - Das Thinclient-Live-Image installiert `libcap2-bin` und setzt `CAP_NET_ADMIN` auf `/usr/bin/wg`, damit Broker-gesteuerte Peer-Aktualisierungen im Desktop-Kontext funktionieren.
+- Live-Verifikation:
+  - Thinclient `192.168.178.92`: laufender `beagle-stream`-Prozess auf `tty1`.
+  - Aktive TCP-Session ueber den VPN-Pfad: `10.88.1.1 -> 192.168.123.116:50000`.
+  - `wg-beagle` Handshake aktiv, Allowed IPs auf Mesh + VM-Subnetz begrenzt.
+
 Stand: 2026-05-02 (ergaenzt: S-042 BeagleStream hostless Enrollment/Endpoint-Auth gehaertet)
 
 ## S-042 — VM-spezifische Thinclient-Sticks konnten nach Enrollment auf statischen Direct-Streaming-Zustand zurueckfallen (PATCHED)

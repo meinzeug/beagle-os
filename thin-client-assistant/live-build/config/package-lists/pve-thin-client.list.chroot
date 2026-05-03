@@ -31,6 +31,7 @@ feh
 curl
 ca-certificates
 jq
+libcap2-bin
 wireguard-tools
 flatpak
 xdg-desktop-portal

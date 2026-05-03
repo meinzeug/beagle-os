@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import grp
 import sys
 from pathlib import Path
 from typing import Any
@@ -33,7 +34,15 @@ def _json_env(value: Any) -> str:
 def _write_enrollment_file(path: Path, payload: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(f'{key}="{value}"\n' for key, value in payload.items()), encoding="utf-8")
-    path.chmod(0o600)
+    runtime_user = str(os.environ.get("PVE_THIN_CLIENT_RUNTIME_USER", "thinclient") or "thinclient").strip() or "thinclient"
+    try:
+        runtime_group = grp.getgrnam(runtime_user)
+        os.chown(path.parent, -1, runtime_group.gr_gid)
+        os.chown(path, -1, runtime_group.gr_gid)
+    except KeyError:
+        pass
+    path.parent.chmod(0o750)
+    path.chmod(0o640)
 
 
 def _remove_file_if_exists(path: Path) -> None:

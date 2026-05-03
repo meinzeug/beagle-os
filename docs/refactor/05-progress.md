@@ -1,3 +1,17 @@
+## Update (2026-05-03, Thinclient-BeagleStream-Broker/WireGuard-Ende-zu-Ende auf `vm100` repariert)
+
+**Scope**: Den echten Live-USB-Endpoint `192.168.178.92` gegen `srv1` bis zum laufenden BeagleStream-Desktop ueber den WireGuard-Tunnel reparieren und die Hotfixes reproduzierbar ins Repo ziehen.
+
+- Root Cause 1 behoben: `thinclient` konnte `/etc/beagle/enrollment.conf` nicht lesen, weil die Runtime die Datei auf `0600 root:root` bzw. das Verzeichnis `/etc/beagle` nicht fuer den Runtime-User oeffnete.
+- Root Cause 2 behoben: Die Control Plane lieferte fuer `POST /api/v1/streams/allocate` nur die neue, verschachtelte Envelope-Struktur; der laufende BeagleStream-Client auf dem Thinclient erwartete weiterhin flache Kompatibilitaetsfelder.
+- Root Cause 3 behoben: Im Broker-/WireGuard-Pfad wurde fuer den Endpoint die oeffentliche Stream-Adresse geliefert; fuer den echten VPN-Tunnelpfad wird jetzt die interne VM-Adresse bevorzugt.
+- Root Cause 4 behoben: `wg` hatte im Thinclient-Desktop-Kontext keine `CAP_NET_ADMIN`-Rechte; das Live-Image setzt diese Capability jetzt waehrend des Build-Hooks auf `/usr/bin/wg`.
+- Live-Verifikation:
+  - Thinclient `192.168.178.92` ist per SSH stabil erreichbar.
+  - `beagle-stream` laeuft auf `tty1`.
+  - Aktive Stream-Verbindung: `10.88.1.1 -> 192.168.123.116:50000`.
+  - `wg-beagle` handshaket gegen `46.4.96.80:51820`, Allowed IPs `10.88.0.0/16, 192.168.123.0/24`.
+
 ## Update (2026-05-02, Enterprise-GA-Doku in `docs/lasthope` konsolidiert)
 
 **Scope**: Verstreute Enterprise-/Release-/Security-/Streaming-Restpunkte aus

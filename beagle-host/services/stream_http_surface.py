@@ -226,6 +226,21 @@ class StreamHttpSurfaceService:
             return 0
 
     @staticmethod
+    def _normalize_wireguard_compat_payload(wg_peer_config: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(wg_peer_config, dict) or not wg_peer_config:
+            return {}
+        allowed_ips_value = wg_peer_config.get("allowed_ips")
+        if isinstance(allowed_ips_value, list):
+            allowed_ips = [str(item or "").strip() for item in allowed_ips_value if str(item or "").strip()]
+        else:
+            allowed_ips = [str(allowed_ips_value or "").strip()] if str(allowed_ips_value or "").strip() else []
+        return {
+            "public_key": str(wg_peer_config.get("public_key") or wg_peer_config.get("server_public_key") or "").strip(),
+            "endpoint": str(wg_peer_config.get("endpoint") or wg_peer_config.get("server_endpoint") or "").strip(),
+            "allowed_ips": ", ".join(allowed_ips),
+        }
+
+    @staticmethod
     def _resolve_allocate_actor_ids(user_id: str, device_id: str) -> tuple[str, str]:
         requested_user_id = str(user_id or "").strip()
         resolved_device_id = str(device_id or "").strip()
@@ -309,6 +324,9 @@ class StreamHttpSurfaceService:
                     pairing_token = ""
 
             vm_profile = self._build_vm_profile(vm)
+            local_stream_host = str(vm_profile.get("beagle_stream_client_local_host") or "").strip()
+            public_stream_host = str(vm_profile.get("stream_host") or "").strip()
+            allocation_host = local_stream_host if isinstance(wg_peer_config, dict) and wg_peer_config and local_stream_host else public_stream_host
             allocation = {
                 "pool_id": pool_id,
                 "user_id": user_id,
@@ -316,13 +334,14 @@ class StreamHttpSurfaceService:
                 "device_id": device_id,
                 "vm_id": vm_id,
                 "session_id": session_id,
-                "host_ip": str(vm_profile.get("stream_host") or "").strip(),
+                "host_ip": allocation_host,
                 "port": int(vm_profile.get("beagle_stream_client_port") or 47984),
                 "token": pairing_token,
                 "network_mode": network_mode,
                 "wg_peer_config": wg_peer_config if isinstance(wg_peer_config, dict) else {},
                 "links": self._config_links(vm_id),
             }
+            compatibility_wg_peer_config = self._normalize_wireguard_compat_payload(allocation["wg_peer_config"])
             self._safe_audit(
                 "stream.client.allocate",
                 "success",
@@ -334,7 +353,18 @@ class StreamHttpSurfaceService:
                 network_mode=network_mode,
                 wireguard_profile=bool(allocation["wg_peer_config"]),
             )
-            return self._json(HTTPStatus.OK, {"ok": True, **self._envelope(allocation=allocation)})
+            response_payload = {"ok": True, **self._envelope(allocation=allocation)}
+            response_payload.update(
+                {
+                    "host_ip": allocation["host_ip"],
+                    "port": allocation["port"],
+                    "token": allocation["token"],
+                    "network_mode": allocation["network_mode"],
+                    "wg_peer_config": compatibility_wg_peer_config,
+                    "links": allocation["links"],
+                }
+            )
+            return self._json(HTTPStatus.OK, response_payload)
 
         if path == self._REGISTER_ROUTE:
             try:

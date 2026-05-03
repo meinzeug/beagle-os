@@ -117,6 +117,14 @@ adjust_secret_permissions() {
   if [[ -f "$local_auth_file" ]]; then
     chmod 0600 "$local_auth_file" >/dev/null 2>&1 || true
   fi
+  if [[ -d /etc/beagle ]]; then
+    "$chown_bin" root:"$runtime_user" /etc/beagle >/dev/null 2>&1 || true
+    chmod 0750 /etc/beagle >/dev/null 2>&1 || true
+  fi
+  if [[ -f /etc/beagle/enrollment.conf ]]; then
+    "$chown_bin" root:"$runtime_user" /etc/beagle/enrollment.conf >/dev/null 2>&1 || true
+    chmod 0640 /etc/beagle/enrollment.conf >/dev/null 2>&1 || true
+  fi
 }
 
 sync_local_hostname() {

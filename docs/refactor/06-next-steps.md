@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-05-03, Thinclient-Broker-Stream live ueber WireGuard bestaetigt)
+
+**Zuletzt erledigt**:
+- Der echte VM100-Live-USB-Thinclient verbindet jetzt per Broker-/WireGuard-Pfad zur internen VM-Adresse statt auf den oeffentlichen Direct-Host auszuweichen.
+- Die laufende Session auf `192.168.178.92` haelt eine echte Stream-Verbindung `10.88.1.1 -> 192.168.123.116:50000`.
+- Repo und `srv1`-Runtime enthalten die Kompatibilitaets-/Permissions-Fixes fuer `streams/allocate` und `/etc/beagle/enrollment.conf`.
+
+**Naechste konkrete Schritte**:
+
+1. `srv1` den neuen Commit vollstaendig uebernehmen lassen und die Thinclient-Artefakte mit dem `wg`-Capability-Fix neu bauen.
+2. Einen frischen VM100-Live-Stick aus den neuen Artefakten schreiben und gegen denselben E2E-Pfad ohne Live-Hotfix erneut pruefen.
+3. Danach denselben Broker-/WireGuard-/Desktop-Flow fuer neu erstellte Thinclients und installierte Endpoints verifizieren.
+
 ## Stand (2026-05-02, Enterprise-GA-Plan `docs/lasthope` angelegt)
 
 **Zuletzt erledigt**:

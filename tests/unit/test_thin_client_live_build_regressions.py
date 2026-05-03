@@ -29,6 +29,7 @@ def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None
     package_text = PACKAGE_LIST.read_text(encoding="utf-8")
 
     assert "jq" in package_text
+    assert "libcap2-bin" in package_text
     assert "wireguard-tools" in package_text
 
 
@@ -37,6 +38,7 @@ def test_thin_client_live_image_verifies_wireguard_commands() -> None:
 
     assert "wireguard-tools" in hook_text
     assert 'for command_name in jq wg ip; do' in hook_text
+    assert 'setcap cap_net_admin+ep "$(command -v wg)"' in hook_text
 
 
 def test_prepare_runtime_does_not_block_enrollment_on_getty_bootstrap_failure() -> None:
@@ -159,6 +161,18 @@ def test_live_image_unlocks_thinclient_account_for_ssh_before_runtime_password_r
     assert 'sync_root_debug_password' in runtime_user_text
     assert "printf 'root:%s\\n' 'THINCLIENT' | chpasswd" in build_text
     assert "usermod -U root >/dev/null 2>&1 || passwd -u root >/dev/null 2>&1 || true" in build_text
+    assert '"/etc/beagle/enrollment.conf"' not in runtime_user_text
+
+
+def test_runtime_user_setup_opens_enrollment_config_for_runtime_user_group() -> None:
+    runtime_user_text = RUNTIME_USER_SETUP.read_text(encoding="utf-8")
+
+    assert 'if [[ -d /etc/beagle ]]; then' in runtime_user_text
+    assert '"$chown_bin" root:"$runtime_user" /etc/beagle' in runtime_user_text
+    assert 'chmod 0750 /etc/beagle' in runtime_user_text
+    assert 'if [[ -f /etc/beagle/enrollment.conf ]]; then' in runtime_user_text
+    assert '"$chown_bin" root:"$runtime_user" /etc/beagle/enrollment.conf' in runtime_user_text
+    assert 'chmod 0640 /etc/beagle/enrollment.conf' in runtime_user_text
 
 
 def test_live_image_bundles_libopengl_for_beaglestream_client() -> None:
