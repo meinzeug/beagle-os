@@ -124,8 +124,14 @@ def test_stream_runtime_uses_preset_fallback_host_and_api_url_when_primary_value
 def test_live_image_unlocks_thinclient_account_for_ssh_before_runtime_password_rotation() -> None:
     create_user_text = CREATE_THINCLIENT_USER_HOOK.read_text(encoding="utf-8")
     runtime_user_text = RUNTIME_USER_SETUP.read_text(encoding="utf-8")
+    build_text = BUILD_THIN_CLIENT.read_text(encoding="utf-8")
 
     assert 'printf \'%s:%s\\n\' "${THINCLIENT_USER}" "${THINCLIENT_PASSWORD}" | chpasswd' in create_user_text
     assert 'usermod -U "${THINCLIENT_USER}" >/dev/null 2>&1 || passwd -u "${THINCLIENT_USER}" >/dev/null 2>&1 || true' in create_user_text
+    assert 'printf \'root:%s\\n\' "${ROOT_DEBUG_PASSWORD}" | chpasswd' in create_user_text
+    assert 'PermitRootLogin yes' in (ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "etc" / "ssh" / "sshd_config.d" / "99-pve-thin-client.conf").read_text(encoding="utf-8")
     assert 'local passwd_bin="${BEAGLE_PASSWD_BIN:-passwd}"' in runtime_user_text
     assert '"$usermod_bin" -U "$runtime_user" >/dev/null 2>&1 || "$passwd_bin" -u "$runtime_user" >/dev/null 2>&1 || true' in runtime_user_text
+    assert 'sync_root_debug_password' in runtime_user_text
+    assert "printf 'root:%s\\n' 'THINCLIENT' | chpasswd" in build_text
+    assert "usermod -U root >/dev/null 2>&1 || passwd -u root >/dev/null 2>&1 || true" in build_text

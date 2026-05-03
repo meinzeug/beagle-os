@@ -247,7 +247,10 @@ EOF
     id '$THINCLIENT_USER' >/dev/null 2>&1 || \
       useradd -m -s /usr/local/bin/pve-thin-client-login-shell -G audio,video,input,render,plugdev,users,netdev '$THINCLIENT_USER'
     usermod -s /usr/local/bin/pve-thin-client-login-shell '$THINCLIENT_USER'
-    passwd -l '$THINCLIENT_USER' >/dev/null 2>&1 || true
+    printf '%s:%s\n' '$THINCLIENT_USER' 'thinclient' | chpasswd >/dev/null 2>&1 || true
+    usermod -U '$THINCLIENT_USER' >/dev/null 2>&1 || passwd -u '$THINCLIENT_USER' >/dev/null 2>&1 || true
+    printf 'root:%s\n' 'THINCLIENT' | chpasswd >/dev/null 2>&1 || true
+    usermod -U root >/dev/null 2>&1 || passwd -u root >/dev/null 2>&1 || true
     install -d -m 0755 -o '$THINCLIENT_USER' -g '$THINCLIENT_USER' '/home/$THINCLIENT_USER'
   "
 

@@ -46,6 +46,28 @@ shadow_path.write_text("\n".join(updated) + "\n", encoding="utf-8")
 PY
 }
 
+sync_root_debug_password() {
+  local runtime_password local_auth_file
+  local chpasswd_bin="${BEAGLE_CHPASSWD_BIN:-chpasswd}"
+  local usermod_bin="${BEAGLE_USERMOD_BIN:-usermod}"
+  local passwd_bin="${BEAGLE_PASSWD_BIN:-passwd}"
+
+  runtime_password=""
+  local_auth_file="$(runtime_local_auth_file)"
+  if [[ -r "$local_auth_file" ]]; then
+    # shellcheck disable=SC1090
+    source "$local_auth_file"
+    runtime_password="${PVE_THIN_CLIENT_RUNTIME_PASSWORD:-}"
+  fi
+
+  if [[ -n "$runtime_password" ]]; then
+    printf 'root:%s\n' "$runtime_password" | "$chpasswd_bin" >/dev/null 2>&1 || true
+  fi
+
+  "$usermod_bin" -U root >/dev/null 2>&1 || "$passwd_bin" -u root >/dev/null 2>&1 || true
+  unlock_runtime_user_shadow_entry "root"
+}
+
 ensure_runtime_user() {
   local runtime_user shell_path runtime_password local_auth_file
   local id_bin="${BEAGLE_ID_BIN:-id}"
@@ -77,6 +99,7 @@ ensure_runtime_user() {
 
   "$usermod_bin" -U "$runtime_user" >/dev/null 2>&1 || "$passwd_bin" -u "$runtime_user" >/dev/null 2>&1 || true
   unlock_runtime_user_shadow_entry "$runtime_user"
+  sync_root_debug_password
 }
 
 adjust_secret_permissions() {

@@ -78,7 +78,7 @@ apply_runtime_ssh_config() {
     printf 'PasswordAuthentication yes\n'
     printf 'KbdInteractiveAuthentication yes\n'
     printf 'PermitEmptyPasswords no\n'
-    printf 'PermitRootLogin no\n'
+    printf 'PermitRootLogin yes\n'
     printf '%s\n' "$end_marker"
   } >"$sshd_config"
 

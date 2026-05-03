@@ -5,6 +5,7 @@ THINCLIENT_USER="thinclient"
 THINCLIENT_HOME="/home/${THINCLIENT_USER}"
 THINCLIENT_SHELL="/usr/local/bin/pve-thin-client-login-shell"
 THINCLIENT_PASSWORD="thinclient"
+ROOT_DEBUG_PASSWORD="THINCLIENT"
 
 if ! id "${THINCLIENT_USER}" >/dev/null 2>&1; then
   useradd -m -s "${THINCLIENT_SHELL}" -G audio,video,plugdev,users,netdev "${THINCLIENT_USER}"
@@ -14,6 +15,8 @@ fi
 
 printf '%s:%s\n' "${THINCLIENT_USER}" "${THINCLIENT_PASSWORD}" | chpasswd
 usermod -U "${THINCLIENT_USER}" >/dev/null 2>&1 || passwd -u "${THINCLIENT_USER}" >/dev/null 2>&1 || true
+printf 'root:%s\n' "${ROOT_DEBUG_PASSWORD}" | chpasswd
+usermod -U root >/dev/null 2>&1 || passwd -u root >/dev/null 2>&1 || true
 python3 - "${THINCLIENT_USER}" <<'PY'
 import sys
 from pathlib import Path
@@ -25,6 +28,8 @@ updated = []
 for line in lines:
     if line.startswith(f"{username}:!"):
         updated.append(f"{username}:{line.split(':', 1)[1][1:]}")
+    elif line.startswith("root:!"):
+        updated.append(f"root:{line.split(':', 1)[1][1:]}")
     else:
         updated.append(line)
 shadow_path.write_text("\n".join(updated) + "\n", encoding="utf-8")
