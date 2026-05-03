@@ -24,6 +24,28 @@ runtime_login_shell_path() {
   printf '%s\n' "/bin/bash"
 }
 
+unlock_runtime_user_shadow_entry() {
+  local runtime_user="${1:-}"
+  local shadow_file="${BEAGLE_SHADOW_FILE:-/etc/shadow}"
+
+  [[ -n "$runtime_user" && -f "$shadow_file" ]] || return 0
+  python3 - "$runtime_user" "$shadow_file" <<'PY'
+import sys
+from pathlib import Path
+
+username = sys.argv[1]
+shadow_path = Path(sys.argv[2])
+lines = shadow_path.read_text(encoding="utf-8").splitlines()
+updated = []
+for line in lines:
+    if line.startswith(f"{username}:!"):
+        updated.append(f"{username}:{line.split(':', 1)[1][1:]}")
+    else:
+        updated.append(line)
+shadow_path.write_text("\n".join(updated) + "\n", encoding="utf-8")
+PY
+}
+
 ensure_runtime_user() {
   local runtime_user shell_path runtime_password local_auth_file
   local id_bin="${BEAGLE_ID_BIN:-id}"
@@ -54,6 +76,7 @@ ensure_runtime_user() {
   fi
 
   "$usermod_bin" -U "$runtime_user" >/dev/null 2>&1 || "$passwd_bin" -u "$runtime_user" >/dev/null 2>&1 || true
+  unlock_runtime_user_shadow_entry "$runtime_user"
 }
 
 adjust_secret_permissions() {
