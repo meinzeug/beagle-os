@@ -26,10 +26,16 @@ PY
 }
 
 beagle_stream_server_api_url() {
-  local configured host
+  local configured fallback_configured host
   configured="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL:-}" 2>/dev/null || true)"
   if [[ -n "$configured" ]]; then
     printf '%s\n' "$configured"
+    return 0
+  fi
+
+  fallback_configured="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL:-}" 2>/dev/null || true)"
+  if [[ -n "$fallback_configured" ]]; then
+    printf '%s\n' "$fallback_configured"
     return 0
   fi
 

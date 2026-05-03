@@ -16,6 +16,8 @@ LAUNCH_BEAGLE_STREAM_CLIENT = ROOT / "thin-client-assistant" / "runtime" / "laun
 BUILD_THIN_CLIENT = ROOT / "scripts" / "build-thin-client-installer.sh"
 BUILD_BEAGLE_OS = ROOT / "scripts" / "build-beagle-os.sh"
 LIVE_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "008-install-beagle-stream-client.hook.chroot"
+BEAGLE_STREAM_CLIENT_TARGETING = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_targeting.sh"
+BEAGLE_STREAM_CLIENT_API_URL = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_api_url.sh"
 
 
 def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None:
@@ -105,3 +107,13 @@ def test_live_and_raw_image_builds_default_to_beaglestream_client() -> None:
     assert "BeagleStream-latest-x86_64.AppImage" in live_hook_text
     assert "BEAGLE_STREAM_CLIENT_FALLBACK_URL" not in live_hook_text
     assert "BeagleStream.AppImage" in live_hook_text
+
+
+def test_stream_runtime_uses_preset_fallback_host_and_api_url_when_primary_values_are_empty() -> None:
+    targeting_text = BEAGLE_STREAM_CLIENT_TARGETING.read_text(encoding="utf-8")
+    api_url_text = BEAGLE_STREAM_CLIENT_API_URL.read_text(encoding="utf-8")
+
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST' in targeting_text
+    assert 'fallback_host="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST:-}"' in targeting_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL' in api_url_text
+    assert 'fallback_configured="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL:-}"' in api_url_text

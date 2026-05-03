@@ -48,3 +48,15 @@ def test_build_installer_env_preserves_explicit_connection_method_override() -> 
         runtime_user="thinclient",
     )
     assert env["CONNECTION_METHOD"] == "direct"
+
+
+def test_build_installer_env_maps_stream_fallback_hosts_into_runtime_env() -> None:
+    env = build_installer_env(
+        preset={
+            "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST": "46.4.96.80",
+            "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL": "https://46.4.96.80:50001",
+        },
+        runtime_user="thinclient",
+    )
+    assert env["BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST"] == "46.4.96.80"
+    assert env["BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL"] == "https://46.4.96.80:50001"
