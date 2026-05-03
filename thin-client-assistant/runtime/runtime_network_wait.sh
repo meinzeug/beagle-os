@@ -54,6 +54,32 @@ host_has_ipv4() {
   "$getent_bin" ahostsv4 "$host" >/dev/null 2>&1
 }
 
+current_ipv4_address() {
+  local iface="${1:-}"
+  local ip_bin
+
+  [[ -n "$iface" ]] || return 1
+  ip_bin="$(runtime_ip_bin)"
+  "$ip_bin" -4 -o addr show dev "$iface" scope global 2>/dev/null | awk '{print $4}' | head -n1 | cut -d/ -f1
+}
+
+wait_for_ipv4_address() {
+  local iface="$1"
+  local remaining current_ip
+
+  remaining="$(runtime_network_wait_timeout)"
+  while (( remaining > 0 )); do
+    current_ip="$(current_ipv4_address "$iface" 2>/dev/null || true)"
+    if [[ -n "$current_ip" ]]; then
+      printf '%s\n' "$current_ip"
+      return 0
+    fi
+    sleep 1
+    remaining=$((remaining - 1))
+  done
+  return 1
+}
+
 wait_for_default_route() {
   local iface="$1"
   local remaining ip_bin

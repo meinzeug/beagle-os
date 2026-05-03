@@ -37,6 +37,8 @@ def test_live_usb_network_choice_is_persistent_and_can_be_overridden() -> None:
     assert "persist_runtime_config_to_live_state" in script
     assert "NETWORK_MODE=dhcp" in script
     assert "INTERFACE=%s" in script
+    assert "DHCP IPv4:" in script
+    assert 'configured_ipv4="$(current_ipv4_address "$configured_iface"' in script
 
 
 def test_live_usb_network_menu_supports_wifi_before_runtime_networking() -> None:
@@ -62,8 +64,18 @@ def test_live_usb_network_runtime_disables_mac_randomization_and_writes_debug_re
     assert "ethernet.cloned-mac-address=permanent" in config
     assert "cloned-mac-address=permanent" in config
     assert "write_networkmanager_no_random_mac_config || true" in apply_script
+    assert 'dhcp_ipv4="$(wait_for_ipv4_address "$iface"' in apply_script
+    assert 'refresh_networkd_link "$iface"' in apply_script
+    assert 'wait_for_default_route "$iface" || return 1' in apply_script
     assert 'write_runtime_debug_report "network-applied" "$iface"' in apply_script
     assert "$live_state_dir/debug/README.txt" in writer
+
+
+def test_live_usb_write_stage_passes_stream_fallback_values_into_runtime_state() -> None:
+    writer = WRITE_STAGE.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST="${PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST:-}"' in writer
+    assert 'BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL:-}"' in writer
 
 
 def test_network_menu_is_included_before_runtime_services() -> None:

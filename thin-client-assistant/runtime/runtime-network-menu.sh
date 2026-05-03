@@ -5,12 +5,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNTIME_PREPARE_FLOW_SH="${RUNTIME_PREPARE_FLOW_SH:-$SCRIPT_DIR/runtime_prepare_flow.sh}"
 RUNTIME_CONFIG_PERSISTENCE_SH="${RUNTIME_CONFIG_PERSISTENCE_SH:-$SCRIPT_DIR/runtime_config_persistence.sh}"
 APPLY_NETWORK_CONFIG_SH="${APPLY_NETWORK_CONFIG_SH:-$SCRIPT_DIR/apply-network-config.sh}"
+RUNTIME_NETWORK_RUNTIME_SH="${RUNTIME_NETWORK_RUNTIME_SH:-$SCRIPT_DIR/runtime_network_runtime.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 # shellcheck disable=SC1090
 source "$RUNTIME_PREPARE_FLOW_SH"
 # shellcheck disable=SC1090
 source "$RUNTIME_CONFIG_PERSISTENCE_SH"
+# shellcheck disable=SC1090
+source "$RUNTIME_NETWORK_RUNTIME_SH"
 
 TTY_PATH="${BEAGLE_NETWORK_TUI_TTY:-/dev/tty1}"
 NETWORK_CHOICE_FILE="${BEAGLE_NETWORK_CHOICE_FILE:-/run/pve-thin-client/network-choice.env}"
@@ -289,6 +292,8 @@ main() {
   local -a items=()
   local choice=""
   local summary=""
+  local configured_iface=""
+  local configured_ipv4=""
 
   load_runtime_config_with_retry || true
   sync_runtime_config_to_system || true
@@ -332,7 +337,13 @@ main() {
     return 1
   }
   persist_runtime_config_to_live_state || true
-  dialog_msgbox "Netzwerk bereit" "Netzwerk wurde konfiguriert. Beagle OS startet jetzt den Desktop."
+  configured_iface="$(pick_interface 2>/dev/null || true)"
+  configured_ipv4="$(current_ipv4_address "$configured_iface" 2>/dev/null || true)"
+  if [[ -n "$configured_ipv4" ]]; then
+    dialog_msgbox "Netzwerk bereit" "Netzwerk wurde konfiguriert.\n\nSchnittstelle: ${configured_iface}\nDHCP IPv4: ${configured_ipv4}\n\nBeagle OS startet jetzt den Desktop."
+  else
+    dialog_msgbox "Netzwerk bereit" "Netzwerk wurde konfiguriert, aber es wurde noch keine IPv4-Adresse erkannt.\n\nSchnittstelle: ${configured_iface:-unbekannt}\n\nBeagle OS startet jetzt den Desktop."
+  fi
 }
 
 main "$@"

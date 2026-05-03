@@ -6,14 +6,29 @@ RUNTIME_NETWORK_CONFIG_FILES_SH="${RUNTIME_NETWORK_CONFIG_FILES_SH:-$SCRIPT_DIR/
 source "$RUNTIME_NETWORK_CONFIG_FILES_SH"
 
 restart_networkd() {
-  local systemctl_bin
+  local systemctl_bin networkctl_bin
   systemctl_bin="$(runtime_systemctl_bin)"
+  networkctl_bin="${BEAGLE_NETWORKCTL_BIN:-networkctl}"
 
   if command -v "$systemctl_bin" >/dev/null 2>&1 && "$systemctl_bin" is-enabled systemd-networkd.service >/dev/null 2>&1; then
     "$systemctl_bin" restart systemd-networkd.service >/dev/null 2>&1 || true
   elif command -v "$systemctl_bin" >/dev/null 2>&1 && "$systemctl_bin" is-active systemd-networkd.service >/dev/null 2>&1; then
     "$systemctl_bin" restart systemd-networkd.service >/dev/null 2>&1 || true
   fi
+
+  if command -v "$networkctl_bin" >/dev/null 2>&1; then
+    "$networkctl_bin" reload >/dev/null 2>&1 || true
+  fi
+}
+
+refresh_networkd_link() {
+  local iface="$1"
+  local networkctl_bin="${BEAGLE_NETWORKCTL_BIN:-networkctl}"
+
+  [[ -n "$iface" ]] || return 0
+  command -v "$networkctl_bin" >/dev/null 2>&1 || return 0
+  "$networkctl_bin" reconfigure "$iface" >/dev/null 2>&1 || true
+  "$networkctl_bin" renew "$iface" >/dev/null 2>&1 || true
 }
 
 have_networkmanager() {
