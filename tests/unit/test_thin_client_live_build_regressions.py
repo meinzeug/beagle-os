@@ -13,6 +13,7 @@ SYSTEMD_BOOTSTRAP = ROOT / "thin-client-assistant" / "runtime" / "runtime_system
 WIREGUARD_ENROLLMENT = ROOT / "thin-client-assistant" / "runtime" / "enrollment_wireguard.sh"
 BEAGLE_STREAM_CLIENT_RUNTIME_EXEC = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_runtime_exec.sh"
 LAUNCH_BEAGLE_STREAM_CLIENT = ROOT / "thin-client-assistant" / "runtime" / "launch-beagle-stream-client.sh"
+LAUNCH_SESSION = ROOT / "thin-client-assistant" / "runtime" / "launch-session.sh"
 BUILD_THIN_CLIENT = ROOT / "scripts" / "build-thin-client-installer.sh"
 BUILD_BEAGLE_OS = ROOT / "scripts" / "build-beagle-os.sh"
 LIVE_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "008-install-beagle-stream-client.hook.chroot"
@@ -77,13 +78,19 @@ def test_wireguard_enrollment_script_is_executable_for_prepare_runtime() -> None
 def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() -> None:
     runtime_text = BEAGLE_STREAM_CLIENT_RUNTIME_EXEC.read_text(encoding="utf-8")
     launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+    launch_session_text = LAUNCH_SESSION.read_text(encoding="utf-8")
+    targeting_text = BEAGLE_STREAM_CLIENT_TARGETING.read_text(encoding="utf-8")
 
     assert "beagle_stream_hostless_enabled()" in runtime_text
     assert 'printf \'%s\\n\' "beagle-stream"' in runtime_text
     assert 'out_ref=("$(beagle_stream_client_bin)" stream "$app")' in runtime_text
+    assert 'if beagle_stream_broker_connection; then' in runtime_text
     assert 'hostless_beagle_stream=1' in launcher_text
     assert "fetch_beagle_stream_client_current_session_via_manager" in launcher_text
     assert 'beagle_log_event "beagle-stream-client.beagle-stream-hostless"' in launcher_text
+    assert 'if [[ "$method" == "broker" && -r /etc/beagle/enrollment.conf ]]; then' in launch_session_text
+    assert 'beagle_stream_connection_method()' in targeting_text
+    assert 'if beagle_stream_broker_connection; then' in targeting_text
 
 
 def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
@@ -95,6 +102,8 @@ def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
     assert "BeagleStream.AppImage" in build_text
     assert 'beagle_wrapper_path="$BUILD_DIR/config/includes.chroot/usr/local/bin/beagle-stream"' in build_text
     assert 'if [[ -x "$target_dir/usr/bin/beagle-stream" ]]; then' in build_text
+    assert '"$ROOT_DIR/scripts/lib/trace-guard.sh"' in build_text
+    assert 'find "$target_dir" -type d -exec chmod 0755 {} +' in build_text
 
 
 def test_live_and_raw_image_builds_default_to_beaglestream_client() -> None:
@@ -109,6 +118,7 @@ def test_live_and_raw_image_builds_default_to_beaglestream_client() -> None:
     assert "BeagleStream-latest-x86_64.AppImage" in live_hook_text
     assert "BEAGLE_STREAM_CLIENT_FALLBACK_URL" not in live_hook_text
     assert "BeagleStream.AppImage" in live_hook_text
+    assert 'find "${TARGET_DIR}" -type d -exec chmod 0755 {} +' in live_hook_text
 
 
 def test_stream_runtime_uses_preset_fallback_host_and_api_url_when_primary_values_are_empty() -> None:
@@ -119,6 +129,14 @@ def test_stream_runtime_uses_preset_fallback_host_and_api_url_when_primary_value
     assert 'fallback_host="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST:-}"' in targeting_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL' in api_url_text
     assert 'fallback_configured="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL:-}"' in api_url_text
+
+
+def test_broker_runtime_ignores_static_stream_host_values() -> None:
+    targeting_text = BEAGLE_STREAM_CLIENT_TARGETING.read_text(encoding="utf-8")
+
+    assert 'render_template "${PVE_THIN_CLIENT_CONNECTION_METHOD:-direct}"' in targeting_text
+    assert 'if beagle_stream_broker_connection; then' in targeting_text
+    assert 'return 0' in targeting_text
 
 
 def test_live_image_unlocks_thinclient_account_for_ssh_before_runtime_password_rotation() -> None:
@@ -135,3 +153,9 @@ def test_live_image_unlocks_thinclient_account_for_ssh_before_runtime_password_r
     assert 'sync_root_debug_password' in runtime_user_text
     assert "printf 'root:%s\\n' 'THINCLIENT' | chpasswd" in build_text
     assert "usermod -U root >/dev/null 2>&1 || passwd -u root >/dev/null 2>&1 || true" in build_text
+
+
+def test_live_image_bundles_libopengl_for_beaglestream_client() -> None:
+    package_text = PACKAGE_LIST.read_text(encoding="utf-8")
+
+    assert "libopengl0" in package_text

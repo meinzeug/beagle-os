@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib/trace-guard.sh"
-beagle_trace_guard_disable_xtrace_if_sensitive
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+for trace_guard_candidate in \
+  "$SCRIPT_DIR/../../scripts/lib/trace-guard.sh" \
+  "/usr/local/lib/scripts/lib/trace-guard.sh" \
+  "/usr/local/lib/pve-thin-client/scripts/lib/trace-guard.sh"
+do
+  if [[ -r "$trace_guard_candidate" ]]; then
+    # shellcheck disable=SC1090
+    source "$trace_guard_candidate"
+    break
+  fi
+done
+
+if declare -F beagle_trace_guard_disable_xtrace_if_sensitive >/dev/null 2>&1; then
+  beagle_trace_guard_disable_xtrace_if_sensitive
+fi
 
 runtime_python_bin() {
   printf '%s\n' "${BEAGLE_PYTHON_BIN:-python3}"

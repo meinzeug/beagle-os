@@ -37,6 +37,9 @@ chmod +x "${WORK_DIR}/BeagleStream.AppImage"
 rm -rf "${TARGET_DIR}"
 mkdir -p "${TARGET_DIR}"
 cp -a "${WORK_DIR}/squashfs-root/." "${TARGET_DIR}/"
+find "${TARGET_DIR}" -type d -exec chmod 0755 {} +
+find "${TARGET_DIR}" -type f -perm /111 -exec chmod 0755 {} +
+find "${TARGET_DIR}" -type f ! -perm /111 -exec chmod 0644 {} +
 
 cat > /usr/local/bin/beagle-stream-client <<'EOF'
 #!/bin/sh

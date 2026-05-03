@@ -35,6 +35,14 @@ wg_endpoint="${BEAGLE_ENDPOINT_EGRESS_WG_ENDPOINT:-${PVE_THIN_CLIENT_BEAGLE_EGRE
 wg_preshared_key="${BEAGLE_ENDPOINT_EGRESS_WG_PRESHARED_KEY:-${PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRESHARED_KEY:-}}"
 wg_keepalive="${BEAGLE_ENDPOINT_EGRESS_WG_PERSISTENT_KEEPALIVE:-${PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE:-25}}"
 
+if [[ "${PVE_THIN_CLIENT_CONNECTION_METHOD:-}" == "broker" && \
+      -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}" && \
+      "$interface_name" == "wg-beagle" ]]; then
+  install -d -m 0755 "$STATE_DIR"
+  write_status "managed-by-thinclient-runtime" "0" "" ""
+  exit 0
+fi
+
 read_previous_value() {
   local key="$1"
   [[ -r "$STATUS_FILE" ]] || return 1

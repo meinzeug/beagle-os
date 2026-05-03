@@ -194,6 +194,9 @@ prepare_rootfs_stage() {
   rsync -a --delete --chown=root:root \
     "$ROOT_DIR/thin-client-assistant/templates/" \
     "$ROOTFS_STAGE_DIR/usr/local/lib/pve-thin-client/templates/"
+  install -D -m 0755 \
+    "$ROOT_DIR/scripts/lib/trace-guard.sh" \
+    "$ROOTFS_STAGE_DIR/usr/local/lib/scripts/lib/trace-guard.sh"
   install -D -m 0644 \
     "$ROOT_DIR/thin-client-assistant/systemd/beagle-thin-client-prepare.service" \
     "$ROOTFS_STAGE_DIR/etc/systemd/system/beagle-thin-client-prepare.service"
@@ -393,6 +396,9 @@ stage_beagle_stream_client_assets() {
   rm -rf "$target_dir"
   install -d -m 0755 "$target_dir" "$(dirname "$beagle_stream_client_wrapper_path")"
   cp -a "$work_dir/squashfs-root/." "$target_dir/"
+  find "$target_dir" -type d -exec chmod 0755 {} +
+  find "$target_dir" -type f -perm /111 -exec chmod 0755 {} +
+  find "$target_dir" -type f ! -perm /111 -exec chmod 0644 {} +
 
   cat > "$beagle_stream_client_wrapper_path" <<'EOF'
 #!/bin/sh

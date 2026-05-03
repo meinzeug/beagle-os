@@ -52,12 +52,16 @@ write_launch_status() {
 }
 
 launch_beagle_stream_client() {
-  local host app binary target
+  local host app binary target method
   host="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-}")"
   app="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP:-Desktop}")"
+  method="$(render_template "${PVE_THIN_CLIENT_CONNECTION_METHOD:-direct}")"
   binary="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN:-beagle-stream-client}"
   target="${host}:${app}"
-  if [[ -z "$host" && -r /etc/beagle/enrollment.conf ]]; then
+  if [[ "$method" == "broker" && -r /etc/beagle/enrollment.conf ]]; then
+    binary="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN:-beagle-stream}"
+    target="broker:${app}"
+  elif [[ -z "$host" && -r /etc/beagle/enrollment.conf ]]; then
     binary="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BIN:-beagle-stream}"
     target="broker:${app}"
   fi

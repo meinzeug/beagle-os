@@ -19,8 +19,20 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../scripts/lib/trace-guard.sh"
-beagle_trace_guard_disable_xtrace_if_sensitive
+for trace_guard_candidate in \
+  "$SCRIPT_DIR/../../scripts/lib/trace-guard.sh" \
+  "/usr/local/lib/scripts/lib/trace-guard.sh" \
+  "/usr/local/lib/pve-thin-client/scripts/lib/trace-guard.sh"
+do
+  if [[ -r "$trace_guard_candidate" ]]; then
+    # shellcheck disable=SC1090
+    source "$trace_guard_candidate"
+    break
+  fi
+done
+if declare -F beagle_trace_guard_disable_xtrace_if_sensitive >/dev/null 2>&1; then
+  beagle_trace_guard_disable_xtrace_if_sensitive
+fi
 # shellcheck source=common.sh
 source "${SCRIPT_DIR}/common.sh" 2>/dev/null || true
 PERSIST_WIREGUARD_CONFIG_PY="${PERSIST_WIREGUARD_CONFIG_PY:-$SCRIPT_DIR/persist_wireguard_runtime_config.py}"

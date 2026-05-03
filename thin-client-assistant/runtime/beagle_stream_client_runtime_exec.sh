@@ -50,15 +50,19 @@ beagle_stream_enrollment_value() {
 beagle_stream_hostless_enabled() {
   local host control_plane token device_id pool_id
 
-  host="$(beagle_stream_client_host 2>/dev/null || true)"
-  [[ -z "$host" ]] || return 1
-
   control_plane="$(beagle_stream_enrollment_value control_plane 2>/dev/null || true)"
   token="$(beagle_stream_enrollment_value enrollment_token 2>/dev/null || true)"
   device_id="$(beagle_stream_enrollment_value device_id 2>/dev/null || true)"
   pool_id="$(beagle_stream_enrollment_value pool_id 2>/dev/null || true)"
 
-  [[ -n "$control_plane" && -n "$token" && -n "$device_id" && -n "$pool_id" ]]
+  [[ -n "$control_plane" && -n "$token" && -n "$device_id" && -n "$pool_id" ]] || return 1
+
+  if beagle_stream_broker_connection; then
+    return 0
+  fi
+
+  host="$(beagle_stream_client_host 2>/dev/null || true)"
+  [[ -z "$host" ]]
 }
 
 build_stream_args() {

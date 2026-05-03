@@ -12,6 +12,14 @@ prefer_ipv4() {
   [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PREFER_IPV4:-1}" == "1" ]]
 }
 
+beagle_stream_connection_method() {
+  render_template "${PVE_THIN_CLIENT_CONNECTION_METHOD:-direct}"
+}
+
+beagle_stream_broker_connection() {
+  [[ "$(beagle_stream_connection_method)" == "broker" ]]
+}
+
 is_ip_literal() {
   python3 - "$1" <<'PY'
 import ipaddress
@@ -26,6 +34,10 @@ PY
 
 beagle_stream_client_host() {
   local host fallback_host
+
+  if beagle_stream_broker_connection; then
+    return 0
+  fi
 
   host="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-}" 2>/dev/null || true)"
   if [[ -n "$host" ]]; then
@@ -42,7 +54,7 @@ beagle_stream_client_local_host() {
 }
 
 beagle_stream_client_port() {
-  render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT:-}"
+  render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT:-50000}"
 }
 
 format_beagle_stream_client_target() {

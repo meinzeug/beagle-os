@@ -51,6 +51,7 @@ va-driver-all
 vdpau-driver-all
 libvdpau1
 libvdpau-va-gl1
+libopengl0
 vainfo
 whiptail
 wpasupplicant
