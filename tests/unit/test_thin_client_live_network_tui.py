@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_MENU = ROOT / "thin-client-assistant" / "runtime" / "runtime-network-menu.sh"
 RUNTIME_CONFIG = ROOT / "thin-client-assistant" / "runtime" / "runtime_network_config_files.sh"
+RUNTIME_BACKEND = ROOT / "thin-client-assistant" / "runtime" / "runtime_network_backend.sh"
 RUNTIME_PERSISTENCE = ROOT / "thin-client-assistant" / "runtime" / "runtime_config_persistence.sh"
 APPLY_NETWORK = ROOT / "thin-client-assistant" / "runtime" / "apply-network-config.sh"
 LIVE_MENU = ROOT / "thin-client-assistant" / "usb" / "pve-thin-client-live-menu.sh"
@@ -13,6 +14,7 @@ WRITE_STAGE = ROOT / "thin-client-assistant" / "usb" / "usb_writer_write_stage.s
 NETWORK_MENU_UNIT = ROOT / "thin-client-assistant" / "systemd" / "pve-thin-client-network-menu.service"
 PREPARE_UNIT = ROOT / "thin-client-assistant" / "systemd" / "pve-thin-client-prepare.service"
 BUILD_SCRIPT = ROOT / "scripts" / "build-thin-client-installer.sh"
+LIVE_PACKAGES = ROOT / "thin-client-assistant" / "live-build" / "config" / "package-lists" / "pve-thin-client.list.chroot"
 
 
 def test_live_usb_runtime_network_menu_is_gated_to_live_usb_boots() -> None:
@@ -57,6 +59,8 @@ def test_live_usb_network_runtime_disables_mac_randomization_and_writes_debug_re
     config = RUNTIME_CONFIG.read_text(encoding="utf-8")
     apply_script = APPLY_NETWORK.read_text(encoding="utf-8")
     writer = WRITE_STAGE.read_text(encoding="utf-8")
+    backend = RUNTIME_BACKEND.read_text(encoding="utf-8")
+    packages = LIVE_PACKAGES.read_text(encoding="utf-8")
 
     assert "write_networkmanager_no_random_mac_config()" in config
     assert "wifi.scan-rand-mac-address=no" in config
@@ -66,7 +70,12 @@ def test_live_usb_network_runtime_disables_mac_randomization_and_writes_debug_re
     assert "write_networkmanager_no_random_mac_config || true" in apply_script
     assert 'dhcp_ipv4="$(wait_for_ipv4_address "$iface"' in apply_script
     assert 'refresh_networkd_link "$iface"' in apply_script
-    assert 'wait_for_default_route "$iface" || return 1' in apply_script
+    assert 'acquire_dhcp_ipv4_fallback "$iface"' in apply_script
+    assert 'write_runtime_debug_report "network-ipv4-failed" "$iface"' in apply_script
+    assert 'wait_for_default_route "$iface" || {' in apply_script
+    assert "acquire_dhcp_ipv4_fallback()" in backend
+    assert '"$dhclient_bin" -4 -1 -v "$iface"' in backend
+    assert "isc-dhcp-client" in packages
     assert 'write_runtime_debug_report "network-applied" "$iface"' in apply_script
     assert "$live_state_dir/debug/README.txt" in writer
 

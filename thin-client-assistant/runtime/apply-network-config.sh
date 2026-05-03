@@ -56,10 +56,24 @@ main() {
         dhcp_ipv4="$(wait_for_ipv4_address "$iface" 2>/dev/null || true)"
       fi
     fi
-    [[ -n "$dhcp_ipv4" ]] || return 1
+    if [[ -z "$dhcp_ipv4" ]]; then
+      beagle_log_event "network.dhcp-client-fallback" "iface=${iface} mode=dhcp"
+      acquire_dhcp_ipv4_fallback "$iface" || true
+      dhcp_ipv4="$(wait_for_ipv4_address "$iface" 2>/dev/null || true)"
+    fi
+    if [[ -z "$dhcp_ipv4" ]]; then
+      write_runtime_debug_report "network-ipv4-failed" "$iface" || true
+      return 1
+    fi
   fi
-  wait_for_default_route "$iface" || return 1
-  wait_for_dns_targets || return 1
+  wait_for_default_route "$iface" || {
+    write_runtime_debug_report "network-route-failed" "$iface" || true
+    return 1
+  }
+  wait_for_dns_targets || {
+    write_runtime_debug_report "network-dns-failed" "$iface" || true
+    return 1
+  }
   write_runtime_debug_report "network-applied" "$iface" || true
 }
 

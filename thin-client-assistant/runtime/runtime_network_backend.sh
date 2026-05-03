@@ -31,6 +31,31 @@ refresh_networkd_link() {
   "$networkctl_bin" renew "$iface" >/dev/null 2>&1 || true
 }
 
+acquire_dhcp_ipv4_fallback() {
+  local iface="$1"
+  local dhclient_bin="${BEAGLE_DHCLIENT_BIN:-dhclient}"
+  local udhcpc_bin="${BEAGLE_UDHCPC_BIN:-udhcpc}"
+  local busybox_bin="${BEAGLE_BUSYBOX_BIN:-busybox}"
+
+  [[ -n "$iface" ]] || return 1
+  ip link set "$iface" up >/dev/null 2>&1 || true
+
+  if command -v "$dhclient_bin" >/dev/null 2>&1; then
+    "$dhclient_bin" -4 -r "$iface" >/dev/null 2>&1 || true
+    "$dhclient_bin" -4 -1 -v "$iface" >/dev/null 2>&1 && return 0
+  fi
+
+  if command -v "$udhcpc_bin" >/dev/null 2>&1; then
+    "$udhcpc_bin" -i "$iface" -n -q -t 5 -T 3 >/dev/null 2>&1 && return 0
+  fi
+
+  if command -v "$busybox_bin" >/dev/null 2>&1 && "$busybox_bin" --list 2>/dev/null | grep -qx udhcpc; then
+    "$busybox_bin" udhcpc -i "$iface" -n -q -t 5 -T 3 >/dev/null 2>&1 && return 0
+  fi
+
+  return 1
+}
+
 have_networkmanager() {
   local nmcli_bin="${BEAGLE_NMCLI_BIN:-nmcli}"
   if command -v "$nmcli_bin" >/dev/null 2>&1; then

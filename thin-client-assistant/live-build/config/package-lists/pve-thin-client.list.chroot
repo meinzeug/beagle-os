@@ -39,6 +39,7 @@ unclutter
 fonts-dejavu-core
 iproute2
 iputils-ping
+isc-dhcp-client
 iw
 util-linux
 pciutils
