@@ -30,6 +30,7 @@ ensure_runtime_user() {
   local useradd_bin="${BEAGLE_USERADD_BIN:-useradd}"
   local usermod_bin="${BEAGLE_USERMOD_BIN:-usermod}"
   local chpasswd_bin="${BEAGLE_CHPASSWD_BIN:-chpasswd}"
+  local passwd_bin="${BEAGLE_PASSWD_BIN:-passwd}"
 
   runtime_user="$(runtime_user_name)"
   shell_path="$(runtime_login_shell_path)"
@@ -51,6 +52,8 @@ ensure_runtime_user() {
   if [[ -n "$runtime_password" ]]; then
     printf '%s:%s\n' "$runtime_user" "$runtime_password" | "$chpasswd_bin" >/dev/null 2>&1 || true
   fi
+
+  "$usermod_bin" -U "$runtime_user" >/dev/null 2>&1 || "$passwd_bin" -u "$runtime_user" >/dev/null 2>&1 || true
 }
 
 adjust_secret_permissions() {

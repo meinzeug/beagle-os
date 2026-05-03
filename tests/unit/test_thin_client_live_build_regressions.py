@@ -16,8 +16,10 @@ LAUNCH_BEAGLE_STREAM_CLIENT = ROOT / "thin-client-assistant" / "runtime" / "laun
 BUILD_THIN_CLIENT = ROOT / "scripts" / "build-thin-client-installer.sh"
 BUILD_BEAGLE_OS = ROOT / "scripts" / "build-beagle-os.sh"
 LIVE_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "008-install-beagle-stream-client.hook.chroot"
+CREATE_THINCLIENT_USER_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "005-create-thinclient-user.hook.chroot"
 BEAGLE_STREAM_CLIENT_TARGETING = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_targeting.sh"
 BEAGLE_STREAM_CLIENT_API_URL = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_api_url.sh"
+RUNTIME_USER_SETUP = ROOT / "thin-client-assistant" / "runtime" / "runtime_user_setup.sh"
 
 
 def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None:
@@ -117,3 +119,13 @@ def test_stream_runtime_uses_preset_fallback_host_and_api_url_when_primary_value
     assert 'fallback_host="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST:-}"' in targeting_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL' in api_url_text
     assert 'fallback_configured="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL:-}"' in api_url_text
+
+
+def test_live_image_unlocks_thinclient_account_for_ssh_before_runtime_password_rotation() -> None:
+    create_user_text = CREATE_THINCLIENT_USER_HOOK.read_text(encoding="utf-8")
+    runtime_user_text = RUNTIME_USER_SETUP.read_text(encoding="utf-8")
+
+    assert 'printf \'%s:%s\\n\' "${THINCLIENT_USER}" "${THINCLIENT_PASSWORD}" | chpasswd' in create_user_text
+    assert 'usermod -U "${THINCLIENT_USER}" >/dev/null 2>&1 || passwd -u "${THINCLIENT_USER}" >/dev/null 2>&1 || true' in create_user_text
+    assert 'local passwd_bin="${BEAGLE_PASSWD_BIN:-passwd}"' in runtime_user_text
+    assert '"$usermod_bin" -U "$runtime_user" >/dev/null 2>&1 || "$passwd_bin" -u "$runtime_user" >/dev/null 2>&1 || true' in runtime_user_text
