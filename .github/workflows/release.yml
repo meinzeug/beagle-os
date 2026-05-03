@@ -493,7 +493,7 @@ jobs:
                 echo "Direct push to main failed — falling back to PR-based metadata sync: ${push_error}" >&2
                 # main is protected — fall back to a metadata-sync PR so the
                 # release is not blocked by the branch ruleset.
-                SYNC_BRANCH="release/sync-metadata-${VERSION}"
+                SYNC_BRANCH="chore/sync-metadata-${VERSION}"
                 # --force overwrites any leftover branch from a previous failed release run.
                 if ! git push origin "HEAD:refs/heads/${SYNC_BRANCH}" --force; then
                   echo "::error::Could not push release metadata to main or to sync branch ${SYNC_BRANCH}. Ensure BEAGLE_RELEASE_SYNC_TOKEN or COPILOT_ASSIGNMENT_TOKEN has write access to the repository, then rerun the release." >&2
