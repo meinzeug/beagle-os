@@ -149,8 +149,6 @@ RELEASE_ASSETS=(
   "$DIST_DIR/beagle-os-latest.tar.gz"
   "$DIST_DIR/pve-thin-client-usb-payload-$TAG.tar.gz"
   "$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
-  "$DIST_DIR/pve-thin-client-usb-bootstrap-$TAG.tar.gz"
-  "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
   "$DIST_DIR/pve-thin-client-usb-installer-$TAG.sh"
   "$DIST_DIR/pve-thin-client-usb-installer-latest.sh"
   "$DIST_DIR/pve-thin-client-live-usb-$TAG.sh"

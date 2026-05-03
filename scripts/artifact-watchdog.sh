@@ -43,8 +43,6 @@ required = [
     "pve-thin-client-usb-installer-latest.sh",
     "pve-thin-client-usb-installer-latest.ps1",
     "pve-thin-client-usb-payload-latest.tar.gz",
-    "pve-thin-client-usb-bootstrap-latest.tar.gz",
-    "beagle-os-installer-amd64.iso",
 ]
 latest_public = [
     "pve-thin-client-usb-installer-latest.sh",
@@ -52,7 +50,6 @@ latest_public = [
     "pve-thin-client-live-usb-latest.sh",
     "pve-thin-client-live-usb-latest.ps1",
     "pve-thin-client-usb-payload-latest.tar.gz",
-    "pve-thin-client-usb-bootstrap-latest.tar.gz",
 ]
 
 def load_json(path: Path) -> dict:
@@ -86,7 +83,6 @@ if version:
         f"pve-thin-client-live-usb-v{version}.sh",
         f"pve-thin-client-live-usb-v{version}.ps1",
         f"pve-thin-client-usb-payload-v{version}.tar.gz",
-        f"pve-thin-client-usb-bootstrap-v{version}.tar.gz",
     ]
 
 missing_required = [name for name in required if not (dist_dir / name).is_file()]

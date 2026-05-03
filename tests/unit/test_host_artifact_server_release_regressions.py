@@ -39,7 +39,15 @@ def test_install_beagle_host_no_longer_fetches_server_release_artifacts() -> Non
     script = INSTALL_SCRIPT.read_text(encoding="utf-8")
 
     assert 'curl -fsSLo "$dist_dir/beagle-os-server-installer-amd64.iso"' not in script
-    assert 'BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS=0 "$INSTALL_DIR/scripts/package.sh"' in script
+    assert 'BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS=0 \\' in script
+    assert 'BEAGLE_PACKAGE_INCLUDE_ENDPOINT_INSTALLER_ISO=0 \\' in script
+
+
+def test_install_beagle_host_no_longer_fetches_host_local_endpoint_iso_or_bootstrap() -> None:
+    script = INSTALL_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz' not in script
+    assert 'curl -fsSLo "$dist_dir/beagle-os-installer-amd64.iso"' not in script
 
 
 def test_server_settings_required_artifacts_drop_server_release_files() -> None:

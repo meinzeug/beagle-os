@@ -472,7 +472,6 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
                 f"pve-thin-client-live-usb-v{version}.sh",
                 f"pve-thin-client-live-usb-v{version}.ps1",
                 f"pve-thin-client-usb-payload-v{version}.tar.gz",
-                f"pve-thin-client-usb-bootstrap-v{version}.tar.gz",
             ]:
                 (dist / name).write_text("x\n", encoding="utf-8")
 

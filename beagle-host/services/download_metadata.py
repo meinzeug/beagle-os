@@ -53,7 +53,7 @@ class DownloadMetadataService:
         return self._cache_put(key, value)
 
     def public_installer_iso_url(self) -> str:
-        return self._hosted_download_url("beagle-os-installer-amd64.iso")
+        return f"{self._public_update_base_url}/beagle-os-installer-amd64.iso"
 
     def public_windows_installer_url(self) -> str:
         return self._hosted_download_url("pve-thin-client-usb-installer-host-latest.ps1")
@@ -68,13 +68,13 @@ class DownloadMetadataService:
         return f"{self._public_update_base_url}/pve-thin-client-usb-payload-v{version}.tar.gz"
 
     def public_versioned_bootstrap_url(self, version: str) -> str:
-        return f"{self._public_update_base_url}/pve-thin-client-usb-bootstrap-v{version}.tar.gz"
+        return self.public_versioned_payload_url(version)
 
     def public_payload_latest_download_url(self) -> str:
         return self._hosted_download_url("pve-thin-client-usb-payload-latest.tar.gz")
 
     def public_bootstrap_latest_download_url(self) -> str:
-        return self._hosted_download_url("pve-thin-client-usb-bootstrap-latest.tar.gz")
+        return self.public_payload_latest_download_url()
 
     def public_latest_payload_url(self) -> str:
         downloads_status = self._load_json_file(self._downloads_status_file, {})
@@ -86,12 +86,7 @@ class DownloadMetadataService:
         return self.public_versioned_payload_url(published_version)
 
     def public_latest_bootstrap_url(self) -> str:
-        downloads_status = self._load_json_file(self._downloads_status_file, {})
-        published_version = str(downloads_status.get("version", "")).strip() or self._version
-        bootstrap_url = str(downloads_status.get("bootstrap_url", "") or "").strip()
-        if bootstrap_url:
-            return bootstrap_url
-        return self.public_versioned_bootstrap_url(published_version)
+        return self.public_latest_payload_url()
 
     def url_host_matches(self, left: str, right: str) -> bool:
         left_host = str(urlparse(str(left or "")).hostname or "").strip().lower()

@@ -347,13 +347,10 @@ def write_download_status(
     live_usb_path: Path,
     installer_windows_path: Path,
     live_usb_windows_path: Path,
-    bootstrap_path: Path,
     payload_path: Path,
-    installer_iso_path: Path,
     installer_sha256: str,
     bootstrap_sha256: str,
     payload_sha256: str,
-    installer_iso_sha256: str,
     vm_installer_url_template: str,
     vm_windows_installer_url_template: str,
     vm_windows_live_usb_url_template: str,
@@ -394,19 +391,16 @@ def write_download_status(
         "live_usb_size": live_usb_path.stat().st_size,
         "installer_windows_size": installer_windows_path.stat().st_size,
         "live_usb_windows_size": live_usb_windows_path.stat().st_size,
-        "bootstrap_size": bootstrap_path.stat().st_size,
+        "bootstrap_size": payload_path.stat().st_size,
         "payload_size": payload_path.stat().st_size,
-        "installer_iso_size": installer_iso_path.stat().st_size,
         "installer_sha256": installer_sha256,
         "bootstrap_sha256": bootstrap_sha256,
         "payload_sha256": payload_sha256,
-        "installer_iso_sha256": installer_iso_sha256,
         "installer_filename": installer_path.name,
         "live_usb_filename": live_usb_path.name,
         "installer_windows_filename": installer_windows_path.name,
         "live_usb_windows_filename": live_usb_windows_path.name,
-        "installer_iso_filename": installer_iso_path.name,
-        "bootstrap_filename": bootstrap_path.name,
+        "bootstrap_filename": payload_path.name,
         "payload_filename": payload_path.name,
         "vm_installer_url_template": vm_installer_url_template,
         "vm_windows_installer_url_template": vm_windows_installer_url_template,
@@ -487,15 +481,12 @@ def _build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--live-usb-path", required=True)
     status_parser.add_argument("--installer-windows-path", required=True)
     status_parser.add_argument("--live-usb-windows-path", required=True)
-    status_parser.add_argument("--bootstrap-path", required=True)
     status_parser.add_argument("--payload-path", required=True)
-    status_parser.add_argument("--installer-iso-path", required=True)
     status_parser.add_argument("--server-installer-iso-path", default="")
     status_parser.add_argument("--server-installimage-path", default="")
     status_parser.add_argument("--installer-sha256", required=True)
     status_parser.add_argument("--bootstrap-sha256", required=True)
     status_parser.add_argument("--payload-sha256", required=True)
-    status_parser.add_argument("--installer-iso-sha256", required=True)
     status_parser.add_argument("--server-installer-iso-sha256", default="")
     status_parser.add_argument("--server-installimage-sha256", default="")
     status_parser.add_argument("--vm-installer-url-template", required=True)
@@ -564,15 +555,12 @@ def main(argv: list[str] | None = None) -> int:
             live_usb_path=Path(args.live_usb_path),
             installer_windows_path=Path(args.installer_windows_path),
             live_usb_windows_path=Path(args.live_usb_windows_path),
-            bootstrap_path=Path(args.bootstrap_path),
             payload_path=Path(args.payload_path),
-            installer_iso_path=Path(args.installer_iso_path),
             server_installer_iso_path=Path(args.server_installer_iso_path) if args.server_installer_iso_path else None,
             server_installimage_path=Path(args.server_installimage_path) if args.server_installimage_path else None,
             installer_sha256=args.installer_sha256,
             bootstrap_sha256=args.bootstrap_sha256,
             payload_sha256=args.payload_sha256,
-            installer_iso_sha256=args.installer_iso_sha256,
             server_installer_iso_sha256=args.server_installer_iso_sha256,
             server_installimage_sha256=args.server_installimage_sha256,
             vm_installer_url_template=args.vm_installer_url_template,

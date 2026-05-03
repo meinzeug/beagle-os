@@ -51,8 +51,6 @@ _REQUIRED_ARTIFACTS = [
     "pve-thin-client-usb-installer-latest.sh",
     "pve-thin-client-usb-installer-latest.ps1",
     "pve-thin-client-usb-payload-latest.tar.gz",
-    "pve-thin-client-usb-bootstrap-latest.tar.gz",
-    "beagle-os-installer-amd64.iso",
 ]
 
 _PUBLIC_THIN_CLIENT_LATEST_ARTIFACTS = [
@@ -61,7 +59,6 @@ _PUBLIC_THIN_CLIENT_LATEST_ARTIFACTS = [
     "pve-thin-client-live-usb-latest.sh",
     "pve-thin-client-live-usb-latest.ps1",
     "pve-thin-client-usb-payload-latest.tar.gz",
-    "pve-thin-client-usb-bootstrap-latest.tar.gz",
 ]
 
 _SAFE_TIMEZONE_PATTERN = re.compile(r"^[A-Za-z_]+/[A-Za-z0-9_/+-]+$")
@@ -1405,7 +1402,6 @@ class ServerSettingsService:
                 f"pve-thin-client-live-usb-v{version}.sh",
                 f"pve-thin-client-live-usb-v{version}.ps1",
                 f"pve-thin-client-usb-payload-v{version}.tar.gz",
-                f"pve-thin-client-usb-bootstrap-v{version}.tar.gz",
             ]
         missing_latest = [name for name in _PUBLIC_THIN_CLIENT_LATEST_ARTIFACTS if not (dist_dir / name).is_file()]
         missing_versioned = [name for name in versioned if not (dist_dir / name).is_file()]

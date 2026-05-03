@@ -24,18 +24,14 @@ def test_write_download_status_omits_server_release_artifacts_when_not_hosted_lo
         live_usb = base / "pve-thin-client-live-usb-host-latest.sh"
         installer_windows = base / "pve-thin-client-usb-installer-host-latest.ps1"
         live_usb_windows = base / "pve-thin-client-live-usb-host-latest.ps1"
-        bootstrap = base / "pve-thin-client-usb-bootstrap-latest.tar.gz"
         payload = base / "pve-thin-client-usb-payload-latest.tar.gz"
-        installer_iso = base / "beagle-os-installer-amd64.iso"
 
         for path in (
             installer,
             live_usb,
             installer_windows,
             live_usb_windows,
-            bootstrap,
             payload,
-            installer_iso,
         ):
             path.write_bytes(b"artifact")
 
@@ -51,22 +47,19 @@ def test_write_download_status_omits_server_release_artifacts_when_not_hosted_lo
             live_usb_url="https://srv1/beagle-downloads/pve-thin-client-live-usb-host-latest.sh",
             installer_windows_url="https://srv1/beagle-downloads/pve-thin-client-usb-installer-host-latest.ps1",
             live_usb_windows_url="https://srv1/beagle-downloads/pve-thin-client-live-usb-host-latest.ps1",
-            bootstrap_url="https://srv1/beagle-downloads/pve-thin-client-usb-bootstrap-latest.tar.gz",
+            bootstrap_url="https://srv1/beagle-downloads/pve-thin-client-usb-payload-latest.tar.gz",
             payload_url="https://srv1/beagle-downloads/pve-thin-client-usb-payload-latest.tar.gz",
-            installer_iso_url="https://srv1/beagle-downloads/beagle-os-installer-amd64.iso",
+            installer_iso_url="https://beagle-os.com/beagle-updates/beagle-os-installer-amd64.iso",
             status_url="https://srv1/beagle-downloads/beagle-downloads-status.json",
             sha256sums_url="https://srv1/beagle-downloads/SHA256SUMS",
             installer_path=installer,
             live_usb_path=live_usb,
             installer_windows_path=installer_windows,
             live_usb_windows_path=live_usb_windows,
-            bootstrap_path=bootstrap,
             payload_path=payload,
-            installer_iso_path=installer_iso,
             installer_sha256="sha-installer",
             bootstrap_sha256="sha-bootstrap",
             payload_sha256="sha-payload",
-            installer_iso_sha256="sha-iso",
             vm_installer_url_template="https://srv1/beagle-api/api/v1/vms/{vmid}/installer.sh",
             vm_windows_installer_url_template="https://srv1/beagle-api/api/v1/vms/{vmid}/installer.ps1",
             vm_windows_live_usb_url_template="https://srv1/beagle-api/api/v1/vms/{vmid}/live-usb.ps1",
@@ -78,6 +71,9 @@ def test_write_download_status_omits_server_release_artifacts_when_not_hosted_lo
         assert "server_installer_iso_url" not in payload_json
         assert "server_installimage_url" not in payload_json
         assert payload_json["installer_iso_url"].endswith("beagle-os-installer-amd64.iso")
+        assert "installer_iso_size" not in payload_json
+        assert payload_json["bootstrap_url"] == payload_json["payload_url"]
+        assert payload_json["bootstrap_filename"] == payload_json["payload_filename"]
         assert payload_json["endpoint_compatibility"]["foundation_generation"] == "2"
         assert payload_json["endpoint_compatibility"]["minimum_self_update_version"] == "8.0"
         assert payload_json["endpoint_compatibility"]["reinstall_required"] is False
@@ -90,14 +86,13 @@ def test_prepare_host_downloads_rebuilds_usb_payload_when_thinclient_runtime_cha
     assert '"$ROOT_DIR/thin-client-assistant/runtime"' in script
     assert '"$ROOT_DIR/thin-client-assistant/live-build"' in script
     assert 'any_source_newer_than "$packaged_payload" "${thin_client_package_sources[@]}"' in script
-    assert 'any_source_newer_than "$packaged_bootstrap" "${thin_client_package_sources[@]}"' in script
 
 
 def test_iso_bootstrap_fast_path_does_not_mask_thinclient_source_rebuild() -> None:
     script = (ROOT / "scripts" / "prepare-host-downloads.sh").read_text(encoding="utf-8")
     fast_path = script.split("ensure_bootstrap_from_deployed_iso()", 1)[1].split("recover_packaged_artifacts_from_existing_builds()", 1)[0]
 
-    assert '[[ "$packaged_bootstrap" -nt "$iso" ]]' in fast_path
+    assert '[[ "$packaged_payload" -nt "$iso" ]]' in fast_path
     assert "any_source_newer_than" not in fast_path
 
 

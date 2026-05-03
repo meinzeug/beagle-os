@@ -222,11 +222,7 @@ have_packaged_assets() {
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-live-usb-v${VERSION}.ps1" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-live-usb-latest.ps1" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-payload-v${VERSION}.tar.gz" ]] &&
-    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" ]] &&
-    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" ]] &&
-    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-bootstrap-latest.tar.gz" ]] &&
-    [[ -f "$INSTALL_DIR/dist/beagle-os-installer-amd64.iso" ]] &&
-    [[ -f "$INSTALL_DIR/dist/beagle-os-installer.iso" ]]
+    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" ]]
 }
 
 download_release_assets() {
@@ -274,14 +270,6 @@ download_release_assets() {
       "pve-thin-client-usb-payload-v${VERSION}.tar.gz" \
       "pve-thin-client-usb-payload-latest.tar.gz" &&
     install -m 0644 "$dist_dir/pve-thin-client-usb-payload-v${VERSION}.tar.gz" "$dist_dir/pve-thin-client-usb-payload-latest.tar.gz" &&
-    download_asset \
-      "$dist_dir/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" \
-      "pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" \
-      "pve-thin-client-usb-bootstrap-latest.tar.gz" &&
-    install -m 0644 "$dist_dir/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz" "$dist_dir/pve-thin-client-usb-bootstrap-latest.tar.gz" &&
-    curl -fsSLo "$dist_dir/beagle-os-installer-amd64.iso" \
-      "$base_url/beagle-os-installer-amd64.iso" &&
-    install -m 0644 "$dist_dir/beagle-os-installer-amd64.iso" "$dist_dir/beagle-os-installer.iso" &&
     curl -fsSLo "$dist_dir/SHA256SUMS" "$base_url/SHA256SUMS"
 }
 
@@ -292,7 +280,9 @@ ensure_release_assets_or_die() {
     echo "Required release assets are missing in $INSTALL_DIR/dist; trying public artifact download..." >&2
     if ! download_release_assets "$release_base_url"; then
       echo "Public artifact download failed; trying local packaging..." >&2
-      BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS=0 "$INSTALL_DIR/scripts/package.sh" || true
+      BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS=0 \
+      BEAGLE_PACKAGE_INCLUDE_ENDPOINT_INSTALLER_ISO=0 \
+      "$INSTALL_DIR/scripts/package.sh" || true
     fi
 
     if ! have_packaged_assets; then

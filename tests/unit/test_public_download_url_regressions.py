@@ -35,11 +35,11 @@ def make_service(*, port: int) -> DownloadMetadataService:
 def test_download_metadata_omits_default_https_port_from_hosted_urls() -> None:
     service = make_service(port=443)
 
-    assert service.public_installer_iso_url() == "https://srv1.beagle-os.com/beagle-downloads/beagle-os-installer-amd64.iso"
+    assert service.public_installer_iso_url() == "https://srv1.beagle-os.com/beagle-updates/beagle-os-installer-amd64.iso"
     assert service.public_payload_latest_download_url() == "https://srv1.beagle-os.com/beagle-downloads/pve-thin-client-usb-payload-latest.tar.gz"
 
 
 def test_download_metadata_keeps_non_default_https_port_in_hosted_urls() -> None:
     service = make_service(port=9443)
 
-    assert service.public_installer_iso_url() == "https://srv1.beagle-os.com:9443/beagle-downloads/beagle-os-installer-amd64.iso"
+    assert service.public_installer_iso_url() == "https://srv1.beagle-os.com/beagle-updates/beagle-os-installer-amd64.iso"

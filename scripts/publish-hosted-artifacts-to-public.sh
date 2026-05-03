@@ -87,7 +87,6 @@ expected_usb_installer_ps1="$(awk -v name="$usb_installer_ps1_filename" '$2 == n
 expected_live_usb_sh="$(awk -v name="$live_usb_sh_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_live_usb_ps1="$(awk -v name="$live_usb_ps1_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_payload="$(awk -v name="$payload_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
-expected_bootstrap="$(awk -v name="$bootstrap_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_iso="$(awk -v name="$installer_iso_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_server_iso="$(awk -v name="$server_installer_iso_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
 expected_server_installimage="$(awk -v name="$server_installimage_filename" '$2 == name { print $1; exit }' "$tmp_dir/SHA256SUMS")"
@@ -109,7 +108,6 @@ actual_kiosk="$(sha256sum "$tmp_dir/$kiosk_appimage_filename" | awk '{print $1}'
 [[ -n "$expected_live_usb_sh" && "$actual_live_usb_sh" == "$expected_live_usb_sh" ]]
 [[ -n "$expected_live_usb_ps1" && "$actual_live_usb_ps1" == "$expected_live_usb_ps1" ]]
 [[ -n "$expected_payload" && "$actual_payload" == "$expected_payload" ]]
-[[ -n "$expected_bootstrap" && "$actual_payload" == "$expected_bootstrap" ]]
 [[ -n "$expected_iso" && "$actual_iso" == "$expected_iso" ]]
 [[ -n "$expected_server_iso" && "$actual_server_iso" == "$expected_server_iso" ]]
 [[ -n "$expected_server_installimage" && "$actual_server_installimage" == "$expected_server_installimage" ]]
@@ -201,7 +199,7 @@ payload = {
     "bootstrap_latest_filename": bootstrap_latest_filename,
     "bootstrap_url": f"{public_base_url}/{bootstrap_filename}",
     "bootstrap_latest_url": f"{public_base_url}/{bootstrap_latest_filename}",
-    "bootstrap_sha256": sha_map.get(bootstrap_filename, ""),
+    "bootstrap_sha256": sha_map.get(payload_filename, ""),
     "bootstrap_size": bootstrap_path.stat().st_size,
     "bootstrap_latest_size": bootstrap_latest_path.stat().st_size,
     "installer_iso_filename": installer_iso_filename,

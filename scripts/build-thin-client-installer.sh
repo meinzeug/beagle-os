@@ -11,6 +11,7 @@ PROJECT_VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION" 2>/dev/null || echo dev)"
 THINCLIENT_MIN_BUILD_FREE_GIB="${BEAGLE_THINCLIENT_MIN_BUILD_FREE_GIB:-16}"
 THINCLIENT_MIN_DIST_FREE_GIB="${BEAGLE_THINCLIENT_MIN_DIST_FREE_GIB:-4}"
 THINCLIENT_LB_BUILD_ATTEMPTS="${BEAGLE_THINCLIENT_LB_BUILD_ATTEMPTS:-2}"
+THINCLIENT_SKIP_MANUAL_ISO="${BEAGLE_THINCLIENT_SKIP_MANUAL_ISO:-0}"
 OWNER_UID="${SUDO_UID:-$(id -u)}"
 OWNER_GID="${SUDO_GID:-$(id -g)}"
 BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage"
@@ -474,7 +475,11 @@ fi
 popd >/dev/null
 
 build_live_assets_from_stage
-build_manual_iso
+if [[ "$THINCLIENT_SKIP_MANUAL_ISO" != "1" ]]; then
+  build_manual_iso
+else
+  echo "Skipping thin-client installer ISO assembly; live assets were refreshed only."
+fi
 
 chown -R "$OWNER_UID:$OWNER_GID" "$DIST_DIR"
 chmod -R u+rwX,go+rX "$DIST_DIR"
