@@ -57,6 +57,9 @@ restore_beagle_enterprise_repo() {
 }
 
 apt_update_with_beagle_fallback() {
+  install -d -m 1777 /tmp
+  chmod 1777 /tmp
+
   if apt-get update; then
     return 0
   fi
@@ -101,7 +104,8 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   mtools \
   rsync \
   curl \
-  ca-certificates
+  ca-certificates \
+  libopengl0
 
 build_manual_iso() {
   local iso_root grub_cfg iso_output iso_output_short legacy_output legacy_output_short
