@@ -66,6 +66,9 @@ def test_management_timers_run_after_prepare_network_and_health() -> None:
         text = unit.read_text(encoding="utf-8")
         assert "beagle-thin-client-prepare.service" in text
         assert "network-online.target" in text
+        for line in text.splitlines():
+            if line.startswith("Wants="):
+                assert "beagle-thin-client-prepare.service" not in line
 
 
 def test_healthcheck_marks_update_status_for_repair_reporting() -> None:

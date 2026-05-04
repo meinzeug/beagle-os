@@ -1,7 +1,7 @@
 [Unit]
 Description=Scan for Beagle OS updates
 After=beagle-thin-client-prepare.service beagle-healthcheck.service network-online.target
-Wants=beagle-thin-client-prepare.service beagle-healthcheck.service network-online.target
+Wants=beagle-healthcheck.service network-online.target
 
 [Service]
 Type=oneshot
