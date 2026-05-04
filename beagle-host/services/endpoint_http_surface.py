@@ -175,6 +175,7 @@ class EndpointHttpSurfaceService:
 
             profile = self._build_vm_profile(vm) if callable(self._build_vm_profile) else {}
             stream_host = str(profile.get("stream_host", "") or "").strip()
+            beagle_stream_client_local_host = str(profile.get("beagle_stream_client_local_host", "") or "").strip()
             beagle_stream_client_port = str(profile.get("beagle_stream_client_port", "") or "").strip()
             pool_id = str(session.get("pool_id") or "").strip()
             network_mode = self._network_mode_for_pool(pool_id)
@@ -205,6 +206,7 @@ class EndpointHttpSurfaceService:
                         vmid=session_vmid,
                         current_node=current_node,
                         stream_host=stream_host,
+                        beagle_stream_client_local_host=beagle_stream_client_local_host,
                         beagle_stream_client_port=beagle_stream_client_port,
                         reconnect_required=reconnect_required,
                         network_mode=network_mode,

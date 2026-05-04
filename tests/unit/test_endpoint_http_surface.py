@@ -21,7 +21,13 @@ class _Vm:
 
 def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") -> EndpointHttpSurfaceService:
     vm = _Vm(100, "beagle-0")
-    profiles = {100: {"stream_host": "srv2.beagle-os.com", "beagle_stream_client_port": "47984"}}
+    profiles = {
+        100: {
+            "stream_host": "srv2.beagle-os.com",
+            "beagle_stream_client_local_host": "192.168.123.116",
+            "beagle_stream_client_port": "47984",
+        }
+    }
     sessions = {
         "pool-a:100": {
             "session_id": "pool-a:100",
@@ -319,6 +325,7 @@ def test_session_current_route_uses_vmid_from_endpoint_identity() -> None:
     assert response["payload"]["ok"] is True
     assert response["payload"]["current_node"] == "beagle-2"
     assert response["payload"]["stream_host"] == "srv2.beagle-os.com"
+    assert response["payload"]["beagle_stream_client_local_host"] == "192.168.123.116"
     assert response["payload"]["beagle_stream_client_port"] == "47984"
     assert response["payload"]["reconnect_required"] is True
     assert response["payload"]["network_mode"] == "vpn_preferred"

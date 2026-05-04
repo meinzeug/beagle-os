@@ -93,22 +93,42 @@ retarget_beagle_stream_client_host_from_runtime_config() {
 
 retarget_beagle_stream_client_host_from_session_broker_response() {
   local response_file="${1:-}"
-  local host port current_node
+  local host local_host port current_node
   local -a broker_values
 
   [[ -n "$response_file" && -r "$response_file" ]] || return 1
   if ! mapfile -t broker_values < <(python3 - "$response_file" <<'PY'
 import json
+import ipaddress
 import sys
 from pathlib import Path
 
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+
+def value(*keys):
+  for key in keys:
+    raw = str(payload.get(key) or "").strip()
+    if raw:
+      return raw
+  return ""
+
+def is_private_ip(raw):
+  try:
+    ip = ipaddress.ip_address(raw.strip("[]"))
+  except ValueError:
+    return False
+  return ip.is_private
+
 host = str(payload.get("stream_host") or "").strip()
+local_host = value("beagle_stream_client_local_host", "stream_local_host", "guest_ip")
+if not local_host and is_private_ip(host):
+  local_host = host
 port = str(payload.get("beagle_stream_client_port") or "").strip()
 current_node = str(payload.get("current_node") or "").strip()
 if not host:
     raise SystemExit(1)
 print(host)
+print(local_host)
 print(port)
 print(current_node)
 PY
@@ -116,12 +136,16 @@ PY
     return 1
   fi
   host="${broker_values[0]:-}"
-  port="${broker_values[1]:-}"
-  current_node="${broker_values[2]:-}"
+  local_host="${broker_values[1]:-}"
+  port="${broker_values[2]:-}"
+  current_node="${broker_values[3]:-}"
   [[ -n "$host" ]] || return 1
 
   export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST="$host"
   export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BROKER_HOST="$host"
+  if [[ -n "$local_host" ]]; then
+    export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST="$local_host"
+  fi
   if [[ -n "$port" ]]; then
     export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT="$port"
   fi

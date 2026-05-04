@@ -219,8 +219,43 @@ main() {
     printf '\n'
   } >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG"
 
-  "${args[@]}" >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>&1
-  local stream_exit=$?
+  local stream_exit=0 stream_attempt=1 max_attempts retry_delay stream_pid stream_start_line stream_forced_restart
+  max_attempts="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_MAX_RESTARTS:-3}"
+  retry_delay="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESTART_DELAY:-3}"
+  while :; do
+    if [[ "$stream_attempt" -gt 1 ]]; then
+      beagle_log_event "beagle-stream-client.restart" "attempt=${stream_attempt}/${max_attempts} app=${app}"
+      printf '=== restart attempt %s/%s %s ===\n' "$stream_attempt" "$max_attempts" "$(date -Iseconds)" >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG"
+    fi
+    stream_start_line="$(wc -l <"$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null || printf '0')"
+    stream_forced_restart=0
+    "${args[@]}" >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>&1 &
+    stream_pid=$!
+    while kill -0 "$stream_pid" >/dev/null 2>&1; do
+      if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eq 'Qt Critical: Connection terminated|Connection terminated|Error code: -1'; then
+        beagle_log_event "beagle-stream-client.connection-terminated" "attempt=${stream_attempt}/${max_attempts} pid=${stream_pid}"
+        kill -TERM "$stream_pid" >/dev/null 2>&1 || true
+        sleep 1
+        kill -KILL "$stream_pid" >/dev/null 2>&1 || true
+        stream_forced_restart=1
+        break
+      fi
+      sleep 2
+    done
+    if [[ "$stream_forced_restart" -eq 1 ]]; then
+      wait "$stream_pid" >/dev/null 2>&1 || true
+      stream_exit=124
+    elif wait "$stream_pid"; then
+      stream_exit=0
+    else
+      stream_exit=$?
+    fi
+    if [[ "$stream_exit" -eq 0 || "$stream_attempt" -ge "$max_attempts" ]]; then
+      break
+    fi
+    sleep "$retry_delay"
+    stream_attempt=$((stream_attempt + 1))
+  done
   if [[ "$hostless_beagle_stream" == "1" ]]; then
     beagle_log_event "beagle-stream-client.exit" "code=${stream_exit} mode=beagle-stream-hostless app=${app}"
   else

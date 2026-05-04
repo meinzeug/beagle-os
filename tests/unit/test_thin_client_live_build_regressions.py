@@ -19,6 +19,7 @@ BUILD_BEAGLE_OS = ROOT / "scripts" / "build-beagle-os.sh"
 LIVE_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "008-install-beagle-stream-client.hook.chroot"
 CREATE_THINCLIENT_USER_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "005-create-thinclient-user.hook.chroot"
 BEAGLE_STREAM_CLIENT_TARGETING = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_targeting.sh"
+BEAGLE_STREAM_CLIENT_HOST_SYNC = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_host_sync.sh"
 BEAGLE_STREAM_CLIENT_API_URL = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_api_url.sh"
 RUNTIME_USER_SETUP = ROOT / "thin-client-assistant" / "runtime" / "runtime_user_setup.sh"
 RUNTIME_NETWORK_BACKEND = ROOT / "thin-client-assistant" / "runtime" / "runtime_network_backend.sh"
@@ -86,6 +87,7 @@ def test_wireguard_enrollment_script_is_executable_for_prepare_runtime() -> None
 def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() -> None:
     runtime_text = BEAGLE_STREAM_CLIENT_RUNTIME_EXEC.read_text(encoding="utf-8")
     launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+    host_sync_text = BEAGLE_STREAM_CLIENT_HOST_SYNC.read_text(encoding="utf-8")
     launch_session_text = LAUNCH_SESSION.read_text(encoding="utf-8")
     targeting_text = BEAGLE_STREAM_CLIENT_TARGETING.read_text(encoding="utf-8")
 
@@ -110,6 +112,10 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert '/api/pin' not in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
     assert 'prepare-stream.ok" "mode=hostless' in launcher_text
     assert 'beagle_log_event "beagle-stream-client.beagle-stream-hostless"' in launcher_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST="$local_host"' in host_sync_text
+    assert 'value("beagle_stream_client_local_host", "stream_local_host", "guest_ip")' in host_sync_text
+    assert 'beagle-stream-client.connection-terminated' in launcher_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_MAX_RESTARTS:-3' in launcher_text
     assert 'if [[ "$method" == "broker" && -r /etc/beagle/enrollment.conf ]]; then' in launch_session_text
     assert 'beagle_stream_connection_method()' in targeting_text
     assert 'if beagle_stream_broker_connection; then' in targeting_text
