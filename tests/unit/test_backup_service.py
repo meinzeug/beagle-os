@@ -128,6 +128,48 @@ class BackupServiceTests(unittest.TestCase):
             restored = Path(restore_target) / "etc" / "beagle" / "config.json"
             self.assertTrue(restored.exists(), "restored file should exist")
 
+    def test_verify_snapshot_matches_archive_sha256(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archives_dir = Path(tmp) / "archives"
+            archives_dir.mkdir()
+            archive_path = archives_dir / "beagle-backup-vm-101-test.tar.gz"
+            _make_tar(archive_path, {"etc/beagle/config.json": b'{"ok": true}'})
+
+            service = BackupService(
+                state_file=Path(tmp) / "backup-state.json",
+                utcnow=lambda: "2026-04-23T17:00:00Z",
+            )
+            service.update_vm_policy(101, {"enabled": True, "target_path": str(archives_dir)})
+            service._run_backup_archive = lambda **_: str(archive_path)
+            result_run = service.run_backup_now(scope_type="vm", scope_id="101")
+
+            verified = service.verify_snapshot(result_run["job"]["job_id"])
+
+            self.assertTrue(verified["ok"], verified)
+            self.assertEqual(verified["expected_sha256"], result_run["job"]["archive_sha256"])
+            self.assertEqual(verified["actual_sha256"], result_run["job"]["archive_sha256"])
+
+    def test_verify_snapshot_detects_archive_tampering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archives_dir = Path(tmp) / "archives"
+            archives_dir.mkdir()
+            archive_path = archives_dir / "beagle-backup-vm-101-test.tar.gz"
+            _make_tar(archive_path, {"etc/beagle/config.json": b'{"ok": true}'})
+
+            service = BackupService(
+                state_file=Path(tmp) / "backup-state.json",
+                utcnow=lambda: "2026-04-23T17:00:00Z",
+            )
+            service.update_vm_policy(101, {"enabled": True, "target_path": str(archives_dir)})
+            service._run_backup_archive = lambda **_: str(archive_path)
+            result_run = service.run_backup_now(scope_type="vm", scope_id="101")
+            archive_path.write_bytes(archive_path.read_bytes() + b"tampered")
+
+            verified = service.verify_snapshot(result_run["job"]["job_id"])
+
+            self.assertFalse(verified["ok"])
+            self.assertNotEqual(verified["actual_sha256"], verified["expected_sha256"])
+
     def test_restore_snapshot_rejects_path_traversal_archive_member(self):
         with tempfile.TemporaryDirectory() as tmp:
             archives_dir = Path(tmp) / "archives"

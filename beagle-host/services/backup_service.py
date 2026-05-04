@@ -504,6 +504,34 @@ class BackupService:
             if is_temp:
                 shutil.rmtree(str(Path(local_archive).parent), ignore_errors=True)
 
+    def verify_snapshot(self, job_id: str) -> dict[str, Any]:
+        job = self._find_job(job_id)
+        if job is None:
+            raise ValueError(f"Job not found: {job_id!r}")
+        if job.get("status") != "success":
+            raise ValueError(f"Job {job_id!r} did not succeed (status={job.get('status')!r})")
+        expected = str(job.get("archive_sha256") or "").strip().lower()
+        if not expected:
+            return {"ok": False, "job_id": job_id, "error": "missing archive_sha256"}
+
+        policy = self._find_policy_for_job(job)
+        try:
+            local_archive, is_temp = self._resolve_archive_local(job, policy)
+        except Exception as exc:
+            return {"ok": False, "job_id": job_id, "error": str(exc)}
+        try:
+            actual = self._sha256_file(local_archive)
+            return {
+                "ok": actual == expected,
+                "job_id": job_id,
+                "archive": str(job.get("archive") or ""),
+                "expected_sha256": expected,
+                "actual_sha256": actual,
+            }
+        finally:
+            if is_temp:
+                shutil.rmtree(str(Path(local_archive).parent), ignore_errors=True)
+
     # ------------------------------------------------------------------
     # Single-File-Restore (Schritt 5)
     # ------------------------------------------------------------------

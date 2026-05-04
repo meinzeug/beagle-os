@@ -39,7 +39,7 @@ beaglectl vm backup --vmid <id> --target <s3|nfs|local> [--incremental]
 
 1. Host nach [`installation.md`](installation.md) frisch installieren.
 2. Backup-Manifest auf den Host kopieren.
-3. Hash-Verifikation: `sha256sum <archive>` muss `archive_sha256` aus dem Backup-Job/Manifest entsprechen.
+3. Hash-Verifikation: `beaglectl backup verify --job-id <job>` bzw. `sha256sum <archive>` muss `archive_sha256` aus dem Backup-Job/Manifest entsprechen.
 4. Restore: `beaglectl backup restore --manifest <path> --include state,audit,secrets,config,tls`.
 5. VM-Disks zurueckspielen: `beaglectl vm restore --vmid <id> --manifest <path>`.
 6. Control-Plane neu starten.
