@@ -42,8 +42,14 @@ class EnrollmentTokenStoreService:
         digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
         return self.tokens_dir() / f"{digest}.json"
 
-    def store(self, token: str, payload: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _sanitize_payload(payload: dict[str, Any]) -> dict[str, Any]:
         clean = dict(payload)
+        clean.pop("thinclient_password", None)
+        return clean
+
+    def store(self, token: str, payload: dict[str, Any]) -> dict[str, Any]:
+        clean = self._sanitize_payload(payload)
         self._write_json_file(self.token_path(token), clean)
         return clean
 
@@ -52,7 +58,7 @@ class EnrollmentTokenStoreService:
         return payload if isinstance(payload, dict) else None
 
     def mark_used(self, token: str, payload: dict[str, Any], *, endpoint_id: str) -> None:
-        clean = dict(payload)
+        clean = self._sanitize_payload(payload)
         clean["used_at"] = self._utcnow()
         clean["endpoint_id"] = endpoint_id
         self._write_json_file(self.token_path(token), clean)

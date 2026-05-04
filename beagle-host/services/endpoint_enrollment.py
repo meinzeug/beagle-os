@@ -73,10 +73,11 @@ class EndpointEnrollmentService:
             "expires_at": expires_at.isoformat(),
             "issued_at": self._utcnow(),
             "used_at": "",
-            "thinclient_password": str(record.get("thinclient_password", "")),
         }
         self._store_enrollment_token(token, payload)
-        return token, payload
+        response_payload = dict(payload)
+        response_payload["thinclient_password"] = str(record.get("thinclient_password", ""))
+        return token, response_payload
 
     def enroll_endpoint(self, payload: dict[str, Any]) -> dict[str, Any]:
         clean_payload = payload if isinstance(payload, dict) else {}

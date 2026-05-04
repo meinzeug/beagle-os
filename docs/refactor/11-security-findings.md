@@ -1,5 +1,25 @@
 # Security Findings
 
+Stand: 2026-05-04 (ergaenzt: S-046 Enrollment-Token-Store darf keine Thinclient-Passwoerter persistieren)
+
+## S-046 — Enrollment-Token-Metadaten speicherten Thinclient-Passwoerter im Klartext (PATCHED)
+
+- Status: **gepatcht** (2026-05-04)
+- Risiko: **Hoch**
+- Betroffene Dateien:
+  - `beagle-host/services/enrollment_token_store.py`
+  - `beagle-host/services/endpoint_enrollment.py`
+  - Runtime-Befund auf `srv1`: bestehende Enrollment-Token-Metadaten unter `/var/lib/beagle/beagle-manager/enrollment-tokens/`
+- Beschreibung:
+  - Beim Live-Check auf `srv1` wurde festgestellt, dass Enrollment-Token-Metadaten ein Klartextfeld fuer das Thinclient-Passwort enthalten konnten.
+  - Das Passwort gehoert in den VM-Secret-Speicher bzw. in die einmalige Installer-/Preset-Ausgabe, nicht in den Token-Lifetime-Record.
+- Fix:
+  - `EndpointEnrollmentService.issue_enrollment_token()` speichert neue Enrollment-Token ohne Thinclient-Passwort.
+  - Der Rueckgabewert fuer Installer-/Preset-Renderer enthaelt das Passwort weiterhin nur aus dem VM-Secret, damit bestehende Installer nicht brechen.
+  - `EnrollmentTokenStoreService.store()` und `mark_used()` entfernen `thinclient_password` defensiv auch dann, wenn ein Aufrufer es versehentlich uebergibt.
+- Rest-Risiko / naechster Schritt:
+  - Bestehende Token-Dateien auf Live-Hosts muessen nach Deployment einmalig bereinigt werden; neue Token speichern das Feld nicht mehr.
+
 Stand: 2026-05-03 (ergaenzt: S-045 BeagleStream-Forks duerfen PIN-Kompatibilitaet nicht als Produktpfad behalten)
 
 ## S-045 — BeagleStream-Forks enthalten noch Legacy-PIN-/Upstream-Kompatibilitaet im Produktpfad (OPEN)

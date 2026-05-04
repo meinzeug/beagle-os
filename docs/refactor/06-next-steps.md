@@ -1,19 +1,23 @@
 # Next Steps
 
-## Stand (2026-05-04, Diamond-D0 BESTANDEN, D1 blockiert auf sauberem Host)
+## Stand (2026-05-04, D1/D2 Live-Hotfixes eingespielt)
 
 **Zuletzt erledigt**:
-- D0-Gate vollstaendig bestanden: alle Abnahmekriterien erfuellt (srv1 konsistent, 0 failed units, 1657 Tests gruen, Release-Workflow gepatcht)
-- 29 pre-existing Testfehler behoben (CA-cert KeyUsage, LC_NUMERIC locale, XDG_SESSION_TYPE, ESM package.json, boto3)
-- `check_installimage_bootstrap()` in `check-beagle-host.sh` fuer D1-Nachweis eingebaut
-- Diamond Plan `docs/lasthope/05-diamond-plan.md` D0 als BESTANDEN markiert
+- D0-Gate vollstaendig bestanden.
+- D1/D2-Fixes im Repo und hot auf `srv1` + lokalem Thinclient eingespielt:
+  - VM-Firstboot kopiert BeagleStream-Konfig erst nach Erzeugung.
+  - Broker-Enrollment schreibt `pool_id`.
+  - Thinclient-Healthcheck prueft `/streams/allocate` und den gelieferten Broker-Zielport.
+  - Alte `health-failed`/Rollback-Flags werden bei gruenem Healthcheck geloescht.
+  - Enrollment-Token-Metadaten speichern kein `thinclient_password` mehr.
+- Live-Befund Thinclient: `broker_allocation_reachable=1`, `beagle_stream_client_target_reachable=1`, `update_state=current`, `health_failure=False`.
 
 **Naechste konkrete Schritte**:
 
-1. **D1 unblocking**: srv2.beagle-os.com SSH-Zugang wiederherstellen oder alternativ frischen Hetzner-Host provisionieren fuer Clean-Install-Test.
-2. **D1 ausfuehren**: Release-Installimage (`Debian-1201-bookworm-amd64-beagle-server.tar.gz`) auf leerem Host fahren, dann `check-beagle-host.sh` und `post-install-check.sh` auswerten.
-3. **Release-Workflow-Lauf beobachten**: Nach dem Release-Workflow-Fix den naechsten gruenen `release`-Run auf CI bestaetigen.
-4. **Welle 2 vorbereiten** (wenn D1 bestanden): BeagleStream-Broker-Pfad, WireGuard-Pairing, Token-als-PIN End-to-End auf VM100.
+1. **D1 Clean-Install bleibt Blocker**: srv2.beagle-os.com wieder erreichbar machen oder frischen Hetzner-Host bereitstellen; danach Release-Installimage ausfuehren und `check-beagle-host.sh` + WebUI-VM-Lifecycle abnehmen.
+2. **D2 weiter live pruefen**: Auf dem lokalen Thinclient den sichtbaren Desktop/RTSP-Media-Pfad nach `broker_allocation_reachable=1` weiter testen; verbleibende Medien-/Sessionfehler in WireGuard/Firewall/Client-Optionen fixen.
+3. **Artefakte neu bauen/publizieren**: Nach Commit/Push den Release-/Artifact-Run beobachten und sicherstellen, dass die Thinclient-Hotfixes in neue Images/Payloads einfliessen.
+4. **BeagleStream-Forks**: `beagle-stream-server` token-native machen und `/api/pin` im Beagle-Build isolieren/deaktivieren.
 
 
 

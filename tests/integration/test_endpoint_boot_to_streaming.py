@@ -236,6 +236,7 @@ class TestEnrollmentTokenIssuance:
 
         assert stored is not None
         assert stored["vmid"] == 101
+        assert "thinclient_password" not in stored
 
     def test_issued_token_is_valid(self, enrollment_store, endpoint_store):
         vm = _make_vm(vmid=102)

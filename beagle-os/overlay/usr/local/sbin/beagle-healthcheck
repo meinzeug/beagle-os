@@ -45,6 +45,7 @@ beagle_stream_binary="0"
 beagle_stream_hostless="0"
 beagle_stream_client_target_reachable="0"
 beagle_stream_server_api_reachable="0"
+broker_allocation_reachable="0"
 external_ip="$(curl -4fsS --connect-timeout 3 --max-time 6 https://api.ipify.org 2>/dev/null || true)"
 virtualization_type="$(systemd-detect-virt 2>/dev/null || true)"
 monitor_summary="$(xrandr --listmonitors 2>/dev/null | tr '\n' ';' | sed 's/;$/\n/' || true)"
@@ -67,6 +68,72 @@ if [[ -z "$beagle_stream_client_host" && -r /etc/beagle/enrollment.conf ]] \
   && grep -q '^device_id=' /etc/beagle/enrollment.conf \
   && grep -q '^pool_id=' /etc/beagle/enrollment.conf; then
   beagle_stream_hostless="1"
+fi
+
+if [[ "$beagle_stream_hostless" == "1" ]]; then
+  broker_allocation_response="$(mktemp)"
+  if python3 - /etc/beagle/enrollment.conf "${broker_allocation_response}.payload" <<'PY'
+import json
+import shlex
+import sys
+from pathlib import Path
+
+conf = {}
+for line in Path(sys.argv[1]).read_text(encoding="utf-8", errors="ignore").splitlines():
+    if "=" not in line:
+        continue
+    key, value = line.split("=", 1)
+    conf[key.strip()] = shlex.split(value.strip())[0] if value.strip() else ""
+payload = {
+    "pool_id": conf.get("pool_id", ""),
+    "device_id": conf.get("device_id", ""),
+    "user_id": "",
+}
+Path(sys.argv[2]).write_text(json.dumps(payload), encoding="utf-8")
+PY
+  then
+    enrollment_control_plane="$(awk -F= '$1 == "control_plane" {print substr($0, index($0, "=") + 1); exit}' /etc/beagle/enrollment.conf | sed -e 's/^"//' -e 's/"$//' || true)"
+    enrollment_token="$(awk -F= '$1 == "enrollment_token" {print substr($0, index($0, "=") + 1); exit}' /etc/beagle/enrollment.conf | sed -e 's/^"//' -e 's/"$//' || true)"
+    if [[ -n "$enrollment_control_plane" && -n "$enrollment_token" ]]; then
+      mapfile -t tls_args < <(beagle_curl_tls_args "${enrollment_control_plane%/}/api/v1/streams/allocate" "${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}")
+      if curl -fsS --connect-timeout 3 --max-time 8 \
+        "${tls_args[@]}" \
+        -H "Content-Type: application/json" \
+        -H "X-Beagle-Token: ${enrollment_token}" \
+        --data @"${broker_allocation_response}.payload" \
+        "${enrollment_control_plane%/}/api/v1/streams/allocate" >"$broker_allocation_response" 2>/dev/null; then
+        if python3 - "$broker_allocation_response" <<'PY'
+import json
+import socket
+import sys
+from pathlib import Path
+
+try:
+    payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+allocation = payload.get("allocation") if isinstance(payload.get("allocation"), dict) else payload
+host = str(allocation.get("host_ip") or "").strip()
+try:
+    port = int(allocation.get("port") or 0)
+except Exception:
+    port = 0
+if not host or port <= 0:
+    raise SystemExit(1)
+try:
+    with socket.create_connection((host, port), timeout=3):
+        pass
+except OSError:
+    raise SystemExit(1)
+PY
+        then
+          broker_allocation_reachable="1"
+          beagle_stream_client_target_reachable="1"
+        fi
+      fi
+    fi
+  fi
+  rm -f "$broker_allocation_response" "${broker_allocation_response}.payload"
 fi
 
 if [[ -n "$beagle_stream_client_host" ]]; then
@@ -98,6 +165,7 @@ beagle_stream_server_api_url=${beagle_stream_server_api_url:-UNSET}
 beagle_stream_client_binary=$beagle_stream_client_binary
 beagle_stream_binary=$beagle_stream_binary
 beagle_stream_hostless=$beagle_stream_hostless
+broker_allocation_reachable=$broker_allocation_reachable
 beagle_stream_client_target_reachable=$beagle_stream_client_target_reachable
 beagle_stream_server_api_reachable=$beagle_stream_server_api_reachable
 networkmanager_state=${network_state:-unknown}
@@ -138,11 +206,13 @@ fi
 if [[ -n "$beagle_stream_server_api_url" && "$beagle_stream_server_api_reachable" != "1" ]]; then
   health_failure_reasons+=("beagle-stream-server api unreachable")
 fi
-if [[ "${egress_mode:-direct}" != "direct" && "${egress_state:-unknown}" != "ready" && "${egress_state:-unknown}" != "ok" && "${egress_state:-unknown}" != "active" && "${egress_state:-unknown}" != "managed-by-thinclient-runtime" ]]; then
+if [[ "${egress_mode:-direct}" != "direct" && "${egress_state:-unknown}" != "ready" && "${egress_state:-unknown}" != "ok" && "${egress_state:-unknown}" != "active" && "${egress_state:-unknown}" != "managed-by-thinclient-runtime" && "$broker_allocation_reachable" != "1" ]]; then
   health_failure_reasons+=("secure egress not ready")
 fi
 
 if (( ${#health_failure_reasons[@]} > 0 )) && [[ -x /usr/local/sbin/beagle-update-client ]]; then
   reason="$(IFS='; '; printf '%s' "${health_failure_reasons[*]}")"
   /usr/local/sbin/beagle-update-client mark-health-failed --reason "$reason" >/dev/null 2>&1 || true
+elif [[ -x /usr/local/sbin/beagle-update-client ]]; then
+  /usr/local/sbin/beagle-update-client clear-health-failed >/dev/null 2>&1 || true
 fi

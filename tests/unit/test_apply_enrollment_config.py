@@ -45,6 +45,7 @@ def test_apply_enrollment_config_persists_device_id(tmp_path: Path) -> None:
         'control_plane="https://srv1.beagle-os.com"',
         'enrollment_token="manager-token"',
         'device_id="endpoint-001"',
+        'pool_id="vm-100"',
     ]
     assert oct(enrollment_conf.stat().st_mode & 0o777) == "0o640"
     assert oct(enrollment_conf.parent.stat().st_mode & 0o777) == "0o750"

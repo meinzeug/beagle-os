@@ -68,6 +68,16 @@ def test_firstboot_detects_beagle_stream_server_exec_path_dynamically() -> None:
     assert "ExecStart=/usr/local/bin/beagle-stream-server\n" not in script
 
 
+def test_firstboot_writes_beaglestream_config_before_sunshine_compat_copy() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    write_marker = 'cat > "/home/$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" <<EOF'
+    copy_marker = 'cp "/home/$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" "/home/$GUEST_USER/.config/beagle-stream-server/sunshine.conf"'
+    assert write_marker in script
+    assert copy_marker in script
+    assert script.index(write_marker) < script.index(copy_marker)
+
+
 def test_firstboot_disables_display_idle_and_lockers_for_streaming() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 

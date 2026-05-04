@@ -968,6 +968,23 @@ def mark_health_failure(reason: str) -> dict:
     return status
 
 
+def clear_health_failure() -> dict:
+    status = load_json(STATUS_FILE, {})
+    if not isinstance(status, dict):
+        status = {}
+    if str(status.get("state", "")).strip() == "health-failed":
+        state = "current"
+    else:
+        state = str(status.get("state", "") or "current")
+    return update_status(
+        state=state,
+        last_health_ok_at=utcnow(),
+        last_error="",
+        health_failure=False,
+        rollback_recommended=False,
+    )
+
+
 def rollback_update(config: dict[str, str], *, reboot: bool = False) -> dict:
     if boot_mode() != "runtime":
         raise RuntimeError("updates can only be rolled back in runtime mode")
@@ -1101,6 +1118,7 @@ def main() -> int:
     subparsers.add_parser("confirm-boot")
     health_failed_parser = subparsers.add_parser("mark-health-failed")
     health_failed_parser.add_argument("--reason", default="healthcheck failed")
+    subparsers.add_parser("clear-health-failed")
     subparsers.add_parser("status")
     subparsers.add_parser("session-start")
     monitor_parser = subparsers.add_parser("session-monitor")
@@ -1129,6 +1147,8 @@ def main() -> int:
             payload = confirm_boot(config)
         elif args.command == "mark-health-failed":
             payload = mark_health_failure(args.reason)
+        elif args.command == "clear-health-failed":
+            payload = clear_health_failure()
         else:
             raise RuntimeError(f"unsupported command {args.command}")
     except Exception as exc:

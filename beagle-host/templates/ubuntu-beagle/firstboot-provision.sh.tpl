@@ -913,8 +913,6 @@ Section "InputClass"
     Option "Ignore" "on"
 EndSection
 EOF
-  cp "/home/$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" "/home/$GUEST_USER/.config/beagle-stream-server/sunshine.conf"
-
   cat > /etc/X11/Xsession.d/19-beagle-lightdm-session-compat <<'EOF'
 #!/bin/sh
 # LightDM may source Xsession.d snippets directly without the helpers from
@@ -991,6 +989,7 @@ hevc_mode = 0
 av1_mode = 0
 $( if [[ -n "$BEAGLE_STREAM_SERVER_PORT" ]]; then printf 'port = %s\n' "$BEAGLE_STREAM_SERVER_PORT"; fi )
 EOF
+  cp "/home/$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" "/home/$GUEST_USER/.config/beagle-stream-server/sunshine.conf"
 
   cat > "/home/$GUEST_USER/.config/beagle-stream-server/apps.json" <<'EOF'
 {

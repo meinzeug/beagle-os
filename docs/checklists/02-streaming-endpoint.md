@@ -21,7 +21,7 @@
   - [x] Beagle-Branding (Name, Icons, About)
   - [x] In Thin-Client-OS-Image gebundelt: Build versucht standardmaessig `meinzeug/beagle-stream-client` Release `beagle-phase-a` und kann per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL` ueberschrieben werden; Runtime startet bei Enrollment ohne statischen Host hostless gegen den Broker.
   - [ ] CLI/UI auf Pairing-Token statt PIN umbenennen; Beagle-Runtime darf keine neue PIN-Benennung einfuehren.
-  - [ ] Broker-Start nutzt explizit `host:port app`, wenn der Manager ein Ziel geliefert hat; stale lokale Hosteintraege duerfen nicht gewinnen.
+  - [x] Broker-Start nutzt explizit `host:port app`, wenn der Manager ein Ziel geliefert hat; stale lokale Hosteintraege duerfen nicht gewinnen. Live-Hotfix/Abnahme 2026-05-04: lokaler Thinclient `ubuntu-beagle-100` meldet `broker_allocation_reachable=1`, `beagle_stream_client_target_reachable=1`, `update_state=current`.
 - [ ] **Phase B 8.1.x** — NVENC/VAAPI/QSV Tuning, AV1 default
 - [ ] **Phase C 8.2.x** — WebRTC-Modus (Browser-Stream ohne Client-Install)
 - [ ] **Phase D 9.0.x** — BeagleStream Native Protocol (eigener Codec/Transport)

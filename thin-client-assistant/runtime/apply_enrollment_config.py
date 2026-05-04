@@ -143,6 +143,7 @@ def apply_enrollment_config(
                 "control_plane": str(config.get("beagle_manager_url", "") or "").strip(),
                 "enrollment_token": str(config.get("beagle_manager_token", "") or "").strip(),
                 "device_id": str(config.get("device_id", "") or "").strip(),
+                "pool_id": stream_allocation_id or str(config.get("pool_id", "") or "").strip(),
             },
         )
     else:

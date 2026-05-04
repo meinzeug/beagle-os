@@ -76,9 +76,36 @@ def test_healthcheck_marks_update_status_for_repair_reporting() -> None:
 
     assert "health_failure_reasons" in script
     assert "beagle-update-client mark-health-failed" in script
+    assert "beagle-update-client clear-health-failed" in script
     assert "rollback_recommended" not in script  # owned by update-client status payload
     assert "beagle-stream-client target unreachable" in script
     assert "secure egress not ready" in script
+
+
+def test_healthcheck_probes_broker_allocation_without_logging_tokens() -> None:
+    script = HEALTHCHECK.read_text(encoding="utf-8")
+
+    assert "broker_allocation_reachable" in script
+    assert "/api/v1/streams/allocate" in script
+    assert '"pool_id": conf.get("pool_id", "")' in script
+    assert '"device_id": conf.get("device_id", "")' in script
+    assert '-H "X-Beagle-Token: ${enrollment_token}"' in script
+    assert "socket.create_connection((host, port), timeout=3)" in script
+    assert "beagle_stream_client_target_reachable=\"1\"" in script
+    assert '"$broker_allocation_reachable" != "1"' in script
+    assert "echo ${enrollment_token}" not in script
+    assert "logger ${enrollment_token}" not in script
+
+
+def test_update_client_can_clear_health_failure_state() -> None:
+    script = UPDATE_CLIENT.read_text(encoding="utf-8")
+
+    assert "def clear_health_failure() -> dict:" in script
+    assert 'subparsers.add_parser("clear-health-failed")' in script
+    assert 'elif args.command == "clear-health-failed":' in script
+    assert "health_failure=False" in script
+    assert "rollback_recommended=False" in script
+    assert 'state="current"' in script
 
 
 def test_update_feed_can_require_reinstall_for_old_foundation() -> None:

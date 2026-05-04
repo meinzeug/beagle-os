@@ -338,6 +338,7 @@ class TestEnrollmentLifecycleIntegration:
             "thinclient_password": "changeme",
         }
         enrollment_store.store(raw_token, enrollment_payload)
+        assert "thinclient_password" not in (enrollment_store.load(raw_token) or {})
 
         # 2. Endpoint presents the token
         loaded = enrollment_store.load(raw_token)

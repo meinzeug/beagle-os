@@ -1,3 +1,35 @@
+## Update (2026-05-04, Diamond-D1/D2 Live-Hotfixes auf srv1 + lokalem Thinclient)
+
+**Scope**: Den Diamond-Plan nach D0 weiter abarbeiten: D1-Firstboot-Blocker, D2-Broker-Health, Live-Hotfixes und Security-Fund direkt im Repo und auf `srv1`/lokalem Thinclient reparieren.
+
+- **D1 Firstboot-Fix**:
+  - `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl` kopiert `beagle-stream-server.conf` erst nach dem Schreiben der Datei nach `sunshine.conf`.
+  - Vorher konnte ein frischer VM-Firstboot unter `set -e` abbrechen, bevor Stream-Server/Graphical-Service fertig eingerichtet waren.
+
+- **D2 Broker-/Thinclient-Fix live validiert**:
+  - `thin-client-assistant/runtime/apply_enrollment_config.py` schreibt im Broker-Modus wieder `pool_id` nach `/etc/beagle/enrollment.conf`.
+  - `beagle-healthcheck` prueft bei hostless/Broker-Clients `/api/v1/streams/allocate` und testet den gelieferten `host_ip:port` per TCP, ohne Enrollment-/Endpoint-Tokens auszugeben.
+  - `beagle-update-client clear-health-failed` loescht alte Health-Failure-/Rollback-Flags, sobald der Healthcheck wieder gruen ist.
+  - Live-Hotfix auf `srv1` und Thinclient `ubuntu-beagle-100` eingespielt.
+  - Live-Befund nach Hotfix:
+    - Thinclient `beagle_stream_hostless=1`
+    - `broker_allocation_reachable=1`
+    - `beagle_stream_client_target_reachable=1`
+    - `update_state=current`
+    - `health_failure=False`
+    - `rollback_recommended=False`
+    - `srv1` failed units: `0`
+
+- **Security-Fix S-046**:
+  - Enrollment-Token-Metadaten speichern neue Thinclient-Passwoerter nicht mehr im Token-Record.
+  - `EnrollmentTokenStoreService.store()` und `mark_used()` entfernen `thinclient_password` defensiv.
+  - Bestehende `srv1` Enrollment-Token-Dateien wurden bereinigt (`thinclient_password_token_files=0`).
+
+- **Verifiziert**:
+  - `1688 passed` lokal.
+  - `srv1` Control Plane nach Hotfix aktiv.
+  - Thinclient-Healthcheck und Endpoint-Report live ausgefuehrt.
+
 ## Update (2026-05-04, Diamond-D0 BESTANDEN, D1 vorbereitet)
 
 **Scope**: D0-Gate vollstaendig abgeschlossen, 1657 Unit-Tests gruen, D1-Installimage-Bootstrap-Pruefung eingebaut.
