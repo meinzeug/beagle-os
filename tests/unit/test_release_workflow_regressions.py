@@ -24,3 +24,14 @@ def test_package_script_uses_shared_release_version_sync_helper() -> None:
     script = (ROOT / "scripts" / "package.sh").read_text(encoding="utf-8")
 
     assert 'python3 "$ROOT_DIR/scripts/sync-release-version.py" "$VERSION"' in script
+
+
+def test_release_workflow_reuses_single_resolved_version_across_jobs() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    assert "release_version: ${{ steps.version.outputs.version }}" in workflow
+    assert "fetch-depth: 0" in workflow
+    assert "BEAGLE_RELEASE_VERSION=\"${{ github.event.inputs.release_version }}\"" in workflow
+    assert workflow.count("BEAGLE_RELEASE_VERSION=\"${{ needs.detect-artifact-changes.outputs.release_version }}\"") >= 6
+    assert "needs: [detect-artifact-changes, assemble-release-package, sbom]" in workflow
+    assert "needs: [detect-artifact-changes, create-release]" in workflow

@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-04, Diamond-D0 begonnen und Repo-/Runtime-Nachweis gehaertet)
+
+**Zuletzt erledigt**:
+- `docs/lasthope/05-diamond-plan.md` ist der neue Diamond-Steuerplan mit Gates D0..D7.
+- `.github/copilot-instructions.md` verankert `verfolge den diamond plan` als Trigger fuer Diamond-gesteuerte Repo-Weiterentwicklung.
+- `scripts/check-beagle-host.sh` validiert jetzt das D0-Kriterium `repo-auto-update-status.json`: enabled, healthy, kein Update offen, installed/remote Version gleich `VERSION`, current/remote Commit gleich installiertem Commit.
+- `srv1` ist fuer diesen D0-Slice konsistent: Repo-Status healthy, installed/remote `8.0.9`, Public-Downloads `8.0.9`, keine failed systemd units.
+- Der rote `release`-Workflow auf `main` wurde auf job-lokale Versionsdrift eingegrenzt und gepatcht: die Release-Version wird jetzt einmal in `detect-artifact-changes` ermittelt und an alle Release-Jobs weitergereicht.
+
+**Naechste konkrete Schritte**:
+
+1. D0 abschliessen: nach Push der Release-Workflow-Korrektur den naechsten `release`-Run auf `main` belegen und das WebUI Updates-Panel/API mit Auth-Kontext gegen Repo-/Artifact-Status pruefen.
+2. Danach D1 starten: frische Release-ISO/installimage-Installation auf leerem Host fahren und `scripts/check-beagle-host.sh` direkt nach Clean-Install auswerten.
+3. Parallel offen halten: VM100-Autoinstall/Firstboot/Reboot/Desktop weiter ueberwachen, weil dieser Pfad D1/D2 direkt blockiert.
+
 ## Stand (2026-05-03, BeagleStream-Fork-Produktgrenze + VM100 Pairing/Launch repariert)
 
 **Zuletzt erledigt**:

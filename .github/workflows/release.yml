@@ -31,14 +31,20 @@ jobs:
     name: Detect artifact rebuild scope
     runs-on: ubuntu-latest
     outputs:
+      release_version: ${{ steps.version.outputs.version }}
       rebuild_server_release: ${{ steps.resolve.outputs.rebuild_server_release }}
       rebuild_thin_client: ${{ steps.resolve.outputs.rebuild_thin_client }}
 
     steps:
       - uses: actions/checkout@v4
-        if: ${{ github.event_name == 'push' }}
         with:
-          fetch-depth: 2
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        run: |
+          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+            bash scripts/resolve-release-version.sh --github-output "$GITHUB_OUTPUT"
 
       - name: Detect changed paths
         id: filter
@@ -96,7 +102,7 @@ jobs:
       - name: Read VERSION
         id: version
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+          BEAGLE_RELEASE_VERSION="${{ needs.detect-artifact-changes.outputs.release_version }}" \
             bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Reuse published installimage tarball
@@ -165,7 +171,7 @@ jobs:
       - name: Read VERSION
         id: version
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+          BEAGLE_RELEASE_VERSION="${{ needs.detect-artifact-changes.outputs.release_version }}" \
             bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Reuse published server installer ISO
@@ -236,7 +242,7 @@ jobs:
       - name: Read VERSION
         id: version
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+          BEAGLE_RELEASE_VERSION="${{ needs.detect-artifact-changes.outputs.release_version }}" \
             bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Reuse published thin-client installer ISO
@@ -318,7 +324,7 @@ jobs:
 
       - name: Resolve VERSION
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+          BEAGLE_RELEASE_VERSION="${{ needs.detect-artifact-changes.outputs.release_version }}" \
             bash scripts/resolve-release-version.sh --write VERSION
 
       - name: Setup Python
@@ -376,7 +382,7 @@ jobs:
 
   assemble-release-package:
     name: Assemble public release package
-    needs: [build-installimage, build-iso, build-thin-client]
+    needs: [detect-artifact-changes, build-installimage, build-iso, build-thin-client]
     runs-on: ubuntu-latest
 
     steps:
@@ -384,7 +390,7 @@ jobs:
 
       - name: Resolve VERSION
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+          BEAGLE_RELEASE_VERSION="${{ needs.detect-artifact-changes.outputs.release_version }}" \
             bash scripts/resolve-release-version.sh --write VERSION
 
       - name: Setup Node
@@ -449,7 +455,7 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: [assemble-release-package, sbom]
+    needs: [detect-artifact-changes, assemble-release-package, sbom]
     runs-on: ubuntu-latest
 
     steps:
@@ -460,7 +466,7 @@ jobs:
       - name: Read VERSION
         id: version
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+          BEAGLE_RELEASE_VERSION="${{ needs.detect-artifact-changes.outputs.release_version }}" \
             bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
 
       - name: Sync release metadata
@@ -687,7 +693,7 @@ jobs:
   deploy-public-artifacts:
     name: Deploy public artifacts to beagle-os.com
     if: (github.ref_type == 'tag' || github.ref == 'refs/heads/main') && (github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]'))
-    needs: [create-release]
+    needs: [detect-artifact-changes, create-release]
     runs-on: ubuntu-latest
 
     steps:
@@ -695,7 +701,7 @@ jobs:
 
       - name: Resolve VERSION
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+          BEAGLE_RELEASE_VERSION="${{ needs.detect-artifact-changes.outputs.release_version }}" \
             bash scripts/resolve-release-version.sh --write VERSION
 
       - name: Download release package artifacts

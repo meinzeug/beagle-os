@@ -1,3 +1,34 @@
+## Update (2026-05-04, Diamond-D0-Plan verankert und Host-Check gehaertet)
+
+**Scope**: Den Diamond Plan als verbindliche Entwicklungsrichtung operationalisieren und das frueheste Gate D0 gegen echte `srv1`-Runtime-Werte absichern.
+
+- Neuer Diamond Plan unter `docs/lasthope/05-diamond-plan.md` beschreibt Gates D0..D7 vom stabilen Runtime-Stand bis zum Launch-/Firmenangebot.
+- Workspace-Agent-Regel `.github/copilot-instructions.md` verankert den Trigger `verfolge den diamond plan`: fruehestes offenes Diamond-Gate bearbeiten, P0/D0-D3 nicht durch Komfortfeatures umgehen, Live-Hotfixes ins Repo zurueckfuehren.
+- `scripts/check-beagle-host.sh` prueft jetzt zusaetzlich `/var/lib/beagle/repo-auto-update-status.json`:
+  - Repo-Auto-Update muss aktiviert und `healthy` sein.
+  - `update_available` muss false sein.
+  - `installed_version`, `remote_version` und `VERSION` muessen uebereinstimmen.
+  - `current_commit`, `remote_commit` und `.beagle-installed-commit` muessen denselben Stand zeigen.
+- Der rote `release`-Workflow auf `main` wurde auf eine Versions-Drift-Ursache eingegrenzt:
+  - `deploy-public-artifacts` loeste die Release-Version erneut auf und erwartete dadurch `beagle-os-v8.0.12.tar.gz`, waehrend das zuvor erzeugte Release-Package aus einem anderen Versionsentscheid stammte.
+  - `.github/workflows/release.yml` loest die Release-Version jetzt einmal in `detect-artifact-changes` auf und reicht diese Version an Build-, SBOM-, Assemble-, Create-Release- und Deploy-Jobs weiter.
+  - Regressionstest `test_release_workflow_reuses_single_resolved_version_across_jobs` verhindert erneute job-lokale Versionsdrift.
+- D0-Live-Befund auf `srv1`:
+  - `/opt/beagle/.beagle-installed-commit` = `c1f76b1efea8214e6c79d0e4793f91a7924233af`.
+  - `/opt/beagle/VERSION` = `8.0.9`.
+  - `/var/lib/beagle/repo-auto-update-status.json` = `state=healthy`, `installed_version=remote_version=8.0.9`, `current_commit=remote_commit=c1f76b1efea8214e6c79d0e4793f91a7924233af`.
+  - `https://beagle-os.com/beagle-updates/beagle-downloads-status.json` meldet `version=8.0.9`.
+  - `systemctl --failed` meldet keine failed units.
+- Verifiziert:
+  - `bash -n scripts/check-beagle-host.sh scripts/repo-auto-update.sh`
+  - `bash -n scripts/check-beagle-host.sh scripts/repo-auto-update.sh scripts/resolve-release-version.sh scripts/publish-public-update-artifacts.sh`
+  - `python3 -m pytest tests/unit/test_release_workflow_regressions.py tests/unit/test_repo_auto_update_regressions.py -q` -> `9 passed`.
+  - aktueller `srv1`-Host-Check auf dem deployed Stand bleibt gruen.
+- Weiter offen in D0:
+  - Nach Push der Release-Workflow-Korrektur den naechsten `release`-Run auf `main` belegen.
+  - WebUI Updates-Panel/API mit Auth-Kontext gegen denselben Repo-/Artifact-Stand pruefen.
+  - VM100-Installation bis Ende ueberwachen.
+
 ## Update (2026-05-03, BeagleStream-Fork-Produktgrenze und VM100-Live-Stream-Pfad nachgezogen)
 
 **Scope**: Die Live-Erkenntnisse aus VM100/Thinclient in Repo-Logik und Produktplanung zurueckziehen: BeagleStream bleibt eigener Client-/Server-Fork, der Broker-Pfad darf nicht auf Legacy-PIN-/Hostless-Zufall zurueckfallen.

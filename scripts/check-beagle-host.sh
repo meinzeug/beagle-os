@@ -19,6 +19,7 @@ PUBLIC_ARTIFACT_BASE_URL=""
 FAILURES=0
 STATUS_JSON_FILE="$INSTALL_DIR/dist/beagle-downloads-status.json"
 REFRESH_STATUS_FILE="${PVE_DCV_STATUS_DIR:-/var/lib/beagle}/refresh.status.json"
+REPO_AUTO_UPDATE_STATUS_FILE="${BEAGLE_REPO_AUTO_UPDATE_STATUS_FILE:-${PVE_DCV_STATUS_DIR:-/var/lib/beagle}/repo-auto-update-status.json}"
 BEAGLE_MANAGER_ENV_FILE="${PVE_DCV_BEAGLE_MANAGER_ENV_FILE:-$CONFIG_DIR/beagle-manager.env}"
 BEAGLE_API_TOKEN=""
 BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
@@ -309,6 +310,50 @@ if errors:
 PY
 }
 
+check_repo_auto_update_status() {
+  python3 - "$REPO_AUTO_UPDATE_STATUS_FILE" "$INSTALL_DIR/.beagle-installed-commit" "$INSTALL_DIR/VERSION" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+status_path = Path(sys.argv[1])
+commit_path = Path(sys.argv[2])
+version_path = Path(sys.argv[3])
+
+
+def same_commit(left: str, right: str) -> bool:
+    left = (left or "").strip()
+    right = (right or "").strip()
+    if not left or not right:
+        return False
+    return left == right or (len(left) >= 7 and right.startswith(left)) or (len(right) >= 7 and left.startswith(right))
+
+
+status = json.loads(status_path.read_text(encoding="utf-8"))
+version = version_path.read_text(encoding="utf-8").strip()
+installed_commit = commit_path.read_text(encoding="utf-8").strip() if commit_path.is_file() else ""
+
+errors = []
+if not status.get("enabled", False):
+    errors.append("repo auto update disabled")
+if str(status.get("state") or "").lower() != "healthy":
+    errors.append(f"repo state is {status.get('state')!r}, expected healthy")
+if bool(status.get("update_available", False)):
+    errors.append("repo update still available")
+if str(status.get("installed_version") or "").strip() != version:
+    errors.append("installed_version mismatch")
+if str(status.get("remote_version") or "").strip() != version:
+    errors.append("remote_version mismatch")
+if not same_commit(str(status.get("current_commit") or ""), str(status.get("remote_commit") or "")):
+    errors.append("current_commit != remote_commit")
+if installed_commit and not same_commit(installed_commit, str(status.get("current_commit") or "")):
+    errors.append("installed commit stamp != repo status current_commit")
+
+if errors:
+    raise SystemExit("; ".join(errors))
+PY
+}
+
 check_hosted_installer_binding() {
   local expected_bootstrap_url=""
   local expected_payload_url=""
@@ -416,6 +461,7 @@ check_file "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz"
 check_file "$INSTALL_DIR/dist/beagle-downloads-status.json"
 check_file "$INSTALL_DIR/dist/SHA256SUMS"
 check_file "$REFRESH_STATUS_FILE"
+check_file "$REPO_AUTO_UPDATE_STATUS_FILE"
 check_file "$BEAGLE_CONTROL_SERVICE_FILE"
 check_file "$INSTALL_DIR/beagle-host/providers/registry.py"
 check_file "$INSTALL_DIR/beagle-host/providers/host_provider_contract.py"
@@ -480,6 +526,13 @@ if check_status_json; then
   echo "OK  json  $STATUS_JSON_FILE"
 else
   echo "ERR json  $STATUS_JSON_FILE"
+  record_failure
+fi
+
+if check_repo_auto_update_status; then
+  echo "OK  json  $REPO_AUTO_UPDATE_STATUS_FILE"
+else
+  echo "ERR json  $REPO_AUTO_UPDATE_STATUS_FILE"
   record_failure
 fi
 

@@ -10,9 +10,9 @@ freischalten, kommen nach Stabilitaet, Installation, Stream und Betrieb.
 Ziel: `srv1` ist gruen und spiegelt `main` ohne Drift.
 
 - [ ] GitHub Actions fuer `main` komplett gruen halten.
-- [ ] `srv1` Repo-Auto-Update, Artefakt-Refresh und Versionen konsistent halten.
+- [x] `srv1` Repo-Auto-Update, Artefakt-Refresh und Versionen konsistent halten — Repo-Status `healthy`, installed/remote `8.0.9`, current/remote Commit `c1f76b1efea8214e6c79d0e4793f91a7924233af`, Public-Downloads `8.0.9` (2026-05-04)
 - [ ] Laufende `vm100`-Installation bis Ende ueberwachen.
-- [ ] Keine roten Systemd-Units nach Repo-/Artefaktlauf.
+- [x] Keine roten Systemd-Units nach Repo-/Artefaktlauf — `systemctl --failed` auf `srv1` meldet `0 loaded units listed` (2026-05-04)
 - [ ] WebUI Updates-Panel zeigt Host-Version, Artifact-Version und Buildstatus widerspruchsfrei.
 
 Akzeptanz:
@@ -125,4 +125,3 @@ Akzeptanz:
 
 - WebUI ist auf Desktop und Tablet bedienbar.
 - keine sichtbaren "Beagle Stream Server/Beagle Stream Client"-Legacy-Texte im Standardpfad, ausser als bewusst dokumentierter Fallback.
-

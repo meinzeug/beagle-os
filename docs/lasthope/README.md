@@ -89,4 +89,5 @@ wenn mindestens E2 gruen ist. Fuer produktive Enterprise-Nutzung ist E3 Pflicht.
 - `02-execution-order.md` ordnet die Arbeit in umsetzbare Wellen.
 - `03-commercial-readiness.md` definiert, was vor Firmenangeboten stehen muss.
 - `04-validation-matrix.md` beschreibt die Abnahme pro Gate.
-
+- `05-diamond-plan.md` definiert den direkten Pfad zum durchbruchfaehigen
+  Produktzustand mit Diamond-Gates D0..D7.

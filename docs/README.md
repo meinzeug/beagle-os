@@ -27,6 +27,7 @@ Genau **5 Dateien**. Jede Aufgabe lebt nur in einer dieser Listen.
 | Datei | Inhalt |
 |---|---|
 | [lasthope/README.md](lasthope/README.md) | Enterprise-GA-Steuerplan: offene Pflichtluecken, Reihenfolge, Firmen-Go/No-Go |
+| [lasthope/05-diamond-plan.md](lasthope/05-diamond-plan.md) | Diamond Plan: direkter Pfad zum durchbruchfaehigen Produktzustand |
 | [MASTER-PLAN.md](MASTER-PLAN.md) | Kanonische Gesamtsicht (Vision, Layer-Modell, Themen-Zuordnung) |
 | [STATUS.md](STATUS.md) | 30-Sekunden Enterprise-Readiness-Snapshot |
 | [architecture/overview.md](architecture/overview.md) | System-Architektur (Bestand) |

@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "repo-auto-update.sh"
+CHECK_HOST_SCRIPT = ROOT / "scripts" / "check-beagle-host.sh"
 
 
 def test_repo_auto_update_repairs_runtime_tree_before_rsync_and_install() -> None:
@@ -53,3 +54,15 @@ def test_repo_auto_update_tracks_installed_and_remote_versions() -> None:
     assert 'payload["remote_version"] = (remote_version_proc.stdout or "").strip()' in script
     assert '"sync-web-ui-version.py"' in script
     assert 'payload["reaction"] = "sync_web_ui_version_failed"' in script
+
+
+def test_host_check_validates_diamond_d0_repo_update_status() -> None:
+    script = CHECK_HOST_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'REPO_AUTO_UPDATE_STATUS_FILE="${BEAGLE_REPO_AUTO_UPDATE_STATUS_FILE:-${PVE_DCV_STATUS_DIR:-/var/lib/beagle}/repo-auto-update-status.json}"' in script
+    assert "check_repo_auto_update_status()" in script
+    assert '"repo state is {status.get(\'state\')!r}, expected healthy"' in script
+    assert '"installed_version mismatch"' in script
+    assert '"remote_version mismatch"' in script
+    assert '"current_commit != remote_commit"' in script
+    assert 'check_file "$REPO_AUTO_UPDATE_STATUS_FILE"' in script
