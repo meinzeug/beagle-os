@@ -1,6 +1,6 @@
 {
   "name": "beagle-kiosk",
-  "version": "8.0.9",
+  "version": "8.0.10",
   "description": "Open-source Electron gaming kiosk for Beagle OS",
   "private": true,
   "main": "main.js",
