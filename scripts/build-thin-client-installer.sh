@@ -101,7 +101,9 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   mtools \
   rsync \
   curl \
-  ca-certificates
+  ca-certificates \
+  libegl1 \
+  libopengl0
 
 build_manual_iso() {
   local iso_root grub_cfg iso_output iso_output_short legacy_output legacy_output_short
