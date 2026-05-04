@@ -166,7 +166,7 @@ PY
 }
 
 runtime_uptime_hours() {
-  awk '{printf "%.2f\n", $1 / 3600.0}' /proc/uptime 2>/dev/null || printf '0\n'
+  LC_NUMERIC=C awk '{printf "%.2f\n", $1 / 3600.0}' /proc/uptime 2>/dev/null || printf '0\n'
 }
 
 runtime_cpu_temp_c() {

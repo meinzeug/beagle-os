@@ -101,6 +101,10 @@ class ClusterCaService:
                 str(cert_path),
                 "-days",
                 str(int(days)),
+                "-addext",
+                "basicConstraints=critical,CA:TRUE",
+                "-addext",
+                "keyUsage=critical,keyCertSign,cRLSign",
             ]
         )
         os.chmod(key_path, 0o600)

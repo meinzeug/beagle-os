@@ -39,6 +39,7 @@ def test_lock_screen_watcher_writes_runtime_info_when_locked(tmp_path: Path) -> 
     env["BEAGLE_LOCK_SCREEN_ONCE"] = "1"
     env["BEAGLE_LOCK_SCREEN_RUNTIME_INFO_FILE"] = str(info_file)
     env["BEAGLE_LOCK_SCREEN_X11_DISPLAYS"] = ":0,:1"
+    env["XDG_SESSION_TYPE"] = "x11"
 
     cmd = f"source {SCRIPT}\nrun_device_lock_screen_watcher\n"
     subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, check=True)
