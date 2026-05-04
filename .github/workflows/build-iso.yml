@@ -352,7 +352,9 @@ jobs:
             dosfstools \
             mtools \
             rsync \
-            ca-certificates
+            ca-certificates \
+            libegl1 \
+            libopengl0
 
       - name: Extract live filesystem from published ISO
         if: ${{ needs.detect-artifact-changes.outputs.rebuild_thin_client != 'true' && steps.reuse_thin_client.outcome == 'success' }}

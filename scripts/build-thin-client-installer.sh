@@ -105,6 +105,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   rsync \
   curl \
   ca-certificates \
+  libegl1 \
   libopengl0
 
 build_manual_iso() {
