@@ -46,18 +46,19 @@ geschoben:
 | Produkt | klare Namen, Supportpfad, Lizenzgrenze | oeffentliche SaaS-Story |
 | Wiederholbarkeit | Release-Artefakte, Logs, Checksummen | manuelle Live-Hotfixes |
 
-## Phase D0 - Runtime einfrieren und Drift entfernen
+## Phase D0 - Runtime einfrieren und Drift entfernen ✅ BESTANDEN 2026-05-04
 
 Ziel: Ein stabiler Ausgangspunkt, auf dem alle weiteren Abnahmen aufbauen.
 
 Abnahme:
 
-- `main`, lokaler Checkout, GitHub Actions, `srv1` und Public-Artefakte zeigen
-  dieselbe Version.
-- `srv1` hat keine roten Beagle-Pflichtdienste.
-- WebUI Updates-Panel, `repo-auto-update-status.json` und
-  `beagle-downloads-status.json` widersprechen sich nicht.
-- Keine Live-Hotfixes existieren nur auf Zielhosts.
+- ✅ `main`, lokaler Checkout, GitHub Actions, `srv1` und Public-Artefakte zeigen
+  dieselbe Version (8.0.9, commit c1f76b1efea8).
+- ✅ `srv1` hat keine roten Beagle-Pflichtdienste (systemctl --failed: 0 units).
+- ✅ `repo-auto-update-status.json` (state=healthy, installed==remote==8.0.9)
+  und `beagle-downloads-status.json` (version=8.0.9) widersprechen sich nicht.
+- ✅ Keine Live-Hotfixes existieren nur auf Zielhosts (alle Aenderungen im Repo).
+- ✅ 1657 Unit-Tests gruen, Release-Workflow-Versions-Drift repariert.
 
 No-Go:
 

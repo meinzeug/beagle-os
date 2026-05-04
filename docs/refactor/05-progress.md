@@ -1,4 +1,28 @@
-## Update (2026-05-04, Diamond-D0-Plan verankert und Host-Check gehaertet)
+## Update (2026-05-04, Diamond-D0 BESTANDEN, D1 vorbereitet)
+
+**Scope**: D0-Gate vollstaendig abgeschlossen, 1657 Unit-Tests gruen, D1-Installimage-Bootstrap-Pruefung eingebaut.
+
+- **D0 BESTANDEN** (alle Abnahmekriterien erfuellt, 2026-05-04):
+  - `srv1` VERSION=8.0.9, repo-auto-update state=healthy, installed==remote==8.0.9
+  - `systemctl --failed`: 0 units, beagle-100 laeuft
+  - Release-Workflow Versions-Drift gepatcht (einmalige Versionsbindung in detect-job)
+  - Public-Artefakt `beagle-downloads-status.json` version=8.0.9
+
+- **1657 Unit-Tests gruen** (war vorher 29 failed auf main):
+  - `beagle-host/services/ca_manager.py`: `basicConstraints` + `keyUsage` Extensions im CA-Cert (OpenSSL-3.x-Kompatibilitaet)
+  - `thin-client-assistant/runtime/device_sync.sh`: `LC_NUMERIC=C` auf awk (verhindert `30,12` Locale-Ausgabe)
+  - `tests/unit/test_device_lock_screen.py`: `XDG_SESSION_TYPE=x11` gesetzt (verhindert Wayland-Umgebungs-Interferenz)
+  - `website/ui/package.json`: `{"type":"module"}` fuer ESM-Support in Node.js (behebt 14 i18n-Test-Fehler)
+  - `pip install boto3` fuer S3-Backup-Tests
+
+- **D1-Vorbereitung**: `check_installimage_bootstrap()` in `scripts/check-beagle-host.sh`:
+  - prueft `done`-Marker in `/var/lib/beagle/installimage-bootstrap/done`
+  - meldet FAIL bei failed/laufendem Service oder fehlendem Marker
+  - springt bei Nicht-installimage-Hosts silent ueber den Check
+
+- **D1 BLOCKIERT**: srv2.beagle-os.com nicht erreichbar (SSH-Timeout); Clean-Install-Test wartet auf Host.
+
+
 
 **Scope**: Den Diamond Plan als verbindliche Entwicklungsrichtung operationalisieren und das frueheste Gate D0 gegen echte `srv1`-Runtime-Werte absichern.
 

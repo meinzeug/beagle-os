@@ -1,6 +1,21 @@
 # Next Steps
 
-## Stand (2026-05-04, Diamond-D0 begonnen und Repo-/Runtime-Nachweis gehaertet)
+## Stand (2026-05-04, Diamond-D0 BESTANDEN, D1 blockiert auf sauberem Host)
+
+**Zuletzt erledigt**:
+- D0-Gate vollstaendig bestanden: alle Abnahmekriterien erfuellt (srv1 konsistent, 0 failed units, 1657 Tests gruen, Release-Workflow gepatcht)
+- 29 pre-existing Testfehler behoben (CA-cert KeyUsage, LC_NUMERIC locale, XDG_SESSION_TYPE, ESM package.json, boto3)
+- `check_installimage_bootstrap()` in `check-beagle-host.sh` fuer D1-Nachweis eingebaut
+- Diamond Plan `docs/lasthope/05-diamond-plan.md` D0 als BESTANDEN markiert
+
+**Naechste konkrete Schritte**:
+
+1. **D1 unblocking**: srv2.beagle-os.com SSH-Zugang wiederherstellen oder alternativ frischen Hetzner-Host provisionieren fuer Clean-Install-Test.
+2. **D1 ausfuehren**: Release-Installimage (`Debian-1201-bookworm-amd64-beagle-server.tar.gz`) auf leerem Host fahren, dann `check-beagle-host.sh` und `post-install-check.sh` auswerten.
+3. **Release-Workflow-Lauf beobachten**: Nach dem Release-Workflow-Fix den naechsten gruenen `release`-Run auf CI bestaetigen.
+4. **Welle 2 vorbereiten** (wenn D1 bestanden): BeagleStream-Broker-Pfad, WireGuard-Pairing, Token-als-PIN End-to-End auf VM100.
+
+
 
 **Zuletzt erledigt**:
 - `docs/lasthope/05-diamond-plan.md` ist der neue Diamond-Steuerplan mit Gates D0..D7.

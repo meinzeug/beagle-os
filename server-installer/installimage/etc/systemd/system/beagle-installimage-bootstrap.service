@@ -1,13 +1,16 @@
 [Unit]
 Description=Bootstrap Beagle host after installimage deployment
-After=network.target
-Wants=network.target
+After=network-online.target beagle-network-interface-heal.service
+Wants=network-online.target
 ConditionPathExists=!/var/lib/beagle/installimage-bootstrap/done
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/beagle-installimage-bootstrap
 RemainAfterExit=yes
+TimeoutStartSec=600
+StandardOutput=journal+console
+StandardError=journal+console
 
 [Install]
 WantedBy=multi-user.target
