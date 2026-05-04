@@ -304,3 +304,190 @@ def test_events_timeout_audit_supports_dict_signature_writer(tmp_path: Path) -> 
     assert audit_events[-1][0] == "stream.session.timeout"
     assert audit_events[-1][1] == "error"
     assert audit_events[-1][2]["username"] == "alice"
+
+
+# ── D2 acceptance criteria: /api/v1/streams/allocate ─────────────────────────
+
+def _allocate_service(
+    tmp_path: Path,
+    *,
+    network_mode: str = "vpn_preferred",
+    issue_pairing_token=None,
+    build_wireguard_peer_config=None,
+) -> tuple[StreamHttpSurfaceService, list[tuple]]:
+    vm = _Vm(303)
+    audit_events: list[tuple] = []
+    policy_service = StreamPolicyService(state_file=tmp_path / "stream-policies.json")
+    policy_service.create_policy(
+        StreamPolicy(policy_id="pool1", name="Pool1", network_mode=network_mode)
+    )
+    policy_service.assign_policy("pool1", "pool1")
+
+    class _Pm:
+        def list_active_sessions(self):
+            return []
+
+        def list_pools(self):
+            return [_Pool("pool1")]
+
+        def list_desktops(self, pool_id):
+            return [{"vmid": 303, "node": "srv2"}] if pool_id == "pool1" else []
+
+        def allocate_desktop(self, pool_id, user_id):
+            class _Lease:
+                vm_id = 303
+                session_id = f"{pool_id}:{user_id}"
+            return _Lease()
+
+    service = StreamHttpSurfaceService(
+        state_file=tmp_path / "streams" / "servers.json",
+        build_vm_profile=lambda found_vm: {
+            "stream_host": "192.168.123.116",
+            "beagle_stream_client_local_host": "10.88.1.100",
+            "beagle_stream_client_port": 50000,
+        },
+        find_vm=lambda vmid: vm if int(vmid) == 303 else None,
+        pool_manager_service=_Pm(),
+        stream_policy_service=policy_service,
+        requester_identity=lambda: "alice",
+        audit_event=lambda event_type, outcome, **details: audit_events.append((event_type, outcome, details)),
+        utcnow=lambda: "2026-05-04T12:00:00Z",
+        version="test",
+        issue_pairing_token=issue_pairing_token,
+        build_wireguard_peer_config=build_wireguard_peer_config,
+    )
+    return service, audit_events
+
+
+def test_allocate_returns_explicit_vm_target(tmp_path: Path) -> None:
+    """D2: allocate must return an explicit vm_id, host_ip, and port — not just a pool reference."""
+    service, _ = _allocate_service(tmp_path)
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={"pool_id": "pool1", "device_id": "dev-1"},
+    )
+    assert response is not None
+    assert response["status"] == 200
+    payload = response["payload"]
+    assert payload["ok"] is True
+    # Explicit VM target fields must be present and non-empty
+    assert payload["allocation"]["vm_id"] == 303
+    assert payload["host_ip"] != ""
+    assert payload["port"] > 0
+
+
+def test_allocate_vpn_preferred_uses_local_host_when_wg_peer_provided(tmp_path: Path) -> None:
+    """D2: When WG peer config is in payload, allocate should prefer the local/VPN host IP."""
+    service, _ = _allocate_service(tmp_path, network_mode="vpn_preferred")
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={
+            "pool_id": "pool1",
+            "device_id": "dev-1",
+            "wg_peer_config": {"public_key": "abc", "endpoint": "1.2.3.4:51820", "allowed_ips": "10.88.0.0/16"},
+        },
+    )
+    assert response is not None
+    assert response["status"] == 200
+    # With WG peer config present, local_stream_host should be used
+    assert response["payload"]["host_ip"] == "10.88.1.100"
+
+
+def test_allocate_vpn_required_blocks_without_wireguard_config(tmp_path: Path) -> None:
+    """D2: vpn_required policy must block allocation when no WireGuard peer config is available."""
+    service, _ = _allocate_service(tmp_path, network_mode="vpn_required")
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={"pool_id": "pool1", "device_id": "dev-1"},
+    )
+    assert response is not None
+    assert response["status"] == 403
+    assert response["payload"]["ok"] is False
+    assert "vpn_required" in response["payload"]["error"]
+
+
+def test_allocate_vpn_required_succeeds_with_wireguard_config(tmp_path: Path) -> None:
+    """D2: vpn_required policy allows allocation when WireGuard peer config is present."""
+    service, _ = _allocate_service(tmp_path, network_mode="vpn_required")
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={
+            "pool_id": "pool1",
+            "device_id": "dev-1",
+            "wg_peer_config": {"public_key": "pk", "endpoint": "5.6.7.8:51820", "allowed_ips": "10.88.0.0/16"},
+        },
+    )
+    assert response is not None
+    assert response["status"] == 200
+
+
+def test_allocate_pairing_token_not_in_audit_log(tmp_path: Path) -> None:
+    """D2/Security: pairing tokens must never appear in audit log details."""
+    SENSITIVE_TOKEN = "secret-pairing-token-xyz"
+    service, audit_events = _allocate_service(
+        tmp_path,
+        issue_pairing_token=lambda vm_id, user_id, device_id: SENSITIVE_TOKEN,
+    )
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={"pool_id": "pool1", "device_id": "dev-1"},
+    )
+    assert response is not None
+    assert response["status"] == 200
+    # Token is in the response payload (for the client) ...
+    assert response["payload"]["token"] == SENSITIVE_TOKEN
+    # ... but must NOT appear in any audit log entry
+    for event_type, outcome, details in audit_events:
+        for k, v in details.items():
+            assert SENSITIVE_TOKEN not in str(v), (
+                f"Token leaked into audit log field '{k}' of event '{event_type}'"
+            )
+
+
+def test_allocate_wg_peer_config_public_key_not_in_audit_log(tmp_path: Path) -> None:
+    """D2/Security: WireGuard public keys and peer config must not appear verbatim in audit log."""
+    WG_PUBLIC_KEY = "wg-public-key-abc123"
+    service, audit_events = _allocate_service(
+        tmp_path,
+        build_wireguard_peer_config=lambda device_id, pool_id, user_id: {
+            "public_key": WG_PUBLIC_KEY,
+            "endpoint": "10.0.0.1:51820",
+            "allowed_ips": ["10.88.0.0/16"],
+        },
+    )
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={"pool_id": "pool1", "device_id": "dev-1"},
+    )
+    assert response is not None
+    assert response["status"] == 200
+    # Audit log should record wireguard_profile=True but not the actual key
+    allocate_events = [(e, o, d) for e, o, d in audit_events if e == "stream.client.allocate"]
+    assert len(allocate_events) == 1
+    _, _, details = allocate_events[0]
+    assert "wireguard_profile" in details
+    assert details["wireguard_profile"] is True
+    for k, v in details.items():
+        assert WG_PUBLIC_KEY not in str(v), (
+            f"WG public key leaked into audit log field '{k}'"
+        )
+
+
+def test_allocate_missing_pool_id_returns_400(tmp_path: Path) -> None:
+    service, _ = _allocate_service(tmp_path)
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={"device_id": "dev-1"},
+    )
+    assert response is not None
+    assert response["status"] == 400
+
+
+def test_allocate_missing_device_id_and_user_id_returns_400(tmp_path: Path) -> None:
+    service, _ = _allocate_service(tmp_path)
+    response = service.route_post(
+        "/api/v1/streams/allocate",
+        json_payload={"pool_id": "pool1"},
+    )
+    assert response is not None
+    assert response["status"] == 400
