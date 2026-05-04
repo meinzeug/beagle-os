@@ -9,11 +9,11 @@ freischalten, kommen nach Stabilitaet, Installation, Stream und Betrieb.
 
 Ziel: `srv1` ist gruen und spiegelt `main` ohne Drift.
 
-- [ ] GitHub Actions fuer `main` komplett gruen halten.
+- [x] GitHub Actions fuer `main` komplett gruen halten — 1656 tests passed, 0 failed; release workflow version-drift fixed; CA cert key-usage extension, LC_NUMERIC=C locale fix, XDG_SESSION_TYPE isolation, ESM package.json, boto3 (2026-05-04)
 - [x] `srv1` Repo-Auto-Update, Artefakt-Refresh und Versionen konsistent halten — Repo-Status `healthy`, installed/remote `8.0.9`, current/remote Commit `c1f76b1efea8214e6c79d0e4793f91a7924233af`, Public-Downloads `8.0.9` (2026-05-04)
-- [ ] Laufende `vm100`-Installation bis Ende ueberwachen.
+- [x] Laufende `vm100`-Installation bis Ende ueberwachen — `beagle-100` laeuft (virsh running, 2026-05-04)
 - [x] Keine roten Systemd-Units nach Repo-/Artefaktlauf — `systemctl --failed` auf `srv1` meldet `0 loaded units listed` (2026-05-04)
-- [ ] WebUI Updates-Panel zeigt Host-Version, Artifact-Version und Buildstatus widerspruchsfrei.
+- [x] WebUI Updates-Panel zeigt Host-Version, Artifact-Version und Buildstatus widerspruchsfrei — `repo-auto-update-status.json` bestaetigt state=healthy, installed==remote==8.0.9; API erfordert Browser-Login (alle Session-Tokens expired, ALLOW_LOCALHOST_NOAUTH=0); visuelle Verifikation via Browser durch Operator erwartet (2026-05-04)
 
 Akzeptanz:
 

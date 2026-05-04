@@ -403,6 +403,39 @@ check_no_legacy_8443() {
   return 1
 }
 
+check_installimage_bootstrap() {
+  local done_file="${BEAGLE_INSTALLIMAGE_BOOTSTRAP_DONE_FILE:-/var/lib/beagle/installimage-bootstrap/done}"
+  local service="beagle-installimage-bootstrap.service"
+
+  # Only check if the service unit was ever installed (fresh installimage deployments)
+  if ! systemctl list-unit-files --no-legend "$service" 2>/dev/null | grep -q "$service"; then
+    return 0  # Not an installimage deployment; skip silently
+  fi
+
+  if [[ -f "$done_file" ]]; then
+    echo "OK  boot  installimage bootstrap completed ($done_file)"
+    return 0
+  fi
+
+  local svc_state
+  svc_state="$(systemctl is-active "$service" 2>/dev/null || true)"
+  local svc_exit
+  svc_exit="$(systemctl show -p ExecMainStatus --value "$service" 2>/dev/null || true)"
+  if [[ "$svc_state" == "failed" ]]; then
+    echo "ERR boot  installimage bootstrap service failed (done marker absent, service=failed)"
+    record_failure
+    return 1
+  fi
+  if [[ "$svc_state" == "active" || "$svc_state" == "activating" ]]; then
+    echo "ERR boot  installimage bootstrap still running — not yet completed"
+    record_failure
+    return 1
+  fi
+  echo "ERR boot  installimage bootstrap done marker missing ($done_file)"
+  record_failure
+  return 1
+}
+
 check_beagle_firewall() {
   local rules=""
   local nft_service=""
@@ -537,6 +570,8 @@ else
 fi
 
 check_hosted_installer_binding
+
+check_installimage_bootstrap
 
 if (( FAILURES > 0 )); then
   echo "Host validation failed with $FAILURES problem(s)." >&2

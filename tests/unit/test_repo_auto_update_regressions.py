@@ -66,3 +66,15 @@ def test_host_check_validates_diamond_d0_repo_update_status() -> None:
     assert '"remote_version mismatch"' in script
     assert '"current_commit != remote_commit"' in script
     assert 'check_file "$REPO_AUTO_UPDATE_STATUS_FILE"' in script
+
+
+def test_host_check_validates_d1_installimage_bootstrap_completion() -> None:
+    script = CHECK_HOST_SCRIPT.read_text(encoding="utf-8")
+
+    assert "check_installimage_bootstrap()" in script
+    assert "beagle-installimage-bootstrap.service" in script
+    assert "installimage bootstrap completed" in script
+    assert "installimage bootstrap done marker missing" in script
+    assert "installimage bootstrap service failed" in script
+    assert "BEAGLE_INSTALLIMAGE_BOOTSTRAP_DONE_FILE" in script
+
