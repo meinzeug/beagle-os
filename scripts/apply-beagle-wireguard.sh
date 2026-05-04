@@ -10,10 +10,12 @@ WG_PORT="${BEAGLE_WIREGUARD_PORT:-51820}"
 WG_SUBNET="${BEAGLE_WIREGUARD_SUBNET:-10.88.0.0/16}"
 WG_ADDRESS="${BEAGLE_WIREGUARD_ADDRESS:-10.88.0.1/16}"
 WG_CONF="${BEAGLE_WIREGUARD_CONF:-/etc/wireguard/${WG_IFACE}.conf}"
+WG_MTU="${BEAGLE_WIREGUARD_MTU:-1280}"
 WG_NFT_FILE="${BEAGLE_WIREGUARD_NFT_FILE:-$CONFIG_DIR/beagle-wireguard.nft}"
 WG_NFT_TABLE="${BEAGLE_WIREGUARD_NFT_TABLE:-beagle_wireguard_nat}"
 WG_CLIENT_DNS="${BEAGLE_WIREGUARD_CLIENT_DNS:-1.1.1.1}"
 WG_ALLOWED_IPS="${BEAGLE_WIREGUARD_ALLOWED_IPS:-10.88.0.0/16,192.168.123.0/24}"
+WG_VM_BRIDGE_CIDRS="${BEAGLE_WIREGUARD_VM_BRIDGE_CIDRS:-192.168.123.0/24,192.168.122.0/24}"
 WG_MESH_STATE_FILE="${BEAGLE_WIREGUARD_MESH_STATE_FILE:-/var/lib/beagle/beagle-manager/wireguard-mesh/mesh-state.json}"
 WG_UPLINK_IFACE="${BEAGLE_WIREGUARD_UPLINK_IFACE:-}"
 WG_PUBLIC_HOST="${BEAGLE_WIREGUARD_PUBLIC_HOST:-}"
@@ -66,12 +68,36 @@ nft_quote_list() {
   done
 }
 
+nft_cidr_list() {
+  local item
+  local first=1
+  for item in "$@"; do
+    [[ -z "$item" ]] && continue
+    if [[ "$first" -eq 0 ]]; then
+      printf ', '
+    fi
+    printf '%s' "$item"
+    first=0
+  done
+}
+
 detect_vm_bridges() {
   local configured="${BEAGLE_PUBLIC_STREAM_LAN_IF:-virbr10}"
   normalize_csv "$configured virbr10 virbr0"
   if command -v ip >/dev/null 2>&1; then
     ip -o link show 2>/dev/null | awk -F': ' '/: virbr[0-9]+:/{print $2}' | cut -d@ -f1 | sort -u
   fi
+}
+
+detect_vm_bridge_cidrs() {
+  local bridge
+  normalize_csv "$WG_VM_BRIDGE_CIDRS"
+  if command -v ip >/dev/null 2>&1; then
+    while read -r bridge; do
+      [[ -n "$bridge" ]] || continue
+      ip -o -4 addr show dev "$bridge" 2>/dev/null | awk '{print $4}'
+    done < <(detect_vm_bridges | sed '/^$/d' | sort -u)
+  fi | sed '/^$/d' | sort -u
 }
 
 detect_public_host() {
@@ -143,6 +169,7 @@ write_wireguard_conf() {
 Address = ${WG_ADDRESS}
 ListenPort = ${WG_PORT}
 PrivateKey = ${private_key}
+MTU = ${WG_MTU}
 SaveConfig = false
 EOF
   append_mesh_peers >>"$WG_CONF"
@@ -160,7 +187,9 @@ EOF
 write_nat_rules() {
   local uplink
   local bridges=()
+  local bridge_cidrs=()
   local bridge_set=""
+  local bridge_cidr_set=""
   uplink="$(detect_uplink_iface)"
   [[ -n "$uplink" ]] || {
     echo "unable to detect WireGuard uplink interface" >&2
@@ -170,13 +199,19 @@ write_nat_rules() {
   if [[ "${#bridges[@]}" -eq 0 ]]; then
     bridges=("virbr10" "virbr0")
   fi
+  mapfile -t bridge_cidrs < <(detect_vm_bridge_cidrs)
   bridge_set="$(nft_quote_list "${bridges[@]}")"
+  bridge_cidr_set="$(nft_cidr_list "${bridge_cidrs[@]}")"
   install -d -m 0755 "$CONFIG_DIR"
+  local bridge_masquerade_rule="ip saddr ${WG_SUBNET} oifname { ${bridge_set} } masquerade"
+  if [[ -n "$bridge_cidr_set" ]]; then
+    bridge_masquerade_rule="ip saddr ${WG_SUBNET} ip daddr != { ${bridge_cidr_set} } oifname { ${bridge_set} } masquerade"
+  fi
   cat >"$WG_NFT_FILE" <<EOF
 table ip ${WG_NFT_TABLE} {
   chain postrouting {
     type nat hook postrouting priority srcnat; policy accept;
-    ip saddr ${WG_SUBNET} oifname { ${bridge_set} } masquerade
+    ${bridge_masquerade_rule}
     ip saddr ${WG_SUBNET} oifname "${uplink}" masquerade
   }
 }
@@ -184,9 +219,25 @@ EOF
   chmod 0644 "$WG_NFT_FILE"
 }
 
+ensure_libvirt_wireguard_no_snat_rules() {
+  local cidr
+  local marker="beagle-wireguard-no-snat-from-vm-bridges"
+
+  command -v nft >/dev/null 2>&1 || return 0
+  nft list chain ip nat LIBVIRT_PRT >/dev/null 2>&1 || return 0
+
+  while read -r cidr; do
+    [[ -n "$cidr" ]] || continue
+    if ! nft list chain ip nat LIBVIRT_PRT 2>/dev/null | grep -Fq "$marker:$cidr"; then
+      nft insert rule ip nat LIBVIRT_PRT ip saddr "$cidr" ip daddr "$WG_SUBNET" return comment "$marker:$cidr" >/dev/null 2>&1 || true
+    fi
+  done < <(detect_vm_bridge_cidrs)
+}
+
 apply_nat_rules() {
   nft delete table ip "$WG_NFT_TABLE" >/dev/null 2>&1 || true
   nft -f "$WG_NFT_FILE"
+  ensure_libvirt_wireguard_no_snat_rules
 }
 
 enable_wireguard() {

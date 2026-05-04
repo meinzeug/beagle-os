@@ -5,17 +5,23 @@
 
 ---
 
-## BeagleStream Protocol (Beagle Stream Server/Beagle Stream Client Fork)
+## BeagleStream Protocol (BeagleStream Server/BeagleStream Client Fork)
 
-- [x] **Phase A 8.0.x** — Fork `meinzeug/beagle-stream-server` → `meinzeug/beagle-stream-server`
+**Korrektur 2026-05-03**: Die Fork-Repositories existieren und sind in den Beagle-OS-Artefaktpfad eingebunden, aber der Produktumbau ist noch nicht abgeschlossen. Beagle-Pfade muessen token-native werden; vorhandene PIN-/Moonlight-/Sunshine-Kompatibilitaet ist nur Uebergangsbruecke und kein Zielzustand.
+
+- [ ] **Phase A 8.0.x** — Fork `meinzeug/beagle-stream-server` → echtes BeagleStream-Server-Produkt abschliessen
   - [x] `src/beagle/BeagleBrokerClient.cpp` (Broker-getriebenes Pairing)
-  - [x] `src/beagle/BeagleAuth.cpp` (Token-basiert)
+  - [ ] `src/beagle/BeagleAuth.cpp` token-native machen: kein `nvhttp::pin(token, name)`-Shim, sondern Manager-/Signatur-/Expiry-/One-Time-Use-Validierung
+  - [ ] `/api/pin` in Beagle-Builds deaktivieren oder strikt als Upstream-Kompatibilitaet isolieren
+  - [ ] Server-Token-Rotation und Revocation gegen Beagle Manager verdrahten
   - [x] `.deb`-Paket `beagle-stream-server` ersetzt `beagle-stream-server.deb` in VM-Images
-- [x] **Phase A 8.0.x** — Fork `meinzeug/beagle-stream-client` → `meinzeug/beagle-stream-client`
+- [ ] **Phase A 8.0.x** — Fork `meinzeug/beagle-stream-client` → echtes BeagleStream-Client-Produkt abschliessen
   - [x] `app/beagle/BeagleBroker.cpp` (Broker-Discovery)
   - [x] `app/beagle/BeagleVPN.cpp` (WireGuard-Integration)
   - [x] Beagle-Branding (Name, Icons, About)
   - [x] In Thin-Client-OS-Image gebundelt: Build versucht standardmaessig `meinzeug/beagle-stream-client` Release `beagle-phase-a` und kann per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL` ueberschrieben werden; Runtime startet bei Enrollment ohne statischen Host hostless gegen den Broker.
+  - [ ] CLI/UI auf Pairing-Token statt PIN umbenennen; Beagle-Runtime darf keine neue PIN-Benennung einfuehren.
+  - [ ] Broker-Start nutzt explizit `host:port app`, wenn der Manager ein Ziel geliefert hat; stale lokale Hosteintraege duerfen nicht gewinnen.
 - [ ] **Phase B 8.1.x** — NVENC/VAAPI/QSV Tuning, AV1 default
 - [ ] **Phase C 8.2.x** — WebRTC-Modus (Browser-Stream ohne Client-Install)
 - [ ] **Phase D 9.0.x** — BeagleStream Native Protocol (eigener Codec/Transport)

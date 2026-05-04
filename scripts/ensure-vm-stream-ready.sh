@@ -20,7 +20,7 @@ STREAMS_FILE="${BEAGLE_PUBLIC_STREAMS_FILE:-$MANAGER_DATA_DIR/public-streams.jso
 VM_SECRETS_DIR="${BEAGLE_VM_SECRETS_DIR:-$MANAGER_DATA_DIR/vm-secrets}"
 BEAGLE_STREAM_SERVER_DEFAULT_USER="${BEAGLE_STREAM_SERVER_DEFAULT_USER:-}"
 BEAGLE_STREAM_SERVER_DEFAULT_PASSWORD="${BEAGLE_STREAM_SERVER_DEFAULT_PASSWORD:-}"
-BEAGLE_STREAM_SERVER_DEFAULT_PIN="${BEAGLE_STREAM_SERVER_DEFAULT_PIN:-}"
+BEAGLE_STREAM_SERVER_DEFAULT_TOKEN="${BEAGLE_STREAM_SERVER_DEFAULT_TOKEN:-}"
 BEAGLE_STREAM_SERVER_DEFAULT_GUEST_USER="${BEAGLE_STREAM_SERVER_DEFAULT_GUEST_USER:-beagle}"
 HOST_TLS_CERT_FILE="${BEAGLE_HOST_TLS_CERT_FILE:-/etc/beagle/manager-ssl.pem}"
 
@@ -345,7 +345,7 @@ run_public_stream_reconcile() {
 }
 
 main() {
-  local stream_port beagle_stream_server_user beagle_stream_server_password beagle_stream_server_pin beagle_stream_server_pinned_pubkey guest_user guest_password beagle_stream_server_status_raw beagle_stream_server_status_json desktop_smoke_raw desktop_smoke_json public_api_url direct_api_url guest_ip installer_guest_ip extra_json verify_extra_json
+  local stream_port beagle_stream_server_user beagle_stream_server_password beagle_stream_server_token beagle_stream_server_pinned_pubkey guest_user guest_password beagle_stream_server_status_raw beagle_stream_server_status_json desktop_smoke_raw desktop_smoke_json public_api_url direct_api_url guest_ip installer_guest_ip extra_json verify_extra_json
 
   parse_args "$@"
   [[ -n "$VMID" && -n "$NODE" ]] || { usage; exit 1; }
@@ -357,7 +357,7 @@ main() {
   fi
   beagle_stream_server_user="$(vm_secret_get beagle_stream_server_username)"
   beagle_stream_server_password="$(vm_secret_get beagle_stream_server_password)"
-  beagle_stream_server_pin="$(vm_secret_get beagle_stream_server_pin)"
+  beagle_stream_server_token="$(vm_secret_get beagle_stream_server_token)"
   beagle_stream_server_pinned_pubkey="$(vm_secret_get beagle_stream_server_pinned_pubkey)"
   if [[ -z "$beagle_stream_server_user" ]]; then
     beagle_stream_server_user="$(meta_get beagle-stream-server-user)"
@@ -365,17 +365,14 @@ main() {
   if [[ -z "$beagle_stream_server_password" ]]; then
     beagle_stream_server_password="$(meta_get beagle-stream-server-password)"
   fi
-  if [[ -z "$beagle_stream_server_pin" ]]; then
-    beagle_stream_server_pin="$(meta_get beagle-stream-server-pin)"
-  fi
   if [[ -z "$beagle_stream_server_user" ]]; then
     beagle_stream_server_user="$(latest_ubuntu_state_credential beagle_stream_server_username)"
   fi
   if [[ -z "$beagle_stream_server_password" ]]; then
     beagle_stream_server_password="$(latest_ubuntu_state_credential beagle_stream_server_password)"
   fi
-  if [[ -z "$beagle_stream_server_pin" ]]; then
-    beagle_stream_server_pin="$(latest_ubuntu_state_credential beagle_stream_server_pin)"
+  if [[ -z "$beagle_stream_server_token" ]]; then
+    beagle_stream_server_token="$(latest_ubuntu_state_credential beagle_stream_server_token)"
   fi
   guest_user="$(meta_get beagle-stream-server-guest-user)"
   guest_password="$(vm_secret_get guest_password)"
@@ -387,10 +384,10 @@ main() {
   fi
   [[ -n "$beagle_stream_server_user" ]] || beagle_stream_server_user="$BEAGLE_STREAM_SERVER_DEFAULT_USER"
   [[ -n "$beagle_stream_server_password" ]] || beagle_stream_server_password="$BEAGLE_STREAM_SERVER_DEFAULT_PASSWORD"
-  [[ -n "$beagle_stream_server_pin" ]] || beagle_stream_server_pin="$BEAGLE_STREAM_SERVER_DEFAULT_PIN"
+  [[ -n "$beagle_stream_server_token" ]] || beagle_stream_server_token="$BEAGLE_STREAM_SERVER_DEFAULT_TOKEN"
   [[ -n "$beagle_stream_server_user" ]] || beagle_stream_server_user="beagle-stream-server-vm${VMID}"
   [[ -n "$beagle_stream_server_password" ]] || beagle_stream_server_password="beagle-vm${VMID}-beagle-stream-server"
-  [[ -n "$beagle_stream_server_pin" ]] || beagle_stream_server_pin="$(printf '%04d' $(( VMID % 10000 )))"
+  [[ -n "$beagle_stream_server_token" ]] || { echo "Beagle Stream Server token missing for VM ${VMID}" >&2; exit 1; }
   [[ -n "$guest_user" ]] || guest_user="$BEAGLE_STREAM_SERVER_DEFAULT_GUEST_USER"
   installer_guest_ip="$(meta_get beagle-stream-server-ip)"
   if [[ -z "$installer_guest_ip" ]]; then
@@ -511,7 +508,7 @@ PY
       --guest-user "$guest_user"
       --beagle-stream-server-user "$beagle_stream_server_user"
       --beagle-stream-server-password "$beagle_stream_server_password"
-      --beagle-stream-server-pin "$beagle_stream_server_pin"
+      --beagle-stream-server-token "$beagle_stream_server_token"
       --beagle-stream-server-port "$stream_port"
       --public-stream-host "$PUBLIC_STREAM_HOST"
       --no-reboot

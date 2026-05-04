@@ -26,10 +26,17 @@ PY
 }
 
 beagle_stream_server_api_url() {
-  local configured fallback_configured host
+  local configured fallback_configured host local_host port
   configured="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL:-}" 2>/dev/null || true)"
   if [[ -n "$configured" ]]; then
     printf '%s\n' "$configured"
+    return 0
+  fi
+
+  local_host="$(beagle_stream_client_local_host 2>/dev/null || true)"
+  port="$(beagle_stream_client_port 2>/dev/null || true)"
+  if [[ -n "$local_host" && "$port" =~ ^[0-9]+$ ]]; then
+    printf 'https://%s:%s\n' "$local_host" "$((port + 1))"
     return 0
   fi
 

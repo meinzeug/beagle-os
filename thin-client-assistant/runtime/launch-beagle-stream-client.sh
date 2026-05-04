@@ -92,6 +92,26 @@ main() {
       fi
     fi
     rm -f "$session_response_file"
+  elif beagle_stream_broker_connection; then
+    session_response_file="$(mktemp)"
+    if fetch_beagle_stream_client_current_session_via_manager "$session_response_file"; then
+      if retarget_beagle_stream_client_host_from_session_broker_response "$session_response_file"; then
+        host="$(beagle_stream_client_host)"
+        connect_host="$(beagle_stream_client_connect_host)"
+        port="$(beagle_stream_client_port)"
+        beagle_log_event "beagle-stream-client.session-broker" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default} current_node=${PVE_THIN_CLIENT_SESSION_CURRENT_NODE:-unknown}"
+      fi
+    fi
+    rm -f "$session_response_file"
+    if [[ -z "${host:-}" ]]; then
+      host="$(beagle_stream_client_local_host 2>/dev/null || true)"
+      if [[ -n "$host" ]]; then
+        export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BROKER_HOST="$host"
+        connect_host="$(beagle_stream_client_connect_host)"
+        port="$(beagle_stream_client_port)"
+        beagle_log_event "beagle-stream-client.session-broker" "mode=hostless-fallback host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+      fi
+    fi
   fi
 
   if [[ "$hostless_beagle_stream" != "1" ]]; then
@@ -124,16 +144,33 @@ main() {
       beagle_log_event "beagle-stream-client.cached-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
     fi
 
-    if beagle_stream_client_list; then
+    if beagle_stream_client_stream_ready; then
       beagle_log_event "beagle-stream-client.ready" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
     else
       ensure_paired || {
-        beagle_log_event "beagle-stream-client.pairing-failed" "host=${host} port=${port:-default} pin=${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN:-unset}"
+        beagle_log_event "beagle-stream-client.pairing-failed" "host=${host} port=${port:-default} auth=manager-token"
         echo "Beagle Stream Client pairing failed for host '$host'." >&2
         exit 1
       }
     fi
   else
+    if [[ -n "${host:-}" ]]; then
+      wait_for_stream_target || {
+        beagle_log_event "beagle-stream-client.unreachable" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+        echo "Beagle Stream Client broker target '$host' is unreachable from this network." >&2
+        exit 1
+      }
+      bootstrap_beagle_stream_client || true
+      if beagle_stream_client_stream_ready; then
+        beagle_log_event "beagle-stream-client.ready" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+      else
+        ensure_paired || {
+          beagle_log_event "beagle-stream-client.pairing-failed" "mode=hostless host=${host} port=${port:-default} auth=manager-token"
+          echo "Beagle Stream Client pairing failed for broker target '$host'." >&2
+          exit 1
+        }
+      fi
+    fi
     beagle_log_event "beagle-stream-client.beagle-stream-hostless" "app=${app} enrollment=$(beagle_stream_enrollment_config)"
   fi
 
@@ -154,18 +191,24 @@ main() {
     else
       beagle_log_event "beagle-stream-client.prepare-stream.skip" "resolution=${requested_resolution} app=${app}"
     fi
+  elif [[ -n "${host:-}" ]]; then
+    if prepare_beagle_stream_client_stream_via_manager "$requested_resolution" "$app"; then
+      beagle_log_event "beagle-stream-client.prepare-stream.ok" "mode=hostless resolution=${requested_resolution} app=${app}"
+    else
+      beagle_log_event "beagle-stream-client.prepare-stream.skip" "mode=hostless resolution=${requested_resolution} app=${app}"
+    fi
   fi
 
   build_stream_args args
   if [[ "$hostless_beagle_stream" == "1" ]]; then
-    echo "Starting BeagleStream brokered stream: app=$app resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}" >&2
+    echo "Starting BeagleStream brokered stream: host=${host:-broker} connect_host=${connect_host:-${host:-broker}} port=${port:-default} app=$app resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}" >&2
   elif [[ -n "$connect_host" && "$connect_host" != "$host" ]]; then
     echo "Starting Beagle Stream Client stream: host=$host resolved_ipv4=$connect_host port=${port:-default} app=$app resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}" >&2
   else
     echo "Starting Beagle Stream Client stream: host=$host port=${port:-default} app=$app resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}" >&2
   fi
   if [[ "$hostless_beagle_stream" == "1" ]]; then
-    beagle_log_event "beagle-stream-client.exec" "mode=beagle-stream-hostless app=${app} resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}"
+    beagle_log_event "beagle-stream-client.exec" "mode=beagle-stream-hostless host=${host:-broker} connect_host=${connect_host:-${host:-broker}} port=${port:-default} app=${app} resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}"
   else
     beagle_log_event "beagle-stream-client.exec" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} app=${app} resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}"
   fi

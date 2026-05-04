@@ -156,7 +156,6 @@ def build_common_preset(
     beagle_stream_server_api_url: str,
     beagle_stream_server_username: str,
     beagle_stream_server_password: str,
-    beagle_stream_server_pin: str,
     extra_fields: Mapping[str, Any] | None = None,
 ) -> dict[str, str]:
     preset = {
@@ -207,7 +206,6 @@ def build_common_preset(
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_API_URL": _string(beagle_stream_server_api_url),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_USERNAME": _string(beagle_stream_server_username),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PASSWORD": _string(beagle_stream_server_password),
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PIN": _string(beagle_stream_server_pin),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_NAME": "",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_STREAM_PORT": "",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_UNIQUEID": "",

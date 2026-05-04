@@ -242,7 +242,6 @@ class VmProfileService:
             "guest_user": meta.get("beagle-stream-server-guest-user", self._ubuntu_beagle_default_guest_user),
             "beagle_stream_server_username": "",
             "beagle_stream_server_password_configured": has_beagle_stream_server_password,
-            "beagle_stream_server_pin": "",
             "beagle_stream_client_app": beagle_stream_client_app,
             "update_enabled": update_enabled,
             "update_channel": update_channel,

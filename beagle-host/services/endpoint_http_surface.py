@@ -482,7 +482,6 @@ class EndpointHttpSurfaceService:
                         device_name=device_name,
                         pairing={
                             "token": str(issued.get("token", "") or ""),
-                            "pin": str(issued.get("pin", "") or ""),
                             "expires_at": str(issued.get("expires_at", "") or ""),
                         },
                     ),

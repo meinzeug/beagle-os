@@ -372,6 +372,28 @@ stage_beagle_stream_client_assets() {
   }
   trap cleanup_stage RETURN
 
+  validate_beagle_stream_client_bundle() {
+    local appdir="$1"
+    local binary=""
+    local ldd_output=""
+
+    if [[ -x "$appdir/usr/bin/beagle-stream-client" ]]; then
+      binary="$appdir/usr/bin/beagle-stream-client"
+    elif [[ -x "$appdir/usr/bin/beagle-stream" ]]; then
+      binary="$appdir/usr/bin/beagle-stream"
+    else
+      echo "BeagleStream AppImage does not contain beagle-stream or beagle-stream-client" >&2
+      return 1
+    fi
+
+    ldd_output="$(LD_LIBRARY_PATH="$appdir/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" ldd "$binary" 2>&1 || true)"
+    if printf '%s\n' "$ldd_output" | grep -E 'not found|version `[^'"'"']+'"'"' not found' >/dev/null; then
+      printf '%s\n' "$ldd_output" >&2
+      echo "BeagleStream AppImage has unresolved runtime library dependencies" >&2
+      return 1
+    fi
+  }
+
   appimage_url="$BEAGLE_STREAM_CLIENT_URL"
   if [[ -n "$BEAGLE_STREAM_CLIENT_URL" ]]; then
     appimage_url="$BEAGLE_STREAM_CLIENT_URL"
@@ -396,6 +418,7 @@ stage_beagle_stream_client_assets() {
   rm -rf "$target_dir"
   install -d -m 0755 "$target_dir" "$(dirname "$beagle_stream_client_wrapper_path")"
   cp -a "$work_dir/squashfs-root/." "$target_dir/"
+  validate_beagle_stream_client_bundle "$target_dir"
   find "$target_dir" -type d -exec chmod 0755 {} +
   find "$target_dir" -type f -perm /111 -exec chmod 0755 {} +
   find "$target_dir" -type f ! -perm /111 -exec chmod 0644 {} +

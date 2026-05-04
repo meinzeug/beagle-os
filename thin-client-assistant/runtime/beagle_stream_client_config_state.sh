@@ -7,7 +7,9 @@ beagle_stream_client_config_path() {
   local candidate
   for candidate in \
     "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_CONFIG:-}" \
+    "${HOME:-/home/thinclient}/.config/Beagle OS/BeagleStream.conf" \
     "${HOME:-/home/thinclient}/.config/Beagle Stream Client Game Streaming Project/Beagle Stream Client.conf" \
+    "/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}/.config/Beagle OS/BeagleStream.conf" \
     "/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}/.config/Beagle Stream Client Game Streaming Project/Beagle Stream Client.conf"
   do
     [[ -n "$candidate" ]] || continue

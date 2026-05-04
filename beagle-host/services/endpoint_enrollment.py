@@ -160,7 +160,6 @@ class EndpointEnrollmentService:
             "beagle_stream_server_api_url": str(profile.get("beagle_stream_server_api_url", "") or ""),
             "beagle_stream_server_username": str(secret.get("beagle_stream_server_username", "")),
             "beagle_stream_server_password": str(secret.get("beagle_stream_server_password", "")),
-            "beagle_stream_server_pin": str(secret.get("beagle_stream_server_pin", "")),
             "beagle_stream_server_pinned_pubkey": str(secret.get("beagle_stream_server_pinned_pubkey", "")),
             "usb_enabled": True,
             "usb_tunnel_host": self._public_server_name,

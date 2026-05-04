@@ -11,13 +11,14 @@ sys.path.insert(0, str(SERVICES_DIR))
 sys.path.insert(0, str(BEAGLE_HOST_DIR / "bin"))
 
 service_registry_stub = types.ModuleType("service_registry")
-service_registry_stub.__all__ = ["API_V1_DEPRECATED_ENDPOINTS", "API_V1_DEPRECATION_SUNSET", "AUTH_REFRESH_TTL_SECONDS", "API_TOKEN", "SCIM_BEARER_TOKEN", "extract_bearer_token", "is_scim_bearer_token_valid"]
+service_registry_stub.__all__ = ["API_V1_DEPRECATED_ENDPOINTS", "API_V1_DEPRECATION_SUNSET", "AUTH_REFRESH_TTL_SECONDS", "API_TOKEN", "SCIM_BEARER_TOKEN", "extract_bearer_token", "is_scim_bearer_token_valid", "load_endpoint_token"]
 service_registry_stub.normalized_origin = lambda v: v
 service_registry_stub.cors_allowed_origins = lambda: []
 service_registry_stub.API_TOKEN = None
 service_registry_stub.SCIM_BEARER_TOKEN = None
 service_registry_stub.extract_bearer_token = lambda value: str(value).split(" ", 1)[1] if str(value).startswith("Bearer ") else ""
 service_registry_stub.is_scim_bearer_token_valid = lambda token: token == "scim-secret"
+service_registry_stub.load_endpoint_token = lambda token: {"endpoint_id": "ep-1", "vmid": 100} if token == "endpoint-secret" else None
 service_registry_stub.API_V1_DEPRECATED_ENDPOINTS = set()
 service_registry_stub.API_V1_DEPRECATION_SUNSET = ""
 service_registry_stub.AUTH_REFRESH_TTL_SECONDS = 300
@@ -115,3 +116,16 @@ def test_scim_auth_uses_service_registry_validator() -> None:
     handler = DummyHandler("127.0.0.1", {"Authorization": "Bearer scim-secret"})
 
     assert handler._is_scim_authenticated() is True
+
+
+def test_endpoint_identity_accepts_x_beagle_token_header() -> None:
+    handler = DummyHandler("127.0.0.1", {"X-Beagle-Token": "endpoint-secret"})
+
+    assert handler._endpoint_identity() == {"endpoint_id": "ep-1", "vmid": 100}
+
+
+def test_endpoint_identity_accepts_query_access_token() -> None:
+    handler = DummyHandler("127.0.0.1")
+    handler.path = "/api/v1/streams/100/config?access_token=endpoint-secret"
+
+    assert handler._endpoint_identity_from_query() == {"endpoint_id": "ep-1", "vmid": 100}

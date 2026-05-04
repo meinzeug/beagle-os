@@ -36,6 +36,10 @@ beagle_stream_client_host() {
   local host fallback_host
 
   if beagle_stream_broker_connection; then
+    host="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BROKER_HOST:-}"
+    if [[ -n "$host" ]]; then
+      printf '%s\n' "$host"
+    fi
     return 0
   fi
 

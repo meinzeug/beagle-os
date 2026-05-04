@@ -47,6 +47,7 @@ class UbuntuBeagleProvisioningService:
         normalize_package_names: Callable[..., list[str]],
         normalize_package_presets: Callable[[Any], list[str]],
         provider: Any,
+        public_manager_url: str,
         public_ubuntu_beagle_complete_url: Callable[[str], str],
         random_pin: Callable[[], str],
         random_secret: Callable[[int], str],
@@ -113,6 +114,7 @@ class UbuntuBeagleProvisioningService:
         self._normalize_package_names = normalize_package_names
         self._normalize_package_presets = normalize_package_presets
         self._provider = provider
+        self._public_manager_url = str(public_manager_url or "")
         self._public_ubuntu_beagle_complete_url = public_ubuntu_beagle_complete_url
         self._random_pin = random_pin
         self._random_secret = random_secret
@@ -693,6 +695,7 @@ class UbuntuBeagleProvisioningService:
         network_mac: str,
         beagle_stream_server_user: str,
         beagle_stream_server_password: str,
+        beagle_stream_server_token: str,
         beagle_stream_server_port: int | None,
         callback_url: str,
     ) -> Path:
@@ -708,8 +711,11 @@ class UbuntuBeagleProvisioningService:
             self._template_dir / "firstboot-provision.sh.tpl",
             {
                 "__GUEST_USER__": guest_user,
+                "__VMID__": str(int(vmid)),
+                "__BEAGLE_MANAGER_URL__": self._public_manager_url,
                 "__BEAGLE_STREAM_SERVER_USER__": beagle_stream_server_user,
                 "__BEAGLE_STREAM_SERVER_PASSWORD__": beagle_stream_server_password,
+                "__BEAGLE_STREAM_SERVER_TOKEN__": beagle_stream_server_token,
                 "__BEAGLE_STREAM_SERVER_PORT__": str(int(beagle_stream_server_port)) if beagle_stream_server_port else "",
                 "__BEAGLE_STREAM_SERVER_URL__": self._ubuntu_beagle_stream_server_url,
                 "__BEAGLE_STREAM_SERVER_URL__": self._ubuntu_beagle_beagle_stream_server_url,
@@ -938,6 +944,7 @@ class UbuntuBeagleProvisioningService:
         )
         beagle_stream_server_password_input = str(payload.get("beagle_stream_server_password", ""))
         beagle_stream_server_password = self._validate_password(beagle_stream_server_password_input, "beagle_stream_server_password", allow_empty=True) or self._random_secret(26)
+        beagle_stream_server_token = secrets.token_urlsafe(32)
         guest_password_input = str(payload.get("guest_password", ""))
         guest_password = self._validate_password(guest_password_input, "guest_password", allow_empty=True) or self._random_secret(20)
         identity_locale = self._normalize_locale(payload.get("identity_locale", ""))
@@ -974,6 +981,7 @@ class UbuntuBeagleProvisioningService:
             network_mac=network_mac,
             beagle_stream_server_user=beagle_stream_server_user,
             beagle_stream_server_password=beagle_stream_server_password,
+            beagle_stream_server_token=beagle_stream_server_token,
             beagle_stream_server_port=beagle_stream_server_port,
             callback_url=callback_url,
         )
@@ -1014,6 +1022,7 @@ class UbuntuBeagleProvisioningService:
                 "guest_password": guest_password,
                 "beagle_stream_server_user": beagle_stream_server_user,
                 "beagle_stream_server_password": beagle_stream_server_password,
+                "beagle_stream_server_token": beagle_stream_server_token,
                 "desktop": str(desktop["id"]),
                 "desktop_label": str(desktop["label"]),
                 "package_presets": package_presets,
@@ -1099,7 +1108,8 @@ class UbuntuBeagleProvisioningService:
                 "password": guest_password,
                 "beagle_stream_server_username": beagle_stream_server_user,
                 "beagle_stream_server_password": beagle_stream_server_password,
-                "beagle_stream_server_pin": self._random_pin(),
+                "beagle_stream_server_token": beagle_stream_server_token,
+                "beagle_stream_server_token_generation": 1,
                 "thinclient_password": self._random_secret(22),
                 "beagle_stream_server_pinned_pubkey": "",
                 "usb_tunnel_port": self._default_usb_tunnel_port(vmid),
@@ -1147,6 +1157,7 @@ class UbuntuBeagleProvisioningService:
             "identity_keymap": identity_keymap,
             "beagle_stream_server_user": str(secret.get("beagle_stream_server_username", "") or beagle_stream_server_user),
             "beagle_stream_server_password": str(secret.get("beagle_stream_server_password", "") or beagle_stream_server_password),
+            "beagle_stream_server_token": str(secret.get("beagle_stream_server_token", "") or ""),
             "completion_token": completion_token,
             "completion_url": callback_url,
             "started": start_after_create,
@@ -1241,9 +1252,9 @@ class UbuntuBeagleProvisioningService:
                 "--beagle-stream-server-password",
                 beagle_stream_server_password,
             ]
-            beagle_stream_server_pin = str(secret.get("beagle_stream_server_pin", "") or "").strip()
-            if beagle_stream_server_pin:
-                configure_command.extend(["--beagle-stream-server-pin", beagle_stream_server_pin])
+            beagle_stream_server_token = str(secret.get("beagle_stream_server_token", "") or "").strip()
+            if beagle_stream_server_token:
+                configure_command.extend(["--beagle-stream-server-token", beagle_stream_server_token])
             beagle_stream_client_port = str(current_profile.get("beagle_stream_client_port", "") or "").strip()
             if beagle_stream_client_port.isdigit():
                 configure_command.extend(["--beagle-stream-server-port", beagle_stream_client_port])

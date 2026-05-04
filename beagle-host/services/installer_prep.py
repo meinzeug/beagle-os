@@ -224,7 +224,7 @@ class InstallerPrepService:
                 "BEAGLE_INSTALLER_PREP_STATE_FILE": str(state_path),
                 "BEAGLE_STREAM_SERVER_DEFAULT_USER": str(vm_secret.get("beagle_stream_server_username", "")),
                 "BEAGLE_STREAM_SERVER_DEFAULT_PASSWORD": str(vm_secret.get("beagle_stream_server_password", "")),
-                "BEAGLE_STREAM_SERVER_DEFAULT_PIN": str(vm_secret.get("beagle_stream_server_pin", "")),
+                "BEAGLE_STREAM_SERVER_DEFAULT_TOKEN": str(vm_secret.get("beagle_stream_server_token", "")),
             }
         )
         try:

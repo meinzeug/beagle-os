@@ -1,6 +1,46 @@
 # Security Findings
 
+Stand: 2026-05-03 (ergaenzt: S-045 BeagleStream-Forks duerfen PIN-Kompatibilitaet nicht als Produktpfad behalten)
+
+## S-045 — BeagleStream-Forks enthalten noch Legacy-PIN-/Upstream-Kompatibilitaet im Produktpfad (OPEN)
+
+- Status: **offen** (2026-05-03)
+- Risiko: **Hoch**
+- Betroffene Scopes:
+  - Fork `meinzeug/beagle-stream-server`, insbesondere `src/beagle/BeagleAuth.cpp` und Pairing-HTTP-Routen
+  - Fork `meinzeug/beagle-stream-client`, insbesondere CLI/UI-Pairing und lokale Host-/Pairing-Konfiguration
+  - Beagle-OS-Integration: `thin-client-assistant/runtime/*`, `beagle-host/services/*`
+- Beschreibung:
+  - Der aktuelle Live-Fix entfernt statische PIN-Verteilung aus Beagle OS und korrigiert den Broker-Start, aber der Server-Fork nutzt noch einen Token-als-PIN-Kompatibilitaetspfad.
+  - Der Client-Fork bietet weiterhin `pair --pin` als CLI-Oberflaeche; Beagle-Pfade duerfen das nicht als dauerhaftes Produkt-API uebernehmen.
+  - Solange diese Kompatibilitaet im Fork nicht isoliert oder ersetzt ist, besteht Rueckfallrisiko auf manuelle Pairing-Fenster, stale lokale Hosteintraege und schwer rotierbare Secrets.
+- Bereits gepatcht in diesem Run:
+  - Control Plane liefert bei Pair-Token-Antworten kein `pin`-Feld mehr.
+  - Thinclient-Runtime akzeptiert erfolgreiches `list` als paired-ready und startet Broker-Streams mit explizitem `host:port app`.
+- Naechster konkreter Schritt:
+  - `beagle-stream-server` token-native umbauen (`/api/pair-token` mit Manager-/Signatur-/Expiry-/One-Time-Use-Validierung; `/api/pin` fuer Beagle-Builds deaktivieren oder isolieren).
+  - `beagle-stream-client` CLI/UI auf Pairing-Token umbenennen und den Broker-Start ohne stale Host-Fallbacks absichern.
+
 Stand: 2026-05-03 (ergaenzt: S-043 Thinclient-Broker/WireGuard-Streampfad gegen Runtime-/Compat-Drift gehaertet)
+
+## S-044 — VM-Guest-Stream-Guard konnte legitimen VPN-Traffic hinter Host-NAT verwerfen (PATCHED)
+
+- Status: **gepatcht** (2026-05-03)
+- Risiko: **Hoch**
+- Betroffene Dateien:
+  - `scripts/configure-beagle-stream-server-guest.sh`
+  - `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`
+  - `beagle-os/overlay/usr/local/sbin/beagle-healthcheck`
+- Beschreibung:
+  - Der Guest-Port-Guard erlaubte standardmaessig nur `10.88.0.0/16` (plus `wg-beagle` Interface).
+  - In der Live-Topologie konnte VPN-Traffic auf dem Weg zur VM hinter der Host-Bridge-IP source-NATed werden.
+  - Ergebnis: Stream-API/Stream-Port auf der VM wurden trotz aktivem WireGuard/Broker vom Thinclient nicht erreicht.
+- Fix:
+  - Guest-Guard nimmt zusaetzlich automatisch die Default-Gateway-IP des Guests als `/32` in die erlaubten CIDRs auf.
+  - Healthcheck akzeptiert `managed-by-thinclient-runtime` als gueltigen Secure-Egress-Zustand.
+- Live-Verifikation:
+  - Nach Guard-Anpassung war die VM-Stream-API von `srv1` wieder erreichbar.
+  - Thinclient blieb im Broker-/WireGuard-Modus mit laufenden Endpoint-Check-ins.
 
 ## S-043 — Thinclient-Broker-Streaming konnte trotz Enrollment auf Client-/Server-Drift und lokale WireGuard-Rechte scheitern (PATCHED)
 

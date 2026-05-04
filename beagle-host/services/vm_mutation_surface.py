@@ -14,6 +14,7 @@ class VmMutationSurfaceService:
         find_vm: Callable[[int], Any | None],
         invalidate_vm_cache: Callable[[int | None, str], None],
         issue_beagle_stream_server_access_token: Callable[[Any], tuple[str, dict[str, Any]]],
+        rotate_beagle_stream_server_token: Callable[[Any], dict[str, Any]],
         migrate_vm: Callable[[int, str, bool, bool, str], dict[str, Any]],
         queue_vm_action: Callable[[Any, str, str, dict[str, Any] | None], dict[str, Any]],
         reboot_vm: Callable[[int], str],
@@ -38,6 +39,7 @@ class VmMutationSurfaceService:
         self._find_vm = find_vm
         self._invalidate_vm_cache = invalidate_vm_cache
         self._issue_beagle_stream_server_access_token = issue_beagle_stream_server_access_token
+        self._rotate_beagle_stream_server_token = rotate_beagle_stream_server_token
         self._migrate_vm = migrate_vm
         self._queue_vm_action = queue_vm_action
         self._reboot_vm = reboot_vm
@@ -87,6 +89,7 @@ class VmMutationSurfaceService:
             or (path.startswith("/api/v1/vms/") and path.endswith("/snapshot"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/snapshot/revert"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/beagle-stream-server-access"))
+            or (path.startswith("/api/v1/vms/") and path.endswith("/beagle-stream-server-token/rotate"))
             or (path.startswith("/api/v1/virtualization/vms/") and path.endswith("/power"))
         )
 
@@ -565,6 +568,26 @@ class VmMutationSurfaceService:
                         beagle_stream_server_access={
                             **payload,
                             "url": self._beagle_stream_server_proxy_ticket_url(token),
+                        }
+                    ),
+                },
+            )
+
+        if path.startswith("/api/v1/vms/") and path.endswith("/beagle-stream-server-token/rotate"):
+            vm, error = self._vm_from_segment(path, -3)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            token_state = self._rotate_beagle_stream_server_token(vm)
+            return self._json_response(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        beagle_stream_server_token={
+                            "generation": token_state.get("generation"),
+                            "rotated_at": token_state.get("rotated_at"),
+                            "grace_seconds": token_state.get("grace_seconds"),
                         }
                     ),
                 },

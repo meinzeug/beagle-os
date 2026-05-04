@@ -139,7 +139,7 @@ The effective profile contains:
 - provider-specific location data as currently rendered by the active provider
 - Beagle Stream Client host and target app
 - Beagle Stream Client codec, decoder, bitrate, FPS and audio defaults
-- Beagle Stream Server API URL, username, password and pairing PIN
+- Beagle Stream Server API URL, username/password for server API access, and short-lived Beagle Manager pairing tokens
 - local runtime user and autostart toggles
 
 ## Packaging model

@@ -4,6 +4,8 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 GUEST_USER="__GUEST_USER__"
+VMID="__VMID__"
+BEAGLE_MANAGER_URL="__BEAGLE_MANAGER_URL__"
 IDENTITY_LOCALE="__IDENTITY_LOCALE__"
 IDENTITY_LANGUAGE="__IDENTITY_LANGUAGE__"
 IDENTITY_KEYMAP="__IDENTITY_KEYMAP__"
@@ -18,6 +20,7 @@ PACKAGE_PRESETS="__PACKAGE_PRESETS__"
 NETWORK_MAC="__NETWORK_MAC__"
 BEAGLE_STREAM_SERVER_USER="__BEAGLE_STREAM_SERVER_USER__"
 BEAGLE_STREAM_SERVER_PASSWORD="__BEAGLE_STREAM_SERVER_PASSWORD__"
+BEAGLE_STREAM_SERVER_TOKEN="__BEAGLE_STREAM_SERVER_TOKEN__"
 BEAGLE_STREAM_SERVER_PORT="__BEAGLE_STREAM_SERVER_PORT__"
 BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"
 BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"
@@ -49,6 +52,16 @@ BEAGLE_STREAM_RUNTIME_PACKAGE_URL=${package_url}
 BEAGLE_STREAM_RUNTIME_UPDATED_AT=$(date -Iseconds)
 EOF
   chmod 0644 "$STREAM_RUNTIME_STATUS_FILE"
+}
+
+write_beagle_stream_server_broker_env() {
+  install -d -m 0755 /etc/beagle
+  cat > /etc/beagle/stream-server.env <<EOF
+BEAGLE_CONTROL_PLANE=${BEAGLE_MANAGER_URL}
+BEAGLE_STREAM_TOKEN=${BEAGLE_STREAM_SERVER_TOKEN}
+BEAGLE_VM_ID=${VMID}
+EOF
+  chmod 0600 /etc/beagle/stream-server.env
 }
 
 disable_cdrom_apt_sources() {
@@ -821,6 +834,7 @@ if [[ ! -f "$DONE_FILE" ]]; then
     pipewire-pulse \
     wireplumber \
     pulseaudio-utils \
+    nftables \
     x11vnc
   repair_interrupted_dpkg
   if [[ -n "$DESKTOP_PACKAGES" ]]; then
@@ -842,7 +856,15 @@ if [[ ! -f "$DONE_FILE" ]]; then
   repair_interrupted_dpkg
   write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"
   # Detect the beagle-stream-server binary path across package layout changes.
-  BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
+  BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || command -v sunshine 2>/dev/null || echo /usr/bin/beagle-stream-server)"
+  if [[ ! -x /usr/local/bin/beagle-stream-server && -n "$(command -v sunshine 2>/dev/null || true)" ]]; then
+    cat > /usr/local/bin/beagle-stream-server <<'EOF'
+#!/usr/bin/env bash
+exec "$(command -v sunshine)" "$@"
+EOF
+    chmod 0755 /usr/local/bin/beagle-stream-server
+    BEAGLE_STREAM_SERVER_EXEC="/usr/local/bin/beagle-stream-server"
+  fi
   configure_system_locale
   configure_keyboard_layout
   install_desktop_wallpaper
@@ -867,6 +889,14 @@ EOF
     "/home/$GUEST_USER/.local/state" \
     "/home/$GUEST_USER/.local/state/wireplumber" \
     "/home/$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml"
+  if [[ -d "/home/$GUEST_USER/.config/sunshine" && ! -e "/home/$GUEST_USER/.config/beagle-stream-server" ]]; then
+    mv "/home/$GUEST_USER/.config/sunshine" "/home/$GUEST_USER/.config/beagle-stream-server"
+  fi
+  if [[ -e "/home/$GUEST_USER/.config/sunshine" && ! -L "/home/$GUEST_USER/.config/sunshine" ]]; then
+    cp -a "/home/$GUEST_USER/.config/sunshine/." "/home/$GUEST_USER/.config/beagle-stream-server/" 2>/dev/null || true
+    rm -rf "/home/$GUEST_USER/.config/sunshine"
+  fi
+  ln -sfn "/home/$GUEST_USER/.config/beagle-stream-server" "/home/$GUEST_USER/.config/sunshine"
   install -d -m 0755 /etc/X11/xorg.conf.d
   GUEST_UID="$(id -u "$GUEST_USER")"
 
@@ -883,6 +913,7 @@ Section "InputClass"
     Option "Ignore" "on"
 EndSection
 EOF
+  cp "/home/$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" "/home/$GUEST_USER/.config/beagle-stream-server/sunshine.conf"
 
   cat > /etc/X11/Xsession.d/19-beagle-lightdm-session-compat <<'EOF'
 #!/bin/sh
@@ -975,6 +1006,32 @@ EOF
 }
 EOF
 
+  python3 - "/home/$GUEST_USER/.config/beagle-stream-server/sunshine_state.json" <<'EOF'
+import json
+import sys
+import uuid
+from pathlib import Path
+
+state_path = Path(sys.argv[1])
+payload = {}
+if state_path.exists():
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        payload = {}
+root = payload.setdefault("root", {})
+named = root.get("named_devices")
+if not isinstance(named, list):
+    root["named_devices"] = []
+root["uniqueid"] = str(root.get("uniqueid") or "").strip() or str(uuid.uuid4()).upper()
+state_path.parent.mkdir(parents=True, exist_ok=True)
+state_path.write_text(json.dumps(payload, indent=4) + "\n", encoding="utf-8")
+EOF
+  ln -sfn "/home/$GUEST_USER/.config/beagle-stream-server/sunshine_state.json" "/home/$GUEST_USER/.config/beagle-stream-server/beagle_stream_server_state.json"
+  chown -h "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config/beagle-stream-server/beagle_stream_server_state.json" >/dev/null 2>&1 || true
+  chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config/beagle-stream-server/sunshine_state.json" >/dev/null 2>&1 || true
+  chmod 0600 "/home/$GUEST_USER/.config/beagle-stream-server/sunshine_state.json" >/dev/null 2>&1 || true
+
   if [[ "$DESKTOP_ID" == "xfce" ]]; then
   cat > "/home/$GUEST_USER/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -1031,6 +1088,7 @@ Environment=XAUTHORITY=/home/${GUEST_USER}/.Xauthority
 Environment=XDG_RUNTIME_DIR=/run/user/${GUEST_UID}
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${GUEST_UID}/bus
 Environment=PULSE_SERVER=unix:/run/user/${GUEST_UID}/pulse/native
+EnvironmentFile=-/etc/beagle/stream-server.env
 ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/${GUEST_UID}/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/${GUEST_USER}/.Xauthority && -d /run/user/${GUEST_UID} && -S /run/user/${GUEST_UID}/bus && -S "\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xrandr --query >/dev/null 2>&1; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
 ExecStart=${BEAGLE_STREAM_SERVER_EXEC}
 Restart=always
@@ -1042,6 +1100,7 @@ WantedBy=graphical.target
 EOF
 
   install -d -m 0755 /etc/beagle
+  write_beagle_stream_server_broker_env
   cat > /etc/beagle/beagle-stream-server-healthcheck.env <<EOF
 BEAGLE_STREAM_SERVER_USER=${BEAGLE_STREAM_SERVER_USER}
 BEAGLE_STREAM_SERVER_PASSWORD=${BEAGLE_STREAM_SERVER_PASSWORD}
@@ -1152,6 +1211,68 @@ Unit=beagle-stream-server-healthcheck.service
 WantedBy=timers.target
 EOF
 
+  configure_stream_port_guard() {
+    local stream_port="${BEAGLE_STREAM_SERVER_PORT:-50000}"
+    local api_port="50001"
+    local rtsp_port="50021"
+    local https_port="49995"
+    local allowed_raw="${BEAGLE_STREAM_SERVER_ALLOWED_CIDRS:-10.88.0.0/16}"
+    local default_gateway=""
+    local default_gateway_cidr=""
+    local cidr=""
+    local cidr_csv=""
+
+    if [[ "$stream_port" =~ ^[0-9]+$ ]]; then
+      api_port="$((stream_port + 1))"
+      rtsp_port="$((stream_port + 21))"
+      if [[ "$stream_port" -gt 5 ]]; then
+        https_port="$((stream_port - 5))"
+      fi
+    else
+      stream_port="50000"
+    fi
+
+    for cidr in $(printf '%s' "$allowed_raw" | tr ',;' '  '); do
+      if [[ "$cidr" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$ ]]; then
+        if [[ -n "$cidr_csv" ]]; then
+          cidr_csv+=", "
+        fi
+        cidr_csv+="$cidr"
+      fi
+    done
+    if [[ -z "$cidr_csv" ]]; then
+      cidr_csv="10.88.0.0/16"
+    fi
+
+    default_gateway="$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
+    if [[ "$default_gateway" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+      default_gateway_cidr="${default_gateway}/32"
+      cidr_csv+=", ${default_gateway_cidr}"
+    fi
+
+    install -d -m 0755 /etc/beagle
+    cat > /etc/beagle/beagle-stream-guest-guard.nft <<EOF
+table inet beagle_stream_guest_guard {
+  chain input {
+    type filter hook input priority -5; policy accept;
+
+    iifname "lo" accept
+    ct state { established, related } accept
+
+    iifname "wg-beagle" tcp dport { ${https_port}, ${stream_port}, ${api_port}, ${rtsp_port} } accept
+    ip saddr { ${cidr_csv} } tcp dport { ${https_port}, ${stream_port}, ${api_port}, ${rtsp_port} } accept
+    ip6 saddr ::1 tcp dport { ${https_port}, ${stream_port}, ${api_port}, ${rtsp_port} } accept
+
+    tcp dport { ${https_port}, ${stream_port}, ${api_port}, ${rtsp_port} } drop
+  }
+}
+EOF
+
+    systemctl enable nftables >/dev/null 2>&1 || true
+    nft delete table inet beagle_stream_guest_guard >/dev/null 2>&1 || true
+    nft -f /etc/beagle/beagle-stream-guest-guard.nft >/dev/null 2>&1 || true
+  }
+
   # x11vnc: capture X11 display :0 so noVNC shows actual desktop (not QEMU VGA/TTY1)
   cat > /etc/systemd/system/beagle-x11vnc.service <<EOF
 [Unit]
@@ -1178,6 +1299,10 @@ EOF
 
   systemctl disable beagle-stream-server >/dev/null 2>&1 || true
   systemctl stop beagle-stream-server >/dev/null 2>&1 || true
+  systemctl disable --now beagle-sunshine.service >/dev/null 2>&1 || true
+  systemctl disable --now beagle-sunshine-healthcheck.timer >/dev/null 2>&1 || true
+  systemctl stop beagle-sunshine-healthcheck.service >/dev/null 2>&1 || true
+  pkill -x sunshine >/dev/null 2>&1 || true
   su - "$GUEST_USER" -c "systemctl --user disable --now beagle-stream-server.service >/dev/null 2>&1 || true" || true
   rm -f "/home/$GUEST_USER/.config/autostart/beagle-stream-server.desktop"
   pkill -u "$GUEST_USER" -x beagle-stream-server >/dev/null 2>&1 || true
@@ -1198,6 +1323,7 @@ EOF
     fi
     sleep 1
   done
+  configure_stream_port_guard
   systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true
   systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
   systemctl enable beagle-x11vnc.service >/dev/null 2>&1 || true

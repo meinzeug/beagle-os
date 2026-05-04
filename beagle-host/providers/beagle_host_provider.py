@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -1394,9 +1395,35 @@ class BeagleHostProvider:
         poll_attempts: int = 300,
         poll_interval_seconds: float = 2.0,
     ) -> tuple[int, str, str]:
-        del poll_attempts, poll_interval_seconds
-        self.guest_exec_bash(vmid, script)
-        return 0, "", ""
+        payload = self.guest_exec_bash(vmid, script)
+        pid = int(payload.get("pid") or 0)
+        if pid <= 0:
+            return 1, "", "guest exec did not return a pid"
+
+        last_status: dict[str, Any] = {}
+        attempts = max(int(poll_attempts or 0), 1)
+        interval = max(float(poll_interval_seconds or 0), 0.0)
+        for _attempt in range(attempts):
+            last_status = self.guest_exec_status(vmid, pid)
+            if bool(last_status.get("exited")):
+                break
+            if interval > 0:
+                time.sleep(interval)
+        else:
+            return 124, "", "guest exec timed out"
+
+        exitcode = int(last_status.get("exitcode") or 0)
+
+        def _decode(value: Any) -> str:
+            text = str(value or "")
+            if not text:
+                return ""
+            try:
+                return base64.b64decode(text.encode("ascii"), validate=True).decode("utf-8", errors="replace")
+            except Exception:
+                return text
+
+        return exitcode, _decode(last_status.get("out-data")), _decode(last_status.get("err-data"))
 
     def schedule_vm_restart_after_stop(
         self,

@@ -121,6 +121,7 @@ PY
   [[ -n "$host" ]] || return 1
 
   export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST="$host"
+  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BROKER_HOST="$host"
   if [[ -n "$port" ]]; then
     export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT="$port"
   fi

@@ -110,7 +110,6 @@ class VmHttpSurfaceService:
                 "guest_password": str(secret.get("guest_password") or secret.get("password") or ""),
                 "beagle_stream_server_username": str(secret.get("beagle_stream_server_username", "")),
                 "beagle_stream_server_password": str(secret.get("beagle_stream_server_password", "")),
-                "beagle_stream_server_pin": str(secret.get("beagle_stream_server_pin", "")),
                 "usb_tunnel_host": self._public_server_name,
                 "usb_tunnel_user": self._usb_tunnel_ssh_user,
                 "usb_tunnel_port": int(secret.get("usb_tunnel_port", 0) or 0),

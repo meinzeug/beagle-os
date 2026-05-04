@@ -43,7 +43,7 @@ def _make_endpoint_http_surface(
         exchange_beagle_stream_client_pairing_token=lambda _vm, _identity, _token: {"ok": True},
         fetch_beagle_stream_server_identity=lambda _vm, _guest_user: {},
         find_vm=lambda vmid: vm if int(vmid) == vm.vmid else None,
-        issue_beagle_stream_client_pairing_token=lambda _vm, _identity, _device_name: {"ok": True, "token": "token", "pin": "1234"},
+        issue_beagle_stream_client_pairing_token=lambda _vm, _identity, _device_name: {"ok": True, "token": "token"},
         pool_manager_service=None,
         register_beagle_stream_client_certificate_on_vm=lambda _vm, _cert: {"ok": True},
         service_name="beagle-control-plane",

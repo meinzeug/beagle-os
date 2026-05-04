@@ -241,7 +241,6 @@ function buildCredentialsPanelHtml(credentials) {
     maskedFieldBlock('Guest Passwort', credentials.guest_password) +
     maskedFieldBlock('Beagle Stream Server Benutzername', credentials.beagle_stream_server_username) +
     maskedFieldBlock('Beagle Stream Server Passwort', credentials.beagle_stream_server_password) +
-    maskedFieldBlock('Beagle Stream Server PIN', credentials.beagle_stream_server_pin) +
     fieldBlock('USB-Tunnel Host', credentials.usb_tunnel_host || 'n/a') +
     fieldBlock('USB-Tunnel Benutzer', credentials.usb_tunnel_user || 'n/a') +
     fieldBlock('USB-Tunnel Port', credentials.usb_tunnel_port ? String(credentials.usb_tunnel_port) : 'n/a') +

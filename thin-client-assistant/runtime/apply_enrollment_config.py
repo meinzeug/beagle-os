@@ -74,7 +74,6 @@ def apply_enrollment_config(
         ("PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN", config.get("beagle_manager_token", "")),
         ("PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME", config.get("beagle_stream_server_username", "")),
         ("PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD", config.get("beagle_stream_server_password", "")),
-        ("PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN", config.get("beagle_stream_server_pin", "")),
         ("PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY", config.get("beagle_stream_server_pinned_pubkey", "")),
         ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRIVATE_KEY", config.get("egress_wg_private_key", "")),
         ("PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRESHARED_KEY", config.get("egress_wg_preshared_key", "")),

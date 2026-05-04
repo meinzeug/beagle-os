@@ -138,7 +138,7 @@ fi
 if [[ -n "$beagle_stream_server_api_url" && "$beagle_stream_server_api_reachable" != "1" ]]; then
   health_failure_reasons+=("beagle-stream-server api unreachable")
 fi
-if [[ "${egress_mode:-direct}" != "direct" && "${egress_state:-unknown}" != "ready" && "${egress_state:-unknown}" != "ok" && "${egress_state:-unknown}" != "active" ]]; then
+if [[ "${egress_mode:-direct}" != "direct" && "${egress_state:-unknown}" != "ready" && "${egress_state:-unknown}" != "ok" && "${egress_state:-unknown}" != "active" && "${egress_state:-unknown}" != "managed-by-thinclient-runtime" ]]; then
   health_failure_reasons+=("secure egress not ready")
 fi
 

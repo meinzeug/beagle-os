@@ -112,10 +112,6 @@ class InstallerScriptService:
             meta.get("beagle-stream-server-password"),
             vm_secret.get("beagle_stream_server_password", ""),
         )
-        beagle_stream_server_pin = self._first_non_empty(
-            meta.get("beagle-stream-server-pin"),
-            vm_secret.get("beagle_stream_server_pin", ""),
-        )
         beagle_stream_server_pinned_pubkey = str(vm_secret.get("beagle_stream_server_pinned_pubkey", "") or "")
         guest_user = self._beagle_stream_server_guest_user(vm, config)
         beagle_stream_server = (
@@ -130,10 +126,9 @@ class InstallerScriptService:
             else ""
         )
 
-        # Beagle Stream Client presets must carry Beagle Stream Server API credentials for non-interactive auto-pairing.
-        if beagle_stream_client_host and not all((beagle_stream_server_username, beagle_stream_server_password, beagle_stream_server_pin)):
+        if beagle_stream_client_host and not all((beagle_stream_server_username, beagle_stream_server_password)):
             raise ValueError(
-                f"vm {vm.vmid} is missing Beagle Stream Server auto-pair credentials for Beagle Stream Client preset generation"
+                f"vm {vm.vmid} is missing Beagle Stream Server API credentials for Beagle Stream Client preset generation"
             )
 
         return build_common_preset(
@@ -167,7 +162,6 @@ class InstallerScriptService:
             beagle_stream_server_api_url=beagle_stream_server_api_url,
             beagle_stream_server_username=beagle_stream_server_username,
             beagle_stream_server_password=beagle_stream_server_password,
-            beagle_stream_server_pin=beagle_stream_server_pin,
             extra_fields=build_runtime_extension_fields(
                 network_static_address=meta.get("thinclient-network-static-address", ""),
                 network_static_prefix=meta.get("thinclient-network-static-prefix", "24"),

@@ -37,7 +37,7 @@ A Beagle profile contains:
 - the Beagle Stream Server host / API URL
 - the Beagle Stream Client app name, usually `Desktop`
 - codec, decoder, bitrate, FPS and audio defaults
-- optional Beagle Stream Server credentials and pairing PIN
+- optional Beagle Stream Server API credentials; pairing uses short-lived Beagle Manager tokens
 - the current provider location/binding fields, today usually host and VMID
 
 This means a Beagle endpoint does not need manual target entry during rollout.

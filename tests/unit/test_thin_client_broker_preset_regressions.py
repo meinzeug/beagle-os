@@ -71,3 +71,13 @@ def test_build_installer_env_keeps_broker_mode_even_with_fallback_hosts() -> Non
         runtime_user="thinclient",
     )
     assert env["CONNECTION_METHOD"] == "broker"
+
+
+def test_hostless_runtime_uses_enrollment_config_for_broker_mode() -> None:
+    script = (RUNTIME_DIR / "beagle_stream_client_runtime_exec.sh").read_text(encoding="utf-8")
+
+    assert 'if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOSTLESS:-0}" == "1" ]]; then' in script
+    assert "control_plane=\"$(beagle_stream_enrollment_value control_plane" in script
+    assert "token=\"$(beagle_stream_enrollment_value enrollment_token" in script
+    assert "device_id=\"$(beagle_stream_enrollment_value device_id" in script
+    assert "pool_id=\"$(beagle_stream_enrollment_value pool_id" not in script

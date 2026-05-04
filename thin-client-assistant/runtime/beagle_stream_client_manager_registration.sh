@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BEAGLE_STREAM_CLIENT_CONFIG_STATE_SH="${BEAGLE_STREAM_CLIENT_CONFIG_STATE_SH:-$SCRIPT_DIR/beagle_stream_client_config_state.sh}"
+# shellcheck disable=SC1090
+source "$BEAGLE_STREAM_CLIENT_CONFIG_STATE_SH"
+
 build_beagle_stream_client_manager_registration_payload() {
   local client_cert="${1:-}"
   local device_name="${2:-}"
@@ -100,13 +105,22 @@ pairing = payload.get("pairing") if isinstance(payload, dict) else {}
 if not isinstance(pairing, dict):
     pairing = {}
 token = str(pairing.get("token") or "").strip()
-pin = str(pairing.get("pin") or "").strip()
 expires_at = str(pairing.get("expires_at") or "").strip()
-if not token or not pin:
+if not token:
     raise SystemExit(1)
+pairing_pin = ""
+parts = token.split(".")
+if len(parts) >= 2:
+  try:
+    import base64
+    raw = parts[1] + "=" * (-len(parts[1]) % 4)
+    claims = json.loads(base64.urlsafe_b64decode(raw.encode("ascii")).decode("utf-8"))
+    pairing_pin = str(claims.get("pairing_pin") or "").strip()
+  except Exception:
+    pairing_pin = ""
 print(token)
-print(pin)
 print(expires_at)
+print(pairing_pin)
 PY
 }
 
@@ -221,10 +235,10 @@ request_beagle_stream_client_pairing_token_via_manager() {
   fi
   rm -f "$payload_file" "$response_file"
 
-  [[ "${#parsed[@]}" -ge 2 ]] || return 1
+  [[ "${#parsed[@]}" -ge 1 ]] || return 1
   export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN="${parsed[0]}"
-  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_PIN="${parsed[1]}"
-  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_EXPIRES_AT="${parsed[2]:-}"
+  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_EXPIRES_AT="${parsed[1]:-}"
+  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_PIN="${parsed[2]:-}"
   return 0
 }
 

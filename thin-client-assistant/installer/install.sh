@@ -104,7 +104,6 @@ parse_args() {
       --connection-token) CONNECTION_TOKEN="$2"; shift 2 ;;
       --beagle-stream-server-username) BEAGLE_STREAM_SERVER_USERNAME="$2"; shift 2 ;;
       --beagle-stream-server-password) BEAGLE_STREAM_SERVER_PASSWORD="$2"; shift 2 ;;
-      --beagle-stream-server-pin) BEAGLE_STREAM_SERVER_PIN="$2"; shift 2 ;;
       -h|--help) usage; exit 0 ;;
       *)
         echo "Unknown argument: $1" >&2
@@ -155,7 +154,6 @@ load_answers() {
     CONNECTION_TOKEN="$CONNECTION_TOKEN" \
     BEAGLE_STREAM_SERVER_USERNAME="$BEAGLE_STREAM_SERVER_USERNAME" \
     BEAGLE_STREAM_SERVER_PASSWORD="$BEAGLE_STREAM_SERVER_PASSWORD" \
-    BEAGLE_STREAM_SERVER_PIN="$BEAGLE_STREAM_SERVER_PIN" \
     "$ROOT_DIR/installer/setup-menu.sh"
   )"
   apply_shell_assignments "$output"
@@ -220,7 +218,6 @@ write_config() {
   CONNECTION_TOKEN="$CONNECTION_TOKEN" \
   BEAGLE_STREAM_SERVER_USERNAME="$BEAGLE_STREAM_SERVER_USERNAME" \
   BEAGLE_STREAM_SERVER_PASSWORD="$BEAGLE_STREAM_SERVER_PASSWORD" \
-  BEAGLE_STREAM_SERVER_PIN="$BEAGLE_STREAM_SERVER_PIN" \
   "$ROOT_DIR/installer/write-config.sh" "$CONFIG_DIR"
 }
 

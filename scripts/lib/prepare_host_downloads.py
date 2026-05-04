@@ -116,7 +116,6 @@ def _merge_stream_meta(
         "beagle-stream-server-api-url",
         "beagle-stream-server-user",
         "beagle-stream-server-password",
-        "beagle-stream-server-pin",
         "beagle-stream-server-app",
         "thinclient-default-mode",
     ]
@@ -231,7 +230,6 @@ def _build_vm_catalog_entry(
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_API_URL": beagle_stream_server_api_url,
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_USERNAME": "",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PASSWORD": "",
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PIN": "",
     }
     available_modes = ["BEAGLE_STREAM_CLIENT"] if preset["PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_HOST"] else []
     preset["PVE_THIN_CLIENT_PRESET_DEFAULT_MODE"] = "BEAGLE_STREAM_CLIENT" if available_modes else ""

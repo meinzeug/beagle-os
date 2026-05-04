@@ -67,3 +67,12 @@ def test_update_sse_access_token_is_redacted_from_control_plane_logs() -> None:
     assert r"access_token|token|refresh_token)=)([^&\s]+)" in handler
     assert "path=_redact_request_target" in handler
     assert "structured_logger().log_message(fmt, *safe_args)" in handler
+
+
+def test_stream_config_endpoint_auth_runs_before_global_get_auth_guard() -> None:
+    handler = CONTROL_PLANE_HANDLER.read_text(encoding="utf-8")
+
+    stream_index = handler.index("if stream_http_surface_service().handles_get(path):")
+    global_auth_index = handler.rindex("if not self._is_authenticated():")
+
+    assert stream_index < global_auth_index

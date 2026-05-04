@@ -97,6 +97,18 @@ class BeagleHostProviderContractExtensionsTests(unittest.TestCase):
         self.assertEqual(run_virsh.call_args[0][0], "qemu-agent-command")
         self.assertEqual(run_virsh.call_args[0][1], "beagle-101")
 
+    def test_guest_exec_script_text_decodes_captured_output(self):
+        with mock.patch.object(self.provider, "guest_exec_bash", return_value={"pid": 42}), mock.patch.object(
+            self.provider,
+            "guest_exec_status",
+            return_value={"exited": True, "exitcode": 0, "out-data": "b2sK", "err-data": "ZXJyCg=="},
+        ):
+            exitcode, stdout, stderr = self.provider.guest_exec_script_text(101, "echo ok")
+
+        self.assertEqual(exitcode, 0)
+        self.assertEqual(stdout, "ok\n")
+        self.assertEqual(stderr, "err\n")
+
 
 if __name__ == "__main__":
     unittest.main()

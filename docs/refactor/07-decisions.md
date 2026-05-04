@@ -1,6 +1,23 @@
 # Beagle OS Refactor - Decisions
 
-Stand: 2026-05-02
+Stand: 2026-05-03
+
+## D-063: BeagleStream Client/Server sind eigene Beagle-Produkte, nicht nur konfigurierte Upstream-Binaries (2026-05-03)
+
+Kontext: Der VM100-Live-Pfad zeigte, dass reine Runtime-Konfiguration nicht reicht: der Client konnte zwar `Desktop` listen, fiel aber durch hostless-Start ohne explizites Broker-Ziel und durch Legacy-Pairing-/RTSP-Kompatibilitaet in falsche Pfade. Parallel wurde der statische PIN-Ansatz als Produktanforderung explizit verworfen.
+
+Entscheidung:
+
+- `meinzeug/beagle-stream-server` und `meinzeug/beagle-stream-client` sind verbindliche Produkt-Forks und werden als BeagleStream Server bzw. BeagleStream Client ausgeliefert.
+- Beagle OS darf fuer neue Produktpfade keine statischen PINs mehr verteilen. Pairing laeuft ueber kurzlebige Manager-/Broker-Tokens mit Rotation und Revocation.
+- Der aktuelle Fork-Stand darf Uebergangskompatibilitaet nur als technische Bruecke enthalten; neue Beagle-Integrationspunkte muessen token-native benannt und implementiert werden.
+- Server-Fork-Ziel: `/api/pair-token` validiert echte Beagle-Tokens gegen Manager/Signatur/Expiry/One-Time-Use; `/api/pin` wird fuer Beagle-Builds deaktiviert oder klar als Upstream-Kompatibilitaet isoliert.
+- Client-Fork-Ziel: CLI/UI spricht von Pairing-Token, nicht PIN; brokered Start nutzt das vom Manager gelieferte Ziel explizit (`host:port app`) und darf nicht auf stale lokale Hosteintraege ausweichen.
+- Builds fuer beide Forks muessen reproduzierbar ueber VM100/Build-Host laufen und als versionierte Artefakte in den Beagle-OS-Installer-/Thinclient-Pfad eingehen.
+
+Grund: BeagleStream ist ein Kernproduktmerkmal. Sicherheit, UX und Wartbarkeit duerfen nicht davon abhaengen, dass Upstream-Begriffe und manuelle Pairing-Mechaniken zufaellig in den Beagle-Broker-Pfad passen.
+
+Dateien/Scopes: `thin-client-assistant/runtime/*`, `beagle-host/services/endpoint_http_surface.py`, Forks `meinzeug/beagle-stream-server`, `meinzeug/beagle-stream-client`, Build-/Release-Artefaktpfade.
 
 ## D-062: `docs/lasthope` ist Enterprise-GA-Steuerplan (2026-05-02)
 
@@ -210,7 +227,7 @@ Nebenwirkung Live-Fix: `tests.yml` faehrt nun auch Integration-Tests in CI (Job 
 - Betroffene Datei: `beagle-host/providers/beagle_host_provider.py`.
 
 ## D-024: Beagle Stream Client USB-Presets duerfen nicht ohne Beagle Stream Server Auto-Pair Credentials ausgeliefert werden
-- Entscheidung: Der VM-Installer-Skriptgenerator bricht Beagle Stream Client-Preset-Generierung ab, wenn `beagle_stream_server_username`, `beagle_stream_server_password` oder `beagle_stream_server_pin` fehlen.
+- Entscheidung: Der VM-Installer-Skriptgenerator verteilt keinen statischen Beagle Stream Pairing-PIN mehr. Beagle Stream Client-Pairing erfolgt ueber kurzlebige Beagle-Manager-Tokens; fuer Presets werden nur noch die Server-API-Credentials benoetigt.
 - Grund: Unvollstaendige Presets fuehren nach Thinclient-Reboot zu manueller PIN-Eingabe und brechen den Zielpfad "auto-connect".
 - Umsetzung: `beagle-host/services/installer_script.py` priorisiert explizite VM-Metadaten (`beagle-stream-server-user/password/pin`) und nutzt danach VM-Secret-Fallback; bei fehlenden Pflichtfeldern wird ein Fehler geworfen.
 

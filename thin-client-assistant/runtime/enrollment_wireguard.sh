@@ -45,6 +45,7 @@ WG_IFACE="${WG_IFACE:-wg-beagle}"
 WG_CONF="${WG_CONF:-/etc/wireguard/${WG_IFACE}.conf}"
 WG_KEYS_DIR="${WG_KEYS_DIR:-/etc/beagle/wireguard}"
 WG_RESOLV_CONF="${WG_RESOLV_CONF:-/etc/resolv.conf}"
+WG_MTU="${PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_MTU:-${WG_MTU:-1280}}"
 TIMEOUT="${TIMEOUT:-15}"
 
 # ---------------------------------------------------------------------------
@@ -327,6 +328,7 @@ mkdir -p "$(dirname "${WG_CONF}")"
     echo "[Interface]"
     echo "Address = ${CLIENT_IP}"
     echo "PrivateKey = ${PRIVATE_KEY}"
+    echo "MTU = ${WG_MTU}"
     echo "DNS = ${DNS}"
     echo ""
     echo "[Peer]"
@@ -354,7 +356,7 @@ fi
 ip link add "${WG_IFACE}" type wireguard
 apply_wireguard_peer_config
 ip address add "${CLIENT_IP}" dev "${WG_IFACE}"
-ip link set mtu 1420 up dev "${WG_IFACE}"
+ip link set mtu "${WG_MTU}" up dev "${WG_IFACE}"
 apply_dns_settings "${DNS}"
 apply_wireguard_routes "${ALLOWED_IPS}"
 

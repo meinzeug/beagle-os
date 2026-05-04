@@ -251,6 +251,22 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             self._stream_sse_job(_VmMetricsSse().stream(_msse_vmid))
             return
 
+        if stream_http_surface_service().handles_get(path):
+            endpoint_identity = self._endpoint_identity()
+            if endpoint_identity is None:
+                endpoint_identity = self._endpoint_identity_from_query(query)
+            if endpoint_identity is None:
+                if not self._authorize_or_respond("GET", path):
+                    return
+            response = stream_http_surface_service().route_get(
+                path,
+                query=query,
+                endpoint_identity=endpoint_identity,
+            )
+            if response is not None:
+                self._write_json(response["status"], response["payload"])
+            return
+
         if not self._is_authenticated():
             self._write_json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "unauthorized"})
             return
@@ -277,20 +293,6 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             if not self._authorize_or_respond("GET", path):
                 return
             response = self._pools_surface().route_get(path)
-            if response is not None:
-                self._write_json(response["status"], response["payload"])
-            return
-
-        if stream_http_surface_service().handles_get(path):
-            endpoint_identity = self._endpoint_identity()
-            if endpoint_identity is None:
-                if not self._authorize_or_respond("GET", path):
-                    return
-            response = stream_http_surface_service().route_get(
-                path,
-                query=query,
-                endpoint_identity=endpoint_identity,
-            )
             if response is not None:
                 self._write_json(response["status"], response["payload"])
             return

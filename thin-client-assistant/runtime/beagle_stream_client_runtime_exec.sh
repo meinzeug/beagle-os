@@ -48,14 +48,18 @@ beagle_stream_enrollment_value() {
 }
 
 beagle_stream_hostless_enabled() {
-  local host control_plane token device_id pool_id
+  local host control_plane token device_id
 
   control_plane="$(beagle_stream_enrollment_value control_plane 2>/dev/null || true)"
   token="$(beagle_stream_enrollment_value enrollment_token 2>/dev/null || true)"
   device_id="$(beagle_stream_enrollment_value device_id 2>/dev/null || true)"
-  pool_id="$(beagle_stream_enrollment_value pool_id 2>/dev/null || true)"
 
-  [[ -n "$control_plane" && -n "$token" && -n "$device_id" && -n "$pool_id" ]] || return 1
+  # pool_id can be empty for dedicated VM targets (e.g. vm-100).
+  [[ -n "$control_plane" && -n "$token" && -n "$device_id" ]] || return 1
+
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOSTLESS:-0}" == "1" ]]; then
+    return 0
+  fi
 
   if beagle_stream_broker_connection; then
     return 0
@@ -81,7 +85,12 @@ build_stream_args() {
   audio_config="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG:-stereo}"
 
   if beagle_stream_hostless_enabled; then
-    out_ref=("$(beagle_stream_client_bin)" stream "$app")
+    if [[ -n "${connect_host:-$host}" ]]; then
+      target="$(format_beagle_stream_client_target "${connect_host:-$host}" "$port")"
+      out_ref=("$(beagle_stream_client_bin)" stream "$target" "$app")
+    else
+      out_ref=("$(beagle_stream_client_bin)" stream "$app")
+    fi
   else
     target="$(format_beagle_stream_client_target "${connect_host:-$host}" "$port")"
     out_ref=("$(beagle_stream_client_bin)" stream "$target" "$app")

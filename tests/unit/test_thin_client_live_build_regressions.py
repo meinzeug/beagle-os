@@ -91,10 +91,24 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
 
     assert "beagle_stream_hostless_enabled()" in runtime_text
     assert 'printf \'%s\\n\' "beagle-stream"' in runtime_text
+    assert 'out_ref=("$(beagle_stream_client_bin)" stream "$target" "$app")' in runtime_text
     assert 'out_ref=("$(beagle_stream_client_bin)" stream "$app")' in runtime_text
+    assert 'pool_id="$(beagle_stream_enrollment_value pool_id' not in runtime_text
+    assert '[[ -n "$control_plane" && -n "$token" && -n "$device_id" ]] || return 1' in runtime_text
     assert 'if beagle_stream_broker_connection; then' in runtime_text
+    assert 'if beagle_stream_broker_connection; then' in targeting_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BROKER_HOST' in targeting_text
     assert 'hostless_beagle_stream=1' in launcher_text
     assert "fetch_beagle_stream_client_current_session_via_manager" in launcher_text
+    assert 'mode=hostless-fallback host=${host}' in launcher_text
+    assert 'mode=hostless host=${host}' in launcher_text
+    assert 'ensure_paired || {' in launcher_text
+    assert 'beagle_stream_client_stream_ready' in launcher_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN:-' not in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
+    assert '/api/pair-token' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
+    assert '/api/pin' not in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
+    assert 'prepare-stream.ok" "mode=hostless' in launcher_text
     assert 'beagle_log_event "beagle-stream-client.beagle-stream-hostless"' in launcher_text
     assert 'if [[ "$method" == "broker" && -r /etc/beagle/enrollment.conf ]]; then' in launch_session_text
     assert 'beagle_stream_connection_method()' in targeting_text
@@ -106,6 +120,10 @@ def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
 
     assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in build_text
     assert "BeagleStream-latest-x86_64.AppImage" in build_text
+    assert "validate_beagle_stream_client_bundle" in build_text
+    assert "LD_LIBRARY_PATH=\"$appdir/usr/lib" in build_text
+    assert "BeagleStream AppImage has unresolved runtime library dependencies" in build_text
+    assert "version `[^" in build_text
     assert "BEAGLE_STREAM_CLIENT_URL" in build_text
     assert "BeagleStream.AppImage" in build_text
     assert 'beagle_wrapper_path="$BUILD_DIR/config/includes.chroot/usr/local/bin/beagle-stream"' in build_text

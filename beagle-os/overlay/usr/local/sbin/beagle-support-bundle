@@ -26,7 +26,6 @@ secret_markers = (
     "secret",
     "private_key",
     "preshared_key",
-    "beagle_stream_server_pin",
     "thinclient_password",
     "guest_password",
     "authcookie",
@@ -79,6 +78,16 @@ copy_if_exists() {
   redact_text_file "$src" "$BUNDLE_DIR/$dst"
 }
 
+copy_latest_if_exists() {
+  local pattern="$1"
+  local dst="$2"
+  local latest=""
+
+  latest="$(ls -1t $pattern 2>/dev/null | head -n 1 || true)"
+  [[ -n "$latest" && -f "$latest" ]] || return 0
+  redact_text_file "$latest" "$BUNDLE_DIR/$dst"
+}
+
 capture_command uname uname -a
 capture_command hostname hostnamectl status
 capture_command os-release cat /etc/os-release
@@ -127,6 +136,13 @@ copy_if_exists /var/lib/beagle-os/usb/state.env usb/state.env
 copy_if_exists /var/log/beagle-os/endpoint-report.last.json endpoint-report.last.json
 copy_if_exists /var/log/beagle-os/update-client.log update/update-client.log
 copy_if_exists /var/lib/pve-thin-client/runtime.status runtime.status
+copy_latest_if_exists '/tmp/pve-thin-client-logs/*/runtime-session.log' runtime-session.log
+copy_latest_if_exists '/tmp/pve-thin-client-logs/*/beagle-stream-client-list.log' beagle-stream-client-list.log
+copy_latest_if_exists '/tmp/pve-thin-client-logs/*/beagle-stream-client-pair.log' beagle-stream-client-pair.log
+copy_latest_if_exists '/tmp/pve-thin-client-logs/*/beagle-stream-client-stream.log' beagle-stream-client-stream.log
+copy_latest_if_exists '/run/user/1000/pve-thin-client/beagle-stream-client-list.log' beagle-stream-client-list-live.log
+copy_latest_if_exists '/run/user/1000/pve-thin-client/beagle-stream-client-pair.log' beagle-stream-client-pair-live.log
+copy_latest_if_exists '/run/user/1000/pve-thin-client/beagle-stream-client-stream.log' beagle-stream-client-stream-live.log
 
 tar -C "$STATE_DIR" -czf "$ARCHIVE" "$(basename "$BUNDLE_DIR")"
 chmod 0600 "$ARCHIVE"

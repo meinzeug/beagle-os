@@ -33,6 +33,8 @@ class VmSecretBootstrapService:
         safe_slug: Callable[..., str],
         save_vm_secret: Callable[[str, int, dict[str, Any]], dict[str, Any]],
         session_script_path: Path,
+        store_endpoint_token: Callable[[str, dict[str, Any]], dict[str, Any]],
+        token_urlsafe: Callable[[int], str],
         usb_tunnel_attach_host: str,
         usb_tunnel_auth_dir: Path | None,
         usb_tunnel_auth_root: Path | None,
@@ -53,6 +55,8 @@ class VmSecretBootstrapService:
         self._safe_slug = safe_slug
         self._save_vm_secret = save_vm_secret
         self._session_script_path = Path(session_script_path)
+        self._store_endpoint_token = store_endpoint_token
+        self._token_urlsafe = token_urlsafe
         self._usb_tunnel_attach_host = str(usb_tunnel_attach_host or "")
         self._usb_tunnel_auth_dir = Path(usb_tunnel_auth_dir) if usb_tunnel_auth_dir is not None else None
         self._usb_tunnel_auth_root = Path(usb_tunnel_auth_root) if usb_tunnel_auth_root is not None else None
@@ -188,6 +192,25 @@ class VmSecretBootstrapService:
         updated["beagle_stream_server_pinned_pubkey"] = pin
         return self._save_vm_secret(vm.node, vm.vmid, updated)
 
+    def ensure_vm_beagle_stream_server_token(self, vm: Any, secret: dict[str, Any]) -> dict[str, Any]:
+        token = str(secret.get("beagle_stream_server_token", "") or "").strip()
+        if not token:
+            updated = dict(secret)
+            token = self._token_urlsafe(32)
+            updated["beagle_stream_server_token"] = token
+            secret = self._save_vm_secret(vm.node, vm.vmid, updated)
+        self._store_endpoint_token(
+            token,
+            {
+                "endpoint_id": f"beagle-stream-server-vm{int(vm.vmid)}",
+                "hostname": str(getattr(vm, "name", "") or f"vm-{int(vm.vmid)}").strip(),
+                "vmid": int(vm.vmid),
+                "node": str(vm.node or "").strip(),
+                "role": "beagle-stream-server",
+            },
+        )
+        return secret
+
     def ensure_vm_secret(self, vm: Any) -> dict[str, Any]:
         existing = self._load_vm_secret(vm.node, vm.vmid)
         if existing:
@@ -198,8 +221,11 @@ class VmSecretBootstrapService:
             if not str(existing.get("beagle_stream_server_password", "")).strip():
                 existing["beagle_stream_server_password"] = self._random_secret(26)
                 changed = True
-            if not str(existing.get("beagle_stream_server_pin", "")).strip():
-                existing["beagle_stream_server_pin"] = self._random_pin()
+            if "beagle_stream_server_pin" in existing:
+                existing.pop("beagle_stream_server_pin", None)
+                changed = True
+            if int(existing.get("beagle_stream_server_token_generation", 0) or 0) <= 0:
+                existing["beagle_stream_server_token_generation"] = 1
                 changed = True
             if not str(existing.get("thinclient_password", "")).strip():
                 existing["thinclient_password"] = self._random_secret(22)
@@ -214,6 +240,7 @@ class VmSecretBootstrapService:
                 changed = True
             secret = self._save_vm_secret(vm.node, vm.vmid, existing) if changed else existing
             secret = self.ensure_vm_beagle_stream_server_pinned_pubkey(vm, secret)
+            secret = self.ensure_vm_beagle_stream_server_token(vm, secret)
             self.sync_usb_tunnel_authorized_key(vm, secret)
             return secret
 
@@ -224,7 +251,8 @@ class VmSecretBootstrapService:
             {
                 "beagle_stream_server_username": f"beagle-stream-server-vm{vm.vmid}",
                 "beagle_stream_server_password": self._random_secret(26),
-                "beagle_stream_server_pin": self._random_pin(),
+                "beagle_stream_server_token": self._token_urlsafe(32),
+                "beagle_stream_server_token_generation": 1,
                 "thinclient_password": self._random_secret(22),
                 "beagle_stream_server_pinned_pubkey": "",
                 "usb_tunnel_port": self.default_usb_tunnel_port(vm.vmid),
@@ -233,5 +261,6 @@ class VmSecretBootstrapService:
             },
         )
         secret = self.ensure_vm_beagle_stream_server_pinned_pubkey(vm, secret)
+        secret = self.ensure_vm_beagle_stream_server_token(vm, secret)
         self.sync_usb_tunnel_authorized_key(vm, secret)
         return secret

@@ -1,7 +1,7 @@
-"""Unit tests for Plan 11 L216: Auto-Pairing without manual PIN.
+"""Unit tests for Plan 11 L216: Auto-Pairing with token-native secret exchange.
 
 Verifies the complete auto-pairing flow:
-  1. Endpoint requests a pairing token → receives signed token + PIN (no user sees PIN)
+    1. Endpoint requests a pairing token → receives a signed short-lived token
   2. Endpoint exchanges token with Beagle Stream Server via API → pairing confirmed automatically
   3. Tampered tokens are rejected
   4. Expired tokens are rejected
@@ -9,7 +9,7 @@ Verifies the complete auto-pairing flow:
   6. Missing pairing_token in exchange is rejected
 
 This ensures that Beagle Stream Client clients can pair with Beagle Stream Server VMs without any
-manual PIN entry by the user — the PIN is embedded in the token and used
+manual PIN entry by the user — the signed token itself is reused as the pairing secret and used
 programmatically.
 """
 from __future__ import annotations
@@ -48,7 +48,7 @@ def _make_surface(
         return vm if int(vmid) == vm.vmid else None
 
     def _default_issue(_vm, _identity, device_name):
-        return {"ok": True, "token": "auto-pair-token", "pin": "9876", "expires_at": "2026-05-01T00:00:00Z"}
+        return {"ok": True, "token": "auto-pair-token", "expires_at": "2026-05-01T00:00:00Z"}
 
     def _default_exchange(_vm, _identity, pairing_token):
         return {"ok": exchange_ok}
@@ -161,14 +161,14 @@ def _route_post(surface, path, *, identity=None, json_payload=None):
 class TestAutoPairingFlow(unittest.TestCase):
 
     def test_pair_token_issued_without_user_pin_input(self):
-        """pair-token endpoint returns a signed token + embedded PIN — no user interaction."""
+        """pair-token endpoint returns a signed token — no user interaction."""
         surface = _make_surface()
         resp = _route_post(surface, "/api/v1/endpoints/beagle-stream-client/pair-token",
             identity=_identity(), json_payload={"device_name": "beagle-stream-client"})
         self.assertEqual(resp["status"], 201)
         pairing = resp["payload"]["pairing"]
-        self.assertTrue(pairing["token"])           # token issued
-        self.assertTrue(pairing["pin"])             # PIN embedded (not shown to user)
+        self.assertTrue(pairing["token"])
+        self.assertNotIn("pin", pairing)
         self.assertTrue(pairing["expires_at"])
 
     def test_pair_token_exchange_succeeds_without_user_input(self):
@@ -214,15 +214,15 @@ class TestAutoPairingFlow(unittest.TestCase):
 
     def test_full_auto_pairing_cycle_no_user_interaction(self):
         """Full cycle: issue token → exchange token → paired. No PIN prompt ever shown."""
-        received_pin: list[str] = []
+        received_secret: list[str] = []
 
         def _issue(_vm, _identity, device_name):
-            pin = "5555"  # PIN embedded, never surfaced to user
-            received_pin.append(pin)
-            return {"ok": True, "token": "tok-5555", "pin": pin, "expires_at": "2026-05-01T00:00:00Z"}
+            token = "tok-5555"
+            received_secret.append(token)
+            return {"ok": True, "token": token, "expires_at": "2026-05-01T00:00:00Z"}
 
         def _exchange(_vm, _identity, pairing_token):
-            # In production, Beagle Stream Server receives the PIN from the token automatically
+            # In production, Beagle Stream Server receives the token secret automatically
             return {"ok": pairing_token == "tok-5555"}
 
         surface = _make_surface(issue_fn=_issue, exchange_fn=_exchange)
@@ -233,6 +233,7 @@ class TestAutoPairingFlow(unittest.TestCase):
         self.assertEqual(issue_resp["status"], 201)
         token = issue_resp["payload"]["pairing"]["token"]
         self.assertEqual(token, "tok-5555")
+        self.assertNotIn("pin", issue_resp["payload"]["pairing"])
 
         # Step 2: Endpoint exchanges token (automated, no user interaction)
         exchange_resp = _route_post(surface, "/api/v1/endpoints/beagle-stream-client/pair-exchange",
@@ -251,8 +252,8 @@ class TestPairingServiceTokenSecurity(unittest.TestCase):
             utcnow=lambda: "2026-04-24T10:00:00+00:00",
         )
 
-    def test_token_contains_pin_not_exposed_to_client(self):
-        """The PIN is embedded in the token payload, not in the API response path."""
+    def test_token_contains_secret_not_exposed_to_client(self):
+        """The pairing secret can remain inside the token payload rather than in a visible UI path."""
         svc = self._svc()
         token = svc.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "4242"})
         payload = svc.validate_token(token)

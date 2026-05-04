@@ -26,7 +26,6 @@
         beagle_stream_server_api_url: profile.beagle-stream-serverApiUrl,
         beagle_stream_server_username: profile.beagle-stream-serverUsername,
         beagle_stream_server_password_configured: Boolean(profile.beagle-stream-serverPassword),
-        beagle_stream_server_pin: profile.beagle-stream-serverPin,
         beagle_stream_client_app: profile.app,
         beagle_stream_client_resolution: profile.resolution,
         beagle_stream_client_fps: profile.fps,

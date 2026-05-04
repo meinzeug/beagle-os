@@ -11,6 +11,27 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+validate_beagle_stream_client_bundle() {
+  appdir="$1"
+  binary=""
+
+  if [ -x "${appdir}/usr/bin/beagle-stream-client" ]; then
+    binary="${appdir}/usr/bin/beagle-stream-client"
+  elif [ -x "${appdir}/usr/bin/beagle-stream" ]; then
+    binary="${appdir}/usr/bin/beagle-stream"
+  else
+    echo "BeagleStream AppImage does not contain beagle-stream or beagle-stream-client" >&2
+    return 1
+  fi
+
+  ldd_output="$(LD_LIBRARY_PATH="${appdir}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" ldd "${binary}" 2>&1 || true)"
+  if printf '%s\n' "${ldd_output}" | grep -E 'not found|version `[^'"'"']+'"'"' not found' >/dev/null; then
+    printf '%s\n' "${ldd_output}" >&2
+    echo "BeagleStream AppImage has unresolved runtime library dependencies" >&2
+    return 1
+  fi
+}
+
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
@@ -37,6 +58,7 @@ chmod +x "${WORK_DIR}/BeagleStream.AppImage"
 rm -rf "${TARGET_DIR}"
 mkdir -p "${TARGET_DIR}"
 cp -a "${WORK_DIR}/squashfs-root/." "${TARGET_DIR}/"
+validate_beagle_stream_client_bundle "${TARGET_DIR}"
 find "${TARGET_DIR}" -type d -exec chmod 0755 {} +
 find "${TARGET_DIR}" -type f -perm /111 -exec chmod 0755 {} +
 find "${TARGET_DIR}" -type f ! -perm /111 -exec chmod 0644 {} +
@@ -52,9 +74,30 @@ export QML2_IMPORT_PATH="${APPDIR}/usr/qml"
 export QT_XKB_CONFIG_ROOT="/usr/share/X11/xkb"
 export LD_LIBRARY_PATH="${APPDIR}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
-exec "${APPDIR}/usr/bin/beagle-stream-client" "$@"
+if [ -x "${APPDIR}/usr/bin/beagle-stream-client" ]; then
+  exec "${APPDIR}/usr/bin/beagle-stream-client" "$@"
+fi
+
+exec "${APPDIR}/usr/bin/beagle-stream" "$@"
 EOF
 chmod 0755 /usr/local/bin/beagle-stream-client
+
+if [ -x "${TARGET_DIR}/usr/bin/beagle-stream" ]; then
+  cat > /usr/local/bin/beagle-stream <<'EOF'
+#!/bin/sh
+set -eu
+
+APPDIR="/opt/beagle-stream-client"
+export APPDIR
+export QT_PLUGIN_PATH="${APPDIR}/usr/plugins"
+export QML2_IMPORT_PATH="${APPDIR}/usr/qml"
+export QT_XKB_CONFIG_ROOT="/usr/share/X11/xkb"
+export LD_LIBRARY_PATH="${APPDIR}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+
+exec "${APPDIR}/usr/bin/beagle-stream" "$@"
+EOF
+  chmod 0755 /usr/local/bin/beagle-stream
+fi
 
 if [ ! -x /usr/local/bin/beagle-stream-client ]; then
   echo "beagle-stream-client wrapper missing after installation" >&2

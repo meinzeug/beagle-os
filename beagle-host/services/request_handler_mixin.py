@@ -530,10 +530,27 @@ class HandlerMixin:
             token = self.headers.get("X-Beagle-Endpoint-Token", "").strip()
         if not token:
             token = self.headers.get("X-Beagle-Token", "").strip()
-        if not token:
+        return self._endpoint_identity_from_token(token)
+
+    @staticmethod
+    def _endpoint_identity_from_token(token: str) -> dict[str, Any] | None:
+        normalized = str(token or "").strip()
+        if not normalized:
             return None
-        payload = load_endpoint_token(token)
+        loader = getattr(_svc_registry, "load_endpoint_token", load_endpoint_token)
+        payload = loader(normalized)
         return payload if isinstance(payload, dict) else None
+
+    def _endpoint_identity_from_query(self, query: dict[str, list[str]] | None = None) -> dict[str, Any] | None:
+        query_payload = query if isinstance(query, dict) else parse_qs(urlparse(self.path).query or "")
+        for key in ("access_token", "token", "endpoint_token"):
+            values = query_payload.get(key)
+            if not values:
+                continue
+            identity = self._endpoint_identity_from_token(values[0])
+            if identity is not None:
+                return identity
+        return None
 
     def _is_endpoint_authenticated(self) -> bool:
         if ALLOW_LOCALHOST_NOAUTH and self.client_address[0] in {"127.0.0.1", "::1"}:

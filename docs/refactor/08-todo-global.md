@@ -12,6 +12,8 @@
 
 - [x] BeagleStream Runtime-Status in der WebUI sichtbar machen: `stream_runtime.variant` fuer VM-/Installer-Readiness verwenden; `website/main.js` rendert BeagleStream-Server vs. Beagle Stream Server-Fallback inkl. Paketstatus (2026-05-02 Docs-Triage). Thin-Client-Artefakt-/Health-Paritaet bleibt als separater Restpfad in `06-next-steps.md`.
 - [ ] BeagleStream End-to-End-Abnahme fuer VM100 auf `srv1` reproduzierbar abschliessen: Thinclient boot -> Broker-Allocate -> WireGuard -> sichtbarer Desktop-Stream.
+- [ ] BeagleStream Fork-Produktgrenze schliessen: `beagle-stream-server` token-native Pairing/Rotation ohne PIN-Shim implementieren und `beagle-stream-client` CLI/UI/Runtime auf Pairing-Token plus explizites Broker-Ziel umbauen.
+- [ ] VM100 RTSP/Media-Restblocker schliessen: nach erfolgreichem Launch (`SUNSHINE_SERVER_BUSY`, `currentgame=881448767`) den `RTSP ANNOUNCE request failed: 110`-Pfad reproduzierbar in Repo-/Host-Konfig beheben.
 
 - [x] R1-VM-Lifecycle ueber API reproduzierbar geschlossen: `scripts/test-vm-lifecycle-r1-smoke.py` fuehrt `create -> start -> snapshot -> reboot -> delete` gegen `srv1` aus (PASS, 2026-04-30, inkl. Cleanup).
 

@@ -14,7 +14,7 @@ import threading
 import uuid
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -381,6 +381,7 @@ NOVNC_TOKEN_FILE = os.environ.get("BEAGLE_NOVNC_TOKEN_FILE", "/etc/beagle/novnc/
 BEAGLE_HOST_PROVIDER_KIND = normalize_provider_kind(os.environ.get("BEAGLE_HOST_PROVIDER", "beagle"))
 ENROLLMENT_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_ENROLLMENT_TOKEN_TTL_SECONDS", "86400"))
 BEAGLE_STREAM_SERVER_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_STREAM_SERVER_ACCESS_TOKEN_TTL_SECONDS", "600"))
+BEAGLE_STREAM_SERVER_TOKEN_ROTATION_GRACE_SECONDS = int(os.environ.get("BEAGLE_STREAM_SERVER_TOKEN_ROTATION_GRACE_SECONDS", "600"))
 PAIRING_TOKEN_TTL_SECONDS = int(os.environ.get("BEAGLE_PAIRING_TOKEN_TTL_SECONDS", "60"))
 PAIRING_TOKEN_SECRET = os.environ.get("BEAGLE_PAIRING_TOKEN_SECRET", "").strip()
 ENERGY_FEED_IMPORT_TIMEOUT_SECONDS = float(
@@ -1619,6 +1620,8 @@ def vm_secret_bootstrap_service() -> VmSecretBootstrapService:
             safe_slug=utility_support_service().safe_slug,
             save_vm_secret=save_vm_secret,
             session_script_path=Path(__file__).resolve().parent / "beagle-usb-tunnel-session",
+            store_endpoint_token=endpoint_token_store_service().store,
+            token_urlsafe=secrets.token_urlsafe,
             usb_tunnel_attach_host=USB_TUNNEL_ATTACH_HOST,
             usb_tunnel_auth_dir=USB_TUNNEL_AUTH_DIR,
             usb_tunnel_auth_root=USB_TUNNEL_AUTH_ROOT,
@@ -2379,11 +2382,66 @@ def store_endpoint_token(token: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_endpoint_token(token: str) -> dict[str, Any] | None:
-    return endpoint_token_store_service().load(token)
+    payload = endpoint_token_store_service().load(token)
+    if not isinstance(payload, dict):
+        return None
+    if str(payload.get("revoked_at", "") or "").strip():
+        return None
+    expires_at = str(payload.get("expires_at", "") or "").strip()
+    if expires_at:
+        try:
+            text = expires_at[:-1] + "+00:00" if expires_at.endswith("Z") else expires_at
+            parsed = datetime.fromisoformat(text)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            if parsed.astimezone(timezone.utc) <= datetime.now(timezone.utc):
+                return None
+        except Exception:
+            return None
+    return payload
+
+
+def rotate_beagle_stream_server_token(vm: VmSummary, *, grace_seconds: int | None = None) -> dict[str, Any]:
+    secret = ensure_vm_secret(vm)
+    old_token = str(secret.get("beagle_stream_server_token", "") or "").strip()
+    new_token = token_urlsafe(32)
+    generation = int(secret.get("beagle_stream_server_token_generation", 0) or 0) + 1
+    rotated_at = utcnow()
+    updated = dict(secret)
+    updated["beagle_stream_server_token"] = new_token
+    updated["beagle_stream_server_token_generation"] = generation
+    updated["beagle_stream_server_token_rotated_at"] = rotated_at
+    updated.pop("beagle_stream_server_pin", None)
+    save_vm_secret(vm.node, vm.vmid, updated)
+
+    endpoint_payload = {
+        "endpoint_id": f"beagle-stream-server-vm{int(vm.vmid)}",
+        "hostname": str(getattr(vm, "name", "") or f"vm-{int(vm.vmid)}").strip(),
+        "vmid": int(vm.vmid),
+        "node": str(vm.node or "").strip(),
+        "role": "beagle-stream-server",
+        "token_generation": generation,
+    }
+    endpoint_token_store_service().store(new_token, endpoint_payload)
+    if old_token:
+        grace = BEAGLE_STREAM_SERVER_TOKEN_ROTATION_GRACE_SECONDS if grace_seconds is None else max(0, int(grace_seconds))
+        old_payload = dict(endpoint_payload)
+        old_payload["token_generation"] = generation - 1
+        old_payload["superseded_at"] = rotated_at
+        if grace > 0:
+            old_payload["expires_at"] = (datetime.now(timezone.utc) + timedelta(seconds=grace)).isoformat()
+        else:
+            old_payload["revoked_at"] = rotated_at
+        endpoint_token_store_service().store(old_token, old_payload)
+    return {
+        "token": new_token,
+        "generation": generation,
+        "rotated_at": rotated_at,
+        "grace_seconds": BEAGLE_STREAM_SERVER_TOKEN_ROTATION_GRACE_SECONDS if grace_seconds is None else max(0, int(grace_seconds)),
+    }
 
 
 def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], device_name: str) -> dict[str, Any]:
-    pin = random_pin()
     endpoint_id = str(endpoint_identity.get("endpoint_id", "") or "").strip()
     hostname = str(endpoint_identity.get("hostname", "") or "").strip()
     token = pairing_service().issue_token(
@@ -2394,14 +2452,14 @@ def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: d
             "endpoint_id": endpoint_id,
             "hostname": hostname,
             "device_name": str(device_name or "").strip(),
-            "pairing_pin": pin,
+            "pairing_secret": "",
         }
     )
     payload = pairing_service().validate_token(token) or {}
+    pairing_secret = str(token or "").strip()
     return {
         "ok": True,
         "token": token,
-        "pin": pin,
         "expires_at": str(payload.get("expires_at", "") or ""),
     }
 
@@ -2419,28 +2477,28 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
     if scoped_endpoint_id and identity_endpoint_id and scoped_endpoint_id != identity_endpoint_id:
         return {"ok": False, "error": "pairing token endpoint mismatch"}
 
-    pin = str(payload.get("pairing_pin", "") or "").strip()
-    if not pin:
-        return {"ok": False, "error": "pairing token missing pin"}
+    pairing_secret = str(payload.get("pairing_secret", "") or "").strip() or str(pairing_token or "").strip()
+    if not pairing_secret:
+        return {"ok": False, "error": "pairing token missing secret"}
     device_name = str(payload.get("device_name", "") or "").strip() or f"beagle-vm{vm.vmid}-client"
 
     status, _, body = proxy_beagle_stream_server_request(
         vm,
-        request_path="/api/pin",
+        request_path="/api/pair-token",
         query="",
         method="POST",
-        body=json.dumps({"pin": pin, "name": device_name}, separators=(",", ":"), ensure_ascii=True).encode("utf-8"),
+        body=json.dumps({"token": pairing_secret, "name": device_name}, separators=(",", ":"), ensure_ascii=True).encode("utf-8"),
         request_headers={"Content-Type": "application/json", "Accept": "application/json"},
     )
     if int(status) >= 400:
-        return {"ok": False, "error": f"beagle-stream-server pin exchange failed with HTTP {int(status)}"}
+        return {"ok": False, "error": f"beagle-stream-server token exchange failed with HTTP {int(status)}"}
 
     try:
         response_payload = json.loads((body or b"{}").decode("utf-8", errors="replace"))
     except json.JSONDecodeError:
         response_payload = {}
     if not bool((response_payload or {}).get("status")):
-        return {"ok": False, "error": "beagle-stream-server pin exchange rejected"}
+        return {"ok": False, "error": "beagle-stream-server token exchange rejected"}
     return {"ok": True}
 
 
@@ -2822,6 +2880,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             normalize_package_names=ubuntu_beagle_inputs_service().normalize_package_names,
             normalize_package_presets=ubuntu_beagle_inputs_service().normalize_package_presets,
             provider=HOST_PROVIDER,
+            public_manager_url=PUBLIC_MANAGER_URL,
             public_ubuntu_beagle_complete_url=public_ubuntu_beagle_complete_url,
             random_pin=utility_support_service().random_pin,
             random_secret=utility_support_service().random_secret,
@@ -3761,6 +3820,7 @@ def vm_mutation_surface_service() -> VmMutationSurfaceService:
             find_vm=find_vm,
             invalidate_vm_cache=invalidate_vm_cache,
             issue_beagle_stream_server_access_token=issue_beagle_stream_server_access_token,
+            rotate_beagle_stream_server_token=rotate_beagle_stream_server_token,
             migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: migration_service().migrate_vm(
                 int(vmid),
                 target_node=str(target_node or "").strip(),

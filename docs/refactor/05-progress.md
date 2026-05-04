@@ -1,3 +1,22 @@
+## Update (2026-05-03, BeagleStream-Fork-Produktgrenze und VM100-Live-Stream-Pfad nachgezogen)
+
+**Scope**: Die Live-Erkenntnisse aus VM100/Thinclient in Repo-Logik und Produktplanung zurueckziehen: BeagleStream bleibt eigener Client-/Server-Fork, der Broker-Pfad darf nicht auf Legacy-PIN-/Hostless-Zufall zurueckfallen.
+
+- Thinclient-Runtime-Fix:
+  - Ein erfolgreicher `beagle-stream list` gilt jetzt als paired-ready, damit der Runtime-Pfad kein wiederholtes `already paired`-/Pairing-Fenster mehr erzwingt.
+  - Hostless/Broker-Mode startet den Stream mit dem vom Manager gelieferten Ziel `192.168.123.116:50000 Desktop` statt nur `stream Desktop`; dadurch wird nicht mehr ein stale lokaler Hosteintrag gewaehlt.
+- Control-Plane-Fix:
+  - `/api/v1/endpoints/beagle-stream-client/pair-token` liefert kein leeres Legacy-`pin`-Feld mehr aus.
+- Live-Verifikation:
+  - Thinclient `192.168.178.92` startet `beagle-stream stream 192.168.123.116:50000 Desktop ...` als User `thinclient`.
+  - VM100 meldete nach dem Fix `SUNSHINE_SERVER_BUSY` und `currentgame=881448767` fuer Desktop; der Launch-/RTSP-Startpfad wurde erreicht.
+  - Restblocker ist nicht mehr Pairing, sondern RTSP/Media-Session-Stabilitaet (`RTSP ANNOUNCE request failed: 110` nach erfolgreichem Launch).
+- Produktgrenze dokumentiert:
+  - BeagleStream Client/Server sind eigene Fork-Produkte.
+  - PIN-basierte Pfade sind nur noch Uebergangskompatibilitaet und muessen in den Forks token-native ersetzt werden.
+- Verifiziert:
+  - `python3 -m pytest tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_auto_pairing_flow.py -q` -> `30 passed`.
+
 ## Update (2026-05-03, Thinclient-BeagleStream-Broker/WireGuard-Ende-zu-Ende auf `vm100` repariert)
 
 **Scope**: Den echten Live-USB-Endpoint `192.168.178.92` gegen `srv1` bis zum laufenden BeagleStream-Desktop ueber den WireGuard-Tunnel reparieren und die Hotfixes reproduzierbar ins Repo ziehen.

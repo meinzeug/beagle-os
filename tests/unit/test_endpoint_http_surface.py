@@ -178,7 +178,6 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
         issue_beagle_stream_client_pairing_token=lambda vm, endpoint_identity, device_name: {
             "ok": True,
             "token": "valid-token",
-            "pin": "1234",
             "expires_at": "2026-04-22T00:10:00Z",
         },
         pool_manager_service=_PoolManager(),
@@ -273,7 +272,7 @@ def test_pair_token_route_success() -> None:
     assert int(response["status"]) == 201
     assert response["payload"]["ok"] is True
     assert response["payload"]["pairing"]["token"] == "valid-token"
-    assert response["payload"]["pairing"]["pin"] == "1234"
+    assert "pin" not in response["payload"]["pairing"]
 
 
 def test_pair_exchange_requires_token() -> None:

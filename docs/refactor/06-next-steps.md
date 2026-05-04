@@ -1,5 +1,21 @@
 # Next Steps
 
+## Stand (2026-05-03, BeagleStream-Fork-Produktgrenze + VM100 Pairing/Launch repariert)
+
+**Zuletzt erledigt**:
+- Der Thinclient startet im Broker-Pfad nicht mehr nur hostless `stream Desktop`, sondern mit dem vom Manager gelieferten VM-Ziel `192.168.123.116:50000 Desktop`.
+- Die wiederkehrende `already paired`-/Pairing-Fenster-Schleife ist im Runtime-Pfad beseitigt: `beagle-stream list` reicht als paired-ready Signal.
+- Pair-Token-Antworten der Control Plane enthalten kein Legacy-`pin`-Feld mehr.
+- Live-Abnahme erreichte VM100 `SUNSHINE_SERVER_BUSY` mit `currentgame=881448767`; der verbleibende Blocker liegt in der RTSP/Media-Session (`RTSP ANNOUNCE request failed: 110`), nicht mehr im Pairing.
+- Produktentscheidung dokumentiert: `beagle-stream-client` und `beagle-stream-server` sind eigene Beagle-Forks; PIN-Kompatibilitaet wird aus Beagle-Pfaden entfernt und in den Forks durch echte Token-Rotation ersetzt.
+
+**Naechste konkrete Schritte**:
+
+1. VM100-RTSP/Media-Phase stabilisieren: Rueckkanal/UDP/TCP/RTSP-Ports zwischen `10.88.1.1` und `192.168.123.116` gezielt pruefen und reproduzierbaren Fix in Firewall/WireGuard/Client-Optionen oder Server-Konfig aufnehmen.
+2. `beagle-stream-server`-Fork umbauen: `BeagleAuth::accept_pairing_token` darf nicht mehr `nvhttp::pin(token, name)` shimmen, sondern muss echte Beagle-Tokens gegen Manager/Signatur/Expiry/One-Time-Use validieren.
+3. `beagle-stream-client`-Fork umbauen: CLI/UI von PIN auf Pairing-Token umbenennen, Broker-Ziel explizit nutzen, stale lokale Hosteintraege vermeiden und Build in VM100 als Beagle-Artefakt erzeugen.
+4. Danach frische Thinclient-Artefakte bauen und denselben VM100-Pfad ohne Live-SCP-Hotfix verifizieren.
+
 ## Stand (2026-05-03, Thinclient-Broker-Stream live ueber WireGuard bestaetigt)
 
 **Zuletzt erledigt**:

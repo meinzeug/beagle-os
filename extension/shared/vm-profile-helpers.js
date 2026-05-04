@@ -41,8 +41,7 @@
       "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG=\"" + (profile.audio || "stereo") + "\"",
       "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL=\"" + (profile.beagle-stream-serverApiUrl || "") + "\"",
       "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME=\"" + (profile.beagle-stream-serverUsername || "") + "\"",
-      "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD=\"" + (profile.beagle-stream-serverPassword || "") + "\"",
-      "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN=\"" + (profile.beagle-stream-serverPin || "") + "\""
+      "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD=\"" + (profile.beagle-stream-serverPassword || "") + "\""
     );
 
     return lines.join("\n") + "\n";
