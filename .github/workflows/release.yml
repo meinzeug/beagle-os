@@ -495,22 +495,22 @@ jobs:
                 # release is not blocked by the branch ruleset.
                 SYNC_BRANCH="chore/release-metadata-sync-${VERSION}"
                 # --force overwrites any leftover branch from a previous failed release run.
-                if ! git push origin "HEAD:refs/heads/${SYNC_BRANCH}" --force; then
-                  echo "::error::Could not push release metadata to main or to sync branch ${SYNC_BRANCH}. Ensure BEAGLE_RELEASE_SYNC_TOKEN or COPILOT_ASSIGNMENT_TOKEN has write access to the repository, then rerun the release." >&2
-                  exit 1
-                fi
-                pr_url=""
-                if pr_url="$(gh pr create \
-                    --base main \
-                    --head "${SYNC_BRANCH}" \
-                    --title "release: sync metadata to ${VERSION} [skip release]" \
-                    --body "Automated metadata sync for release v${VERSION}.")"; then
-                  echo "::notice::Direct push to main blocked. Metadata sync PR created: ${pr_url}" >&2
-                  if ! gh pr merge "${pr_url}" --auto --squash --delete-branch; then
-                    echo "::warning::Could not enable auto-merge on ${pr_url} (auto-merge may be disabled in repo settings, or required reviews/checks are pending). Merge the PR manually to keep main in sync." >&2
+                if git push origin "HEAD:refs/heads/${SYNC_BRANCH}" --force; then
+                  pr_url=""
+                  if pr_url="$(gh pr create \
+                      --base main \
+                      --head "${SYNC_BRANCH}" \
+                      --title "release: sync metadata to ${VERSION} [skip release]" \
+                      --body "Automated metadata sync for release v${VERSION}.")"; then
+                    echo "::notice::Direct push to main blocked. Metadata sync PR created: ${pr_url}" >&2
+                    if ! gh pr merge "${pr_url}" --auto --squash --delete-branch; then
+                      echo "::warning::Could not enable auto-merge on ${pr_url} (auto-merge may be disabled in repo settings, or required reviews/checks are pending). Merge the PR manually to keep main in sync." >&2
+                    fi
+                  else
+                    echo "::warning::Could not create metadata-sync PR for ${SYNC_BRANCH} (check token permissions and repository settings). Merge the branch manually to keep main in sync." >&2
                   fi
                 else
-                  echo "::warning::Could not create metadata-sync PR for ${SYNC_BRANCH} (check token permissions and repository settings). Merge the branch manually to keep main in sync." >&2
+                  echo "::warning::Could not push release metadata to main or to sync branch ${SYNC_BRANCH}. The release will tag the metadata commit directly. Ensure BEAGLE_RELEASE_SYNC_TOKEN or COPILOT_ASSIGNMENT_TOKEN has write access to the repository to keep main in sync." >&2
                 fi
               }
               release_sha="$(git rev-parse HEAD)"
