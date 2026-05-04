@@ -26,6 +26,7 @@ def _service() -> tuple[VmMutationSurfaceService, list[tuple[int, str, bool, boo
         find_vm=lambda vmid: vm if int(vmid) == 100 else None,
         invalidate_vm_cache=lambda vmid, node: None,
         issue_beagle_stream_server_access_token=lambda vm: ("", {}),
+        rotate_beagle_stream_server_token=lambda vm: {},
         migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: calls.append((vmid, target_node, live, copy_storage, requester_identity)) or {
             "service": "beagle-control-plane",
             "version": "test",
@@ -84,6 +85,7 @@ def _service_with_enqueue() -> tuple[VmMutationSurfaceService, list[tuple], list
         find_vm=lambda vmid: vm if int(vmid) == 100 else None,
         invalidate_vm_cache=lambda vmid, node: None,
         issue_beagle_stream_server_access_token=lambda vm: ("", {}),
+        rotate_beagle_stream_server_token=lambda vm: {},
         migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: migrate_calls.append((vmid, target_node)) or {
             "migration": {"vmid": vmid}
         },
@@ -185,6 +187,7 @@ def test_snapshot_enqueue_failure_returns_500() -> None:
         find_vm=lambda vmid: vm if int(vmid) == 100 else None,
         invalidate_vm_cache=lambda vmid, node: None,
         issue_beagle_stream_server_access_token=lambda vm: ("", {}),
+        rotate_beagle_stream_server_token=lambda vm: {},
         migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: {},
         queue_vm_action=lambda vm, action, requester_identity, params=None: {},
         reboot_vm=lambda vmid: "",

@@ -613,7 +613,7 @@ stream_runtime_variant="beagle-stream-server"
 curl -fsSLo "\$tmpdir/beagle-stream-server.deb" "\$BEAGLE_STREAM_SERVER_URL"
 apt-get install -y "\$tmpdir/beagle-stream-server.deb"
 write_stream_runtime_status "\$stream_runtime_variant" "\$stream_runtime_package_url"
-BEAGLE_STREAM_SERVER_EXEC="\$(command -v beagle-stream-server 2>/dev/null || command -v sunshine 2>/dev/null || echo /usr/bin/beagle-stream-server)"
+BEAGLE_STREAM_SERVER_EXEC="\$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
 if [[ ! -x /usr/local/bin/beagle-stream-server && -n "\$(command -v sunshine 2>/dev/null || true)" ]]; then
 cat > /usr/local/bin/beagle-stream-server <<'BEAGLEWRAP'
 #!/usr/bin/env bash
