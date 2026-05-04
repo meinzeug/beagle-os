@@ -451,6 +451,8 @@ jobs:
     name: Create GitHub Release
     needs: [assemble-release-package, sbom]
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -694,8 +696,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Resolve VERSION
+        # Use the exact version resolved by create-release to avoid a patch-bump
+        # caused by the tag that was just pushed in that job. Falls back to the
+        # manually supplied release_version input when running workflow_dispatch
+        # without a prior create-release job (e.g. re-run of this job alone).
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
+          BEAGLE_RELEASE_VERSION="${{ needs.create-release.outputs.version || github.event.inputs.release_version }}" \
             bash scripts/resolve-release-version.sh --write VERSION
 
       - name: Download release package artifacts
