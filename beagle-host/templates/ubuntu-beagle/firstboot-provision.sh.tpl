@@ -856,7 +856,7 @@ if [[ ! -f "$DONE_FILE" ]]; then
   repair_interrupted_dpkg
   write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"
   # Detect the beagle-stream-server binary path across package layout changes.
-  BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || command -v sunshine 2>/dev/null || echo /usr/bin/beagle-stream-server)"
+  BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
   if [[ ! -x /usr/local/bin/beagle-stream-server && -n "$(command -v sunshine 2>/dev/null || true)" ]]; then
     cat > /usr/local/bin/beagle-stream-server <<'EOF'
 #!/usr/bin/env bash

@@ -61,6 +61,7 @@ def _make_vm_svc(**overrides):
         find_vm=lambda vmid: vm if int(vmid) == 100 else None,
         invalidate_vm_cache=lambda vmid, node: None,
         issue_beagle_stream_server_access_token=lambda vm: ("", {}),
+        rotate_beagle_stream_server_token=lambda vm: {},
         migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: {"migration": {}},
         queue_vm_action=lambda vm, action, requester_identity, params=None: {},
         reboot_vm=lambda vmid: "",

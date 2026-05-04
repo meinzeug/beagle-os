@@ -40,6 +40,7 @@ class BeagleStreamServerIntegrationService:
         beagle_stream_server_access_token_is_valid: Callable[[dict[str, Any] | None], bool] | None = None,
         beagle_stream_server_access_token_ttl_seconds: int = 600,
         ubuntu_beagle_default_guest_user: str = "beagle",
+        ubuntu_beagle_install_state_dir: Path | None = None,
         utcnow: Callable[[], str] | None = None,
     ) -> None:
         self._build_profile = build_profile
@@ -56,11 +57,15 @@ class BeagleStreamServerIntegrationService:
         self._beagle_stream_server_access_token_is_valid = beagle_stream_server_access_token_is_valid or (lambda payload: False)
         self._beagle_stream_server_access_token_ttl_seconds = int(beagle_stream_server_access_token_ttl_seconds)
         self._ubuntu_beagle_default_guest_user = str(ubuntu_beagle_default_guest_user or "beagle")
+        self._ubuntu_beagle_install_state_dir_path: Path = (
+            ubuntu_beagle_install_state_dir
+            if ubuntu_beagle_install_state_dir is not None
+            else Path("/var/lib/beagle/beagle-manager/ubuntu-beagle-install")
+        )
         self._utcnow = utcnow or (lambda: datetime.now(timezone.utc).isoformat())
 
-    @staticmethod
-    def _ubuntu_beagle_install_state_dir() -> Path:
-        return Path("/var/lib/beagle/beagle-manager/ubuntu-beagle-install")
+    def _ubuntu_beagle_install_state_dir(self) -> Path:
+        return self._ubuntu_beagle_install_state_dir_path
 
     def _latest_guest_user_from_install_state(self, vm: Any) -> str:
         state_dir = self._ubuntu_beagle_install_state_dir()

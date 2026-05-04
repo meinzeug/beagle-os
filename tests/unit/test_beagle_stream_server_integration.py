@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import json
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,7 +17,7 @@ if str(SERVICES_DIR) not in sys.path:
 from beagle_stream_server_integration import BeagleStreamServerIntegrationService
 
 
-def _service(*, guest_exec_result: tuple[int, str, str], default_guest_user: str = "beagle") -> BeagleStreamServerIntegrationService:
+def _service(*, guest_exec_result: tuple[int, str, str], default_guest_user: str = "beagle", install_state_dir: Path | None = None) -> BeagleStreamServerIntegrationService:
     return BeagleStreamServerIntegrationService(
         build_profile=lambda *_args, **_kwargs: {},
         ensure_vm_secret=lambda _vm: {},
@@ -27,6 +28,7 @@ def _service(*, guest_exec_result: tuple[int, str, str], default_guest_user: str
         parse_description_meta=lambda _text: {},
         public_manager_url="https://srv1.beagle-os.com/beagle-api",
         ubuntu_beagle_default_guest_user=default_guest_user,
+        ubuntu_beagle_install_state_dir=install_state_dir,
     )
 
 
@@ -53,12 +55,10 @@ def test_stopped_vm_does_not_require_guest_detection() -> None:
 
 def test_guest_user_uses_latest_install_state_before_default() -> None:
     vm = SimpleNamespace(vmid=100, node="beagle-0", status="stopped")
-    service = _service(guest_exec_result=(1, "", "missing"), default_guest_user="beagle")
-    state_dir = service._ubuntu_beagle_install_state_dir()
-    state_dir.mkdir(parents=True, exist_ok=True)
-    state_file = state_dir / "vm100.json"
-    original = state_file.read_text(encoding="utf-8") if state_file.exists() else None
-    try:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state_dir = Path(tmpdir)
+        service = _service(guest_exec_result=(1, "", "missing"), default_guest_user="beagle", install_state_dir=state_dir)
+        state_file = state_dir / "vm100.json"
         state_file.write_text(
             json.dumps(
                 {
@@ -70,11 +70,6 @@ def test_guest_user_uses_latest_install_state_before_default() -> None:
             encoding="utf-8",
         )
         assert service.beagle_stream_server_guest_user(vm) == "dennis"
-    finally:
-        if original is None:
-            state_file.unlink(missing_ok=True)
-        else:
-            state_file.write_text(original, encoding="utf-8")
 
 
 def test_guest_user_detection_script_accepts_legacy_sunshine_paths() -> None:
