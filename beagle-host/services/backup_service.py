@@ -11,8 +11,10 @@ Plan 16 coverage:
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import urllib.request
 import urllib.error
@@ -324,6 +326,33 @@ class BackupService:
                 raise RuntimeError(str(stderr or "tar failed").strip()[:500])
         return archive
 
+    @staticmethod
+    def _sha256_file(path: str | Path) -> str:
+        digest = hashlib.sha256()
+        with Path(path).open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    @staticmethod
+    def _validate_tar_member(member: tarfile.TarInfo) -> None:
+        name = str(member.name or "").strip()
+        if not name or name.startswith("/") or ".." in Path(name).parts:
+            raise ValueError(f"unsafe backup archive member path: {name!r}")
+        if member.issym() or member.islnk():
+            linkname = str(member.linkname or "").strip()
+            if not linkname or linkname.startswith("/") or ".." in Path(linkname).parts:
+                raise ValueError(f"unsafe backup archive link target: {name!r} -> {linkname!r}")
+
+    @classmethod
+    def _safe_extract_archive(cls, archive_path: str | Path, destination: Path) -> int:
+        with tarfile.open(str(archive_path), "r:gz") as archive:
+            members = archive.getmembers()
+            for member in members:
+                cls._validate_tar_member(member)
+            archive.extractall(str(destination), members=members, filter="data")
+            return len(members)
+
     def run_backup_now(self, *, scope_type: str, scope_id: str) -> dict[str, Any]:
         kind = str(scope_type or "").strip().lower()
         identifier = str(scope_id or "").strip()
@@ -357,12 +386,14 @@ class BackupService:
                 # Create archive in tmpdir, upload to S3, then clean up local copy
                 with tempfile.TemporaryDirectory() as tmpdir:
                     local_archive = self._run_backup_archive(scope_type=kind, scope_id=identifier, target_path=tmpdir)
+                    archive_sha256 = self._sha256_file(local_archive)
                     chunk_id = Path(local_archive).name
                     self._get_target(current).write_chunk(chunk_id, Path(local_archive).read_bytes())
                 archive_ref = chunk_id
             elif target_type == "nfs":
                 write_path = self._normalize_target_path(current.get("nfs_mount_point") or current.get("target_path"))
                 archive_ref = self._run_backup_archive(scope_type=kind, scope_id=identifier, target_path=write_path)
+                archive_sha256 = self._sha256_file(archive_ref)
             else:
                 archive_ref = self._run_backup_archive(
                     scope_type=kind,
@@ -370,9 +401,11 @@ class BackupService:
                     target_path=self._normalize_target_path(current.get("target_path")),
                     incremental=use_incremental,
                 )
+                archive_sha256 = self._sha256_file(archive_ref)
 
             job["status"] = "success"
             job["archive"] = archive_ref
+            job["archive_sha256"] = archive_sha256
             policy_map[identifier]["last_backup"] = self._utcnow()
             current["last_backup"] = policy_map[identifier]["last_backup"]
         except Exception as exc:
@@ -463,22 +496,7 @@ class BackupService:
             dest = Path(safe_dest).resolve()
             dest.mkdir(parents=True, exist_ok=True)
 
-            result = subprocess.run(
-                ["tar", "-xzf", local_archive, "-C", str(dest)],
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(str(result.stderr or "tar extract failed").strip()[:500])
-
-            count_result = subprocess.run(
-                ["tar", "-tzf", local_archive],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            files_count = len([ln for ln in count_result.stdout.splitlines() if ln.strip()])
+            files_count = self._safe_extract_archive(local_archive, dest)
             return {"ok": True, "restored_to": str(dest), "files_count": files_count}
         except Exception as exc:
             return {"ok": False, "error": str(exc)}

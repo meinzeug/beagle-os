@@ -30,6 +30,11 @@
   - `srv1` Control Plane nach Hotfix aktiv.
   - Thinclient-Healthcheck und Endpoint-Report live ausgefuehrt.
 
+- **D3 vorbereitet**:
+  - `BackupService.run_backup_now()` speichert fuer erfolgreiche Backups jetzt `archive_sha256`.
+  - `BackupService.restore_snapshot()` extrahiert Archive nicht mehr blind per `tar -xzf`, sondern validiert Tar-Member gegen absolute Pfade, `..`-Traversal und unsichere Link-Ziele vor dem Restore.
+  - `docs/runbooks/backup-restore.md` fordert Hash-Verifikation und sichere Restore-Ablehnung manipulierter Archive.
+
 ## Update (2026-05-04, Diamond-D0 BESTANDEN, D1 vorbereitet)
 
 **Scope**: D0-Gate vollstaendig abgeschlossen, 1657 Unit-Tests gruen, D1-Installimage-Bootstrap-Pruefung eingebaut.

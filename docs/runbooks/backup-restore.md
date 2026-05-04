@@ -25,7 +25,9 @@ Audit-Log, Secret-Store und VM-Disks. Restore auf einem zweiten Host.
 beaglectl backup create --target <s3|nfs|local> --include state,audit,secrets,config,tls
 ```
 
-Output enthaelt: Manifest mit SHA256-Hashes, GPG-Signatur, Zeitstempel.
+Output enthaelt mindestens Job-ID, Archivpfad/-Referenz, Zeitstempel und
+`archive_sha256`. Restore-Pfade muessen vor dem Einspielen gegen diesen Hash
+verifiziert werden.
 
 ### B) VM-Backup
 
@@ -37,7 +39,7 @@ beaglectl vm backup --vmid <id> --target <s3|nfs|local> [--incremental]
 
 1. Host nach [`installation.md`](installation.md) frisch installieren.
 2. Backup-Manifest auf den Host kopieren.
-3. Hash-Verifikation: `beaglectl backup verify --manifest <path>`.
+3. Hash-Verifikation: `sha256sum <archive>` muss `archive_sha256` aus dem Backup-Job/Manifest entsprechen.
 4. Restore: `beaglectl backup restore --manifest <path> --include state,audit,secrets,config,tls`.
 5. VM-Disks zurueckspielen: `beaglectl vm restore --vmid <id> --manifest <path>`.
 6. Control-Plane neu starten.
@@ -57,6 +59,7 @@ beaglectl vm backup umount --mountpoint /mnt/restore
 - [ ] Audit-Log enthaelt vollstaendige Historie der Quellinstallation
 - [ ] Restorede VM startet und ist erreichbar
 - [ ] Hash-Vergleich zwischen Quell- und Ziel-Disk OK (`sha256sum` auf Datei-Ebene oder via `beaglectl vm verify`)
+- [ ] Restore lehnt manipulierte Archive mit absoluten Pfaden, `..`-Pfaden oder unsicheren Symlinks ab.
 
 ## 6. Cross-Site Disaster Recovery
 

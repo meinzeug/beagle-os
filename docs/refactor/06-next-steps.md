@@ -17,7 +17,8 @@
 1. **D1 Clean-Install bleibt Blocker**: srv2.beagle-os.com wieder erreichbar machen oder frischen Hetzner-Host bereitstellen; danach Release-Installimage ausfuehren und `check-beagle-host.sh` + WebUI-VM-Lifecycle abnehmen.
 2. **D2 weiter live pruefen**: Auf dem lokalen Thinclient den sichtbaren Desktop/RTSP-Media-Pfad nach `broker_allocation_reachable=1` weiter testen; verbleibende Medien-/Sessionfehler in WireGuard/Firewall/Client-Optionen fixen.
 3. **Artefakte neu bauen/publizieren**: Nach Commit/Push den Release-/Artifact-Run beobachten und sicherstellen, dass die Thinclient-Hotfixes in neue Images/Payloads einfliessen.
-4. **BeagleStream-Forks**: `beagle-stream-server` token-native machen und `/api/pin` im Beagle-Build isolieren/deaktivieren.
+4. **D3 live beweisen**: Auf `srv1` ein echtes VM-Backup erzeugen, `archive_sha256` festhalten, Restore auf frischem/zweitem Host ausfuehren und Hash-/Boot-Nachweis dokumentieren.
+5. **BeagleStream-Forks**: `beagle-stream-server` token-native machen und `/api/pin` im Beagle-Build isolieren/deaktivieren.
 
 
 

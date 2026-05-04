@@ -72,12 +72,16 @@ class BackupServiceTests(unittest.TestCase):
                 utcnow=lambda: "2026-04-23T17:00:00Z",
             )
             service.update_vm_policy(101, {"enabled": True, "target_path": str(Path(tmp) / "archives")})
-            service._run_backup_archive = lambda **_: str(Path(tmp) / "archives" / "ok.tar.gz")
+            archive = Path(tmp) / "archives" / "ok.tar.gz"
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            _make_tar(archive, {"etc/beagle/config.json": b"ok"})
+            service._run_backup_archive = lambda **_: str(archive)
 
             result = service.run_backup_now(scope_type="vm", scope_id="101")
             self.assertTrue(result["ok"])
             self.assertEqual(result["job"]["status"], "success")
             self.assertTrue(str(result["job"].get("archive", "")).endswith("ok.tar.gz"))
+            self.assertRegex(str(result["job"].get("archive_sha256", "")), r"^[0-9a-f]{64}$")
 
     def test_scheduler_triggers_enabled_due_policy(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -86,7 +90,10 @@ class BackupServiceTests(unittest.TestCase):
                 utcnow=lambda: "2026-04-23T17:00:00Z",
             )
             service.update_pool_policy("pool-a", {"enabled": True, "schedule": "daily", "target_path": str(Path(tmp) / "archives")})
-            service._run_backup_archive = lambda **_: str(Path(tmp) / "archives" / "daily.tar.gz")
+            archive = Path(tmp) / "archives" / "daily.tar.gz"
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            _make_tar(archive, {"etc/beagle/config.json": b"ok"})
+            service._run_backup_archive = lambda **_: str(archive)
 
             jobs = service.run_scheduled_backups()
             self.assertEqual(len(jobs), 1)
@@ -120,6 +127,51 @@ class BackupServiceTests(unittest.TestCase):
             self.assertGreater(result.get("files_count", 0), 0)
             restored = Path(restore_target) / "etc" / "beagle" / "config.json"
             self.assertTrue(restored.exists(), "restored file should exist")
+
+    def test_restore_snapshot_rejects_path_traversal_archive_member(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archives_dir = Path(tmp) / "archives"
+            archives_dir.mkdir()
+            archive_path = archives_dir / "beagle-backup-vm-101-evil.tar.gz"
+            _make_tar(archive_path, {"../outside.txt": b"escape"})
+
+            service = BackupService(
+                state_file=Path(tmp) / "backup-state.json",
+                utcnow=lambda: "2026-04-23T17:00:00Z",
+            )
+            service.update_vm_policy(101, {"enabled": True, "target_path": str(archives_dir)})
+            service._run_backup_archive = lambda **_: str(archive_path)
+            result_run = service.run_backup_now(scope_type="vm", scope_id="101")
+            self.assertTrue(result_run["ok"])
+
+            result = service.restore_snapshot(result_run["job"]["job_id"], restore_path=str(Path(tmp) / "restore-out"))
+            self.assertFalse(result["ok"])
+            self.assertIn("unsafe backup archive member path", result.get("error", ""))
+            self.assertFalse((Path(tmp) / "outside.txt").exists())
+
+    def test_restore_snapshot_rejects_absolute_symlink_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archives_dir = Path(tmp) / "archives"
+            archives_dir.mkdir()
+            archive_path = archives_dir / "beagle-backup-vm-101-link.tar.gz"
+            with tarfile.open(str(archive_path), "w:gz") as tf:
+                info = tarfile.TarInfo(name="etc/beagle/link")
+                info.type = tarfile.SYMTYPE
+                info.linkname = "/etc/passwd"
+                tf.addfile(info)
+
+            service = BackupService(
+                state_file=Path(tmp) / "backup-state.json",
+                utcnow=lambda: "2026-04-23T17:00:00Z",
+            )
+            service.update_vm_policy(101, {"enabled": True, "target_path": str(archives_dir)})
+            service._run_backup_archive = lambda **_: str(archive_path)
+            result_run = service.run_backup_now(scope_type="vm", scope_id="101")
+            self.assertTrue(result_run["ok"])
+
+            result = service.restore_snapshot(result_run["job"]["job_id"], restore_path=str(Path(tmp) / "restore-out"))
+            self.assertFalse(result["ok"])
+            self.assertIn("unsafe backup archive link target", result.get("error", ""))
 
     def test_restore_snapshot_missing_job_raises(self):
         with tempfile.TemporaryDirectory() as tmp:
