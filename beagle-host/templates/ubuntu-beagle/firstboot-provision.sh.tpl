@@ -946,6 +946,13 @@ LockOnResume=false
 Timeout=0
 EOF
 
+  # Disable KDE splash screen for faster login (no animated splash in stream)
+  cat > "/home/$GUEST_USER/.config/ksplashrc" <<'EOF'
+[KSplash]
+Engine=none
+Theme=none
+EOF
+
   cat > "/home/$GUEST_USER/.config/powermanagementprofilesrc" <<'EOF'
 [AC][DPMSControl]
 idleTime=0
@@ -1162,7 +1169,7 @@ formfactor=0
 immutability=1
 lastScreen=0
 location=0
-plugin=org.kde.plasma.folder
+plugin=org.kde.plasma.desktop
 wallpaperplugin=org.kde.image
 
 [Containments][1][Wallpaper][org.kde.image][General]
@@ -1334,6 +1341,7 @@ EOF
 
   chown "$GUEST_USER:$GUEST_USER" \
     "/home/$GUEST_USER/.config/kscreenlockerrc" \
+    "/home/$GUEST_USER/.config/ksplashrc" \
     "/home/$GUEST_USER/.config/powermanagementprofilesrc" \
     "/home/$GUEST_USER/.config/kdeglobals" \
     "/home/$GUEST_USER/.config/kwinrc" \
