@@ -1,0 +1,8 @@
+#!/bin/sh
+# Beagle OS Local Escape — exit beagle-stream and return to local desktop.
+# Triggered by Super+Escape from Openbox keybinding.
+# Uses SIGTERM so beagle-stream can clean up (WireGuard peer etc.).
+for name in beagle-stream moonlight; do
+  pid=$(pgrep -x "$name" 2>/dev/null | head -1 || true)
+  [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null || true
+done

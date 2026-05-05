@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Beagle OS Thin Client — Openbox configuration
+  
+  Design goals:
+  - Forward ALL keyboard shortcuts (including Alt+F4, Ctrl+W, etc.) to the
+    active application. With beagle-stream running --capture-system-keys always,
+    this ensures every keypress goes to the remote VM.
+  - Provide ONE unique local escape hotkey: Super+Escape
+    (Windows key + Escape) to terminate the stream and return to local desktop.
+  - No window decorations, no taskbar — thin client is purely a streaming shell.
+-->
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+
+  <resistance>
+    <strength>10</strength>
+    <screen_edge_strength>20</screen_edge_strength>
+  </resistance>
+
+  <focus>
+    <focusNew>yes</focusNew>
+    <followMouse>no</followMouse>
+    <focusLast>no</focusLast>
+    <underMouse>no</underMouse>
+    <focusDelay>0</focusDelay>
+    <raiseOnFocus>no</raiseOnFocus>
+  </focus>
+
+  <placement>
+    <policy>Smart</policy>
+    <center>yes</center>
+    <monitor>Primary</monitor>
+    <primaryMonitor>1</primaryMonitor>
+  </placement>
+
+  <theme>
+    <name>Clearlooks</name>
+    <titleLayout>NLIMC</titleLayout>
+    <keepBorder>yes</keepBorder>
+    <animateIconify>no</animateIconify>
+    <font place="ActiveWindow">
+      <name>sans</name>
+      <size>9</size>
+      <weight>bold</weight>
+      <slant>normal</slant>
+    </font>
+  </theme>
+
+  <desktops>
+    <number>1</number>
+    <firstdesk>1</firstdesk>
+    <names/>
+    <popupTime>0</popupTime>
+  </desktops>
+
+  <resize>
+    <drawContents>yes</drawContents>
+    <popupShow>Nonpixel</popupShow>
+    <popupPosition>Center</popupPosition>
+    <popupFixedPosition>
+      <x>10</x>
+      <y>10</y>
+    </popupFixedPosition>
+  </resize>
+
+  <margins>
+    <top>0</top>
+    <bottom>0</bottom>
+    <left>0</left>
+    <right>0</right>
+  </margins>
+
+  <dock>
+    <position>TopLeft</position>
+    <floatingX>0</floatingX>
+    <floatingY>0</floatingY>
+    <noStrut>no</noStrut>
+    <stacking>Above</stacking>
+    <direction>Vertical</direction>
+    <autoHide>no</autoHide>
+    <hideDelay>300</hideDelay>
+    <showDelay>300</showDelay>
+    <moveButton>Middle</moveButton>
+  </dock>
+
+  <keyboard>
+    <!--
+      BEAGLE OS KEY POLICY:
+      - NO system key bindings here. All keypresses (Alt+F4, Ctrl+W, etc.)
+        pass through to beagle-stream, which forwards them to the remote VM.
+      - ONLY exception: Super+Escape — the Beagle OS local escape hotkey.
+        Press Super+Escape (Windows key + Esc) to exit the stream session
+        and return to the local thin client desktop.
+    -->
+
+    <!-- Beagle OS Local Escape: Super+Escape exits beagle-stream back to local -->
+    <keybind key="Super-Escape">
+      <action name="Execute">
+        <command>/usr/local/bin/beagle-stream-exit</command>
+      </action>
+    </keybind>
+
+    <!-- Allow Openbox reconfigure/restart without breaking stream, kept as admin escape -->
+    <keybind key="Super-F5">
+      <action name="Reconfigure"/>
+    </keybind>
+
+  </keyboard>
+
+  <mouse>
+    <dragThreshold>1</dragThreshold>
+    <doubleClickTime>500</doubleClickTime>
+    <screenEdgeWarpTime>400</screenEdgeWarpTime>
+    <screenEdgeWarpMouse>false</screenEdgeWarpMouse>
+    <context name="Frame">
+      <mousebind button="A-Left" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+    </context>
+    <context name="Desktop">
+      <mousebind button="Middle" action="Press">
+        <action name="ShowMenu">
+          <menu>client-list-combined-menu</menu>
+        </action>
+      </mousebind>
+    </context>
+  </mouse>
+
+  <menu>
+    <hideDelay>200</hideDelay>
+    <middle>no</middle>
+    <submenuShowDelay>100</submenuShowDelay>
+    <submenuHideDelay>400</submenuHideDelay>
+    <applicationIcons>yes</applicationIcons>
+    <manageDesktops>yes</manageDesktops>
+  </menu>
+
+  <applications>
+    <!-- beagle-stream: always fullscreen, no decorations, no focus stealing -->
+    <application name="beagle-stream">
+      <fullscreen>yes</fullscreen>
+      <decor>no</decor>
+      <layer>normal</layer>
+      <focus>yes</focus>
+    </application>
+    <application name="moonlight">
+      <fullscreen>yes</fullscreen>
+      <decor>no</decor>
+      <layer>normal</layer>
+      <focus>yes</focus>
+    </application>
+  </applications>
+
+</openbox_config>
