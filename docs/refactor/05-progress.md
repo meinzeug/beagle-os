@@ -1,3 +1,20 @@
+## Update (2026-05-05, Sunshine Fork: Avahi Warning + XFixesGetCursorImage Fix + Dual-Service Cleanup)
+
+**Scope**: Sunshine-Fork `beagle/phase-a` mit zwei Log-Fixes neu gebaut und auf VM100 deployed. Doppelten System-Service deaktiviert.
+
+- **Fix 1** (commit `07adb8f7`): `src/platform/linux/publish.cpp` — Avahi mDNS "Dienst läuft nicht" von `BOOST_LOG(error)` auf `BOOST_LOG(warning)` geändert mit Nachricht "mDNS (Avahi) unavailable — streaming unaffected"
+- **Fix 2** (commit `19af470b`): `src/platform/linux/x11grab.cpp` — `XFixesGetCursorImage` Error-Flooding gefixt: statt jeden Frame (~60/s) ein Error zu loggen, wird jetzt nur noch einmal alle 30s ein Warning geloggt (Rate-Limiting via static `steady_clock`)
+- **Build**: auf VM100 (10 Cores) neu kompiliert, Binary `sunshine-0.0.0-19af470b-dirty` (39.9 MB) atomisch via `mv` deployed ohne Stream-Unterbrechung
+- **Dual-Service-Bug behoben**: Es liefen zwei Services gleichzeitig:
+  - `/etc/systemd/system/beagle-stream-server.service` (System-Service, alt) → `systemctl disable` + `stop`
+  - `/home/dennis/.config/systemd/user/sunshine.service` (User-Service, neu, korrekt) → bleibt aktiv
+- **Verifiziert**:
+  - `grep -c XFixesGetCursorImage sunshine.log` → `0`
+  - Stream reconnected (PID 2647952, 10% CPU, CLIENT CONNECTED in Log)
+  - Version `0.0.0-19af470b-dirty` läuft als PID 316300
+
+---
+
 ## Update (2026-05-05, Stream-Stability: ensure_wg_peer in Retry-Loop + Watchdog + Sunshine Auto-Restart)
 
 **Scope**: Stream-Stabilität dauerhaft behoben. `ensure_wg_peer()` wird jetzt vor JEDEM Retry-Versuch ausgeführt (nicht nur einmal beim Start). Background-Watchdog restauriert WG-Peer alle 8s während der Binary läuft. Sunshine in der VM als systemd-User-Service eingerichtet (Restart=always, RestartSec=5). `ping_timeout` von 30s auf 60s erhöht.
