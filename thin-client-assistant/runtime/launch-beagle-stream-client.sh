@@ -40,6 +40,30 @@ have_binary() {
   command -v "$1" >/dev/null 2>&1
 }
 
+# After a forced restart (ENet/control-channel disconnect), poll the Sunshine HTTP
+# endpoint until it accepts connections or the timeout expires. This prevents
+# "Connection refused (Error 1)" on restart attempt 2 caused by Sunshine briefly
+# being unavailable while cleaning up the previous session or restarting.
+wait_for_stream_server_ready() {
+  local host port target max_wait elapsed
+  host="$(beagle_stream_client_connect_host 2>/dev/null || true)"
+  port="$(beagle_stream_client_port 2>/dev/null || true)"
+  [[ -n "$host" && -n "$port" ]] || return 0
+  target="http://${host}:${port}/serverinfo"
+  max_wait="${1:-15}"
+  elapsed=0
+  while [[ "$elapsed" -lt "$max_wait" ]]; do
+    if curl -fsS --connect-timeout 2 --max-time 3 "$target" >/dev/null 2>&1; then
+      beagle_log_event "beagle-stream-client.server-ready" "host=${host} port=${port} wait=${elapsed}s"
+      return 0
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  beagle_log_event "beagle-stream-client.server-ready-timeout" "host=${host} port=${port} wait=${elapsed}s"
+  return 1
+}
+
 # Workaround: beagle-stream skips activatePeer() when wg-beagle interface exists,
 # even if the peer was removed by a previous deactivatePeer() call.
 # Ensure the peer is always configured before launching beagle-stream.
@@ -293,6 +317,11 @@ main() {
     fi
     if [[ "$stream_exit" -eq 0 || "$stream_attempt" -ge "$max_attempts" ]]; then
       break
+    fi
+    # After a forced restart (ENet disconnect), wait for Sunshine to finish session
+    # cleanup before retrying — avoids "Connection refused (Error 1)" on attempt 2+.
+    if [[ "$stream_forced_restart" -eq 1 ]]; then
+      wait_for_stream_server_ready 15 || true
     fi
     sleep "$retry_delay"
     stream_attempt=$((stream_attempt + 1))
