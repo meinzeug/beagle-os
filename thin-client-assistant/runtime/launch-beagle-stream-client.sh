@@ -64,7 +64,7 @@ ensure_wg_peer() {
     [[ -n "$endpoint" ]]    && wg_args+=(endpoint "$endpoint")
     [[ -n "$allowed_ips" ]] && wg_args+=(allowed-ips "$allowed_ips")
     [[ -n "$keepalive" ]]   && wg_args+=(persistent-keepalive "$keepalive")
-    wg set "${wg_args[@]}" 2>/dev/null || true
+    sudo wg set "${wg_args[@]}" 2>/dev/null || true
   fi
 }
 
