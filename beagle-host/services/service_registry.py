@@ -1536,13 +1536,8 @@ def initialize_job_worker_handlers() -> None:
             if vmid <= 0 or not snap_name:
                 raise ValueError("vm.snapshot requires vmid and name")
             current_worker.update_progress(job.job_id, 10, "Snapshot wird vorbereitet")
-            result = getattr(HOST_PROVIDER, "_run_virsh")(
-                "snapshot-create-as",
-                f"beagle-{vmid}",
-                snap_name,
-                "--atomic",
-                "--no-metadata",
-            )
+            # Use provider.snapshot_vm which falls back to disk-only for UEFI/pflash VMs
+            result = HOST_PROVIDER.snapshot_vm(vmid, snap_name)
             current_worker.update_progress(job.job_id, 95, "Snapshot abgeschlossen")
             return {"ok": True, "vmid": vmid, "snapshot": snap_name, "provider_result": str(result or "").strip()}
 

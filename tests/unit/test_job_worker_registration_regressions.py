@@ -13,6 +13,7 @@ def test_runtime_registers_three_long_operation_handlers() -> None:
     assert 'worker.register("vm.snapshot"' in source
     assert 'worker.register("vm.migrate"' in source
     assert 'worker.register("backup.run"' in source
-    assert 'snapshot-create-as' in source
+    # snapshot_vm is delegated to HOST_PROVIDER which handles pflash fallback
+    assert 'HOST_PROVIDER.snapshot_vm' in source
     assert 'backup_service().run_backup_now' in source
     assert 'migration_service().migrate_vm' in source

@@ -1,0 +1,13 @@
+[Unit]
+Description=Grant cap_net_admin to wg binary for beagle-stream VPN activation
+DefaultDependencies=no
+After=local-fs.target
+Before=pve-thin-client-runtime.service beagle-thin-client-prepare.service
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/setcap cap_net_admin+ep /usr/bin/wg
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1482,7 +1482,30 @@ class BeagleHostProvider:
             if desc:
                 args.extend(["--description", desc])
             args.append("--atomic")
-            self._run_virsh(*args)
+            try:
+                self._run_virsh(*args)
+            except RuntimeError as exc:
+                # UEFI/pflash VMs don't support internal snapshots — fall back to
+                # disk-only (external) snapshot which works regardless of firmware.
+                if "pflash" in str(exc) or "not supported" in str(exc).lower():
+                    disk_args = [
+                        "snapshot-create-as",
+                        self._libvirt_domain_name(target_vmid),
+                        snap_name,
+                        "--disk-only",
+                        "--atomic",
+                    ]
+                    if desc:
+                        disk_args.extend(["--description", desc])
+                    self._run_virsh(*disk_args)
+                    # Update snapshot record to indicate it is disk-only
+                    for s in snapshots:
+                        if s.get("name") == snap_name:
+                            s["snapshot_type"] = "disk-only"
+                    config["_snapshots"] = snapshots
+                    self._write_vm_config(node, target_vmid, config)
+                else:
+                    raise
 
         return f"created snapshot {snap_name} for beagle vm {target_vmid}"
 
