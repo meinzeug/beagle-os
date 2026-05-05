@@ -1,3 +1,21 @@
+## Update (2026-05-05, WG-Peer-Restore + sudo-wg-set Fix)
+
+**Scope**: "Failed to connect" auf Thinclient dauerhaft behoben. Root-Cause-Analyse und zwei aufeinander aufbauende Fixes committed.
+
+- **Root-Cause**: `BeagleVPN::deactivatePeer()` entfernt nach jeder Session nur den WG-Peer (nicht die wg-beagle-Schnittstelle). Beim nächsten Start sieht `isActive()` die Schnittstelle → überspringt `activatePeer()`. Ergebnis: Schnittstelle existiert, aber kein Peer → 192.168.123.116 nicht erreichbar → serverinfo-Request scheitert mit `UnknownNetworkError` → "Failed to connect".
+
+- **Fix 1** (commit `c82c9e5`): `ensure_wg_peer()` in `launch-beagle-stream-client.sh` — prüft vor jedem Start ob wg-beagle einen Peer hat; falls nicht, parst `/etc/wireguard/wg-beagle.conf` via `sudo awk` und ruft `wg set peer ...` auf. Hinweis: `wg addconf` schlägt fehl weil wg-quick-spezifische Felder (`Address`, `DNS`) im Conf-File stehen.
+
+- **Fix 2** (commit `c3d990c`): `wg set` → `sudo wg set` in `ensure_wg_peer()`. `cap_net_admin+ep` auf `/usr/bin/wg` (via `beagle-wg-cap.service`) setzt erst nach Reboot. Ohne setcap schlägt `wg set` lautlos fehl (exit 0, nichts passiert). Mit `sudo` funktioniert die Peer-Wiederherstellung unabhängig vom Cap-Status.
+
+- **Verifiziert** auf lokalem Thinclient `ubuntu-beagle-100`:
+  - Peer nach Service-Restart automatisch wiederhergestellt in 5s
+  - WG-Handshake aktiv, 6.5 MiB received
+  - H.264/VAAPI-Stream läuft, Audio aktiv
+  - Commits `c82c9e5`, `c3d990c` gepusht auf `main`
+
+---
+
 ## Update (2026-05-05, VPN-Fix + UEFI-Snapshot-Fallback + D3 Vorbereitung)
 
 **Scope**: "Failed to activate Beagle VPN session" auf Thinclient behoben, UEFI/pflash-Snapshot-Fallback implementiert, alle drei Fixes committed und gepusht.
