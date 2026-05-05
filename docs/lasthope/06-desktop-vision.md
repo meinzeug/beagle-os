@@ -1,7 +1,7 @@
 # Beagle OS — Desktop Vision: Der beste Open-Source-Desktop für die Menschheit
 
-Stand: 2026-05-05
-Version: 8.0.9
+Stand: 2026-05-06
+Version: 8.1.0
 
 Dieses Dokument beschreibt die Langzeitvision für den Beagle OS Desktop —
 was er sein soll, was die Konkurrenz macht, wo die Lücke liegt und welche
@@ -163,6 +163,71 @@ Für Streaming ist wahrgenommene Geschwindigkeit entscheidend.
 - [ ] Startup-Zeit: Plasma-Splash unterdrücken oder auf <1s verkürzen
 - [ ] systemd-inhibit für BeagleStream (kein Schlaf während aktiver Session)
 
+### Phase G — Windows Migration Experience ✅ begonnen (9b1d1ca)
+
+Windows-Nutzer sind die größte potenzielle Benutzergruppe. Beagle OS muss für
+sie der einfachste Umstieg aller Zeiten sein — nicht weil wir Windows kopieren,
+sondern weil wir das Beste aus Win10/11 nehmen und es Open-Source-würdig machen.
+
+**Design-Prinzip**: Windows 10/11-Hybrid. Ab Windows 10 haben die meisten
+User aufgehört, UI-Änderungen zu mögen. Wir nehmen diesen Stand, verfeinern
+ihn mit AI-Integration und Beagle-Streaming — und lassen ihn dabei besser
+aussehen als das Original.
+
+- [x] **BeagleWindows.colors** KDE-Farbschema:
+  - Basis: Dark `#1C1C1C` (Win11 Dunkelgrau)
+  - Accent: Windows Blue `#0078D4`
+  - Text: Weiß/Hellgrau (Win-Standard)
+- [x] **plasma-windows** Profil in `service_registry.py` (visible_in_ui=True)
+- [x] kwinrc windows-Variante: AnimationDurationFactor=0.3, Snapping aktiv,
+  Fenster-Buttons rechts (_, □, X) — exakt Win-Stil
+- [x] kdeglobals: Double-Click zum Öffnen (Windows-Standard), ScaleFactor=1
+- [x] kwriteconfig apply-script: vollständige Branch-Logik
+  für `cyberpunk`, `windows`, `classic`
+- [ ] Taskbar mittig (Windows 11 Style) — KDE Kickoff mittig ausrichten
+- [ ] Start-Menü-Look: Kickoff mit Kacheln statt Liste
+- [ ] Windows-kompatible Tastenkürzel: Win+E → Dolphin, Win+D → Show Desktop,
+  Win+I → System Settings
+- [ ] "Willkommen bei Beagle OS" Setup-Wizard für neue Windows-Umsteiger
+- [ ] Rechtsklick → "Weitere Optionen anzeigen" (Win11-Stil) via KDE Servicemenus
+
+### Phase H — Auflösungen und Skalierung ✅ implementiert (9b1d1ca)
+
+Auflösung darf kein Hardware-Problem mehr sein. Der VKMS-Virtual-Display
+unterstützt beliebige Auflösungen via xrandr — wir müssen sie nur registrieren.
+
+- [x] **beagle-vkms-xrandr-setup** registriert alle gängigen Auflösungen:
+  - 1280×720, 1366×768, 1440×900, 1600×900
+  - 1920×1080 (Standard-Default), 1920×1200
+  - 2560×1440, 3840×2160@30, 3840×2160@60
+  - Alle erscheinen sofort in KDE System Settings → Anzeige → Auflösung
+  - Kein Hardware-abhängiger Fix — rein xrandr/VKMS
+- [x] **KDE Display Scaling**: `ScaleFactor=1` als Default in kdeglobals
+  (Nutzer kann über System Settings → Anzeige anpassen — 100%, 125%, 150%, 200%)
+- [x] Live auf beagle-100/srv1 angewendet — 21 Auflösungen bestätigt
+- [ ] Skalierungsprofile pro Client-Auflösung (z.B. HiDPI-Clients automatisch erkennen)
+- [ ] Auflösungs-Wizard im firstboot: Client-Auflösung erkennen und Default setzen
+- [ ] BeagleStream-seitige automatische Auflösungsanpassung wenn Client sich verbindet
+
+### Phase I — AI-Integration ✅ begonnen (9b1d1ca)
+
+AI ist keine optionale Zukunft mehr — es ist die Erwartungshaltung jedes
+neuen Nutzers. Beagle OS integriert AI nativ, nicht als Browser-Tab.
+
+- [x] **beagle-ai Launcher** (`/usr/local/bin/beagle-ai`):
+  - Prüft zuerst lokales Ollama (localhost:11434) → Open WebUI (localhost:3000)
+  - Fallback: ChatGPT (chatgpt.com) in Chrome App-Mode
+  - Tastenkürzel: **Meta+A** (kglobalshortcutsrc)
+  - Im Taskbar gepinnt (icontasks launchers=)
+  - `/usr/share/applications/beagle-ai.desktop` system-wide
+- [ ] **Lokales Ollama optional installierbar** via `beagle-ai-setup`-Skript
+  (`ollama pull llama3.2` + `open-webui` als systemd-User-Service)
+- [ ] **BeagleStream + AI**: AI-Overlay direkt im Stream-Client (Phase E/F)
+- [ ] **AI-gestütztes Desktop-Onboarding**: KI erklärt beim ersten Start
+  Funktionen des Desktops (lokaler Ollama oder API)
+- [ ] **Sprachsteuerung**: Whisper.cpp lokal für Voice-to-Text in Konsole/Browser
+- [ ] **Smart Clipboard**: AI fasst kopierten Text zusammen / übersetzt ihn
+
 ### Phase E — Beagle-eigene Panel-Widgets
 
 Beagle OS braucht eigene Panel-Applets, die keine andere Distribution hat.
@@ -210,16 +275,19 @@ Das ist Beagle OS.
 Beagle OS Desktop gilt als exzellent (Gate D-UX), wenn:
 
 - [ ] Ein erstmaliger Nutzer (kein Linux-Vorwissen) kann nach 5 Minuten arbeiten.
-- [ ] Alle Fenster haben sichtbare Schließen/Minimieren/Maximieren-Buttons.
-- [ ] Taskbar zeigt alle offenen Fenster, ermöglicht Wechseln per Klick.
-- [ ] System-Tray zeigt Netzwerk, Lautstärke und Uhrzeit.
-- [ ] Alt+F4 schließt das Fenster in der VM, nicht auf dem Thin-Client.
-- [ ] Ctrl+Alt+Shift+F12 bringt zurück zum lokalen Desktop.
-- [ ] Keine Desktop-Icons im Weg.
-- [ ] KWin läuft immer; wenn nicht, startet `beagle-plasma-desktop-repair` es neu.
-- [ ] Schriften sind lesbar (Sub-Pixel-Hinting aktiv, richtige DPI).
+- [x] Alle Fenster haben sichtbare Schließen/Minimieren/Maximieren-Buttons.
+- [x] Taskbar zeigt alle offenen Fenster, ermöglicht Wechseln per Klick.
+- [x] System-Tray zeigt Netzwerk, Lautstärke und Uhrzeit.
+- [x] Alt+F4 schließt das Fenster in der VM, nicht auf dem Thin-Client.
+- [x] Ctrl+Alt+Shift+F12 bringt zurück zum lokalen Desktop.
+- [x] Keine Desktop-Icons im Weg.
+- [x] KWin läuft immer; wenn nicht, startet `beagle-plasma-desktop-repair` es neu.
+- [x] Schriften sind lesbar (Sub-Pixel-Hinting aktiv, richtige DPI).
+- [x] Mindestens 8 Auflösungen wählbar in KDE System Settings (1280×720 bis 4K).
+- [x] Beagle AI mit Meta+A erreichbar und im Taskbar gepinnt.
 - [ ] Stream-Status (FPS, Latenz) ist im Tray sichtbar.
-- [ ] Dark Cyberpunk Color-Scheme ist konsistent von Login bis Terminal.
+- [x] Dark Cyberpunk Color-Scheme ist konsistent von Login bis Terminal.
+- [ ] Windows-Profil: Windows-Nutzer erkennen die UI sofort als vertraut.
 
 ---
 
