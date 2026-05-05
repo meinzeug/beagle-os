@@ -1,0 +1,18 @@
+#!/bin/sh
+# Beagle OS — Escape Hint Overlay
+# Shows a brief notification when BeagleStream starts so users know how to exit.
+# Launched in background from Openbox rc.xml or stream launch script.
+# Auto-closes after 4 seconds.
+
+DISPLAY="${DISPLAY:-:0}"
+export DISPLAY
+
+# Use zenity info dialog with timeout if available
+if command -v zenity >/dev/null 2>&1; then
+  zenity --info \
+    --title="Beagle OS Stream" \
+    --text="<span font='14'><b>BeagleStream gestartet</b>\n\nDrücke <b>Super + Escape</b> (Win-Taste + Esc)\num zum lokalen Desktop zurückzukehren.</span>" \
+    --timeout=4 \
+    --no-wrap \
+    2>/dev/null &
+fi

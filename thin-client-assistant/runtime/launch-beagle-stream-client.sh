@@ -273,6 +273,11 @@ main() {
     printf '\n'
   } >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG"
 
+  # Show escape hint overlay on first stream attempt
+  if command -v /usr/local/bin/beagle-stream-hint >/dev/null 2>&1; then
+    /usr/local/bin/beagle-stream-hint &
+  fi
+
   local stream_exit=0 stream_attempt=1 max_attempts retry_delay stream_pid stream_start_line stream_forced_restart
   max_attempts="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_MAX_RESTARTS:-3}"
   retry_delay="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESTART_DELAY:-3}"
