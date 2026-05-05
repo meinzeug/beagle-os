@@ -291,6 +291,16 @@ print("}")
 PY
 
 sysctl -w net.ipv4.ip_forward=1 >/dev/null
+
+# Flush any legacy iptables PREROUTING nat rules that may conflict with the
+# nftables-managed beagle_stream table.  These stale rules accumulate when VM
+# IPs change and they take precedence over the nftables DNAT rules because the
+# ip nat table fires first.  The beagle_stream nftables table is the sole
+# authority for public stream DNAT; the legacy iptables chain must stay empty.
+if iptables -t nat -L PREROUTING -n --line-numbers 2>/dev/null | grep -qE "DNAT.*dpt:[0-9]"; then
+    iptables -t nat -F PREROUTING 2>/dev/null || true
+fi
+
 nft delete table inet "$NFT_TABLE_NAME" >/dev/null 2>&1 || true
 nft -f "$nft_tmp"
 
