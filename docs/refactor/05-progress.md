@@ -1,3 +1,30 @@
+## Update (2026-05-05, Stream-Stability: ensure_wg_peer in Retry-Loop + Watchdog + Sunshine Auto-Restart)
+
+**Scope**: Stream-Stabilität dauerhaft behoben. `ensure_wg_peer()` wird jetzt vor JEDEM Retry-Versuch ausgeführt (nicht nur einmal beim Start). Background-Watchdog restauriert WG-Peer alle 8s während der Binary läuft. Sunshine in der VM als systemd-User-Service eingerichtet (Restart=always, RestartSec=5). `ping_timeout` von 30s auf 60s erhöht.
+
+- **Root-Cause**: `ensure_wg_peer()` wurde nur einmal im `main()` vor der Retry-Schleife aufgerufen. Nach dem ersten fehlgeschlagenen Attempt rief das Binary `deactivatePeer()` auf, und Attempt 2/3 startete ohne WG-Peer.
+
+- **Fix 3** (commit `9fc7377`):
+  - `ensure_wg_peer()` wird jetzt **innerhalb** der `while :;` Retry-Schleife vor jedem `"${args[@]}"` Aufruf aufgerufen.
+  - Neuer `wg_peer_watchdog()` Background-Loop (sleep 8s) läuft während des Streams parallel und stellt WG-Peer immer wieder her, falls er während des Streams entfernt wird.
+  - Watchdog wird nach der Retry-Schleife gestoppt.
+
+- **Sunshine Auto-Restart (VM-seitig, nicht im Repo)**:
+  - Sunshine läuft in VM 100 als User `dennis` unter `/usr/local/bin/sunshine`
+  - Systemd User-Service erstellt: `/home/dennis/.config/systemd/user/sunshine.service` (Restart=always, RestartSec=5)
+  - Service enabled via `systemctl --user enable sunshine`
+  - `loginctl enable-linger dennis` gesetzt → User-Services starten automatisch ohne Login
+  - `ping_timeout` in `sunshine.conf` von 30000 auf 60000ms erhöht → weniger False-Disconnects
+
+- **Verifiziert** (04:28 UTC):
+  - Stream läuft seit 04:07:35 = 20+ Minuten ununterbrochen
+  - 620 MiB WG-Traffic received (echter Videostrom)
+  - `beagle-stream` PID 3745402 aktiv, kein Crash
+  - Sunshine-Session aktiv: `New streaming session started [active sessions: 1]`
+  - H.264/VAAPI, Opus-Audio, 7.4 Mbps effektiv
+
+---
+
 ## Update (2026-05-05, WG-Peer-Restore + sudo-wg-set Fix)
 
 **Scope**: "Failed to connect" auf Thinclient dauerhaft behoben. Root-Cause-Analyse und zwei aufeinander aufbauende Fixes committed.
