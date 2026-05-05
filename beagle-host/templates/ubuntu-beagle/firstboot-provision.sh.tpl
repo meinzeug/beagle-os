@@ -702,6 +702,9 @@ update_info=kwin.upd:auto-bordersize,kwin.upd:animation-speed
 Enabled=true
 OpenGLIsUnsafe=false
 
+[Effect-Blur]
+NoiseStrength=0
+
 [MouseBindings]
 CommandAllKey=Meta
 
@@ -718,6 +721,18 @@ slidingpopupsEnabled=true
 BorderlessMaximizedWindows=false
 FocusPolicy=ClickToFocus
 Placement=Smart
+AutoRaise=false
+DelayFocusInterval=0
+
+[Desktops]
+Number=1
+Rows=1
+
+[Animations]
+speed=3
+
+[NightColor]
+Active=false
 
 [org.kde.kdecoration2]
 BorderSize=Normal
@@ -895,6 +910,17 @@ if [[ -n "\$KWRITECONFIG_BIN" ]]; then
   "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key Timeout 0 >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kwinrc --group Windows --key BorderlessMaximizedWindows false >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnRight IAX >/dev/null 2>&1 || true
+  # Animation speed 3 = fast (scale 1–5); reduces perceived latency in streams
+  "\$KWRITECONFIG_BIN" --file kwinrc --group Animations --key speed 3 >/dev/null 2>&1 || true
+  # Single virtual desktop — no workspace-switching confusion while streaming
+  "\$KWRITECONFIG_BIN" --file kwinrc --group Desktops --key Number 1 >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kwinrc --group Desktops --key Rows 1 >/dev/null 2>&1 || true
+  # Font rendering: full hinting + sub-pixel for sharp text in H.264 streams
+  "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key XftHintStyle hintfull >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key XftSubPixel rgb >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key XftAntialias 1 >/dev/null 2>&1 || true
+  # Single-click to open files/folders (better for streaming — fewer double-click misses)
+  "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key SingleClick true >/dev/null 2>&1 || true
 fi
 
 if command -v beagle-plasma-desktop-repair >/dev/null 2>&1; then
