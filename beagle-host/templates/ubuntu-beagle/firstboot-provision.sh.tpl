@@ -977,7 +977,7 @@ EOF
   chmod 0755 "/home/$GUEST_USER/.xprofile"
 
   cat > "/home/$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" <<EOF
-beagle_stream_server_name = ${GUEST_USER}-beagle-stream-server
+sunshine_name = ${GUEST_USER}-beagle-stream-server
 min_log_level = info
 origin_web_ui_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
 origin_pin_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
@@ -987,7 +987,9 @@ sw_tune = zerolatency
 capture = x11
 hevc_mode = 0
 av1_mode = 0
+ping_timeout = 120000
 $( if [[ -n "$BEAGLE_STREAM_SERVER_PORT" ]]; then printf 'port = %s\n' "$BEAGLE_STREAM_SERVER_PORT"; fi )
+$( if [[ -n "$BEAGLE_STREAM_SERVER_PORT" ]]; then printf 'file_state = /home/%s/.config/beagle-stream-server/sunshine_state.json\n' "$GUEST_USER"; fi )
 EOF
   cp "/home/$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" "/home/$GUEST_USER/.config/beagle-stream-server/sunshine.conf"
 
