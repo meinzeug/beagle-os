@@ -247,21 +247,45 @@ def copy_slot_assets(source_dir: Path, target_dir: Path) -> None:
 
 
 def atomic_symlink(target: str, link_path: Path) -> None:
+    """Create an atomic slot pointer.
+
+    VFAT live-USB media does not support symlinks (EPERM).  Fall back to
+    writing a plain text file containing the target slot name so the update
+    system works on both ext4 and FAT-based live media.
+    """
     temp_path = link_path.with_name(link_path.name + ".new")
-    if temp_path.exists() or temp_path.is_symlink():
-        temp_path.unlink()
-    os.symlink(target, temp_path)
-    temp_path.replace(link_path)
+    try:
+        if temp_path.exists() or temp_path.is_symlink():
+            temp_path.unlink()
+        os.symlink(target, temp_path)
+        temp_path.replace(link_path)
+    except OSError as exc:
+        import errno as _errno
+        if exc.errno not in (_errno.EPERM, _errno.ENOTSUP):
+            raise
+        # Filesystem (e.g. VFAT) does not support symlinks — use a plain file.
+        for p in (temp_path, link_path):
+            try:
+                p.unlink()
+            except OSError:
+                pass
+        temp_path.write_text(target, encoding="utf-8")
+        temp_path.replace(link_path)
 
 
 def linked_slot(link_path: Path) -> str:
-    if not link_path.is_symlink():
-        return ""
-    try:
-        target = os.readlink(link_path)
-    except OSError:
-        return ""
-    return Path(target).name
+    if link_path.is_symlink():
+        try:
+            return Path(os.readlink(link_path)).name
+        except OSError:
+            return ""
+    # Plain-file fallback for VFAT live media.
+    if link_path.is_file():
+        try:
+            return link_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+    return ""
 
 
 def root_uuid_for_medium(medium: Path) -> str:
@@ -282,11 +306,19 @@ def root_uuid_for_medium(medium: Path) -> str:
     return uuid
 
 
-def write_grub_cfg(medium: Path, hostname: str) -> None:
+def write_grub_cfg(medium: Path, hostname: str, current_slot: str = "a") -> None:
+    """Write grub.cfg to medium, booting directly from *current_slot*.
+
+    Grub entries reference the slot directory directly (e.g. /live/a/) so that
+    no symlink is needed — important for VFAT live-USB media where symlinks are
+    not supported.
+    """
     root_uuid = root_uuid_for_medium(medium)
     grub_cfg = medium / "boot" / "grub" / "grub.cfg"
     extra_args = preserved_runtime_kernel_args()
     grub_cfg.parent.mkdir(parents=True, exist_ok=True)
+    slot = current_slot if current_slot in {"a", "b"} else "a"
+    inactive = "b" if slot == "a" else "a"
     content = f"""insmod part_gpt
 insmod ext2
 insmod jpeg
@@ -302,20 +334,20 @@ set timeout=4
 
 menuentry 'Beagle OS Desktop' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args}
-  initrd /live/current/initrd.img
+  linux /live/{slot}/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/{slot} live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args}
+  initrd /live/{slot}/initrd.img
 }}
 
 menuentry 'Beagle OS Gaming' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming{extra_args}
-  initrd /live/current/initrd.img
+  linux /live/{slot}/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/{slot} live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming{extra_args}
+  initrd /live/{slot}/initrd.img
 }}
 
 menuentry 'Beagle OS Desktop (safe mode)' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/current live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args} nomodeset irqpoll pci=nomsi noapic
-  initrd /live/current/initrd.img
+  linux /live/{slot}/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/{slot} live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args} nomodeset irqpoll pci=nomsi noapic
+  initrd /live/{slot}/initrd.img
 }}
 
 menuentry 'Beagle OS (Slot A fallback)' {{
@@ -384,7 +416,7 @@ def ensure_slot_layout(config: dict[str, str], *, writable: bool = False) -> tup
             else:
                 raise RuntimeError("no bootable live assets found on installed system")
             atomic_symlink(current_slot, current_link)
-        write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"))
+        write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"), current_slot)
         return medium, current_slot
 
     if current_slot not in {"a", "b"}:
@@ -906,7 +938,7 @@ def apply_update(config: dict[str, str], *, reboot: bool = False) -> dict:
 
     write_pending_install_manifest(medium, manifest)
     atomic_symlink(target_slot, medium / "live" / "current")
-    write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"))
+    write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"), target_slot)
     updated = update_status(
         state="reboot-required",
         last_apply_at=utcnow(),
@@ -1002,7 +1034,7 @@ def rollback_update(config: dict[str, str], *, reboot: bool = False) -> dict:
         raise RuntimeError("previous install manifest is missing")
     write_pending_install_manifest(medium, previous_manifest)
     atomic_symlink(previous_slot, medium / "live" / "current")
-    write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"))
+    write_grub_cfg(medium, config.get("PVE_THIN_CLIENT_HOSTNAME", "beagle-os"), previous_slot)
     updated = update_status(
         state="rollback-reboot-required",
         last_rollback_at=utcnow(),

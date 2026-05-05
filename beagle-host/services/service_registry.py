@@ -401,7 +401,7 @@ USB_TUNNEL_AUTH_ROOT = Path(USB_TUNNEL_AUTH_ROOT_RAW) if USB_TUNNEL_AUTH_ROOT_RA
 USB_TUNNEL_AUTH_DIR_RAW = os.environ.get("BEAGLE_USB_TUNNEL_AUTH_DIR", "").strip()
 USB_TUNNEL_AUTH_DIR = Path(USB_TUNNEL_AUTH_DIR_RAW) if USB_TUNNEL_AUTH_DIR_RAW else None
 USB_TUNNEL_HOSTKEY_FILE = Path(os.environ.get("BEAGLE_USB_TUNNEL_HOSTKEY_FILE", "/etc/ssh/ssh_host_ed25519_key.pub"))
-USB_TUNNEL_ATTACH_HOST = os.environ.get("BEAGLE_USB_TUNNEL_ATTACH_HOST", "10.10.10.1").strip() or "10.10.10.1"
+USB_TUNNEL_ATTACH_HOST = os.environ.get("BEAGLE_USB_TUNNEL_ATTACH_HOST", "").strip() or "192.168.123.1"
 USB_TUNNEL_BASE_PORT = int(os.environ.get("BEAGLE_USB_TUNNEL_BASE_PORT", "43000"))
 USB_ACTION_WAIT_SECONDS = float(os.environ.get("BEAGLE_USB_ACTION_WAIT_SECONDS", "25"))
 COMMAND_TIMEOUT_SECONDS = float(os.environ.get("BEAGLE_MANAGER_COMMAND_TIMEOUT_SECONDS", "8"))
@@ -1619,7 +1619,7 @@ def vm_secret_bootstrap_service() -> VmSecretBootstrapService:
             resolve_beagle_stream_server_pinned_pubkey=resolve_vm_beagle_stream_server_pinned_pubkey,
             safe_slug=utility_support_service().safe_slug,
             save_vm_secret=save_vm_secret,
-            session_script_path=Path(__file__).resolve().parent / "beagle-usb-tunnel-session",
+            session_script_path=Path(__file__).resolve().parent.parent / "bin" / "beagle-usb-tunnel-session",
             store_endpoint_token=endpoint_token_store_service().store,
             token_urlsafe=secrets.token_urlsafe,
             usb_tunnel_attach_host=USB_TUNNEL_ATTACH_HOST,
