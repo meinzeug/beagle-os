@@ -33,14 +33,17 @@ write_env_key() {
   local file="$1"
   local key="$2"
   local value="$3"
-  local tmp
-  tmp="$(mktemp)"
+  local tmp dir
+  dir="$(dirname "$file")"
+  install -d -m 0755 "$dir"
+  tmp="$(mktemp -p "$dir" .beagle-env-XXXXXXXX)"
+  chmod 0600 "$tmp"
   if [[ -f "$file" ]]; then
     grep -Ev "^${key}=" "$file" >"$tmp" || true
   fi
   printf '%s=%q\n' "$key" "$value" >>"$tmp"
-  install -D -m 0600 "$tmp" "$file"
-  rm -f "$tmp"
+  # Use mv for atomic overwrite — avoids "File exists" race with install -D
+  mv -f "$tmp" "$file"
 }
 
 detect_uplink_iface() {
