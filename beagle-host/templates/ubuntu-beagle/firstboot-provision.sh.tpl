@@ -1048,6 +1048,10 @@ update_info=kwin.upd:auto-bordersize,kwin.upd:animation-speed
 Enabled=true
 OpenGLIsUnsafe=false
 AnimationDurationFactor=0.3
+Backend=OpenGL
+VSync=true
+TearingPrevention=2
+LatencyPolicy=Low
 
 [Effect-Blur]
 NoiseStrength=0
@@ -1071,6 +1075,9 @@ FocusPolicy=ClickToFocus
 Placement=Smart
 AutoRaise=false
 DelayFocusInterval=0
+DragToMaximize=false
+ElectricBorderDelay=150
+ElectricBorderCooldown=350
 
 [Desktops]
 Number=1
@@ -1121,6 +1128,9 @@ FocusPolicy=ClickToFocus
 Placement=Smart
 AutoRaise=false
 DelayFocusInterval=0
+DragToMaximize=false
+ElectricBorderDelay=150
+ElectricBorderCooldown=350
 
 [Desktops]
 Number=1
