@@ -143,3 +143,16 @@ class PublicStreamService:
         if changed:
             self.save_public_streams(mappings)
         return None
+
+    def deallocate_public_stream_base_port(self, node: str, vmid: int) -> bool:
+        """Remove the public-stream mapping for a VM and persist the updated file.
+
+        Returns True if an entry was actually removed, False if nothing changed.
+        """
+        key = self.public_stream_key(node, vmid)
+        mappings = self.load_public_streams()
+        if key not in mappings:
+            return False
+        mappings.pop(key)
+        self.save_public_streams(mappings)
+        return True

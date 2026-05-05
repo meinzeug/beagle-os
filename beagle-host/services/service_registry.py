@@ -2599,6 +2599,10 @@ def allocate_public_stream_base_port(node: str, vmid: int) -> int | None:
     return public_stream_service().allocate_public_stream_base_port(node, vmid)
 
 
+def deallocate_public_stream_base_port(node: str, vmid: int) -> bool:
+    return public_stream_service().deallocate_public_stream_base_port(node, vmid)
+
+
 def stream_ports(base_port: int) -> dict[str, int]:
     base = int(base_port)
     return {
@@ -2992,6 +2996,7 @@ def delete_provisioned_vm(vmid: int) -> dict[str, Any]:
         usb_tunnel_auth_dir=vm_secret_bootstrap_service().usb_tunnel_auth_dir(),
         vm_secrets_dir=vm_secrets_dir(),
     )
+    deallocate_public_stream_base_port(vm.node, int(vmid))
     invalidate_vm_cache(int(vmid), vm.node)
     return {
         "vmid": int(vmid),

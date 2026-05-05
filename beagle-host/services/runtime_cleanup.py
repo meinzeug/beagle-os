@@ -46,5 +46,7 @@ def cleanup_vm_runtime_artifacts(
             payload = load_json_file(path, None)
             if isinstance(payload, dict) and int(payload.get("vmid", 0) or 0) == target_vmid:
                 _unlink_if_present(path, removed)
+                # also remove the companion lock file if it exists
+                _unlink_if_present(Path(str(path) + ".lock"), removed)
 
     return removed
