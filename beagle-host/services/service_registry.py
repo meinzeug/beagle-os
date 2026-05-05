@@ -3706,6 +3706,7 @@ def stream_http_surface_service() -> StreamHttpSurfaceService:
             audit_event=audit_log_service().write_event,
             utcnow=utcnow,
             version=VERSION,
+            get_vm_install_state=lambda vmid: latest_ubuntu_beagle_state_for_vmid(vmid, include_credentials=False),
         )
     return STREAM_HTTP_SURFACE_SERVICE
 

@@ -31,10 +31,12 @@ class StreamHttpSurfaceService:
         service_name: str = "beagle-control-plane",
         utcnow: Callable[[], str],
         version: str = "",
+        get_vm_install_state: Callable[[int], dict[str, Any] | None] | None = None,
     ) -> None:
         self._state_file = Path(state_file)
         self._build_vm_profile = build_vm_profile
         self._find_vm = find_vm
+        self._get_vm_install_state = get_vm_install_state
         self._pool_manager = pool_manager_service
         self._stream_policy = stream_policy_service
         self._build_wireguard_peer_config = build_wireguard_peer_config
@@ -59,6 +61,28 @@ class StreamHttpSurfaceService:
     @staticmethod
     def requires_json_body(path: str) -> bool:
         return StreamHttpSurfaceService.handles_post(path)
+
+    def _vm_stream_readiness(self, vm_id: int) -> tuple[bool, str, str]:
+        """Return (ready, install_status, install_phase) for a VM.
+
+        ready=True means the stream server should be running (install completed).
+        ready=False means the VM is still provisioning.
+        """
+        if self._get_vm_install_state is None:
+            return True, "unknown", ""
+        try:
+            state = self._get_vm_install_state(int(vm_id))
+        except Exception:
+            return True, "unknown", ""
+        if not isinstance(state, dict):
+            return True, "unknown", ""
+        status = str(state.get("status", "")).strip().lower()
+        phase = str(state.get("phase", "")).strip().lower()
+        if status == "installing":
+            return False, status, phase
+        if status == "completed":
+            return True, status, phase
+        return True, status, phase
 
     @staticmethod
     def _json(status: HTTPStatus, payload: dict[str, Any]) -> dict[str, Any]:
@@ -327,6 +351,7 @@ class StreamHttpSurfaceService:
             local_stream_host = str(vm_profile.get("beagle_stream_client_local_host") or "").strip()
             public_stream_host = str(vm_profile.get("stream_host") or "").strip()
             allocation_host = local_stream_host if isinstance(wg_peer_config, dict) and wg_peer_config and local_stream_host else public_stream_host
+            vm_ready, vm_install_status, vm_install_phase = self._vm_stream_readiness(vm_id)
             allocation = {
                 "pool_id": pool_id,
                 "user_id": user_id,
@@ -340,6 +365,9 @@ class StreamHttpSurfaceService:
                 "network_mode": network_mode,
                 "wg_peer_config": wg_peer_config if isinstance(wg_peer_config, dict) else {},
                 "links": self._config_links(vm_id),
+                "vm_ready": vm_ready,
+                "vm_install_status": vm_install_status,
+                "vm_install_phase": vm_install_phase,
             }
             compatibility_wg_peer_config = self._normalize_wireguard_compat_payload(allocation["wg_peer_config"])
             self._safe_audit(
@@ -352,6 +380,7 @@ class StreamHttpSurfaceService:
                 device_id=device_id,
                 network_mode=network_mode,
                 wireguard_profile=bool(allocation["wg_peer_config"]),
+                vm_ready=vm_ready,
             )
             response_payload = {"ok": True, **self._envelope(allocation=allocation)}
             response_payload.update(
@@ -362,6 +391,9 @@ class StreamHttpSurfaceService:
                     "network_mode": allocation["network_mode"],
                     "wg_peer_config": compatibility_wg_peer_config,
                     "links": allocation["links"],
+                    "vm_ready": vm_ready,
+                    "vm_install_status": vm_install_status,
+                    "vm_install_phase": vm_install_phase,
                 }
             )
             return self._json(HTTPStatus.OK, response_payload)
