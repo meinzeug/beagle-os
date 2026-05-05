@@ -1,15 +1,19 @@
 {
   "manifest_version": 3,
   "name": "Beagle OS Integration",
-  "version": "8.0.9",
+  "version": "8.0.15",
   "description": "Adds Beagle profile, installer and control-plane actions to VM pages.",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
     "https://*/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://*/*"],
+      "matches": [
+        "https://*/*"
+      ],
       "js": [
         "core/platform/browser-common.js",
         "common.js",
