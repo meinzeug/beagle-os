@@ -540,6 +540,9 @@ EOF
 
   cat > /usr/local/bin/beagle-vkms-xrandr-setup <<'EOF'
 #!/usr/bin/env bash
+# Beagle Virtual Display — registers all common resolutions on the virtual output.
+# After this script runs, KDE System Settings → Display shows them as selectable options.
+# No hardware dependency: all modes are added to the VKMS virtual connector.
 set -euo pipefail
 
 for _ in {1..30}; do
@@ -552,13 +555,40 @@ done
 output="$(xrandr --query | awk '/ connected/{print $1; exit}')"
 [[ -n "$output" ]] || exit 0
 
-xrandr --newmode "3840x2160_60.00" 712.75 3840 4160 4576 5312 2160 2163 2168 2237 -hsync +vsync >/dev/null 2>&1 || true
-xrandr --addmode "$output" "3840x2160_60.00" >/dev/null 2>&1 || true
-if xrandr --output "$output" --primary --mode "3840x2160_60.00" >/dev/null 2>&1; then
+# --- Register all common display resolutions ---
+# Format: xrandr --newmode <name> <pclk> <h_active> <h_sync_start> <h_sync_end> <h_total>
+#                            <v_active> <v_sync_start> <v_sync_end> <v_total> <flags>
+declare -A MODES
+MODES["1280x720_60.00"]="74.48 1280 1336 1472 1664 720 723 728 748 -hsync +vsync"
+MODES["1366x768_60.00"]="85.50 1366 1436 1578 1790 768 771 774 798 -hsync +vsync"
+MODES["1440x900_60.00"]="106.50 1440 1528 1672 1904 900 903 909 934 -hsync +vsync"
+MODES["1600x900_60.00"]="108.00 1600 1624 1704 1800 900 901 904 1000 +hsync +vsync"
+MODES["1920x1080_60.00"]="148.50 1920 2008 2052 2200 1080 1084 1089 1125 +hsync +vsync"
+MODES["1920x1200_60.00"]="193.25 1920 2056 2256 2592 1200 1203 1209 1245 -hsync +vsync"
+MODES["2560x1440_60.00"]="312.25 2560 2752 3024 3488 1440 1443 1448 1493 -hsync +vsync"
+MODES["3840x2160_30.00"]="338.75 3840 4128 4544 5248 2160 2163 2168 2200 -hsync +vsync"
+MODES["3840x2160_60.00"]="712.75 3840 4160 4576 5312 2160 2163 2168 2237 -hsync +vsync"
+
+for mode_name in "${!MODES[@]}"; do
+  # shellcheck disable=SC2086
+  xrandr --newmode "$mode_name" ${MODES[$mode_name]} 2>/dev/null || true
+  xrandr --addmode "$output" "$mode_name" 2>/dev/null || true
+done
+
+# Also register the canonical mode names VKMS may already know
+for builtin in 1920x1080 1280x720 1024x768; do
+  xrandr --addmode "$output" "$builtin" 2>/dev/null || true
+done
+
+# Set active mode to 1920x1080 as the universal default (works on any client display).
+# Users can change via KDE System Settings → Display Configuration.
+if xrandr --output "$output" --primary --mode "1920x1080_60.00" 2>/dev/null; then
   exit 0
 fi
-
-xrandr --output "$output" --primary --mode "1920x1080" >/dev/null 2>&1 || true
+if xrandr --output "$output" --primary --mode "1920x1080" 2>/dev/null; then
+  exit 0
+fi
+xrandr --output "$output" --primary --auto 2>/dev/null || true
 EOF
   chmod 0755 /usr/local/bin/beagle-vkms-xrandr-setup
 
@@ -775,6 +805,138 @@ EOF
   chown "$GUEST_USER:$GUEST_USER" \
     "/home/$GUEST_USER/.local/share/color-schemes/BeagleCyberpunk.colors"
 
+  # --- BeagleWindows color scheme (Win10/11 dark hybrid with blue accent) ---
+  cat > "/home/$GUEST_USER/.local/share/color-schemes/BeagleWindows.colors" <<'EOF'
+[ColorEffects:Disabled]
+Color=56,56,56
+ColorAmount=0
+ColorEffect=0
+ContrastAmount=0.65
+ContrastEffect=1
+IntensityAmount=0.1
+IntensityEffect=2
+
+[ColorEffects:Inactive]
+ChangeSelectionColor=true
+Color=112,111,110
+ColorAmount=0.025
+ColorEffect=2
+ContrastAmount=0.1
+ContrastEffect=2
+Enable=false
+IntensityAmount=0
+IntensityEffect=0
+
+[Colors:Button]
+BackgroundAlternate=60,60,60
+BackgroundNormal=48,48,48
+DecorationFocus=0,120,212
+DecorationHover=0,120,212
+ForegroundActive=255,255,255
+ForegroundInactive=160,160,160
+ForegroundLink=66,183,244
+ForegroundNegative=255,100,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=255,255,255
+ForegroundPositive=80,220,100
+ForegroundVisited=180,120,255
+
+[Colors:Complementary]
+BackgroundAlternate=32,32,32
+BackgroundNormal=28,28,28
+DecorationFocus=0,120,212
+DecorationHover=0,120,212
+ForegroundActive=255,255,255
+ForegroundInactive=140,140,140
+ForegroundLink=66,183,244
+ForegroundNegative=255,100,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=255,255,255
+ForegroundPositive=80,220,100
+ForegroundVisited=180,120,255
+
+[Colors:Header]
+BackgroundAlternate=32,32,32
+BackgroundNormal=28,28,28
+DecorationFocus=0,120,212
+DecorationHover=0,120,212
+ForegroundActive=255,255,255
+ForegroundInactive=140,140,140
+ForegroundLink=66,183,244
+ForegroundNegative=255,100,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=255,255,255
+ForegroundPositive=80,220,100
+ForegroundVisited=180,120,255
+
+[Colors:Selection]
+BackgroundAlternate=0,90,160
+BackgroundNormal=0,120,212
+DecorationFocus=0,120,212
+DecorationHover=0,120,212
+ForegroundActive=255,255,255
+ForegroundInactive=200,220,255
+ForegroundLink=66,183,244
+ForegroundNegative=255,100,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=255,255,255
+ForegroundPositive=80,220,100
+ForegroundVisited=180,120,255
+
+[Colors:Tooltip]
+BackgroundAlternate=36,36,36
+BackgroundNormal=32,32,32
+DecorationFocus=0,120,212
+DecorationHover=0,120,212
+ForegroundActive=255,255,255
+ForegroundInactive=140,140,140
+ForegroundLink=66,183,244
+ForegroundNegative=255,100,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=255,255,255
+ForegroundPositive=80,220,100
+ForegroundVisited=180,120,255
+
+[Colors:View]
+BackgroundAlternate=30,30,30
+BackgroundNormal=28,28,28
+DecorationFocus=0,120,212
+DecorationHover=0,120,212
+ForegroundActive=255,255,255
+ForegroundInactive=140,140,140
+ForegroundLink=66,183,244
+ForegroundNegative=255,100,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=255,255,255
+ForegroundPositive=80,220,100
+ForegroundVisited=180,120,255
+
+[Colors:Window]
+BackgroundAlternate=30,30,30
+BackgroundNormal=28,28,28
+DecorationFocus=0,120,212
+DecorationHover=0,120,212
+ForegroundActive=255,255,255
+ForegroundInactive=140,140,140
+ForegroundLink=66,183,244
+ForegroundNegative=255,100,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=255,255,255
+ForegroundPositive=80,220,100
+ForegroundVisited=180,120,255
+
+[General]
+ColorScheme=BeagleWindows
+Name=Beagle Windows
+shadeSortColumn=true
+
+[KDE]
+contrast=7
+EOF
+  chown "$GUEST_USER:$GUEST_USER" \
+    "/home/$GUEST_USER/.local/share/color-schemes/BeagleCyberpunk.colors" \
+    "/home/$GUEST_USER/.local/share/color-schemes/BeagleWindows.colors"
+
   cat > "/home/$GUEST_USER/.config/kscreenlockerrc" <<'EOF'
 [Daemon]
 Autolock=false
@@ -826,6 +988,27 @@ LookAndFeelPackage=org.kde.breezedark.desktop
 widgetStyle=Breeze
 SingleClick=true
 EOF
+  elif [[ "$DESKTOP_THEME_VARIANT" == "windows" ]]; then
+    cat > "/home/$GUEST_USER/.config/kdeglobals" <<'EOF'
+[General]
+ColorScheme=BeagleWindows
+font=IBM Plex Sans,10,-1,5,50,0,0,0,0,0
+fixed=Hack,10,-1,5,50,0,0,0,0,0
+smallestReadableFont=IBM Plex Sans,8,-1,5,50,0,0,0,0,0
+toolBarFont=IBM Plex Sans,9,-1,5,50,0,0,0,0,0
+menuFont=IBM Plex Sans,10,-1,5,50,0,0,0,0,0
+XftHintStyle=hintfull
+XftSubPixel=rgb
+XftAntialias=1
+
+[KDE]
+LookAndFeelPackage=org.kde.breezedark.desktop
+widgetStyle=Breeze
+SingleClick=false
+
+[KScreen]
+ScaleFactor=1
+EOF
   else
     cat > "/home/$GUEST_USER/.config/kdeglobals" <<'EOF'
 [General]
@@ -846,7 +1029,60 @@ SingleClick=true
 EOF
   fi
 
-  cat > "/home/$GUEST_USER/.config/kwinrc" <<'EOF'
+  # kwinrc — windows variant uses Win11-style rounding + snappier animations
+  if [[ "$DESKTOP_THEME_VARIANT" == "windows" ]]; then
+    cat > "/home/$GUEST_USER/.config/kwinrc" <<'EOF'
+[$Version]
+update_info=kwin.upd:auto-bordersize,kwin.upd:animation-speed
+
+[Compositing]
+Enabled=true
+OpenGLIsUnsafe=false
+AnimationDurationFactor=0.3
+
+[Effect-Blur]
+NoiseStrength=0
+
+[MouseBindings]
+CommandAllKey=Meta
+
+[Plugins]
+blurEnabled=true
+contrastEnabled=true
+kwin4_effect_fadeEnabled=true
+kwin4_effect_loginEnabled=true
+kwin4_effect_maximizeEnabled=true
+kwin4_effect_scaleEnabled=true
+slidingpopupsEnabled=true
+snapEnabled=true
+
+[Windows]
+BorderlessMaximizedWindows=false
+FocusPolicy=ClickToFocus
+Placement=Smart
+AutoRaise=false
+DelayFocusInterval=0
+
+[Desktops]
+Number=1
+Rows=1
+
+[Animations]
+speed=5
+
+[NightColor]
+Active=false
+
+[org.kde.kdecoration2]
+BorderSize=Normal
+ButtonsOnLeft=
+ButtonsOnRight=IAX
+CloseOnDoubleClickOnMenu=false
+library=org.kde.breeze
+plugin=org.kde.breeze
+EOF
+  else
+    cat > "/home/$GUEST_USER/.config/kwinrc" <<'EOF'
 [$Version]
 update_info=kwin.upd:auto-bordersize,kwin.upd:animation-speed
 
@@ -895,6 +1131,7 @@ CloseOnDoubleClickOnMenu=false
 library=org.kde.breeze
 plugin=org.kde.breeze
 EOF
+  fi
 
   cat > "/home/$GUEST_USER/.config/plasmashellrc" <<'EOF'
 [PlasmaViews][Panel 2][Defaults]
@@ -954,7 +1191,7 @@ immutability=1
 plugin=org.kde.plasma.icontasks
 
 [Containments][2][Applets][4][Configuration][General]
-launchers=applications:google-chrome.desktop,applications:org.kde.dolphin.desktop,applications:org.kde.konsole.desktop,applications:systemsettings.desktop
+launchers=applications:google-chrome.desktop,applications:org.kde.dolphin.desktop,applications:org.kde.konsole.desktop,applications:beagle-ai.desktop,applications:systemsettings.desktop
 
 [Containments][2][Applets][5]
 immutability=1
@@ -1020,6 +1257,62 @@ X-KDE-autostart-phase=1
 NoDisplay=true
 EOF
 
+  # --- Beagle AI launcher ---
+  # Opens a curated AI assistant (ChatGPT / local Ollama) in an app-mode Chrome window.
+  # Pin is added to the taskbar via the icontasks launchers= line above.
+  # Keyboard shortcut Meta+A is configured in kglobalshortcutsrc below.
+  cat > /usr/local/bin/beagle-ai <<'EOF'
+#!/usr/bin/env bash
+# Beagle AI launcher — opens AI assistant in a clean standalone window.
+# Priority: local Ollama → ChatGPT (web fallback)
+OLLAMA_URL="http://localhost:11434"
+AI_WEB_URL="https://chatgpt.com"
+
+export DISPLAY="${DISPLAY:-:0}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+if curl -fsS --connect-timeout 2 "${OLLAMA_URL}/api/tags" >/dev/null 2>&1; then
+  TARGET_URL="http://localhost:3000"  # Open WebUI on port 3000 if available
+  if ! curl -fsS --connect-timeout 1 "${TARGET_URL}" >/dev/null 2>&1; then
+    TARGET_URL="${OLLAMA_URL}"
+  fi
+else
+  TARGET_URL="${AI_WEB_URL}"
+fi
+
+if command -v google-chrome >/dev/null 2>&1; then
+  exec google-chrome --app="${TARGET_URL}" --new-window \
+    --window-size=900,700 --window-position=200,100 \
+    --disable-session-crashed-bubble --no-first-run 2>/dev/null
+elif command -v chromium-browser >/dev/null 2>&1; then
+  exec chromium-browser --app="${TARGET_URL}" --new-window \
+    --window-size=900,700 2>/dev/null
+else
+  exec xdg-open "${TARGET_URL}" 2>/dev/null
+fi
+EOF
+  chmod 0755 /usr/local/bin/beagle-ai
+
+  cat > /usr/share/applications/beagle-ai.desktop <<'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Beagle AI
+Comment=Open AI assistant — local Ollama or ChatGPT
+Exec=/usr/local/bin/beagle-ai
+Icon=google-chrome
+Categories=Network;AI;Utility;
+StartupNotify=true
+NoDisplay=false
+EOF
+
+  # KDE global shortcut: Meta+A → Beagle AI
+  cat >> "/home/$GUEST_USER/.config/kglobalshortcutsrc" <<'EOF'
+
+[beagle-ai.desktop]
+_launch=Meta+A,none,Beagle AI
+EOF
+
   chown "$GUEST_USER:$GUEST_USER" \
     "/home/$GUEST_USER/.config/kscreenlockerrc" \
     "/home/$GUEST_USER/.config/powermanagementprofilesrc" \
@@ -1027,7 +1320,8 @@ EOF
     "/home/$GUEST_USER/.config/kwinrc" \
     "/home/$GUEST_USER/.config/plasmashellrc" \
     "/home/$GUEST_USER/.config/plasma-org.kde.plasma.desktop-appletsrc" \
-    "/home/$GUEST_USER/.config/autostart/beagle-plasma-desktop-repair.desktop"
+    "/home/$GUEST_USER/.config/autostart/beagle-plasma-desktop-repair.desktop" \
+    "/home/$GUEST_USER/.config/kglobalshortcutsrc"
 
   apply_script="/usr/local/lib/beagle/beagle-plasma-profile-apply"
   cat > "$apply_script" <<EOF
@@ -1056,22 +1350,34 @@ fi
 
 if [[ -n "\$KWRITECONFIG_BIN" ]]; then
   if [[ "\$THEME_VARIANT" == "cyberpunk" ]]; then
-    # Use real Beagle Cyberpunk color scheme (installed in firstboot)
     "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key ColorScheme BeagleCyberpunk >/dev/null 2>&1 || true
     "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key LookAndFeelPackage org.kde.breezedark.desktop >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group Animations --key speed 3 >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group Compositing --key AnimationDurationFactor 0.5 >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key SingleClick true >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft M >/dev/null 2>&1 || true
+  elif [[ "\$THEME_VARIANT" == "windows" ]]; then
+    # Windows 10/11 hybrid — blue accent, double-click to open, close button on right
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key ColorScheme BeagleWindows >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key LookAndFeelPackage org.kde.breezedark.desktop >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group Animations --key speed 5 >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group Compositing --key AnimationDurationFactor 0.3 >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key SingleClick false >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft "" >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group KScreen --key ScaleFactor 1 >/dev/null 2>&1 || true
   else
     "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key ColorScheme BreezeLight >/dev/null 2>&1 || true
     "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key LookAndFeelPackage org.kde.breeze.desktop >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group Animations --key speed 3 >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group Compositing --key AnimationDurationFactor 0.5 >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key SingleClick true >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft M >/dev/null 2>&1 || true
   fi
   "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key Autolock false >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key LockOnResume false >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key Timeout 0 >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kwinrc --group Windows --key BorderlessMaximizedWindows false >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnRight IAX >/dev/null 2>&1 || true
-  # Animation speed 3 = fast (scale 1–5); reduces perceived latency in streams
-  "\$KWRITECONFIG_BIN" --file kwinrc --group Animations --key speed 3 >/dev/null 2>&1 || true
-  # AnimationDurationFactor 0.5 = halve all animation durations globally
-  "\$KWRITECONFIG_BIN" --file kwinrc --group Compositing --key AnimationDurationFactor 0.5 >/dev/null 2>&1 || true
   # Single virtual desktop — no workspace-switching confusion while streaming
   "\$KWRITECONFIG_BIN" --file kwinrc --group Desktops --key Number 1 >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kwinrc --group Desktops --key Rows 1 >/dev/null 2>&1 || true
@@ -1084,8 +1390,6 @@ if [[ -n "\$KWRITECONFIG_BIN" ]]; then
   "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key fixed "Hack,10,-1,5,50,0,0,0,0,0" >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key toolBarFont "IBM Plex Sans,9,-1,5,50,0,0,0,0,0" >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key menuFont "IBM Plex Sans,10,-1,5,50,0,0,0,0,0" >/dev/null 2>&1 || true
-  # Single-click to open files/folders (better for streaming — fewer double-click misses)
-  "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key SingleClick true >/dev/null 2>&1 || true
 fi
 
 if command -v beagle-plasma-desktop-repair >/dev/null 2>&1; then
