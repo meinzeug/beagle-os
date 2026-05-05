@@ -1076,7 +1076,7 @@ Active=false
 [org.kde.kdecoration2]
 BorderSize=Normal
 ButtonsOnLeft=
-ButtonsOnRight=IAX
+ButtonsOnRight=NMX
 CloseOnDoubleClickOnMenu=false
 library=org.kde.breeze
 plugin=org.kde.breeze
@@ -1125,8 +1125,8 @@ Active=false
 
 [org.kde.kdecoration2]
 BorderSize=Normal
-ButtonsOnLeft=M
-ButtonsOnRight=IAX
+ButtonsOnLeft=
+ButtonsOnRight=NMX
 CloseOnDoubleClickOnMenu=false
 library=org.kde.breeze
 plugin=org.kde.breeze
@@ -1355,7 +1355,7 @@ if [[ -n "\$KWRITECONFIG_BIN" ]]; then
     "\$KWRITECONFIG_BIN" --file kwinrc --group Animations --key speed 3 >/dev/null 2>&1 || true
     "\$KWRITECONFIG_BIN" --file kwinrc --group Compositing --key AnimationDurationFactor 0.5 >/dev/null 2>&1 || true
     "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key SingleClick true >/dev/null 2>&1 || true
-    "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft M >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft "" >/dev/null 2>&1 || true
   elif [[ "\$THEME_VARIANT" == "windows" ]]; then
     # Windows 10/11 hybrid — blue accent, double-click to open, close button on right
     "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key ColorScheme BeagleWindows >/dev/null 2>&1 || true
@@ -1371,13 +1371,13 @@ if [[ -n "\$KWRITECONFIG_BIN" ]]; then
     "\$KWRITECONFIG_BIN" --file kwinrc --group Animations --key speed 3 >/dev/null 2>&1 || true
     "\$KWRITECONFIG_BIN" --file kwinrc --group Compositing --key AnimationDurationFactor 0.5 >/dev/null 2>&1 || true
     "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key SingleClick true >/dev/null 2>&1 || true
-    "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft M >/dev/null 2>&1 || true
+    "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft "" >/dev/null 2>&1 || true
   fi
   "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key Autolock false >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key LockOnResume false >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key Timeout 0 >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kwinrc --group Windows --key BorderlessMaximizedWindows false >/dev/null 2>&1 || true
-  "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnRight IAX >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnRight NMX >/dev/null 2>&1 || true
   # Single virtual desktop — no workspace-switching confusion while streaming
   "\$KWRITECONFIG_BIN" --file kwinrc --group Desktops --key Number 1 >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kwinrc --group Desktops --key Rows 1 >/dev/null 2>&1 || true
