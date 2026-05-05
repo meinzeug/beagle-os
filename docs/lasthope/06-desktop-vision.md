@@ -129,9 +129,9 @@ Beagle OS soll sofort erkennbar sein. Kein generisches Breeze-Dark.
 - [x] Hack als Monospace-Font (Terminal + Code)
 - [x] `fonts-ibm-plex` + `fonts-hack-ttf` via apt in firstboot installiert
 - [ ] Eigenes Icon-Theme (Beagle-Fork von Papirus-Dark mit Cyan-Akzent)
-- [ ] KDE Plasma Splash Screen mit Beagle-Branding
+- [x] KDE Plasma Splash Screen deaktiviert (Engine=none, Theme=none → schnellerer Login im Stream)
 - [ ] Login-Screen (`sddm`) mit Beagle-Cyberpunk-Theme
-- [ ] Terminal-Preset (Konsole): Cyberpunk-Farbschema, Nerd Font, Cursor-Blink
+- [x] Terminal-Preset (Konsole): BeagleCyberpunk.colorscheme + Hack 12pt + cyan Cursor-Blink (5ca7f00)
 - [ ] App-Launcher (Kickoff oder Krunner) mit Beagle-Logo und Dark-Glass-Look
 - [ ] Cursor-Theme: Breeze-Snow oder eigener Cyberpunk-Cursor
 
@@ -144,10 +144,10 @@ Ein Desktop für eine gestreamte VM hat andere Prioritäten als ein lokaler Desk
 - [x] Single-Click zum Öffnen von Dateien (Dolphin-Default für Streaming)
 - [ ] Super+Escape als Beagle-Escape aus dem VM-Stream (in Openbox rc.xml aktiv)
 - [ ] Maximiere-Fenster-Policy: Neu geöffnete Apps direkt maximiert
-- [ ] Desktop-Shortcuts aus dem Weg: keine Desktop-Symbole (erzeugen Verwirrung in Streams)
+- [x] Desktop-Symbole deaktiviert: containment=org.kde.plasma.desktop statt org.kde.plasma.folder
 - [ ] Notifications-Center an statt floating Popups
 - [ ] Night Color (Blaulicht-Filter) konfigurierbar ohne System-Settings öffnen
-- [ ] Drag-Lock deaktivieren (führt in Streaming zu unerwarteten Drag-Events)
+- [x] Drag-Lock deaktiviert: DragToMaximize=false, ElectricBorderDelay=150ms (8d4c6b3)
 - [ ] Clipboard-Sync zwischen Host und VM über BeagleStream (KDE Clipboard Manager)
 
 ### Phase D — Performance und Latenz ✅ begonnen
@@ -159,7 +159,7 @@ Für Streaming ist wahrgenommene Geschwindigkeit entscheidend.
 - [x] Fonts: Sub-Pixel-Hinting für scharfe Schrift bei verlustbehaftetem H.264-Stream
   (Hint: `Full`, RGB-Sub-Pixel, DPI 96)
 - [x] Power-Save deaktiviert (alle DPMS, Suspend, Dimming via kscreenlockerrc)
-- [ ] KWin Compositor: Backend-VSync auf `Adaptive` für niedrigste Latenz untersuchen
+- [x] KWin Compositor: Backend=OpenGL, VSync=true, TearingPrevention=2, LatencyPolicy=Low (8d4c6b3)
 - [ ] Startup-Zeit: Plasma-Splash unterdrücken oder auf <1s verkürzen
 - [ ] systemd-inhibit für BeagleStream (kein Schlaf während aktiver Session)
 

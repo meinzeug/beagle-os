@@ -992,6 +992,9 @@ XftHintStyle=hintfull
 XftSubPixel=rgb
 XftAntialias=1
 
+[Icons]
+Theme=breeze-dark
+
 [KDE]
 LookAndFeelPackage=org.kde.breezedark.desktop
 widgetStyle=Breeze
@@ -1348,6 +1351,14 @@ _launch=Alt+F2\tMeta+R,none,KRunner
 [systemsettings.desktop]
 _launch=Meta+I,none,System Settings
 EOF
+
+  # Cursor theme: breeze_snow (white, highly visible in streaming)
+  cat > "/home/$GUEST_USER/.config/kcminputrc" <<'EOF'
+[Mouse]
+cursorTheme=breeze_snow
+cursorSize=24
+EOF
+  chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config/kcminputrc"
 
   chown "$GUEST_USER:$GUEST_USER" \
     "/home/$GUEST_USER/.config/kscreenlockerrc" \
