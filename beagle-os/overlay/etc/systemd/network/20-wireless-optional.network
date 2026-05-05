@@ -1,0 +1,9 @@
+[Match]
+Name=wl*
+
+[Network]
+DHCP=no
+LinkLocalAddressing=no
+# WiFi is optional on thin clients — do not hold up boot if not present
+[Link]
+RequiredForOnline=no
