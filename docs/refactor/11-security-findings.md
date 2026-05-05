@@ -1218,3 +1218,19 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - Files:
     - `beagle-host/services/service_registry.py`
     - `beagle-host/services/ubuntu_beagle_provisioning.py`
+
+## S-038 — Stale iptables DNAT-Regeln shadowed beagle_stream nftables-Regeln (PATCHED)
+
+- Status: **gepatcht** (2026-05-05)
+- Risiko: **Hoch (Stream-Ausfall)**
+- Betroffene Dateien:
+  - `scripts/reconcile-public-streams.sh`
+- Beschreibung:
+  - Nach VM-Neuanlage mit neuer IP (`192.168.123.116` statt alter `192.168.123.114`) blieben im `ip nat` PREROUTING-Chain 12 stale `iptables`-DNAT-Regeln auf die alte VM-IP stehen.
+  - Diese `ip nat`-Regeln feuern BEFORE der nftables-Tabelle `inet beagle_stream` (gleiche Priorität, aber `ip`-Tabellen werden vor `inet`-Tabellen ausgewertet).
+  - Resultat: Port 50000 wurde dauerhaft auf die nicht mehr existierende IP `.114` geroutet statt auf `.116` (vm100). Thin Client konnte nicht verbinden.
+  - `reconcile-public-streams.sh` löschte zwar die alte `inet beagle_stream`-Tabelle und erstellte sie neu, räumte aber die legacy `iptables`-Einträge nicht auf.
+- Fix:
+  - Am Anfang von `reconcile-public-streams.sh` wird geprüft, ob der `ip nat PREROUTING`-Chain DNAT-Regeln enthält — falls ja, wird er vollständig geleert (`iptables -t nat -F PREROUTING`).
+  - Die `inet beagle_stream` nftables-Tabelle ist einzige Autorität für Public-Stream-DNAT.
+  - Live auf srv1 bereinigt; Commit `1c29856`.
