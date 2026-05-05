@@ -40,6 +40,34 @@ have_binary() {
   command -v "$1" >/dev/null 2>&1
 }
 
+# Workaround: beagle-stream skips activatePeer() when wg-beagle interface exists,
+# even if the peer was removed by a previous deactivatePeer() call.
+# Ensure the peer is always configured before launching beagle-stream.
+ensure_wg_peer() {
+  local iface="wg-beagle"
+  local wg_conf="/etc/wireguard/wg-beagle.conf"
+  # conf is root-owned; check existence via sudo
+  sudo test -f "$wg_conf" 2>/dev/null || return 0
+  ip link show "$iface" &>/dev/null || return 0
+  # If no peers are configured, restore peer from the persisted conf file.
+  # NOTE: wg addconf fails on wg-quick configs (Address/DNS fields are not
+  # recognized by the low-level wg tool), so we parse and call wg set directly.
+  if ! wg show "$iface" peers 2>/dev/null | grep -q .; then
+    beagle_log_event "beagle-stream-client.wg-peer-restore" "iface=${iface} conf=${wg_conf}"
+    local pubkey endpoint allowed_ips keepalive
+    pubkey="$(sudo awk '/^\[Peer\]/{p=1} p && /^PublicKey/{print $3; exit}' "$wg_conf")"
+    endpoint="$(sudo awk '/^\[Peer\]/{p=1} p && /^Endpoint/{print $3; exit}' "$wg_conf")"
+    allowed_ips="$(sudo awk '/^\[Peer\]/{p=1} p && /^AllowedIPs/{$1=$2=""; gsub(/^ +/,""); gsub(/ /,""); print; exit}' "$wg_conf")"
+    keepalive="$(sudo awk '/^\[Peer\]/{p=1} p && /^PersistentKeepalive/{print $3; exit}' "$wg_conf")"
+    [[ -n "$pubkey" ]] || return 0
+    local -a wg_args=("$iface" peer "$pubkey")
+    [[ -n "$endpoint" ]]    && wg_args+=(endpoint "$endpoint")
+    [[ -n "$allowed_ips" ]] && wg_args+=(allowed-ips "$allowed_ips")
+    [[ -n "$keepalive" ]]   && wg_args+=(persistent-keepalive "$keepalive")
+    wg set "${wg_args[@]}" 2>/dev/null || true
+  fi
+}
+
 main() {
   local bin host connect_host app resolved_app audio_driver port
   local hostless_beagle_stream=0
@@ -65,6 +93,8 @@ main() {
     echo "Beagle Stream Client binary not found: $bin" >&2
     exit 1
   }
+
+  ensure_wg_peer
 
   if command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
     /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1 || true
