@@ -133,7 +133,7 @@ apply_desktop_defaults() {
       DESKTOP_LABEL="${DESKTOP_LABEL:-KDE Plasma}"
       DESKTOP_SESSION="${DESKTOP_SESSION:-plasma}"
       if [[ ${#DESKTOP_PACKAGES[@]} -eq 0 ]]; then
-        DESKTOP_PACKAGES=(plasma-desktop konsole dolphin)
+        DESKTOP_PACKAGES=(plasma-desktop kwin-x11 plasma-nm plasma-pa plasma-widgets-addons konsole dolphin)
       fi
       ;;
     mate)

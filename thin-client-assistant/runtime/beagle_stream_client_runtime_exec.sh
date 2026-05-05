@@ -111,7 +111,7 @@ build_stream_args() {
   [[ -n "$decoder" ]] && out_ref+=(--video-decoder "$decoder")
   [[ -n "$audio_config" ]] && out_ref+=(--audio-config "$audio_config")
 
-  out_ref+=(--display-mode fullscreen --frame-pacing --keep-awake --no-hdr --no-yuv444)
+  out_ref+=(--display-mode fullscreen --frame-pacing --keep-awake --capture-system-keys always --no-hdr --no-yuv444)
 
   if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE:-1}" == "1" ]]; then
     out_ref+=(--absolute-mouse)

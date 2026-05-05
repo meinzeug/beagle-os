@@ -694,10 +694,168 @@ widgetStyle=Breeze
 EOF
   fi
 
+  cat > "/home/$GUEST_USER/.config/kwinrc" <<'EOF'
+[$Version]
+update_info=kwin.upd:auto-bordersize,kwin.upd:animation-speed
+
+[Compositing]
+Enabled=true
+OpenGLIsUnsafe=false
+
+[MouseBindings]
+CommandAllKey=Meta
+
+[Plugins]
+blurEnabled=true
+contrastEnabled=true
+kwin4_effect_fadeEnabled=true
+kwin4_effect_loginEnabled=true
+kwin4_effect_maximizeEnabled=true
+kwin4_effect_scaleEnabled=true
+slidingpopupsEnabled=true
+
+[Windows]
+BorderlessMaximizedWindows=false
+FocusPolicy=ClickToFocus
+Placement=Smart
+
+[org.kde.kdecoration2]
+BorderSize=Normal
+ButtonsOnLeft=M
+ButtonsOnRight=IAX
+CloseOnDoubleClickOnMenu=false
+library=org.kde.breeze
+plugin=org.kde.breeze
+EOF
+
+  cat > "/home/$GUEST_USER/.config/plasmashellrc" <<'EOF'
+[PlasmaViews][Panel 2][Defaults]
+thickness=48
+
+[PlasmaViews][Panel 2][Horizontal1920]
+thickness=48
+
+[Updates]
+beagleUsabilityProfile=1
+EOF
+
+  cat > "/home/$GUEST_USER/.config/plasma-org.kde.plasma.desktop-appletsrc" <<EOF
+[ActionPlugins][0]
+RightButton;NoModifier=org.kde.contextmenu
+wheel:Vertical;NoModifier=org.kde.switchdesktop
+
+[ActionPlugins][1]
+RightButton;NoModifier=org.kde.contextmenu
+
+[Containments][1]
+ItemGeometries-1920x1080=
+ItemGeometriesHorizontal=
+activityId=
+formfactor=0
+immutability=1
+lastScreen=0
+location=0
+plugin=org.kde.plasma.folder
+wallpaperplugin=org.kde.image
+
+[Containments][1][Wallpaper][org.kde.image][General]
+Image=file://${BEAGLE_WALLPAPER_PATH}
+
+[Containments][2]
+activityId=
+formfactor=2
+immutability=1
+lastScreen=0
+location=4
+plugin=org.kde.panel
+wallpaperplugin=org.kde.image
+
+[Containments][2][Applets][3]
+immutability=1
+plugin=org.kde.plasma.kickoff
+
+[Containments][2][Applets][3][Configuration][General]
+favoritesPortedToKAstats=true
+
+[Containments][2][Applets][4]
+immutability=1
+plugin=org.kde.plasma.icontasks
+
+[Containments][2][Applets][4][Configuration][General]
+launchers=applications:google-chrome.desktop,applications:org.kde.dolphin.desktop,applications:org.kde.konsole.desktop,applications:systemsettings.desktop
+
+[Containments][2][Applets][5]
+immutability=1
+plugin=org.kde.plasma.marginsseparator
+
+[Containments][2][Applets][6]
+immutability=1
+plugin=org.kde.plasma.systemtray
+
+[Containments][2][Applets][6][Configuration][General]
+extraItems=org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.notifications
+knownItems=org.kde.plasma.networkmanagement,org.kde.plasma.volume,org.kde.plasma.battery,org.kde.plasma.bluetooth,org.kde.plasma.notifications
+
+[Containments][2][Applets][7]
+immutability=1
+plugin=org.kde.plasma.digitalclock
+
+[Containments][2][Applets][7][Configuration][Appearance]
+showDate=true
+
+[Containments][2][Applets][7][Configuration][Calendar]
+firstDayOfWeek=1
+
+[Containments][2][Applets][8]
+immutability=1
+plugin=org.kde.plasma.showdesktop
+
+[Containments][2][General]
+AppletOrder=3;4;5;6;7;8
+
+[ScreenMapping]
+itemsOnDisabledScreens=
+screenMapping=
+EOF
+
+  cat > /usr/local/bin/beagle-plasma-desktop-repair <<'EOF'
+#!/usr/bin/env bash
+set -u
+
+export DISPLAY="${DISPLAY:-:0}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+
+if ! pgrep -u "$(id -u)" -x kwin_x11 >/dev/null 2>&1; then
+  nohup kwin_x11 --replace >/tmp/beagle-kwin-repair.log 2>&1 &
+fi
+
+sleep 1
+
+if ! pgrep -u "$(id -u)" -x plasmashell >/dev/null 2>&1; then
+  nohup plasmashell --no-respawn >/tmp/beagle-plasmashell-repair.log 2>&1 &
+fi
+EOF
+  chmod 0755 /usr/local/bin/beagle-plasma-desktop-repair
+
+  cat > "/home/$GUEST_USER/.config/autostart/beagle-plasma-desktop-repair.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Beagle Plasma Desktop Repair
+Exec=/usr/local/bin/beagle-plasma-desktop-repair
+OnlyShowIn=KDE;
+X-KDE-autostart-phase=1
+NoDisplay=true
+EOF
+
   chown "$GUEST_USER:$GUEST_USER" \
     "/home/$GUEST_USER/.config/kscreenlockerrc" \
     "/home/$GUEST_USER/.config/powermanagementprofilesrc" \
-    "/home/$GUEST_USER/.config/kdeglobals"
+    "/home/$GUEST_USER/.config/kdeglobals" \
+    "/home/$GUEST_USER/.config/kwinrc" \
+    "/home/$GUEST_USER/.config/plasmashellrc" \
+    "/home/$GUEST_USER/.config/plasma-org.kde.plasma.desktop-appletsrc" \
+    "/home/$GUEST_USER/.config/autostart/beagle-plasma-desktop-repair.desktop"
 
   apply_script="/usr/local/lib/beagle/beagle-plasma-profile-apply"
   cat > "$apply_script" <<EOF
@@ -735,6 +893,12 @@ if [[ -n "\$KWRITECONFIG_BIN" ]]; then
   "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key Autolock false >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key LockOnResume false >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kscreenlockerrc --group Daemon --key Timeout 0 >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kwinrc --group Windows --key BorderlessMaximizedWindows false >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnRight IAX >/dev/null 2>&1 || true
+fi
+
+if command -v beagle-plasma-desktop-repair >/dev/null 2>&1; then
+  beagle-plasma-desktop-repair >/dev/null 2>&1 || true
 fi
 
 mkdir -p "\$(dirname "\$MARKER")"

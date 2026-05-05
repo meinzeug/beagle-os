@@ -1,3 +1,36 @@
+## Update (2026-05-05, Plasma-Desktop UX + Stream-Keyboard-Capture)
+
+**Scope**: VM100 sofort benutzbar gemacht und Repo-Provisioning so erweitert, dass neue Ubuntu-Beagle-Plasma-VMs einen vollwertigen Desktop statt eines kaputten Minimal-Shells bekommen.
+
+- **Root-Cause Desktop**:
+  - `plasmashell` lief, aber `kwin_x11` fehlte/lief nicht -> keine Fensterrahmen, keine Close/Maximize/Minimize-Buttons.
+  - `plasma-org.kde.plasma.desktop-appletsrc` enthielt nur Kickoff -> keine Taskbar, kein System-Tray, keine Uhr, keine Show-Desktop-Funktion.
+
+- **Live-Hotfix VM100**:
+  - `kwin-x11`, `plasma-pa`, `plasma-widgets-addons` installiert.
+  - `kwinrc` mit normalen Fensterrahmen und Buttons `IAX` gesetzt.
+  - Plasma-Panel mit Kickoff, Icon Task Manager, System Tray, Digital Clock und Show Desktop geschrieben.
+  - `beagle-plasma-desktop-repair` installiert, damit `kwin_x11`/`plasmashell` beim Login repariert werden, falls Plasma wieder ohne WM startet.
+  - `kwin_x11` und `plasmashell` neu gestartet; Sunshine `/serverinfo` bleibt erreichbar.
+
+- **Repo-Fix beagle-os**:
+  - Plasma-Pakete erweitert: `kwin-x11`, `plasma-pa`, `plasma-widgets-addons`.
+  - `firstboot-provision.sh.tpl` erzeugt jetzt ein vollständiges KDE-Desktopprofil mit Fensterdekoration, Panel, Taskbar, Tray, Uhr und Repair-Autostart.
+  - Thinclient-Launcher startet BeagleStream jetzt mit `--capture-system-keys always`.
+
+- **Repo-Fix beagle-stream-client** (commit `2a5949f4`, `beagle/phase-a`):
+  - Alte lokalen Moonlight-Kombos deaktiviert.
+  - Ein einziges Beagle-lokales Escape-Kürzel bleibt: `Ctrl+Alt+Shift+F12` minimiert den Stream und gibt Eingabe frei.
+  - Alt+F4, Alt+Tab, Super/Meta und normale Desktop-Shortcuts sollen damit zur VM gehen.
+
+- **Verifiziert**:
+  - `kwin_x11` aktiv, `plasmashell` aktiv.
+  - Panel-Config enthält `icontasks`, `systemtray`, `digitalclock`, `showdesktop`.
+  - BeagleStream-Client-Fork baut lokal erfolgreich.
+  - Targeted Tests: `22 passed`.
+
+---
+
 ## Update (2026-05-05, Sunshine Fork: Avahi Warning + XFixesGetCursorImage Fix + Dual-Service Cleanup)
 
 **Scope**: Sunshine-Fork `beagle/phase-a` mit zwei Log-Fixes neu gebaut und auf VM100 deployed. Doppelten System-Service deaktiviert.
