@@ -139,10 +139,10 @@ Beagle OS soll sofort erkennbar sein. Kein generisches Breeze-Dark.
 
 Ein Desktop für eine gestreamte VM hat andere Prioritäten als ein lokaler Desktop.
 
-- [x] **Global Menu** (`org.kde.plasma.appmenu`) im Panel aktiviert: macOS-Stil —
-  App-Menüs in der Taskbar statt in jedem Fenster → spart vertikalen Platz im Stream
+- [x] **Global Menu** (`org.kde.plasma.appmenu`) — ENTFERNT: nicht Windows-like.
+  AppletOrder ist jetzt Windows-10/11-Style: Kickoff → IconTasks → Separator → SysTray → Clock → ShowDesktop
 - [x] Single-Click zum Öffnen von Dateien (Dolphin-Default für Streaming)
-- [ ] KRunner mit Super-Taste direkt öffnen (kein Kickoff als primärer Launcher)
+- [ ] Super+Escape als Beagle-Escape aus dem VM-Stream (in Openbox rc.xml aktiv)
 - [ ] Maximiere-Fenster-Policy: Neu geöffnete Apps direkt maximiert
 - [ ] Desktop-Shortcuts aus dem Weg: keine Desktop-Symbole (erzeugen Verwirrung in Streams)
 - [ ] Notifications-Center an statt floating Popups
@@ -186,8 +186,8 @@ aussehen als das Original.
   für `cyberpunk`, `windows`, `classic`
 - [ ] Taskbar mittig (Windows 11 Style) — KDE Kickoff mittig ausrichten
 - [ ] Start-Menü-Look: Kickoff mit Kacheln statt Liste
-- [ ] Windows-kompatible Tastenkürzel: Win+E → Dolphin, Win+D → Show Desktop,
-  Win+I → System Settings
+- [x] Windows-kompatible Tastenkürzel: Win+E → Dolphin, Win+D → Show Desktop,
+  Win+I → System Settings, Win+R/Alt+F2 → KRunner (alle in kglobalshortcutsrc)
 - [ ] "Willkommen bei Beagle OS" Setup-Wizard für neue Windows-Umsteiger
 - [ ] Rechtsklick → "Weitere Optionen anzeigen" (Win11-Stil) via KDE Servicemenus
 

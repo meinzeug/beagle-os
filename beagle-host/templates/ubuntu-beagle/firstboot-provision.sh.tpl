@@ -1327,6 +1327,9 @@ show-desktop=Meta+D,none,Show Desktop
 
 [krunner]
 _launch=Alt+F2\tMeta+R,none,KRunner
+
+[systemsettings.desktop]
+_launch=Meta+I,none,System Settings
 EOF
 
   chown "$GUEST_USER:$GUEST_USER" \
