@@ -1494,9 +1494,9 @@ if [[ ! -f "$DONE_FILE" ]]; then
     wireplumber \
     pulseaudio-utils \
     nftables \
-    x11vnc \
     fonts-ibm-plex \
-    fonts-hack-ttf
+    fonts-hack-ttf \
+    x11vnc
   repair_interrupted_dpkg
   if [[ -n "$DESKTOP_PACKAGES" ]]; then
     apt_retry apt-get install -y --fix-missing --no-install-recommends ${DESKTOP_PACKAGES}
