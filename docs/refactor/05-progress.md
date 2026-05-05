@@ -1,3 +1,29 @@
+## Update (2026-05-05, VPN-Fix + UEFI-Snapshot-Fallback + D3 Vorbereitung)
+
+**Scope**: "Failed to activate Beagle VPN session" auf Thinclient behoben, UEFI/pflash-Snapshot-Fallback implementiert, alle drei Fixes committed und gepusht.
+
+- **VPN-Fix (beagle-wg-cap.service)**:
+  - Root Cause: `beagle-stream`-Binary (C++ Qt App) ruft `wg set wg-beagle peer ...` direkt als `thinclient`-User auf — ohne root-Rechte schlaegt das mit "Operation not permitted" fehl.
+  - Fix: Neues `beagle-wg-cap.service` (oneshot, Before=pve-thin-client-runtime) setzt `cap_net_admin+ep` auf `/usr/bin/wg` bei jedem Boot.
+  - Overlay: `beagle-os/overlay/etc/systemd/system/beagle-wg-cap.service` + `multi-user.target.wants/` Symlink.
+  - Live-Hotfix auf Thinclient `ubuntu-beagle-100` eingespielt und verifiziert (kein VPN-Fehler mehr in neuem Stream-Log).
+
+- **UEFI/pflash VM-Snapshot-Fallback**:
+  - Root Cause: `virsh snapshot-create-as --atomic --no-metadata` schlaegt fuer VMs mit pflash-Firmware (OVMF/UEFI) fehl.
+  - Fix: `beagle_host_provider.snapshot_vm()` faengt den Fehler ab und wiederholt mit `--disk-only` (externe Snapshots).
+  - `service_registry._snapshot_handler` delegiert jetzt an `HOST_PROVIDER.snapshot_vm()` statt virsh direkt aufzurufen.
+  - Regressions-Test angepasst.
+
+- **USB-Tunnel-Pfad-Fix**:
+  - `session_script_path` in `service_registry.py` zeigt auf `bin/beagle-usb-tunnel-session` (nicht `services/`).
+  - `USB_TUNNEL_ATTACH_HOST` default auf `192.168.123.1` (VM-Bridge, nicht veraltetes `10.10.10.1`).
+
+- **Verifiziert**:
+  - Thinclient 0 failed units, beagle-stream laeuft, kein VPN-Fehler im neuen Log.
+  - Commit: `39c00f5` — gepusht auf `main`.
+
+---
+
 ## Update (2026-05-04, Diamond-D1/D2 Live-Hotfixes auf srv1 + lokalem Thinclient)
 
 **Scope**: Den Diamond-Plan nach D0 weiter abarbeiten: D1-Firstboot-Blocker, D2-Broker-Health, Live-Hotfixes und Security-Fund direkt im Repo und auf `srv1`/lokalem Thinclient reparieren.
