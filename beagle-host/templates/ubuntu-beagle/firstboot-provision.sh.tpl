@@ -1350,6 +1350,131 @@ EOF
     "/home/$GUEST_USER/.config/autostart/beagle-plasma-desktop-repair.desktop" \
     "/home/$GUEST_USER/.config/kglobalshortcutsrc"
 
+  # Konsole cyberpunk terminal profile
+  mkdir -p "/home/$GUEST_USER/.local/share/konsole"
+  cat > "/home/$GUEST_USER/.local/share/konsole/Beagle.profile" <<'EOF'
+[Appearance]
+ColorScheme=BeagleCyberpunk
+Font=Hack,12,-1,5,50,0,0,0,0,0
+LineSpacing=2
+
+[General]
+Command=/bin/bash
+Name=Beagle
+Parent=FALLBACK/
+StartInCurrentSessionDir=false
+
+[Interaction Options]
+AutoCopySelectedText=true
+TrimLeadingWhitespacesInSelectedText=true
+
+[Scrolling]
+ScrollBarPosition=2
+ScrollFullPage=false
+HistorySize=5000
+
+[Terminal Features]
+BlinkingCursorEnabled=true
+CursorShape=1
+EOF
+
+  cat > "/home/$GUEST_USER/.local/share/konsole/BeagleCyberpunk.colorscheme" <<'EOF'
+[Background]
+Color=10,14,26
+
+[BackgroundFaint]
+Color=10,14,26
+
+[BackgroundIntense]
+Color=20,28,52
+
+[Color0]
+Color=10,14,26
+
+[Color0Faint]
+Color=18,22,35
+
+[Color0Intense]
+Color=80,90,120
+
+[Color1]
+Color=255,0,110
+
+[Color1Intense]
+Color=255,50,150
+
+[Color2]
+Color=0,200,130
+
+[Color2Intense]
+Color=0,245,180
+
+[Color3]
+Color=255,185,0
+
+[Color3Intense]
+Color=255,215,50
+
+[Color4]
+Color=0,120,255
+
+[Color4Intense]
+Color=0,160,255
+
+[Color5]
+Color=200,0,255
+
+[Color5Intense]
+Color=220,80,255
+
+[Color6]
+Color=0,245,255
+
+[Color6Intense]
+Color=80,255,255
+
+[Color7]
+Color=200,220,230
+
+[Color7Intense]
+Color=232,244,248
+
+[Foreground]
+Color=232,244,248
+
+[ForegroundFaint]
+Color=150,175,190
+
+[ForegroundIntense]
+Color=255,255,255
+
+[General]
+Anchor=0.5,0.5
+Blur=false
+ColorRandomization=false
+Description=Beagle Cyberpunk
+FillStyle=Tile
+Opacity=0.92
+Wallpaper=
+
+[Cursor]
+CustomCursorColor=0,245,255
+UseCustomCursorColor=true
+EOF
+
+  cat > "/home/$GUEST_USER/.config/konsolerc" <<'EOF'
+[Desktop Entry]
+DefaultProfile=Beagle.profile
+
+[MainWindow]
+MenuBar=Disabled
+StatusBar=Disabled
+ToolBarsMovable=Disabled
+EOF
+
+  chown -R "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.local/share/konsole"
+  chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config/konsolerc"
+
   apply_script="/usr/local/lib/beagle/beagle-plasma-profile-apply"
   cat > "$apply_script" <<EOF
 #!/usr/bin/env bash
