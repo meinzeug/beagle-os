@@ -599,6 +599,8 @@ Name=Beagle vkms xrandr setup
 Exec=/usr/local/bin/beagle-vkms-xrandr-setup
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
+X-KDE-autostart-phase=2
+X-KDE-autostart-after=panel
 EOF
 
   systemctl daemon-reload
@@ -1192,6 +1194,13 @@ plugin=org.kde.plasma.icontasks
 
 [Containments][2][Applets][4][Configuration][General]
 launchers=applications:google-chrome.desktop,applications:org.kde.dolphin.desktop,applications:org.kde.konsole.desktop,applications:beagle-ai.desktop,applications:systemsettings.desktop
+groupingStrategy=0
+middleClickAction=NewInstance
+wheelEnabled=true
+showOnlyCurrentScreen=false
+showOnlyCurrentDesktop=false
+showOnlyCurrentActivity=false
+highlightWindows=true
 
 [Containments][2][Applets][5]
 immutability=1
