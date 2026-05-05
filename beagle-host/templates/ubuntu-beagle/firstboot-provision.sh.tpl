@@ -639,7 +639,141 @@ configure_plasma_profile() {
     "/home/$GUEST_USER/.config" \
     "/home/$GUEST_USER/.config/autostart" \
     "/home/$GUEST_USER/.local/bin" \
-    "/home/$GUEST_USER/.local/state/beagle"
+    "/home/$GUEST_USER/.local/state/beagle" \
+    "/home/$GUEST_USER/.local/share/color-schemes"
+
+  # --- Beagle Cyberpunk Color Scheme ---
+  # Full KDE .colors file: Dark Navy base + Electric Cyan accent + Neon Magenta secondary.
+  # Applied when DESKTOP_THEME_VARIANT==cyberpunk; replaces generic BreezeDark.
+  cat > "/home/$GUEST_USER/.local/share/color-schemes/BeagleCyberpunk.colors" <<'EOF'
+[ColorEffects:Disabled]
+Color=56,56,56
+ColorAmount=0
+ColorEffect=0
+ContrastAmount=0.65
+ContrastEffect=1
+IntensityAmount=0.1
+IntensityEffect=2
+
+[ColorEffects:Inactive]
+ChangeSelectionColor=true
+Color=112,111,110
+ColorAmount=0.025
+ColorEffect=2
+ContrastAmount=0.1
+ContrastEffect=2
+Enable=false
+IntensityAmount=0
+IntensityEffect=0
+
+[Colors:Button]
+BackgroundAlternate=18,22,38
+BackgroundNormal=14,18,30
+DecorationFocus=0,245,255
+DecorationHover=255,0,110
+ForegroundActive=255,255,255
+ForegroundInactive=110,140,160
+ForegroundLink=0,245,255
+ForegroundNegative=255,80,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=232,244,248
+ForegroundPositive=80,255,140
+ForegroundVisited=180,0,220
+
+[Colors:Complementary]
+BackgroundAlternate=10,14,26
+BackgroundNormal=8,12,22
+DecorationFocus=0,245,255
+DecorationHover=255,0,110
+ForegroundActive=255,255,255
+ForegroundInactive=100,130,150
+ForegroundLink=0,245,255
+ForegroundNegative=255,80,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=232,244,248
+ForegroundPositive=80,255,140
+ForegroundVisited=180,0,220
+
+[Colors:Header]
+BackgroundAlternate=12,16,28
+BackgroundNormal=8,12,22
+DecorationFocus=0,245,255
+DecorationHover=255,0,110
+ForegroundActive=255,255,255
+ForegroundInactive=100,130,150
+ForegroundLink=0,245,255
+ForegroundNegative=255,80,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=232,244,248
+ForegroundPositive=80,255,140
+ForegroundVisited=180,0,220
+
+[Colors:Selection]
+BackgroundAlternate=0,130,145
+BackgroundNormal=0,210,225
+DecorationFocus=0,245,255
+DecorationHover=255,0,110
+ForegroundActive=255,255,255
+ForegroundInactive=110,140,160
+ForegroundLink=0,245,255
+ForegroundNegative=255,80,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=8,12,22
+ForegroundPositive=80,255,140
+ForegroundVisited=180,0,220
+
+[Colors:Tooltip]
+BackgroundAlternate=12,16,28
+BackgroundNormal=8,12,22
+DecorationFocus=0,245,255
+DecorationHover=255,0,110
+ForegroundActive=255,255,255
+ForegroundInactive=100,130,150
+ForegroundLink=0,245,255
+ForegroundNegative=255,80,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=232,244,248
+ForegroundPositive=80,255,140
+ForegroundVisited=180,0,220
+
+[Colors:View]
+BackgroundAlternate=12,16,28
+BackgroundNormal=8,12,22
+DecorationFocus=0,245,255
+DecorationHover=255,0,110
+ForegroundActive=255,255,255
+ForegroundInactive=100,130,150
+ForegroundLink=0,245,255
+ForegroundNegative=255,80,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=232,244,248
+ForegroundPositive=80,255,140
+ForegroundVisited=180,0,220
+
+[Colors:Window]
+BackgroundAlternate=12,16,28
+BackgroundNormal=10,14,26
+DecorationFocus=0,245,255
+DecorationHover=255,0,110
+ForegroundActive=255,255,255
+ForegroundInactive=100,130,150
+ForegroundLink=0,245,255
+ForegroundNegative=255,80,80
+ForegroundNeutral=255,200,0
+ForegroundNormal=232,244,248
+ForegroundPositive=80,255,140
+ForegroundVisited=180,0,220
+
+[General]
+ColorScheme=BeagleCyberpunk
+Name=Beagle Cyberpunk
+shadeSortColumn=true
+
+[KDE]
+contrast=7
+EOF
+  chown "$GUEST_USER:$GUEST_USER" \
+    "/home/$GUEST_USER/.local/share/color-schemes/BeagleCyberpunk.colors"
 
   cat > "/home/$GUEST_USER/.config/kscreenlockerrc" <<'EOF'
 [Daemon]
@@ -677,20 +811,38 @@ EOF
   if [[ "$DESKTOP_THEME_VARIANT" == "cyberpunk" ]]; then
     cat > "/home/$GUEST_USER/.config/kdeglobals" <<'EOF'
 [General]
-ColorScheme=BreezeDark
+ColorScheme=BeagleCyberpunk
+font=IBM Plex Sans,10,-1,5,50,0,0,0,0,0
+fixed=Hack,10,-1,5,50,0,0,0,0,0
+smallestReadableFont=IBM Plex Sans,8,-1,5,50,0,0,0,0,0
+toolBarFont=IBM Plex Sans,9,-1,5,50,0,0,0,0,0
+menuFont=IBM Plex Sans,10,-1,5,50,0,0,0,0,0
+XftHintStyle=hintfull
+XftSubPixel=rgb
+XftAntialias=1
 
 [KDE]
 LookAndFeelPackage=org.kde.breezedark.desktop
 widgetStyle=Breeze
+SingleClick=true
 EOF
   else
     cat > "/home/$GUEST_USER/.config/kdeglobals" <<'EOF'
 [General]
 ColorScheme=BreezeLight
+font=IBM Plex Sans,10,-1,5,50,0,0,0,0,0
+fixed=Hack,10,-1,5,50,0,0,0,0,0
+smallestReadableFont=IBM Plex Sans,8,-1,5,50,0,0,0,0,0
+toolBarFont=IBM Plex Sans,9,-1,5,50,0,0,0,0,0
+menuFont=IBM Plex Sans,10,-1,5,50,0,0,0,0,0
+XftHintStyle=hintfull
+XftSubPixel=rgb
+XftAntialias=1
 
 [KDE]
 LookAndFeelPackage=org.kde.breeze.desktop
 widgetStyle=Breeze
+SingleClick=true
 EOF
   fi
 
@@ -701,6 +853,7 @@ update_info=kwin.upd:auto-bordersize,kwin.upd:animation-speed
 [Compositing]
 Enabled=true
 OpenGLIsUnsafe=false
+AnimationDurationFactor=0.5
 
 [Effect-Blur]
 NoiseStrength=0
@@ -792,6 +945,10 @@ plugin=org.kde.plasma.kickoff
 [Containments][2][Applets][3][Configuration][General]
 favoritesPortedToKAstats=true
 
+[Containments][2][Applets][9]
+immutability=1
+plugin=org.kde.plasma.appmenu
+
 [Containments][2][Applets][4]
 immutability=1
 plugin=org.kde.plasma.icontasks
@@ -826,7 +983,7 @@ immutability=1
 plugin=org.kde.plasma.showdesktop
 
 [Containments][2][General]
-AppletOrder=3;4;5;6;7;8
+AppletOrder=3;9;4;5;6;7;8
 
 [ScreenMapping]
 itemsOnDisabledScreens=
@@ -899,7 +1056,8 @@ fi
 
 if [[ -n "\$KWRITECONFIG_BIN" ]]; then
   if [[ "\$THEME_VARIANT" == "cyberpunk" ]]; then
-    "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key ColorScheme BreezeDark >/dev/null 2>&1 || true
+    # Use real Beagle Cyberpunk color scheme (installed in firstboot)
+    "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key ColorScheme BeagleCyberpunk >/dev/null 2>&1 || true
     "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key LookAndFeelPackage org.kde.breezedark.desktop >/dev/null 2>&1 || true
   else
     "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key ColorScheme BreezeLight >/dev/null 2>&1 || true
@@ -912,6 +1070,8 @@ if [[ -n "\$KWRITECONFIG_BIN" ]]; then
   "\$KWRITECONFIG_BIN" --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnRight IAX >/dev/null 2>&1 || true
   # Animation speed 3 = fast (scale 1–5); reduces perceived latency in streams
   "\$KWRITECONFIG_BIN" --file kwinrc --group Animations --key speed 3 >/dev/null 2>&1 || true
+  # AnimationDurationFactor 0.5 = halve all animation durations globally
+  "\$KWRITECONFIG_BIN" --file kwinrc --group Compositing --key AnimationDurationFactor 0.5 >/dev/null 2>&1 || true
   # Single virtual desktop — no workspace-switching confusion while streaming
   "\$KWRITECONFIG_BIN" --file kwinrc --group Desktops --key Number 1 >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kwinrc --group Desktops --key Rows 1 >/dev/null 2>&1 || true
@@ -919,6 +1079,11 @@ if [[ -n "\$KWRITECONFIG_BIN" ]]; then
   "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key XftHintStyle hintfull >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key XftSubPixel rgb >/dev/null 2>&1 || true
   "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key XftAntialias 1 >/dev/null 2>&1 || true
+  # IBM Plex Sans — Beagle brand font; improves stream text clarity vs default Noto Sans
+  "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key font "IBM Plex Sans,10,-1,5,50,0,0,0,0,0" >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key fixed "Hack,10,-1,5,50,0,0,0,0,0" >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key toolBarFont "IBM Plex Sans,9,-1,5,50,0,0,0,0,0" >/dev/null 2>&1 || true
+  "\$KWRITECONFIG_BIN" --file kdeglobals --group General --key menuFont "IBM Plex Sans,10,-1,5,50,0,0,0,0,0" >/dev/null 2>&1 || true
   # Single-click to open files/folders (better for streaming — fewer double-click misses)
   "\$KWRITECONFIG_BIN" --file kdeglobals --group KDE --key SingleClick true >/dev/null 2>&1 || true
 fi
@@ -1025,7 +1190,9 @@ if [[ ! -f "$DONE_FILE" ]]; then
     wireplumber \
     pulseaudio-utils \
     nftables \
-    x11vnc
+    x11vnc \
+    fonts-ibm-plex \
+    fonts-hack-ttf
   repair_interrupted_dpkg
   if [[ -n "$DESKTOP_PACKAGES" ]]; then
     apt_retry apt-get install -y --fix-missing --no-install-recommends ${DESKTOP_PACKAGES}

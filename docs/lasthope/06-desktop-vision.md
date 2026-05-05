@@ -24,28 +24,42 @@ Open Source ist.
 
 ## Markt-Analyse: Wo die Konkurrenz steht
 
-### Elementary OS
+Stand: 2026-05
+
+### Elementary OS 8.1 (April 2026)
 - **Stärke**: Konsequentes iOS-ähnliches Design (Pantheon DE), App-Qualität vor App-Menge,
   eigener AppCenter mit Pay-What-You-Want-Modell, ausgezeichnetes Onboarding.
+  Neueste Version 8.1: verbesserte "Secure Session", Dock-Fixes, 1.100+ Issue-Reports
+  gefixt, Accessibility-Verbesserungen.
 - **Schwäche**: Eng ans eigene Ökosystem gebunden, kein Remote-/VDI-Szenario, kein
   Enterprise-Betrieb, langsame Updates, kaum Customization.
 - **Beagle-Lücke**: Elementary hat keinen Server, kein Streaming, keinen Thin-Client.
 
-### Zorin OS
+### Zorin OS 18.1 (April 2026)
 - **Stärke**: Windows-/macOS-ähnliches Gefühl für Umsteiger, visuell poliert,
   Pro-Tier finanziert die Free-Edition, sehr gutes Out-of-Box-Erlebnis.
+  "Zorin Connect" verbindet Android-Phone mit Desktop (Dateiübertragung, Sync, Benachrichtigungen).
+  Referenzfall: Stadt Vicenza verlängert PC-Lebensdauer um 30-40%.
 - **Schwäche**: Proprietäres Look&Feel-Addon (Pro), kein Enterprise-Server-Stack,
   kein zentrales Management, kein Streaming.
 - **Beagle-Lücke**: Zorin kann nicht zentral bereitgestellt und verwaltet werden.
+  → **Beagle-Idee**: "BeagleConnect" als Phone-to-VM Clipboard/Datei-Sync analog Zorin Connect.
 
-### Pop!_OS / COSMIC DE (System76)
+### Pop!_OS / COSMIC DE 1.0 Beta (System76, 2025)
 - **Stärke**: COSMIC (Rust-based, Wayland-first) ist der mutigste DE-Neustart seit Jahren.
   Tiling-Workflows, Auto-Tiling-WM, GPU-Offload-Architektur für NVLink, Performanz-Fokus.
+  **Modulares Custom-Theming-System**: Organisationen können ihr eigenes Farbpaletten-Theme
+  ohne Qualitätsverlust deployen — genau das macht Beagle mit BeagleCyberpunk.
+  **Custom-Applets**: COSMIC betont, dass Panels/Applets/Shell-Komponenten alle
+  dasselbe Toolkit verwenden → Beagle braucht eigene KDE-Plasmoids (BeagleStream-Widget).
+  **Sicherheit**: Wayland-nativ verhindert Keylogging und Input-Spoofing.
   System76 verkauft Hardware und OS zusammen — starke vertikale Integration.
-- **Schwäche**: COSMIC ist noch jung (Epoch 1), kein Thin-Client, kein VDI,
+- **Schwäche**: COSMIC ist noch in Beta (Pop!_OS 24.04 Beta), kein Thin-Client, kein VDI,
   kein Streaming-Protokoll, keine zentrale Fleet-Verwaltung.
 - **Beagle-Lücke**: COSMIC ist ein lokaler Desktop. BeagleStream macht denselben
   Desktop remote nutzbar, ohne ihn neu bauen zu müssen.
+  → **Key Learning**: Beagles Custom-Theming (BeagleCyberpunk) ist strategisch richtig —
+  COSMIC validiert diesen Ansatz als state-of-the-art.
 
 ### KDE Plasma 6 (Vanilla)
 - **Stärke**: Mächtigstes Open-Source-DE: umfangreichste Konfigurierbarkeit,
@@ -97,20 +111,23 @@ Uhr und Keyboard-Capture laufen korrekt.
 - [x] Vollständiges Panel: Kickoff, Task Manager, System Tray, Clock, Show Desktop
 - [x] Keyboard-Capture: nur ein Escape-Kürzel (`Ctrl+Alt+Shift+F12`), alle anderen zur VM
 - [x] `beagle-plasma-desktop-repair` Autostart als WM-Fallback
-- [ ] Fensteranimationen aktivieren (KWin Compositing)
-- [ ] Blur-Effekte und Transparenz für Panels (plasma-pa, kwin-effects)
-- [ ] Plasma-Aktivitäten deaktivieren (unnötige Komplexität für Streaming-Nutzer)
+- [x] Fensteranimationen aktivieren (KWin Compositing, Blur-Effekte)
+- [x] Plasma-Aktivitäten auf 1 virtual desktop reduziert (kein Workspace-Wirrwarr im Stream)
+- [ ] Plasma-Aktivitäten vollständig deaktivieren (optional, nur wenn nötig)
 
-### Phase B — Cyberpunk-Identität
+### Phase B — Cyberpunk-Identität ✅ begonnen
 
 Beagle OS soll sofort erkennbar sein. Kein generisches Breeze-Dark.
 
-- [ ] Eigenes KDE-Color-Scheme `BeagleCyberpunk`:
+- [x] **BeagleCyberpunk.colors** KDE-Color-Scheme installiert und aktiv:
   - Basis: Dark Navy `#0a0e1a`
   - Accent: Electric Cyan `#00f5ff`
   - Sekundär: Neon Magenta `#ff006e`
   - Text: Bright White `#e8f4f8`
-  - Selection: Cyan mit 30% Alpha
+  - Selection: Cyan-Highlight
+- [x] IBM Plex Sans als Beagle-Standardfont (Branding-Font + H.264-tauglich)
+- [x] Hack als Monospace-Font (Terminal + Code)
+- [x] `fonts-ibm-plex` + `fonts-hack-ttf` via apt in firstboot installiert
 - [ ] Eigenes Icon-Theme (Beagle-Fork von Papirus-Dark mit Cyan-Akzent)
 - [ ] KDE Plasma Splash Screen mit Beagle-Branding
 - [ ] Login-Screen (`sddm`) mit Beagle-Cyberpunk-Theme
@@ -118,34 +135,32 @@ Beagle OS soll sofort erkennbar sein. Kein generisches Breeze-Dark.
 - [ ] App-Launcher (Kickoff oder Krunner) mit Beagle-Logo und Dark-Glass-Look
 - [ ] Cursor-Theme: Breeze-Snow oder eigener Cyberpunk-Cursor
 
-### Phase C — Smart Defaults für den Streaming-Use-Case
+### Phase C — Smart Defaults für den Streaming-Use-Case ✅ begonnen
 
 Ein Desktop für eine gestreamte VM hat andere Prioritäten als ein lokaler Desktop.
 
-- [ ] Global Menu (Plasma-Addon) aktivieren: Menüleisten in der Taskbar statt in Fenstern
-  → spart Platz in 1920x1080 und wirkt modern (macOS-Style)
+- [x] **Global Menu** (`org.kde.plasma.appmenu`) im Panel aktiviert: macOS-Stil —
+  App-Menüs in der Taskbar statt in jedem Fenster → spart vertikalen Platz im Stream
+- [x] Single-Click zum Öffnen von Dateien (Dolphin-Default für Streaming)
 - [ ] KRunner mit Super-Taste direkt öffnen (kein Kickoff als primärer Launcher)
-- [ ] Single-Click zum Öffnen von Dateien (Dolphin-Default für Streaming)
 - [ ] Maximiere-Fenster-Policy: Neu geöffnete Apps direkt maximiert
-  (`kwriteconfig --file kwinrc --group Windows --key FocusPolicy ClickToFocus`)
 - [ ] Desktop-Shortcuts aus dem Weg: keine Desktop-Symbole (erzeugen Verwirrung in Streams)
 - [ ] Notifications-Center an statt floating Popups
 - [ ] Night Color (Blaulicht-Filter) konfigurierbar ohne System-Settings öffnen
 - [ ] Drag-Lock deaktivieren (führt in Streaming zu unerwarteten Drag-Events)
 - [ ] Clipboard-Sync zwischen Host und VM über BeagleStream (KDE Clipboard Manager)
 
-### Phase D — Performance und Latenz
+### Phase D — Performance und Latenz ✅ begonnen
 
 Für Streaming ist wahrgenommene Geschwindigkeit entscheidend.
 
-- [ ] KWin Compositor: `VSync` auf `Adaptive` oder `Never` für niedrigste Latenz
-  (besser 1 Frame Tearing als 5ms Compositor-Delay)
-- [ ] KWin Animations: auf 100ms reduzieren (Standard: 250ms)
-- [ ] Startup-Zeit: Plasma-Splash unterdrücken oder auf <1s verkürzen
-- [ ] Fonts: Sub-Pixel-Hinting für scharfe Schrift bei verlustbehaftetem H.264-Stream
+- [x] KWin Animations: speed=3 (von 5 auf 3 reduziert, schnellere Übergänge)
+- [x] **AnimationDurationFactor=0.5** in KWin Compositing → alle Animationen halbiert
+- [x] Fonts: Sub-Pixel-Hinting für scharfe Schrift bei verlustbehaftetem H.264-Stream
   (Hint: `Full`, RGB-Sub-Pixel, DPI 96)
-- [ ] Schriften: IBM Plex Sans (Beagle-Marke), Nerd Font Mono für Terminal
-- [ ] Power-Save deaktivieren (alle DPMS, Suspend, Dimming)
+- [x] Power-Save deaktiviert (alle DPMS, Suspend, Dimming via kscreenlockerrc)
+- [ ] KWin Compositor: Backend-VSync auf `Adaptive` für niedrigste Latenz untersuchen
+- [ ] Startup-Zeit: Plasma-Splash unterdrücken oder auf <1s verkürzen
 - [ ] systemd-inhibit für BeagleStream (kein Schlaf während aktiver Session)
 
 ### Phase E — Beagle-eigene Panel-Widgets
