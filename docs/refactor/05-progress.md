@@ -15,7 +15,37 @@
 
 ---
 
-## Update (2026-05-05, Stream-Stability: ensure_wg_peer in Retry-Loop + Watchdog + Sunshine Auto-Restart)
+## Update (2026-05-05, ENet-Timeout-Fix + sunshine.conf bereinigt + Repo-Sync)
+
+**Scope**: ENet-Disconnects (`Connection terminated: -1`) dauerhaft reduzieren. Sunshine-Config bereinigt. Alle Live-Fixes reproduzierbar im Repo.
+
+- **Root-Cause**: Sunshine's ENet-Layer hatte den Default-Timeout `ENET_PEER_TIMEOUT_MAXIMUM = 30 s`. Auf WireGuard-Tunnelpfaden (Thinclient → srv1 → VM100) können Re-Handshakes oder kurze VPN-Jitter mehrere Sekunden dauern. Bei fehlenden ACKs für >30 s erklärt ENet den Peer für tot → `ENET_EVENT_TYPE_DISCONNECT` → `Connection terminated: -1` auf Moonlight-Seite.
+
+- **Fix 1 — beagle-stream-server** (commit `27f9bc73`, `beagle/phase-a`):
+  - `src/stream.cpp`: `enet_peer_timeout(event.peer, 64, 5000, 90000)` im `ENET_EVENT_TYPE_CONNECT`-Handler gesetzt.
+  - Server toleriert jetzt bis zu **90 s** ohne ACK (statt 30 s), was WG-Re-Handshakes und VPN-Jitter abpuffert.
+  - App-Level `ping_timeout = 120 s` bleibt als zweite Absicherungsstufe.
+  - Binary auf VM100 neu kompiliert (10 Cores, `cmake --build . -j10`), atomisch deployed nach `/usr/local/bin/sunshine`.
+
+- **Fix 2 — sunshine.conf bereinigt** (live auf VM100):
+  - Doppelte `min_log_level`-Einträge entfernt, `ping_timeout` auf 120000 ms erhöht, `file_state` korrekt gesetzt.
+  - Sunshine neu gestartet: PID 317412, Client sofort reconnected, Stream aktiv.
+
+- **Fix 3 — Provisioning-Template** (commit `491c7b4`, `beagle-os/main`):
+  - `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl`:
+    - `beagle_stream_server_name` → `sunshine_name` (korrekter Config-Key aus `config.cpp`)
+    - `ping_timeout = 120000` hinzugefügt
+    - `file_state` mit korrektem Pfad hinzugefügt
+  - Alle neu provisionierten VMs erhalten damit die stabilen Timeouts automatisch.
+
+- **Verifiziert**:
+  - Stream nach Sunshine-Neustart automatisch reconnected (kein manueller Eingriff)
+  - Sunshine PID 317412 aktiv, Bitrate 8908000, H.264 software encoder
+  - `wait_for_stream_server_ready()` (commit `d69f80c`) arbeitete korrekt: kein `Qt Critical: Connection refused (Error 1)` im reconnect
+
+---
+
+
 
 **Scope**: Stream-Stabilität dauerhaft behoben. `ensure_wg_peer()` wird jetzt vor JEDEM Retry-Versuch ausgeführt (nicht nur einmal beim Start). Background-Watchdog restauriert WG-Peer alle 8s während der Binary läuft. Sunshine in der VM als systemd-User-Service eingerichtet (Restart=always, RestartSec=5). `ping_timeout` von 30s auf 60s erhöht.
 
