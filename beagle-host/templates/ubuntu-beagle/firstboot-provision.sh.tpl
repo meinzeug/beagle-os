@@ -1184,10 +1184,6 @@ plugin=org.kde.plasma.kickoff
 [Containments][2][Applets][3][Configuration][General]
 favoritesPortedToKAstats=true
 
-[Containments][2][Applets][9]
-immutability=1
-plugin=org.kde.plasma.appmenu
-
 [Containments][2][Applets][4]
 immutability=1
 plugin=org.kde.plasma.icontasks
@@ -1220,6 +1216,8 @@ plugin=org.kde.plasma.digitalclock
 
 [Containments][2][Applets][7][Configuration][Appearance]
 showDate=true
+showSeconds=false
+use24hFormat=2
 
 [Containments][2][Applets][7][Configuration][Calendar]
 firstDayOfWeek=1
@@ -1229,7 +1227,7 @@ immutability=1
 plugin=org.kde.plasma.showdesktop
 
 [Containments][2][General]
-AppletOrder=3;9;4;5;6;7;8
+AppletOrder=3;4;5;6;7;8
 
 [ScreenMapping]
 itemsOnDisabledScreens=
@@ -1315,11 +1313,20 @@ StartupNotify=true
 NoDisplay=false
 EOF
 
-  # KDE global shortcut: Meta+A → Beagle AI
+  # Windows-style keyboard shortcuts + Beagle AI shortcut
   cat >> "/home/$GUEST_USER/.config/kglobalshortcutsrc" <<'EOF'
 
 [beagle-ai.desktop]
 _launch=Meta+A,none,Beagle AI
+
+[org.kde.dolphin.desktop]
+_launch=Meta+E,none,File Manager
+
+[plasmashell]
+show-desktop=Meta+D,none,Show Desktop
+
+[krunner]
+_launch=Alt+F2\tMeta+R,none,KRunner
 EOF
 
   chown "$GUEST_USER:$GUEST_USER" \
@@ -1418,6 +1425,8 @@ Name=Beagle Plasma Profile
 Exec=${apply_script}
 OnlyShowIn=KDE;
 X-GNOME-Autostart-enabled=true
+X-KDE-autostart-phase=2
+X-KDE-autostart-after=panel
 NoDisplay=false
 EOF
 }
