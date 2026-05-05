@@ -638,18 +638,28 @@ EOF
 
 configure_lightdm_greeter() {
   local theme_name="Adwaita"
+  local icon_theme="breeze-dark"
+  local font_name="IBM Plex Sans 12"
 
   install -d -m 0755 /etc/lightdm/lightdm-gtk-greeter.conf.d
   if [[ "$DESKTOP_THEME_VARIANT" == "cyberpunk" ]]; then
     theme_name="Adwaita-dark"
+    icon_theme="breeze-dark"
+  elif [[ "$DESKTOP_THEME_VARIANT" == "windows" ]]; then
+    theme_name="Adwaita-dark"
+    icon_theme="breeze"
+    font_name="Segoe UI 11"
   fi
   cat > /etc/lightdm/lightdm-gtk-greeter.conf.d/60-beagle-branding.conf <<EOF
 [greeter]
 theme-name=${theme_name}
-icon-theme-name=breeze
-font-name=DejaVu Sans 11
+icon-theme-name=${icon_theme}
+font-name=${font_name}
+cursor-theme-name=breeze_snow
+cursor-theme-size=24
 clock-format=%H:%M
 panel-position=top
+indicators=~host;~spacer;~clock;~spacer;~session;~power
 EOF
   if [[ -n "$BEAGLE_WALLPAPER_PATH" && -f "$BEAGLE_WALLPAPER_PATH" ]]; then
     printf 'background=%s\n' "$BEAGLE_WALLPAPER_PATH" >> /etc/lightdm/lightdm-gtk-greeter.conf.d/60-beagle-branding.conf
