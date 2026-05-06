@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Beagle OS Thin Client — Openbox configuration
+  Beagle OS Thin Client - Openbox configuration
   
   Design goals:
   - Forward ALL keyboard shortcuts (including Alt+F4, Ctrl+W, etc.) to the
-    active application. With beagle-stream running --capture-system-keys always,
+    active application. With beagle-stream running capture-system-keys always,
     this ensures every keypress goes to the remote VM.
   - Provide ONE unique local escape hotkey: Super+Escape
     (Windows key + Escape) to terminate the stream and return to local desktop.
-  - No window decorations, no taskbar — thin client is purely a streaming shell.
+  - No window decorations, no taskbar - thin client is purely a streaming shell.
 -->
 <openbox_config xmlns="http://openbox.org/3.4/rc">
 
@@ -88,7 +88,7 @@
       BEAGLE OS KEY POLICY:
       - NO system key bindings here. All keypresses (Alt+F4, Ctrl+W, etc.)
         pass through to beagle-stream, which forwards them to the remote VM.
-      - ONLY exception: Super+Escape — the Beagle OS local escape hotkey.
+      - ONLY exception: Super+Escape - the Beagle OS local escape hotkey.
         Press Super+Escape (Windows key + Esc) to exit the stream session
         and return to the local thin client desktop.
     -->
