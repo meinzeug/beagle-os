@@ -238,8 +238,8 @@ Beagle OS braucht eigene Panel-Applets, die keine andere Distribution hat.
   (Daten aus BeagleStream-Metrics oder QEMU Guest Agent)
 - [ ] **Beagle-Session-Controls**: direkt im Tray: Session pausieren, Resume, Disconnect
   ohne Alt+F4 oder Menü-Navigation
-- [ ] **Escape-Hint-Overlay**: beim Starten des Streams kurz einblenden:
-  `"Ctrl+Alt+Shift+F12 → Lokalen Desktop"` — danach unsichtbar
+- [x] **Escape-Hint-Overlay**: beim Starten des Streams kurz einblenden:
+  `"Super+Escape → Lokalen Desktop"` — zenity auto-close 4s (128b575)
 
 ### Phase F — Accessibility und Internationalisierung
 

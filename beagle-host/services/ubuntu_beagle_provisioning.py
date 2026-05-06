@@ -591,7 +591,7 @@ class UbuntuBeagleProvisioningService:
             "        content: |",
             self.indent_block(wallpaper_b64, "          "),
         ]
-        return "\n".join(lines)
+        return "\n" + "\n".join(lines)
 
     def resolve_desktop_wallpaper_asset(self, desktop_id: str) -> dict[str, str]:
         desktop = self._resolve_ubuntu_beagle_desktop(desktop_id or self._ubuntu_beagle_default_desktop)

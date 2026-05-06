@@ -2021,7 +2021,7 @@ if ! systemctl is-active --quiet beagle-stream-server.service; then
   exit 0
 fi
 
-if ! pgrep -x beagle-stream-server >/dev/null 2>&1; then
+if ! pgrep -x sunshine >/dev/null 2>&1; then
   restart_stack
   exit 0
 fi

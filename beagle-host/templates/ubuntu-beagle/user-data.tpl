@@ -2,8 +2,7 @@
 autoinstall:
   version: 1
   shutdown: poweroff
-  # Skip downloading security updates during autoinstall (handled in firstboot)
-  updates: none
+  # Skip downloading updates during autoinstall (handled in firstboot)
   locale: __IDENTITY_LOCALE__
   network:
     version: 2
