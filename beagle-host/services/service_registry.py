@@ -2029,13 +2029,15 @@ def latest_ubuntu_beagle_state_for_vmid(vmid: int, *, include_credentials: bool 
                 firstboot_stale = age_seconds >= float(max(60, UBUNTU_BEAGLE_FIRSTBOOT_STALE_SECONDS))
             except Exception:
                 firstboot_stale = False
-        if vm is not None and vm_status == "running" and firstboot_stale:
+        if vm is not None and firstboot_stale:
             raw_state = load_ubuntu_beagle_state(token)
             raw_status = str((raw_state or {}).get("status", "")).strip().lower()
             raw_phase = str((raw_state or {}).get("phase", "")).strip().lower()
             if isinstance(raw_state, dict) and raw_status == "installing" and raw_phase == "firstboot":
                 try:
-                    guest_firstboot_runtime = _ubuntu_beagle_guest_firstboot_runtime(int(vmid))
+                    guest_firstboot_runtime = (
+                        _ubuntu_beagle_guest_firstboot_runtime(int(vmid)) if vm_status == "running" else "inactive"
+                    )
                     if guest_firstboot_runtime == "active":
                         raw_state["updated_at"] = utcnow()
                         raw_state["message"] = (
@@ -2044,16 +2046,24 @@ def latest_ubuntu_beagle_state_for_vmid(vmid: int, *, include_credentials: bool 
                         )
                         save_ubuntu_beagle_state(token, raw_state)
                         return ubuntu_beagle_state_service().latest_for_vmid(vmid, include_credentials=include_credentials)
+                    if vm_status in {"paused", "starting"}:
+                        return ubuntu_beagle_state_service().latest_for_vmid(vmid, include_credentials=include_credentials)
                     cleanup = ubuntu_beagle_provisioning_service().finalize_ubuntu_beagle_install(raw_state, restart=False)
                     cancelled_restart = cancel_scheduled_ubuntu_beagle_vm_restart(raw_state)
                     raw_state["completed_at"] = utcnow()
                     raw_state["updated_at"] = utcnow()
                     raw_state["status"] = "completed"
                     raw_state["phase"] = "complete"
-                    raw_state["message"] = (
-                        "Ubuntu firstboot callback blieb aus; Installationsstatus wurde nach Ablauf "
-                        "des Stale-Timeouts serverseitig abgeschlossen."
-                    )
+                    if vm_status == "running":
+                        raw_state["message"] = (
+                            "Ubuntu firstboot callback blieb aus; Installationsstatus wurde nach Ablauf "
+                            "des Stale-Timeouts serverseitig abgeschlossen."
+                        )
+                    else:
+                        raw_state["message"] = (
+                            "Ubuntu firstboot callback blieb aus; Installationsstatus wurde serverseitig "
+                            "abgeschlossen, da die VM nach Ablauf des Stale-Timeouts nicht mehr lief."
+                        )
                     raw_state["cleanup"] = cleanup
                     if cancelled_restart:
                         raw_state["host_restart_cancelled"] = cancelled_restart
