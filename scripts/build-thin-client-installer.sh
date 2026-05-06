@@ -76,6 +76,41 @@ apt_update_with_beagle_fallback() {
   restore_beagle_enterprise_repo
 }
 
+validate_thinclient_xml_configs() {
+  local config_dir xml_file error_count=0
+
+  config_dir="$1"
+  
+  echo "Validating XML configurations in thin-client build..."
+  
+  while IFS= read -r xml_file; do
+    if ! python3 << EOF
+import xml.etree.ElementTree as ET
+import sys
+
+try:
+    ET.parse('$xml_file')
+    sys.exit(0)
+except ET.ParseError as e:
+    print(f"✗ XML Parse Error in $xml_file: {e}", file=sys.stderr)
+    print(f"  Line {e.position[0]}, Column {e.position[1]}", file=sys.stderr)
+    sys.exit(1)
+EOF
+    then
+      ((error_count++))
+    fi
+  done < <(find "$config_dir" -type f -name "*.xml" 2>/dev/null)
+  
+  if [[ "$error_count" -gt 0 ]]; then
+    echo "✗ XML validation failed: $error_count file(s) have syntax errors" >&2
+    echo "  Fix XML syntax errors before building" >&2
+    return 1
+  fi
+  
+  echo "✓ All XML configurations are valid"
+  return 0
+}
+
 ensure_root "$@"
 ensure_free_space_with_cleanup \
   "thin client live-build workspace" \
@@ -484,6 +519,9 @@ rsync -a --delete \
   "$BUILD_DIR/config/includes.chroot/usr/local/lib/pve-thin-client/"
 stage_beagle_stream_client_assets
 chmod 0755 "$BUILD_DIR"
+
+# Validate XML configurations before building
+validate_thinclient_xml_configs "$BUILD_DIR/config/includes.chroot" || exit 1
 
 pushd "$BUILD_DIR" >/dev/null
 chmod +x auto/config
