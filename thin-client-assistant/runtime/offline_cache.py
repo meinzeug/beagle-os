@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Beagle Endpoint OS — Offline Cache and Reconnect Module.
+Beagle Endpoint OS - Offline Cache and Reconnect Module.
 
 Stores the last successful cluster configuration locally (AES-256-GCM encrypted
 using a per-device key derived from machine-id) so endpoints can start streaming
@@ -9,14 +9,14 @@ sessions even when the cluster is temporarily unreachable.
 Features:
   - Cache last valid pool/streaming config after every successful cluster contact.
   - Retrieve cached config when cluster is unreachable.
-  - Show Offline-UI status ("Cluster nicht erreichbar — Reconnect in Xs").
+  - Show Offline-UI status ("Cluster nicht erreichbar - Reconnect in Xs").
   - Auto-reconnect every 30 seconds.
   - Invalidate cache after configurable TTL (default: 7 days).
 
 Environment variables:
-  BEAGLE_OFFLINE_CACHE_FILE   — path to encrypted cache file (default: /var/lib/beagle/offline-cache.bin)
-  BEAGLE_OFFLINE_CACHE_TTL    — TTL in seconds (default: 604800 = 7 days)
-  BEAGLE_MACHINE_ID_FILE      — path to machine-id (default: /etc/machine-id)
+  BEAGLE_OFFLINE_CACHE_FILE   - path to encrypted cache file (default: /var/lib/beagle/offline-cache.bin)
+  BEAGLE_OFFLINE_CACHE_TTL    - TTL in seconds (default: 604800 = 7 days)
+  BEAGLE_MACHINE_ID_FILE      - path to machine-id (default: /etc/machine-id)
 
 Usage as library:
   from offline_cache import OfflineCache

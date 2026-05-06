@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# protocol_selector.sh — BeagleStream / RDP Protocol Fallback Selector
+# protocol_selector.sh - BeagleStream / RDP Protocol Fallback Selector
 # GoEnterprise Plan 01, Schritt 6
 #
 # Selects the best streaming protocol in order of preference:
@@ -12,14 +12,14 @@
 # Exits 0 on success, non-zero on failure (no protocol available).
 #
 # Environment:
-#   BEAGLE_HOST       — Target VM host (IP or DNS name inside WireGuard mesh)
-#   BEAGLE_PORT       — BeagleStream port  (default: 47998)
-#   RDP_PORT          — RDP fallback port  (default: 3389)
-#   WG_IFACE          — WireGuard interface name (default: wg-beagle)
-#   PROBE_TIMEOUT_S   — Timeout per probe in seconds (default: 2)
-#   NETWORK_MODE      — vpn_required | vpn_preferred | direct_allowed  (default: vpn_preferred)
-#   BEAGLE_STREAM_CLIENT_BIN     — Path to beagle-stream-client binary (default: beagle-stream-client)
-#   XFREERDP_BIN      — Path to xfreerdp binary (default: xfreerdp)
+#   BEAGLE_HOST       - Target VM host (IP or DNS name inside WireGuard mesh)
+#   BEAGLE_PORT       - BeagleStream port  (default: 47998)
+#   RDP_PORT          - RDP fallback port  (default: 3389)
+#   WG_IFACE          - WireGuard interface name (default: wg-beagle)
+#   PROBE_TIMEOUT_S   - Timeout per probe in seconds (default: 2)
+#   NETWORK_MODE      - vpn_required | vpn_preferred | direct_allowed  (default: vpn_preferred)
+#   BEAGLE_STREAM_CLIENT_BIN     - Path to beagle-stream-client binary (default: beagle-stream-client)
+#   XFREERDP_BIN      - Path to xfreerdp binary (default: xfreerdp)
 
 set -euo pipefail
 
@@ -49,7 +49,7 @@ wireguard_active() {
     if ! ip link show "${WG_IFACE}" &>/dev/null; then
         return 1
     fi
-    # Interface exists — check it has a handshake (peer is reachable)
+    # Interface exists - check it has a handshake (peer is reachable)
     local latest_handshake
     latest_handshake="$(wg show "${WG_IFACE}" latest-handshakes 2>/dev/null | awk '{print $2}' | sort -n | tail -1 || echo 0)"
     local now
@@ -113,7 +113,7 @@ fi
 if [[ "${NETWORK_MODE}" == "direct_allowed" ]]; then
     echo "[proto-select] Probing BeagleStream direct (UDP ${BEAGLE_HOST}:${BEAGLE_PORT})..."
     if probe_udp "${BEAGLE_HOST}" "${BEAGLE_PORT}"; then
-        echo "[proto-select] SUCCESS: BeagleStream direct (no VPN — allowed by policy)"
+        echo "[proto-select] SUCCESS: BeagleStream direct (no VPN - allowed by policy)"
         echo "PROTOCOL=beaglestream"
         echo "VPN=none"
         echo "HOST=${BEAGLE_HOST}"

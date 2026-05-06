@@ -1,5 +1,5 @@
 #!/bin/sh
-# Beagle OS — Escape Hint Overlay
+# Beagle OS - Escape Hint Overlay
 # Shows a brief notification when BeagleStream starts so users know how to exit.
 # Launched in background from Openbox rc.xml or stream launch script.
 # Auto-closes after 4 seconds.
