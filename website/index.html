@@ -1034,80 +1034,115 @@
           <!-- ============ ENDPOINTS (Inventory + Detail) ============ -->
           <!-- ============ INVENTORY LIST ============ -->
           <section class="panel-section inventory-list-section" id="inventory-section" data-panel-section="inventory">
-
-            <article class="card inv-card">
-
-              <!-- Header -->
-              <div class="inv-header">
-                <div class="inv-header-title">
+            <article class="inventory-console" aria-labelledby="inventory-title">
+              <header class="inv-hero">
+                <div class="inv-hero-main">
                   <div class="inv-header-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 10l4 3 4-3"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8"/><path d="M12 18v2"/><path d="M8 9h8"/><path d="M8 13h5"/></svg>
                   </div>
                   <div>
-                    <h2>VMs &amp; Endpoints</h2>
-                    <p class="inv-subtitle">Beagle-VM auswaehlen</p>
+                    <span class="inv-eyebrow">Inventar</span>
+                    <h2 id="inventory-title">VMs und Endpoints verwalten</h2>
+                    <p class="inv-subtitle">Hier siehst du, welche Maschinen laufen, welche warten und welche du gemeinsam steuern kannst.</p>
                   </div>
                 </div>
-                <div class="inv-header-actions">
-                  <div class="inv-view-toggle" id="inv-view-toggle" role="group" aria-label="Ansicht">
-                    <button class="inv-view-btn inv-view-btn-active" id="inv-view-list" data-view="list" title="Listenansicht" type="button">
+                <div class="inv-hero-actions">
+                  <div class="inv-view-toggle" id="inv-view-toggle" role="group" aria-label="Ansicht wechseln">
+                    <button class="inv-view-btn inv-view-btn-active" id="inv-view-list" data-view="list" title="Liste" type="button" aria-label="Liste">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="3" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>
                     </button>
-                    <button class="inv-view-btn" id="inv-view-grid" data-view="grid" title="Kachelansicht" type="button">
+                    <button class="inv-view-btn" id="inv-view-grid" data-view="grid" title="Kacheln" type="button" aria-label="Kacheln">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
                     </button>
                   </div>
-                  <button class="button ghost small" id="export-inventory-csv" type="button">CSV</button>
-                  <button class="button ghost small" id="export-inventory-json" type="button">JSON</button>
-                  <label class="inv-select-all-label" title="Alle auswaehlen">
-                    <input id="inventory-select-all" type="checkbox" aria-label="Alle auswaehlen">
+                  <label class="inv-select-all-label" title="Alle sichtbaren Maschinen markieren">
+                    <input id="inventory-select-all" type="checkbox" aria-label="Alle sichtbaren Maschinen markieren">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                   </label>
+                </div>
+              </header>
+
+              <div class="inventory-metrics" id="inventory-metrics">
+                <div class="metric-pill metric-pill-all"><span>Sichtbar</span><strong id="inv-stat-visible">0</strong><small>passende Maschinen</small></div>
+                <div class="metric-pill metric-pill-running"><span>Laeuft</span><strong id="inv-stat-running">0</strong><small>einsatzbereit</small></div>
+                <div class="metric-pill metric-pill-installing"><span>Beschaeftigt</span><strong id="inv-stat-installing">0</strong><small>Installation/Start</small></div>
+                <div class="metric-pill metric-pill-stopped"><span>Gestoppt</span><strong id="inv-stat-stopped">0</strong><small>ausgeschaltet</small></div>
+                <div class="metric-pill metric-pill-selected"><span>Markiert</span><strong id="inv-stat-selected">0</strong><small id="bulk-selection">0 ausgewaehlt</small></div>
+              </div>
+
+              <div class="inv-control-deck">
+                <details class="inv-drawer inv-drawer-filter" open>
+                  <summary>
+                    <span class="inv-drawer-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg></span>
+                    <span><strong>Suchen und filtern</strong><small>Finde eine Maschine nach Name, Node, Rolle oder VM-ID.</small></span>
+                  </summary>
+                  <div class="inv-drawer-body inv-filterbar">
+                    <input id="search-input" class="input-search inv-search" type="search" placeholder="Name, Node, VM-ID oder Host suchen ...">
+                    <select id="role-filter" class="input-select" aria-label="Rolle filtern">
+                      <option value="all">Alle Rollen</option>
+                      <option value="endpoint">Endpoints</option>
+                      <option value="desktop">Desktops</option>
+                      <option value="other">Andere Rollen</option>
+                    </select>
+                    <label class="check-label inv-check-pill">
+                      <input id="eligible-only" type="checkbox">
+                      <span>Nur installierbare Ziele</span>
+                    </label>
+                    <button class="inv-icon-action" id="clear-filters" type="button" title="Filter zuruecksetzen" aria-label="Filter zuruecksetzen">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>
+                    </button>
+                  </div>
+                </details>
+
+                <details class="inv-drawer">
+                  <summary>
+                    <span class="inv-drawer-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg></span>
+                    <span><strong>Power fuer markierte VMs</strong><small>Starten, stoppen oder neu starten.</small></span>
+                  </summary>
+                  <div class="inv-drawer-body inv-action-grid" id="bulk-bar">
+                    <button class="inv-menu-action inv-action-start" id="bulk-vm-start" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Starten</span></button>
+                    <button class="inv-menu-action inv-action-stop" id="bulk-vm-stop" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg><span>Stoppen</span></button>
+                    <button class="inv-menu-action" id="bulk-vm-reboot" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg><span>Neustart</span></button>
+                  </div>
+                </details>
+
+                <details class="inv-drawer">
+                  <summary>
+                    <span class="inv-drawer-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V22a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 18l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7.1 4l.1.1a1.7 1.7 0 0 0 1.9.3h.1A1.7 1.7 0 0 0 10 2.8V3a2 2 0 1 1 4 0v-.2a1.7 1.7 0 0 0 1 1.6h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1A1.7 1.7 0 0 0 21 10h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"/></svg></span>
+                    <span><strong>Wartung fuer markierte VMs</strong><small>Healthcheck, Updates und Laufzeit neu anstossen.</small></span>
+                  </summary>
+                  <div class="inv-drawer-body inv-action-grid inv-action-grid-wide">
+                    <button class="inv-menu-action" id="bulk-healthcheck" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span>Healthcheck</span></button>
+                    <button class="inv-menu-action" id="bulk-support-bundle" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span>Support-Paket</span></button>
+                    <button class="inv-menu-action" id="bulk-restart-session" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg><span>Sitzung neu</span></button>
+                    <button class="inv-menu-action" id="bulk-restart-runtime" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M21 8a9 9 0 1 0 2.6 6.4"/></svg><span>Runtime neu</span></button>
+                    <button class="inv-menu-action" id="bulk-update-scan" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg><span>Updates suchen</span></button>
+                    <button class="inv-menu-action" id="bulk-update-download" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg><span>Updates laden</span></button>
+                  </div>
+                </details>
+
+                <details class="inv-drawer">
+                  <summary>
+                    <span class="inv-drawer-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg></span>
+                    <span><strong>Export</strong><small>Aktuelle Ansicht als Datei speichern.</small></span>
+                  </summary>
+                  <div class="inv-drawer-body inv-action-grid">
+                    <button class="inv-menu-action" id="export-inventory-csv" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span>CSV</span></button>
+                    <button class="inv-menu-action" id="export-inventory-json" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg><span>JSON</span></button>
+                  </div>
+                </details>
+              </div>
+
+              <div class="inv-list-head">
+                <div>
+                  <strong>Maschinen</strong>
+                  <span>Ein Klick auf eine Karte oeffnet die Details.</span>
                 </div>
               </div>
 
-              <!-- Stat pills -->
-              <div class="inventory-metrics" id="inventory-metrics">
-                <div class="metric-pill metric-pill-all"><span>Gesamt</span><strong id="inv-stat-visible">0</strong></div>
-                <div class="metric-pill metric-pill-running"><span>Running</span><strong id="inv-stat-running">0</strong></div>
-                <div class="metric-pill metric-pill-selected"><span>Ausgewaehlt</span><strong id="inv-stat-selected">0</strong></div>
-                <div class="metric-pill metric-pill-installing"><span>Installing</span><strong id="inv-stat-installing">0</strong></div>
-              </div>
-
-              <!-- Filter bar -->
-              <div class="inv-filterbar">
-                <input id="search-input" class="input-search inv-search" type="search" placeholder="Suchen ... (/)">
-                <select id="role-filter" class="input-select">
-                  <option value="all">Alle Rollen</option>
-                  <option value="endpoint">Endpoints</option>
-                  <option value="desktop">Desktops</option>
-                  <option value="other">Andere</option>
-                </select>
-                <label class="check-label">
-                  <input id="eligible-only" type="checkbox">
-                  <span>Eligible</span>
-                </label>
-                <button class="button ghost small" id="clear-filters" type="button">Zuruecksetzen</button>
-              </div>
-
-              <!-- Bulk action bar -->
-              <div class="toolbar bulk-bar" id="bulk-bar">
-                <button class="button ghost small" id="bulk-vm-start" type="button">Start</button>
-                <button class="button ghost small" id="bulk-vm-stop" type="button">Stop</button>
-                <button class="button ghost small" id="bulk-vm-reboot" type="button">Reboot</button>
-                <button class="button ghost small" id="bulk-healthcheck" type="button">Healthcheck</button>
-                <button class="button ghost small" id="bulk-support-bundle" type="button">Bundle</button>
-                <button class="button ghost small" id="bulk-restart-session" type="button">Restart Session</button>
-                <button class="button ghost small" id="bulk-restart-runtime" type="button">Restart Runtime</button>
-                <button class="button ghost small" id="bulk-update-scan" type="button">Update Scan</button>
-                <button class="button ghost small" id="bulk-update-download" type="button">Update Download</button>
-                <span class="bulk-selection" id="bulk-selection">0 ausgewaehlt</span>
-              </div>
-
-              <!-- VM list / grid (toggled via JS) -->
               <div class="vm-body vm-body-list" id="inventory-body">
                 <div class="vm-cards-empty">Noch keine Daten geladen.</div>
               </div>
-
             </article>
           </section>
 

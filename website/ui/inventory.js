@@ -141,6 +141,51 @@ export function updateStateLabel(updateState) {
   return normalized || 'unbekannt';
 }
 
+function humanStatusLabel(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  const map = {
+    running: 'Laeuft',
+    stopped: 'Gestoppt',
+    installing: 'Installiert',
+    paused: 'Pausiert',
+    suspended: 'Pausiert',
+    error: 'Fehler',
+    failed: 'Fehler',
+    unknown: 'Unklar'
+  };
+  return map[normalized] || (normalized ? normalized : 'Unklar');
+}
+
+function humanRoleLabel(role) {
+  const normalized = String(role || '').trim().toLowerCase();
+  const map = {
+    endpoint: 'Endpoint',
+    thinclient: 'Thin Client',
+    client: 'Client',
+    desktop: 'Desktop',
+    server: 'Server',
+    unassigned: 'Ohne Rolle'
+  };
+  return map[normalized] || (normalized ? normalized : 'Andere Rolle');
+}
+
+function statusHelp(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'running') {
+    return 'Bereit: diese Maschine ist eingeschaltet.';
+  }
+  if (normalized === 'installing') {
+    return 'Bitte warten: Installation oder Ersteinrichtung laeuft.';
+  }
+  if (normalized === 'paused' || normalized === 'suspended') {
+    return 'Pausiert: die Maschine ist angehalten.';
+  }
+  if (normalized === 'stopped' || normalized === 'shut off') {
+    return 'Ausgeschaltet: Starten schaltet sie wieder ein.';
+  }
+  return 'Status unklar: Details pruefen.';
+}
+
 export function parseCommaList(value) {
   return String(value || '')
     .split(',')
@@ -331,6 +376,10 @@ export function renderInventory() {
   const installingCount = rows.filter((vm) => {
     return String(profileOf(vm).status || '').trim().toLowerCase() === 'installing';
   }).length;
+  const stoppedCount = rows.filter((vm) => {
+    const status = String(profileOf(vm).status || '').trim().toLowerCase();
+    return status === 'stopped' || status === 'shut off';
+  }).length;
   if (qs('inv-stat-visible')) {
     qs('inv-stat-visible').textContent = String(rows.length);
   }
@@ -342,6 +391,9 @@ export function renderInventory() {
   }
   if (qs('inv-stat-installing')) {
     qs('inv-stat-installing').textContent = String(installingCount);
+  }
+  if (qs('inv-stat-stopped')) {
+    qs('inv-stat-stopped').textContent = String(stoppedCount);
   }
   const body = qs('inventory-body');
   if (!body) {
@@ -358,6 +410,8 @@ export function renderInventory() {
   var iconStop    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
   var iconReboot  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>';
   var iconConsole = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
+  var iconMore    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>';
+  var iconInfo    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>';
   var iconVm      = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 10l4 3 4-3"/></svg>';
   body.innerHTML = rows.map((vm) => {
     const profile = profileOf(vm);
@@ -366,7 +420,6 @@ export function renderInventory() {
     const isRunning = normalizedStatus === 'running';
     const isInstalling = normalizedStatus === 'installing';
     const statusTone = isRunning ? 'ok' : (isInstalling ? 'info' : 'warn');
-    const installerTone = profile.installer_target_eligible ? 'ok' : 'muted';
     const canStart = !isRunning && !isInstalling;
     const canStop = isRunning || isInstalling;
     const isSelected = state.selectedVmid === vmid;
@@ -378,6 +431,7 @@ export function renderInventory() {
     const streamInfo = profile.stream_host
       ? escapeHtml(profile.stream_host) + (profile.beagle_stream_client_port ? ':' + escapeHtml(profile.beagle_stream_client_port) : '')
       : '';
+    const hostname = profile.identity_hostname || profile.hostname || '';
     const nodeInfo = profile.node
       ? '<span class="vm-card-node"><span class="vm-card-node-label">Node</span><span class="vm-card-node-value">' + escapeHtml(profile.node) + '</span></span>'
       : '';
@@ -393,21 +447,29 @@ export function renderInventory() {
       '      <strong class="vm-card-name" title="' + escapeHtml(profile.name || ('VM ' + vmid)) + '">' + escapeHtml(profile.name || ('VM ' + vmid)) + '</strong>' +
       '      <span class="vm-card-id">#' + escapeHtml(vmid) + '</span>' +
       '    </div>' +
+        '    <p class="vm-card-help">' + escapeHtml(statusHelp(profile.status)) + '</p>' +
       '    <div class="vm-card-secondary">' +
       nodeInfo +
+        (hostname ? '<span class="vm-card-host">' + escapeHtml(hostname) + '</span>' : '') +
       (streamInfo ? '<span class="vm-card-stream">' + streamInfo + '</span>' : '') +
       '    </div>' +
       '  </div>' +
       '  <div class="vm-card-badges">' +
-      chip(profile.status || 'unknown', statusTone) +
-      chip(role, role === 'desktop' ? 'info' : 'muted') +
+        chip(humanStatusLabel(profile.status), statusTone) +
+        chip(humanRoleLabel(role), role === 'desktop' ? 'info' : 'muted') +
       '  </div>' +
       '  <div class="vm-card-actions">' +
-      '    <button type="button" class="vm-card-btn vm-card-btn-manage" data-vm-detail="' + escapeHtml(vmid) + '" title="Details">Details</button>' +
-      '    <button type="button" class="vm-card-btn" data-vm-power="start" data-vmid="' + escapeHtml(vmid) + '" title="Start"' + (canStart ? '' : ' disabled') + '>' + iconPlay + '</button>' +
-      '    <button type="button" class="vm-card-btn" data-vm-power="stop" data-vmid="' + escapeHtml(vmid) + '" title="Stop"' + (canStop ? '' : ' disabled') + '>' + iconStop + '</button>' +
-      '    <button type="button" class="vm-card-btn" data-vm-power="reboot" data-vmid="' + escapeHtml(vmid) + '" title="Reboot">' + iconReboot + '</button>' +
-      '    <button type="button" class="vm-card-btn" data-vm-console="novnc" data-vmid="' + escapeHtml(vmid) + '" title="noVNC">' + iconConsole + '</button>' +
+        '    <button type="button" class="vm-card-btn vm-card-primary-action" data-vm-detail="' + escapeHtml(vmid) + '" title="Details oeffnen" aria-label="Details oeffnen">' + iconInfo + '</button>' +
+        '    <button type="button" class="vm-card-btn inv-action-start" data-vm-power="start" data-vmid="' + escapeHtml(vmid) + '" title="Starten" aria-label="Starten"' + (canStart ? '' : ' disabled') + '>' + iconPlay + '</button>' +
+        '    <details class="vm-card-menu">' +
+        '      <summary title="Weitere Aktionen" aria-label="Weitere Aktionen">' + iconMore + '</summary>' +
+        '      <div class="vm-card-menu-panel">' +
+        '        <button type="button" data-vm-power="stop" data-vmid="' + escapeHtml(vmid) + '"' + (canStop ? '' : ' disabled') + '>' + iconStop + '<span>Stoppen</span></button>' +
+        '        <button type="button" data-vm-power="reboot" data-vmid="' + escapeHtml(vmid) + '">' + iconReboot + '<span>Neustart</span></button>' +
+        '        <button type="button" data-vm-console="novnc" data-vmid="' + escapeHtml(vmid) + '">' + iconConsole + '<span>Konsole</span></button>' +
+        '        <button type="button" data-vm-detail="' + escapeHtml(vmid) + '">' + iconInfo + '<span>Details</span></button>' +
+        '      </div>' +
+        '    </details>' +
       '  </div>' +
       '</div>';
   }).join('');

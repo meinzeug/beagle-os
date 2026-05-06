@@ -1312,13 +1312,27 @@ class BeagleHostProvider:
         if record is None:
             raise RuntimeError(f"VM {int(vmid)} not found in beagle provider state")
         if self._libvirt_enabled():
+            domain_name = self._libvirt_domain_name(vmid)
+            try:
+                state = self._run_virsh("domstate", domain_name).strip().lower()
+            except Exception:
+                state = ""
+            if "running" in state:
+                record["status"] = "running"
+                self._replace_vm(record)
+                return f"started beagle vm {int(vmid)}"
+
             # Keep libvirt XML aligned with the latest provider config (boot order,
             # installer media cleanup, qemu args) before every start.
             self._provision_libvirt_vm(vmid)
-            domain_name = self._libvirt_domain_name(vmid)
             try:
                 self._run_virsh("start", domain_name)
             except RuntimeError as exc:
+                error_text = str(exc)
+                if "domain is already active" in error_text.lower():
+                    record["status"] = "running"
+                    self._replace_vm(record)
+                    return f"started beagle vm {int(vmid)}"
                 if self._recover_qcow2_write_lock(str(exc)):
                     self._run_virsh("start", domain_name)
                 else:
