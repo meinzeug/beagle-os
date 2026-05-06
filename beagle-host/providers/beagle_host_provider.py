@@ -837,6 +837,8 @@ class BeagleHostProvider:
         nvram_dir = "/var/lib/libvirt/qemu/nvram"
         nvram_path = f"{nvram_dir}/{domain_name}_VARS.fd"
 
+        disk_boot_order = "3" if ubuntu_iso else "1"
+
         lines = [
             "<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>",
             f"  <name>{domain_name}</name>",
@@ -868,7 +870,7 @@ class BeagleHostProvider:
             "      <driver name='qemu' type='qcow2' cache='none' discard='unmap'/>",
             f"      <source file='{disk_path}'/>",
             "      <target dev='vda' bus='virtio'/>",
-            "      <boot order='1'/>",
+            f"      <boot order='{disk_boot_order}'/>",
             "    </disk>",
         ]
 
@@ -879,7 +881,7 @@ class BeagleHostProvider:
                 f"      <source file='{ubuntu_iso}'/>",
                 "      <target dev='sda' bus='sata'/>",
                 "      <readonly/>",
-                "      <boot order='2'/>",
+                "      <boot order='1'/>",
                 "    </disk>",
             ]
 
