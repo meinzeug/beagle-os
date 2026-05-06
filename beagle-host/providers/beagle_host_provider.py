@@ -612,6 +612,82 @@ class BeagleHostProvider:
             )
         return result.stdout.strip()
 
+    @staticmethod
+    def _locked_image_path_from_error(error_text: str) -> str:
+        text = str(error_text or "")
+        match = re.search(r'Is another process using the image \[(?P<path>[^\]]+)\]\?', text)
+        return str(match.group("path")).strip() if match else ""
+
+    @staticmethod
+    def _qemu_nbd_processes_for_image(image_path: str) -> list[tuple[int, str]]:
+        try:
+            result = subprocess.run(
+                ["ps", "-eo", "pid=,args="],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except Exception:
+            return []
+        if result.returncode != 0:
+            return []
+        matches: list[tuple[int, str]] = []
+        image_escaped = re.escape(str(image_path))
+        pattern = re.compile(
+            rf"\bqemu-nbd\b.*--connect=(?P<dev>/dev/nbd\d+)\s+{image_escaped}(?:\s|$)"
+        )
+        for raw_line in result.stdout.splitlines():
+            line = str(raw_line or "").strip()
+            if not line:
+                continue
+            parts = line.split(None, 1)
+            if len(parts) < 2:
+                continue
+            pid_raw, args = parts[0], parts[1]
+            try:
+                pid = int(pid_raw)
+            except Exception:
+                continue
+            match = pattern.search(args)
+            if match:
+                matches.append((pid, str(match.group("dev") or "").strip()))
+        return matches
+
+    def _recover_qcow2_write_lock(self, error_text: str) -> bool:
+        image_path = self._locked_image_path_from_error(error_text)
+        if not image_path:
+            return False
+        holders = self._qemu_nbd_processes_for_image(image_path)
+        if not holders:
+            return False
+
+        recovered = False
+        for pid, nbd_device in holders:
+            if nbd_device:
+                try:
+                    subprocess.run(
+                        ["qemu-nbd", "--disconnect", nbd_device],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    recovered = True
+                except Exception:
+                    pass
+            try:
+                subprocess.run(
+                    ["kill", str(pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                recovered = True
+            except Exception:
+                pass
+        if recovered:
+            time.sleep(1.0)
+        return recovered
+
     def _libvirt_enabled(self) -> bool:
         if not shutil.which("virsh"):
             return False
@@ -1239,7 +1315,14 @@ class BeagleHostProvider:
             # Keep libvirt XML aligned with the latest provider config (boot order,
             # installer media cleanup, qemu args) before every start.
             self._provision_libvirt_vm(vmid)
-            self._run_virsh("start", self._libvirt_domain_name(vmid))
+            domain_name = self._libvirt_domain_name(vmid)
+            try:
+                self._run_virsh("start", domain_name)
+            except RuntimeError as exc:
+                if self._recover_qcow2_write_lock(str(exc)):
+                    self._run_virsh("start", domain_name)
+                else:
+                    raise
         record["status"] = "running"
         self._replace_vm(record)
         return f"started beagle vm {int(vmid)}"
