@@ -99,3 +99,29 @@ beagle_stream_client_resolution() {
 
   printf '%s\n' "$configured"
 }
+
+beagle_stream_client_fps() {
+  local configured
+  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}"
+
+  if beagle_stream_hostless_enabled && [[ -z "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-}" || "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS}" == "60" ]]; then
+    # Hostless sessions are currently more stable on lower frame rates.
+    printf '%s\n' "30"
+    return 0
+  fi
+
+  printf '%s\n' "$configured"
+}
+
+beagle_stream_client_bitrate() {
+  local configured
+  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE:-20000}"
+
+  if beagle_stream_hostless_enabled && [[ -z "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE:-}" || "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE}" == "20000" ]]; then
+    # Keep hostless bitrate conservative to avoid immediate decode queue overflow.
+    printf '%s\n' "8000"
+    return 0
+  fi
+
+  printf '%s\n' "$configured"
+}

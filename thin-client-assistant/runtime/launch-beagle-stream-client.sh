@@ -288,16 +288,16 @@ main() {
 
   build_stream_args args
   if [[ "$hostless_beagle_stream" == "1" ]]; then
-    echo "Starting BeagleStream brokered stream: host=${host:-broker} connect_host=${connect_host:-${host:-broker}} port=${port:-default} app=$app resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}" >&2
+    echo "Starting BeagleStream brokered stream: host=${host:-broker} connect_host=${connect_host:-${host:-broker}} port=${port:-default} app=$app resolution=$(beagle_stream_client_resolution) fps=$(beagle_stream_client_fps)" >&2
   elif [[ -n "$connect_host" && "$connect_host" != "$host" ]]; then
-    echo "Starting Beagle Stream Client stream: host=$host resolved_ipv4=$connect_host port=${port:-default} app=$app resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}" >&2
+    echo "Starting Beagle Stream Client stream: host=$host resolved_ipv4=$connect_host port=${port:-default} app=$app resolution=$(beagle_stream_client_resolution) fps=$(beagle_stream_client_fps)" >&2
   else
-    echo "Starting Beagle Stream Client stream: host=$host port=${port:-default} app=$app resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}" >&2
+    echo "Starting Beagle Stream Client stream: host=$host port=${port:-default} app=$app resolution=$(beagle_stream_client_resolution) fps=$(beagle_stream_client_fps)" >&2
   fi
   if [[ "$hostless_beagle_stream" == "1" ]]; then
-    beagle_log_event "beagle-stream-client.exec" "mode=beagle-stream-hostless host=${host:-broker} connect_host=${connect_host:-${host:-broker}} port=${port:-default} app=${app} resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}"
+    beagle_log_event "beagle-stream-client.exec" "mode=beagle-stream-hostless host=${host:-broker} connect_host=${connect_host:-${host:-broker}} port=${port:-default} app=${app} resolution=$(beagle_stream_client_resolution) fps=$(beagle_stream_client_fps)"
   else
-    beagle_log_event "beagle-stream-client.exec" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} app=${app} resolution=$(beagle_stream_client_resolution) fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}"
+    beagle_log_event "beagle-stream-client.exec" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} app=${app} resolution=$(beagle_stream_client_resolution) fps=$(beagle_stream_client_fps)"
   fi
   {
     printf '=== %s ===\n' "$(date -Iseconds)"
