@@ -450,13 +450,17 @@ xrandr --query >/dev/null 2>&1 || true
 exit 4
 """
         exitcode, stdout, stderr = self.guest_exec_text(vm.vmid, script)
+        # In hostless/headless guests, xrandr can fail even though streaming is still possible.
+        # Treat these states as non-fatal so prepare-stream does not block the session bootstrap.
+        skipped_headless = exitcode in {2, 3, 4}
         return {
-            "ok": exitcode == 0,
+            "ok": exitcode == 0 or skipped_headless,
             "exitcode": exitcode,
             "resolution": configured,
             "stdout": stdout,
             "stderr": stderr,
             "guest_user": guest_user,
+            "skipped": skipped_headless,
         }
 
     def internal_beagle_stream_server_api_url(self, vm: Any, profile: dict[str, Any] | None = None) -> str:

@@ -5,6 +5,14 @@ beagle_stream_client_video_decoder() {
   configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-auto}"
 
   if [[ "$configured" == "auto" ]]; then
+    # Hostless sessions should prioritize reliability over HW acceleration.
+    # Some client GPUs repeatedly stall on VAAPI (IDR wait/decode overflow),
+    # resulting in a connected stream without visible desktop frames.
+    if beagle_stream_hostless_enabled; then
+      printf 'software\n'
+      return 0
+    fi
+
     # Hardware decode (VAAPI/VDPAU/Vulkan) requires /dev/dri/renderD128 (render node).
     # card0 is the KMS display node only; without renderD128 there is no working
     # hardware video decoder, so force software to avoid the blocking warning dialog.
@@ -63,6 +71,13 @@ local_display_resolution() {
 beagle_stream_client_resolution() {
   local configured detected
   configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION:-auto}"
+
+  if [[ "$configured" == "auto" ]] && beagle_stream_hostless_enabled; then
+    # Hostless sessions can report native client resolution that the remote virtual
+    # display cannot apply reliably. Use a safe baseline unless explicitly configured.
+    printf '%s\n' "1280x720"
+    return 0
+  fi
 
   if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_RESOLUTION:-1}" == "1" ]]; then
     detected="$(local_display_resolution 2>/dev/null || true)"
