@@ -1,3 +1,24 @@
+## Update (2026-05-07, BeagleStream E2E Handshake Diagnostic)
+
+**Scope**: Nach VM100-Server-Reparatur den verbleibenden Thinclient-Bruch reproduzierbar eingegrenzt.
+
+- **Live-Befund**:
+  - Standard-Produktionsbaseline ist wieder gruen: Public-Ports geschlossen, Legacy-DNAT absent, Guard aktiv, interne VM100-Ports offen, Sunshine `encoder=software`, `sw_preset=ultrafast`, `capture=kms`, `minimum_fps_target=60`, `max_bitrate=35000`, Service aktiv und `nice=-10`.
+  - Thinclient-Peer `10.88.1.1/32` ist auf `srv1` konfiguriert, hat aber aktuell `endpoint=(none)`, `latest_handshake=0` und `rx/tx=0/0`; der lokale Thinclient `192.168.178.37` ist per Ping/SSH-Port erreichbar, SSH-Key-Login wird jedoch abgelehnt.
+  - Damit liegt der aktuelle sichtbare E2E-Blocker nicht mehr auf VM100/srv1-Streamports, sondern auf Thinclient-WireGuard/Client-Start oder fehlendem Zugriff zur lokalen Reparatur.
+
+- **Repo-Fix**:
+  - `scripts/check-beaglestream-production-baseline.sh` hat jetzt den optionalen Modus `--require-wg-handshake --wg-peer-allowed-ip 10.88.1.1/32`.
+  - Der Modus unterscheidet Server-Readiness von echter Live-E2E-Abnahme und meldet fehlenden WireGuard-Endpoint/Handshake reproduzierbar rot.
+  - `docs/runbooks/beaglestream-production-baseline.md` dokumentiert den neuen Live-E2E-Check.
+
+- **Verifiziert**:
+  - Focused Tests: `10 passed`.
+  - Standard-Baseline: `beaglestream_production_baseline=PASS`.
+  - Live-E2E-Modus: erwartbar `FAIL` wegen fehlendem Thinclient-WireGuard-Handshake.
+
+---
+
 ## Update (2026-05-07, VM100 Virtio-GPU + Stable Internal BeagleStream)
 
 **Scope**: VM100 vom alten VGA/Bochs-Pfad auf virtio-gpu umgestellt, BeagleStream nach Reboot stabilisiert und Healthcheck-Drift reproduzierbar gepatcht.

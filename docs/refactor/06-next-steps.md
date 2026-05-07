@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-07, BeagleStream E2E Handshake Diagnostic)
+
+**Zuletzt erledigt**:
+- VM100/srv1 Standard-Produktionsbaseline erneut gruen validiert: sichere Public-Firewall, interne VM100-Ports offen, Sunshine-Config auf eingefrorener Baseline und `nice=-10`.
+- Optionaler Live-E2E-Modus fuer `scripts/check-beaglestream-production-baseline.sh` ergaenzt: `--require-wg-handshake --wg-peer-allowed-ip 10.88.1.1/32`.
+- Aktueller Live-Befund: Thinclient-Peer ist auf `srv1` vorhanden, aber ohne Endpoint und ohne Handshake (`latest_handshake=0`, Transfer `0/0`).
+
+**Naechste konkrete Schritte**:
+
+1. Auf dem lokalen Thinclient `192.168.178.37` SSH-Zugang herstellen oder lokal eine Shell oeffnen; danach `wg-beagle` und den BeagleStream-Client neu starten und Logs unter `/tmp/pve-thin-client-logs/` pruefen.
+2. Danach denselben Check mit `--require-wg-handshake --wg-peer-allowed-ip 10.88.1.1/32` erneut ausfuehren; erst bei gruenem Handshake echte Desktop-Stream-Abnahme fortsetzen.
+3. Wenn der Handshake nach Thinclient-Neustart fehlt: Thinclient-WireGuard-Config, `ensure_wg_peer()` und Broker-Allocate-Ziel gegen die aktuelle Runtime-Konfig vergleichen.
+
+---
+
 ## Stand (2026-05-07, VM100 Virtio-GPU Stream Recovery)
 
 **Zuletzt erledigt**:

@@ -47,6 +47,23 @@ scripts/check-beaglestream-production-baseline.sh \
 
 Erwartetes Ergebnis: `beaglestream_production_baseline=PASS`.
 
+Fuer Live-E2E-Abnahme mit aktivem Thinclient muss zusaetzlich ein aktueller
+WireGuard-Handshake fuer den Thinclient-Peer sichtbar sein:
+
+```bash
+scripts/check-beaglestream-production-baseline.sh \
+  --public-ip 46.4.96.80 \
+  --host srv1.beagle-os.com \
+  --vm-ip 192.168.123.114 \
+  --require-wg-handshake \
+  --wg-peer-allowed-ip 10.88.1.1/32
+```
+
+Wenn dieser Modus fehlschlaegt, ist der Serverpfad nicht automatisch kaputt:
+Dann ist der Thinclient nicht am Beagle-WireGuard sichtbar oder hat noch keinen
+Handshake aufgebaut. In diesem Fall Thinclient lokal oder per SSH pruefen und
+`wg-beagle` sowie den BeagleStream-Client neu starten.
+
 ## Bekannte Grenze
 
 Dieser Stand ist fluessig und sicher fuer den aktuellen Pilotpfad, aber noch nicht final GeForce-/GameStream-Niveau: Hardware-Encoding auf srv1/VM100 ist noch nicht verfuegbar. Der naechste Produktreife-Schritt ist ein reproduzierbarer NVENC/VAAPI/QSV- oder GPU-Passthrough/vGPU-Pfad plus Capture/Encode/Network/Decode/Render-Metriken.
