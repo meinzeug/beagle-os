@@ -158,6 +158,16 @@ main() {
   configure_graphics_runtime
   record_decoder_choice "$(beagle_stream_client_video_decoder)"
 
+  if [[ "$hostless_beagle_stream" == "1" && -z "${SDL_RENDER_DRIVER:-}" ]]; then
+    export SDL_RENDER_DRIVER="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RENDER_DRIVER:-opengl}"
+    beagle_log_event "beagle-stream-client.renderer" "driver=${SDL_RENDER_DRIVER} mode=hostless"
+  fi
+
+  if [[ "$hostless_beagle_stream" == "1" && "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN:-1}" == "1" ]]; then
+    export VK_ICD_FILENAMES="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VK_ICD_FILENAMES:-/dev/null}"
+    beagle_log_event "beagle-stream-client.vulkan" "disabled=1 icd=${VK_ICD_FILENAMES} mode=hostless"
+  fi
+
   if [[ "$hostless_beagle_stream" != "1" ]]; then
     session_response_file="$(mktemp)"
     if fetch_beagle_stream_client_current_session_via_manager "$session_response_file"; then
@@ -296,9 +306,10 @@ main() {
     printf '\n'
   } >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG"
 
-  # Show escape hint overlay on first stream attempt
-  if command -v /usr/local/bin/beagle-stream-hint >/dev/null 2>&1; then
-    /usr/local/bin/beagle-stream-hint &
+  # GTK hint overlays can crash on minimal live images with broken icon caches.
+  # Keep this disabled by default and allow explicit opt-in via env.
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_HINT_ENABLED:-0}" == "1" ]] && command -v /usr/local/bin/beagle-stream-hint >/dev/null 2>&1; then
+    /usr/local/bin/beagle-stream-hint >/dev/null 2>&1 &
   fi
 
   local stream_exit=0 stream_attempt=1 max_attempts retry_delay stream_pid stream_start_line stream_forced_restart
