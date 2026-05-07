@@ -19,7 +19,7 @@ import logging
 import os
 from typing import Any
 
-import requests  # type: ignore[import-untyped]
+import requests
 from requests import Response, Session
 
 _log = logging.getLogger(__name__)
