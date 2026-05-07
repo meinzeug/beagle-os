@@ -19,6 +19,12 @@ Environment=LOGNAME=thinclient
 Environment=SHELL=/bin/bash
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 SupplementaryGroups=audio video render input plugdev users netdev tty
+CapabilityBoundingSet=CAP_SYS_NICE CAP_NET_ADMIN
+AmbientCapabilities=CAP_SYS_NICE CAP_NET_ADMIN
+LimitNICE=-15
+LimitRTPRIO=50
+Nice=-10
+CPUWeight=10000
 PAMName=login
 PermissionsStartOnly=yes
 ExecStartPre=/usr/bin/install -d -m 0700 -o thinclient -g thinclient /run/user/1000

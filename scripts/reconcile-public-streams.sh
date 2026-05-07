@@ -13,6 +13,7 @@ NFT_TABLE_NAME="${BEAGLE_PUBLIC_STREAM_NFT_TABLE:-beagle_stream}"
 LAN_IFACE="${BEAGLE_PUBLIC_STREAM_LAN_IF:-vmbr1}"
 STREAMS_FILE="${BEAGLE_PUBLIC_STREAMS_FILE:-/var/lib/beagle/beagle-manager/public-streams.json}"
 NFT_STATE_FILE="${BEAGLE_PUBLIC_STREAM_NFT_STATE_FILE:-$CONFIG_DIR/beagle-streams.nft}"
+PUBLIC_STREAMS_ENABLED="${BEAGLE_PUBLIC_STREAMS_ENABLED:-0}"
 
 if [[ -f "$MANAGER_ENV_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -117,6 +118,14 @@ PY
 }
 
 ensure_root "$@"
+
+if [[ ! "$PUBLIC_STREAMS_ENABLED" =~ ^(1|true|yes|on)$ ]]; then
+    nft delete table inet "$NFT_TABLE_NAME" >/dev/null 2>&1 || true
+    rm -f "$NFT_STATE_FILE" >/dev/null 2>&1 || true
+    echo "public_streams_enabled=0 legacy_public_stream_table_removed=1"
+    exit 0
+fi
+
 install -d -m 0755 "$(dirname "$STREAMS_FILE")" "$CONFIG_DIR"
 
 inventory_file="$(mktemp)"

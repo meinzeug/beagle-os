@@ -61,7 +61,7 @@ def run_smoke(*, base: str, token: str) -> dict[str, Any]:
         "streaming_profile": {
             "encoder": "auto",
             "color": "h265",
-            "bitrate_kbps": 20000,
+            "bitrate_kbps": 32000,
             "fps": 60,
             "resolution": "1920x1080",
             "hdr": False,

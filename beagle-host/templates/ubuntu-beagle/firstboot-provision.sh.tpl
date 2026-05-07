@@ -1703,9 +1703,12 @@ if [[ ! -f "$DONE_FILE" ]]; then
   write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"
   # Detect the beagle-stream-server binary path across package layout changes.
   BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
-  if [[ ! -x /usr/local/bin/beagle-stream-server && -n "$(command -v sunshine 2>/dev/null || true)" ]]; then
+  if [[ -x /usr/local/bin/sunshine || -n "$(command -v sunshine 2>/dev/null || true)" ]]; then
     cat > /usr/local/bin/beagle-stream-server <<'EOF'
 #!/usr/bin/env bash
+if [[ -x /usr/local/bin/sunshine ]]; then
+  exec /usr/local/bin/sunshine "$@"
+fi
 exec "$(command -v sunshine)" "$@"
 EOF
     chmod 0755 /usr/local/bin/beagle-stream-server
@@ -1828,11 +1831,13 @@ min_log_level = info
 origin_web_ui_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
 origin_pin_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
 encoder = software
-sw_preset = superfast
+sw_preset = ultrafast
 sw_tune = zerolatency
-capture = x11
+capture = kms
 hevc_mode = 0
 av1_mode = 0
+minimum_fps_target = 60
+max_bitrate = 35000
 ping_timeout = 120000
 $( if [[ -n "$BEAGLE_STREAM_SERVER_PORT" ]]; then printf 'port = %s\n' "$BEAGLE_STREAM_SERVER_PORT"; fi )
 $( if [[ -n "$BEAGLE_STREAM_SERVER_PORT" ]]; then printf 'file_state = /home/%s/.config/beagle-stream-server/sunshine_state.json\n' "$GUEST_USER"; fi )
@@ -1894,7 +1899,9 @@ EOF
 [Desktop Entry]
 Type=Application
 Name=Light Locker
+Exec=light-locker
 Hidden=true
+X-GNOME-Autostart-enabled=false
 EOF
 
   cat > "/home/$GUEST_USER/.config/autostart/xfce4-power-manager.desktop" <<'EOF'
@@ -1928,6 +1935,12 @@ StartLimitIntervalSec=0
 Type=simple
 User=${GUEST_USER}
 Group=${GUEST_USER}
+SupplementaryGroups=video render input
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_NICE CAP_SETPCAP CAP_DAC_OVERRIDE CAP_CHOWN CAP_FOWNER CAP_KILL CAP_SETGID CAP_SETUID
+AmbientCapabilities=CAP_SYS_ADMIN CAP_SYS_NICE
+LimitNICE=-15
+Nice=-10
+CPUWeight=10000
 Environment=HOME=/home/${GUEST_USER}
 Environment=XDG_CONFIG_HOME=/home/${GUEST_USER}/.config
 Environment=DISPLAY=:0

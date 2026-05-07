@@ -1,6 +1,20 @@
 # Beagle OS Refactor - Decisions
 
-Stand: 2026-05-03
+Stand: 2026-05-07
+
+## D-064: Beagle-VMs nutzen virtio-Video statt legacy VGA als Streaming-Basis (2026-05-07)
+
+Kontext: VM100 streamte zwar sichtbar, blieb aber auf `vga`/Bochs ohne Render-Node. Nach dem Live-Switch auf virtio-gpu bekam der Guest `virtio_gpu` und `/dev/dri/renderD128`; der alte vkms-Hack blockierte danach den Grafikstart und wurde fuer VM100 deaktiviert.
+
+Entscheidung:
+
+- Neue Beagle-Provider-VMs werden mit libvirt-Video `type='virtio'` erzeugt, nicht mehr mit legacy `vga`.
+- BeagleStream-Healthchecks duerfen den laufenden Serverprozess nicht am Wrapper-Namen festmachen; der produktive Prozessname ist `sunshine`.
+- `vkms` bleibt hoechstens Fallback fuer alte Legacy-VMs ohne virtio-gpu, darf aber den Standardpfad fuer neue Streaming-VMs nicht blockieren.
+
+Grund: Bochs/VGA ist fuer Desktop-Streaming ein falscher Default. Virtio-gpu liefert einen modernen DRM-Pfad und verhindert, dass neue VMs denselben Performance-/Render-Blocker wie VM100 erben.
+
+Dateien/Scopes: `beagle-host/providers/beagle_host_provider.py`, `beagle_host/providers/beagle_host_provider.py`, `scripts/configure-beagle-stream-server-guest.sh`, `scripts/ensure-vm-stream-ready.sh`, `beagle-host/services/installer_prep.py`, `beagle_host/services/installer_prep.py`, `tests/unit/test_beagle_vm_video_model.py`.
 
 ## D-063: BeagleStream Client/Server sind eigene Beagle-Produkte, nicht nur konfigurierte Upstream-Binaries (2026-05-03)
 

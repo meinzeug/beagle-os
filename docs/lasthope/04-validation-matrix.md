@@ -25,7 +25,7 @@ muessen. Ein Gate ist erst gruen, wenn der Nachweis reproduzierbar ist.
 | Firstboot/Callback/Reboot | Provisioning-State + Guest-Journal | offen |
 | Desktop-Login | noVNC oder Stream | offen |
 | Thinclient-Live-USB | echter Boot + IP + Enrollment | offen |
-| BeagleStream | sichtbarer Desktop ueber Broker/WireGuard | offen |
+| BeagleStream | sichtbarer Desktop ueber Broker/WireGuard | PASS 2026-05-07: VM100/srv1/lokaler Thinclient fluessig, Public-DNAT entfernt, Baseline-Runbook + Regressionstests im Repo |
 | Backup/Restore Single-Host | Restore-Protokoll | offen |
 
 ## E2 - Zwei-Host Pilot

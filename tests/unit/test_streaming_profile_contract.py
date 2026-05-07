@@ -10,6 +10,8 @@ if str(ROOT_DIR) not in sys.path:
 from core.virtualization.streaming_profile import (  # noqa: E402
     StreamingColorCodec,
     StreamingEncoder,
+    StreamingNetworkMode,
+    production_beaglestream_profile,
     streaming_profile_from_payload,
     streaming_profile_to_dict,
 )
@@ -19,7 +21,7 @@ class StreamingProfileContractTests(unittest.TestCase):
     def test_defaults(self) -> None:
         profile = streaming_profile_from_payload({})
         self.assertEqual(profile.encoder, StreamingEncoder.AUTO)
-        self.assertEqual(profile.bitrate_kbps, 20000)
+        self.assertEqual(profile.bitrate_kbps, 32000)
         self.assertEqual(profile.resolution, "1920x1080")
         self.assertEqual(profile.fps, 60)
         self.assertEqual(profile.color, StreamingColorCodec.H265)
@@ -28,6 +30,17 @@ class StreamingProfileContractTests(unittest.TestCase):
         self.assertFalse(profile.gamepad_redirect_enabled)
         self.assertFalse(profile.wacom_tablet_enabled)
         self.assertFalse(profile.usb_redirect_enabled)
+
+    def test_production_beaglestream_profile_freezes_live_smooth_secure_baseline(self) -> None:
+        profile = production_beaglestream_profile()
+
+        self.assertEqual(profile.encoder, StreamingEncoder.SOFTWARE)
+        self.assertEqual(profile.bitrate_kbps, 32000)
+        self.assertEqual(profile.resolution, "1920x1080")
+        self.assertEqual(profile.fps, 60)
+        self.assertEqual(profile.color, StreamingColorCodec.H264)
+        self.assertEqual(profile.network_mode, StreamingNetworkMode.VPN_REQUIRED)
+        self.assertFalse(profile.hdr)
 
     def test_valid_custom_payload(self) -> None:
         profile = streaming_profile_from_payload(

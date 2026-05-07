@@ -28,7 +28,7 @@ class StreamingNetworkMode(str, Enum):
 @dataclass(frozen=True)
 class StreamingProfile:
     encoder: StreamingEncoder = StreamingEncoder.AUTO
-    bitrate_kbps: int = 20000
+    bitrate_kbps: int = 32000
     resolution: str = "1920x1080"
     fps: int = 60
     color: StreamingColorCodec = StreamingColorCodec.H265
@@ -38,6 +38,22 @@ class StreamingProfile:
     gamepad_redirect_enabled: bool = False
     wacom_tablet_enabled: bool = False
     usb_redirect_enabled: bool = False
+
+
+def production_beaglestream_profile() -> StreamingProfile:
+    return StreamingProfile(
+        encoder=StreamingEncoder.SOFTWARE,
+        bitrate_kbps=32000,
+        resolution="1920x1080",
+        fps=60,
+        color=StreamingColorCodec.H264,
+        network_mode=StreamingNetworkMode.VPN_REQUIRED,
+        hdr=False,
+        audio_input_enabled=False,
+        gamepad_redirect_enabled=False,
+        wacom_tablet_enabled=False,
+        usb_redirect_enabled=False,
+    )
 
 
 def _normalize_resolution(value: Any) -> str:
@@ -71,7 +87,7 @@ def streaming_profile_from_payload(payload: dict[str, Any] | None) -> StreamingP
     except ValueError as exc:
         raise ValueError(f"invalid streaming network mode: {body.get('network_mode')}") from exc
 
-    bitrate_kbps = int(body.get("bitrate_kbps", 20000) or 20000)
+    bitrate_kbps = int(body.get("bitrate_kbps", 32000) or 32000)
     if bitrate_kbps < 2000 or bitrate_kbps > 150000:
         raise ValueError("bitrate_kbps out of range")
 

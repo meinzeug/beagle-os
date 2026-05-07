@@ -8,6 +8,7 @@ NFTABLES_CONF="${BEAGLE_NFTABLES_CONF:-/etc/nftables.conf}"
 NFT_RULE_FILE="${BEAGLE_FIREWALL_RULE_FILE:-$CONFIG_DIR/beagle-firewall.nft}"
 EXTRA_RULE_FILE="${BEAGLE_FIREWALL_EXTRA_RULE_FILE:-$CONFIG_DIR/beagle-firewall-extra.rules}"
 TABLE_NAME="${BEAGLE_FIREWALL_TABLE:-beagle_guard}"
+LEGACY_PUBLIC_STREAM_TABLE="${BEAGLE_LEGACY_PUBLIC_STREAM_TABLE:-beagle_stream}"
 ACTION="${1:---enable}"
 ACTION_ARG="${2:-}"
 
@@ -63,6 +64,17 @@ detect_vm_bridges() {
   normalize_csv "$configured virbr10 virbr0"
   if command -v ip >/dev/null 2>&1; then
     ip -o link show 2>/dev/null | awk -F': ' '/: virbr[0-9]+:/{print $2}' | cut -d@ -f1 | sort -u
+  fi
+}
+
+detect_public_ipv4() {
+  local configured="${BEAGLE_PUBLIC_STREAM_GUARD_ADDR:-${BEAGLE_PUBLIC_IPV4:-}}"
+  if [[ -n "$configured" ]]; then
+    printf '%s\n' "$configured"
+    return 0
+  fi
+  if command -v ip >/dev/null 2>&1; then
+    ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "src") {print $(i+1); exit}}'
   fi
 }
 
@@ -142,6 +154,8 @@ write_nft_rules() {
   local wg_enabled=0
   local wg_iface=""
   local wg_port=""
+  local public_stream_guard_enabled="${BEAGLE_PUBLIC_STREAM_GUARD_ENABLED:-1}"
+  local public_stream_addr=""
 
   mapfile -t bridges < <(detect_vm_bridges | sed '/^$/d' | sort -u)
   if [[ "${#bridges[@]}" -eq 0 ]]; then
@@ -173,11 +187,27 @@ write_nft_rules() {
     wg_iface="${BEAGLE_WIREGUARD_INTERFACE:-wg-beagle}"
     wg_port="${BEAGLE_WIREGUARD_PORT:-51820}"
   fi
+  if [[ "$public_stream_guard_enabled" =~ ^(1|true|yes|on)$ ]]; then
+    public_stream_addr="$(detect_public_ipv4 | head -n1)"
+  fi
 
   install -d -m 0755 "$CONFIG_DIR"
   {
     cat <<EOF
 table inet $TABLE_NAME {
+EOF
+    if [[ -n "$public_stream_addr" && "$public_stream_addr" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+      cat <<EOF
+  chain prerouting {
+    type filter hook prerouting priority -110; policy accept;
+
+    ip daddr $public_stream_addr tcp dport { 49995, 50000, 50001, 50021 } drop
+    ip daddr $public_stream_addr udp dport { 50009, 50010, 50011, 50012, 50013, 50014, 50015 } drop
+  }
+
+EOF
+    fi
+    cat <<EOF
   chain input {
     type filter hook input priority -20; policy drop;
 
@@ -258,6 +288,9 @@ apply_rules() {
     echo "nft command not found; install nftables first" >&2
     return 1
   fi
+  if [[ -n "$LEGACY_PUBLIC_STREAM_TABLE" && "$LEGACY_PUBLIC_STREAM_TABLE" != "$TABLE_NAME" ]]; then
+    nft delete table inet "$LEGACY_PUBLIC_STREAM_TABLE" >/dev/null 2>&1 || true
+  fi
   if [[ -d /run/systemd/system ]]; then
     systemctl enable nftables >/dev/null 2>&1 || true
     if ! systemctl is-active --quiet nftables; then
@@ -309,6 +342,9 @@ ensure_libvirt_wireguard_forward_rules() {
 disable_rules() {
   if command -v nft >/dev/null 2>&1; then
     nft delete table inet "$TABLE_NAME" >/dev/null 2>&1 || true
+    if [[ -n "$LEGACY_PUBLIC_STREAM_TABLE" && "$LEGACY_PUBLIC_STREAM_TABLE" != "$TABLE_NAME" ]]; then
+      nft delete table inet "$LEGACY_PUBLIC_STREAM_TABLE" >/dev/null 2>&1 || true
+    fi
   fi
 }
 

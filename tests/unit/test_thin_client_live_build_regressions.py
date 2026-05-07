@@ -121,6 +121,29 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'if beagle_stream_broker_connection; then' in targeting_text
 
 
+def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -> None:
+    runtime_text = BEAGLE_STREAM_CLIENT_RUNTIME_EXEC.read_text(encoding="utf-8")
+    launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+    profile_text = (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_stream_profile.sh").read_text(encoding="utf-8")
+    defaults_text = (ROOT / "thin-client-assistant" / "installer" / "env-defaults.json").read_text(encoding="utf-8")
+    write_config_text = (ROOT / "thin-client-assistant" / "installer" / "write-config.sh").read_text(encoding="utf-8")
+
+    assert 'configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-software}"' in profile_text
+    assert 'configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE:-32000}"' in profile_text
+    assert 'out_ref+=(--display-mode "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE:-windowed}")' in runtime_text
+    assert 'out_ref+=(--no-frame-pacing)' in runtime_text
+    assert 'out_ref+=(--no-vsync)' in runtime_text
+    assert '${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN:-1}' in launcher_text
+    assert 'export VK_ICD_FILENAMES="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VK_ICD_FILENAMES:-/dev/null}"' in launcher_text
+    assert '"BEAGLE_STREAM_CLIENT_VIDEO_DECODER": "software"' in defaults_text
+    assert '"BEAGLE_STREAM_CLIENT_DISPLAY_MODE": "windowed"' in defaults_text
+    assert '"BEAGLE_STREAM_CLIENT_FRAME_PACING": "0"' in defaults_text
+    assert '"BEAGLE_STREAM_CLIENT_VSYNC": "0"' in defaults_text
+    assert '"BEAGLE_STREAM_CLIENT_DISABLE_VULKAN": "1"' in defaults_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE="$BEAGLE_STREAM_CLIENT_DISPLAY_MODE"' in write_config_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN="$BEAGLE_STREAM_CLIENT_DISABLE_VULKAN"' in write_config_text
+
+
 def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
     build_text = BUILD_THIN_CLIENT.read_text(encoding="utf-8")
 

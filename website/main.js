@@ -260,6 +260,7 @@ function buildUpdatesPanelHtml(update) {
   const migrationReasons = Array.isArray(compatibility.migration_reasons) ? compatibility.migration_reasons : [];
   const rebuildRequired = Boolean(compatibility.rebuild_recommended || compatibility.reinstall_required || compatibility.migration_required);
   const healthFailure = Boolean(endpoint.health_failure || endpoint.rollback_recommended);
+  const reportStale = Boolean(endpoint.report_stale);
   const compatibilityBanner = rebuildRequired
     ? '<div class="banner warn"><strong>Thinclient/Live-USB neu bauen empfohlen.</strong><br>' +
       (compatibility.reinstall_required
@@ -274,8 +275,12 @@ function buildUpdatesPanelHtml(update) {
     ? '<div class="banner warn"><strong>Runtime-Health fehlgeschlagen.</strong><br>Rollback oder Repair ist empfohlen. Letzter Fehler: ' +
       escapeHtml(endpoint.last_error || 'n/a') + '</div>'
     : '';
+  const staleReportBanner = reportStale
+    ? '<div class="banner info"><strong>Endpoint-Report ist veraltet.</strong><br>Die letzte Runtime-Meldung ist nicht aktuell genug fuer eine Health-Warnung. Bitte aktualisieren oder auf den naechsten Endpoint-Report warten.</div>'
+    : '';
   return (
     compatibilityBanner +
+    staleReportBanner +
     healthBanner +
     '<div class="detail-section">' +
     '<h3>Update Policy</h3>' +

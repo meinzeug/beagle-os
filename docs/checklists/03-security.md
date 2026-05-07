@@ -34,6 +34,7 @@
 - [x] HSTS, CSP, COOP, CORP, X-Frame-Options, X-Content-Type-Options, Permissions-Policy live auf srv1 (verifiziert 2026-04-29)
 - [x] mTLS fuer interne Cluster-Kommunikation (`harden-cluster-api-iptables.sh`)
 - [x] CI-Guard `security-tls-check.yml` aktiv
+- [x] BeagleStream Public-DNAT geschlossen (2026-05-07): Public-Ports `49995/50000/50001/50021` closed, UDP `50009-50015` per prerouting guard vor DNAT gedroppt, Legacy-Tabelle `inet beagle_stream` entfernt.
 - [ ] TLS-Cert-Erneuerung auf frischem Host getestet (R3)
 
 ## Audit + Compliance

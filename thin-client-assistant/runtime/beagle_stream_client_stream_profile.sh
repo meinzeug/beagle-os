@@ -2,12 +2,9 @@
 
 beagle_stream_client_video_decoder() {
   local configured
-  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-auto}"
+  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-software}"
 
   if [[ "$configured" == "auto" ]]; then
-    # Hostless sessions should prioritize reliability over HW acceleration.
-    # Some client GPUs repeatedly stall on VAAPI (IDR wait/decode overflow),
-    # resulting in a connected stream without visible desktop frames.
     if beagle_stream_hostless_enabled; then
       printf 'software\n'
       return 0
@@ -73,9 +70,7 @@ beagle_stream_client_resolution() {
   configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION:-auto}"
 
   if [[ "$configured" == "auto" ]] && beagle_stream_hostless_enabled; then
-    # Hostless sessions can report native client resolution that the remote virtual
-    # display cannot apply reliably. Use a safe baseline unless explicitly configured.
-    printf '%s\n' "1280x720"
+    printf '%s\n' "1920x1080"
     return 0
   fi
 
@@ -104,24 +99,30 @@ beagle_stream_client_fps() {
   local configured
   configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}"
 
-  if beagle_stream_hostless_enabled && [[ -z "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-}" || "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS}" == "60" ]]; then
-    # Hostless sessions are currently more stable on lower frame rates.
-    printf '%s\n' "30"
-    return 0
-  fi
-
   printf '%s\n' "$configured"
 }
 
 beagle_stream_client_bitrate() {
   local configured
-  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE:-20000}"
+  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE:-32000}"
 
-  if beagle_stream_hostless_enabled && [[ -z "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE:-}" || "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE}" == "20000" ]]; then
-    # Keep hostless bitrate conservative to avoid immediate decode queue overflow.
-    printf '%s\n' "8000"
+  printf '%s\n' "$configured"
+}
+
+beagle_stream_client_packet_size() {
+  local configured
+  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE:-}"
+
+  if [[ -n "$configured" ]]; then
+    printf '%s\n' "$configured"
     return 0
   fi
 
-  printf '%s\n' "$configured"
+  if beagle_stream_hostless_enabled; then
+    # Leave packet size unset to use the client default transport behavior.
+    printf '%s\n' ""
+    return 0
+  fi
+
+  printf '%s\n' ""
 }

@@ -73,7 +73,7 @@ class InstallerPrepService:
             "binary=0; service=0; process=0; beagle_package=0; beagle_stream_server_package=0; variant=''; package_url=''; "
             "command -v beagle-stream-server >/dev/null 2>&1 && binary=1; "
             "(systemctl is-active beagle-stream-server >/dev/null 2>&1 || systemctl is-active beagle-stream-server.service >/dev/null 2>&1) && service=1; "
-            "pgrep -x beagle-stream-server >/dev/null 2>&1 && process=1; "
+            "(pgrep -x sunshine >/dev/null 2>&1 || pgrep -x beagle-stream-server >/dev/null 2>&1) && process=1; "
             "dpkg-query -W -f='${Status}' beagle-stream-server 2>/dev/null | grep -q 'install ok installed' && beagle_package=1; "
             "dpkg-query -W -f='${Status}' beagle-stream-server 2>/dev/null | grep -q 'install ok installed' && beagle_stream_server_package=1; "
             "if [ -r /etc/beagle/stream-runtime.env ]; then "

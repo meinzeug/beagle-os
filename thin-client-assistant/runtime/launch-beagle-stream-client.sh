@@ -163,9 +163,23 @@ main() {
     beagle_log_event "beagle-stream-client.renderer" "driver=${SDL_RENDER_DRIVER} mode=hostless"
   fi
 
-  if [[ "$hostless_beagle_stream" == "1" && "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN:-1}" == "1" ]]; then
+  if [[ "$hostless_beagle_stream" == "1" || "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN:-1}" == "1" ]]; then
+    if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN:-1}" == "1" && -z "${SDL_RENDER_DRIVER:-}" ]]; then
+      export SDL_RENDER_DRIVER="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RENDER_DRIVER:-opengl}"
+      beagle_log_event "beagle-stream-client.renderer" "driver=${SDL_RENDER_DRIVER} mode=disable-vulkan"
+    fi
+    export PREFER_VULKAN="${PREFER_VULKAN:-0}"
+    export VULKAN_IS_SLOW="${VULKAN_IS_SLOW:-1}"
+    export PLVK_ALLOW_SOFTWARE="${PLVK_ALLOW_SOFTWARE:-0}"
+  fi
+
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN:-1}" == "1" ]]; then
     export VK_ICD_FILENAMES="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VK_ICD_FILENAMES:-/dev/null}"
-    beagle_log_event "beagle-stream-client.vulkan" "disabled=1 icd=${VK_ICD_FILENAMES} mode=hostless"
+    if [[ "$hostless_beagle_stream" == "1" ]]; then
+      beagle_log_event "beagle-stream-client.vulkan" "disabled=1 icd=${VK_ICD_FILENAMES} mode=hostless"
+    else
+      beagle_log_event "beagle-stream-client.vulkan" "disabled=1 icd=${VK_ICD_FILENAMES} mode=direct"
+    fi
   fi
 
   if [[ "$hostless_beagle_stream" != "1" ]]; then

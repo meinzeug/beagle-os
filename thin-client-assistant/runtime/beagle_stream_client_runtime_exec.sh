@@ -70,7 +70,7 @@ beagle_stream_hostless_enabled() {
 }
 
 build_stream_args() {
-  local resolution fps bitrate codec decoder audio_config app host connect_host port target
+  local resolution fps bitrate packet_size codec decoder audio_config app host connect_host port target frame_pacing vsync
   local -n out_ref="$1"
 
   host="$(beagle_stream_client_host)"
@@ -80,9 +80,12 @@ build_stream_args() {
   resolution="$(beagle_stream_client_resolution)"
   fps="$(beagle_stream_client_fps)"
   bitrate="$(beagle_stream_client_bitrate)"
+  packet_size="$(beagle_stream_client_packet_size)"
   codec="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC:-H.264}"
   decoder="$(beagle_stream_client_video_decoder)"
   audio_config="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG:-stereo}"
+  frame_pacing="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING:-}"
+  vsync="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC:-}"
 
   if beagle_stream_hostless_enabled; then
     if [[ -n "${connect_host:-$host}" ]]; then
@@ -107,14 +110,34 @@ build_stream_args() {
 
   [[ -n "$fps" ]] && out_ref+=(--fps "$fps")
   [[ -n "$bitrate" ]] && out_ref+=(--bitrate "$bitrate")
+  [[ -n "$packet_size" ]] && out_ref+=(--packet-size "$packet_size")
   [[ -n "$codec" ]] && out_ref+=(--video-codec "$codec")
   [[ -n "$decoder" ]] && out_ref+=(--video-decoder "$decoder")
   [[ -n "$audio_config" ]] && out_ref+=(--audio-config "$audio_config")
 
-  out_ref+=(--display-mode fullscreen --frame-pacing --keep-awake --capture-system-keys always --no-hdr --no-yuv444)
+  if beagle_stream_hostless_enabled; then
+    out_ref+=(--display-mode "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE:-windowed}")
+  else
+    out_ref+=(--display-mode "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE:-windowed}")
+  fi
+  out_ref+=(--keep-awake --capture-system-keys always --no-hdr --no-yuv444)
+
+  if [[ "$frame_pacing" == "1" ]]; then
+    out_ref+=(--frame-pacing)
+  else
+    out_ref+=(--no-frame-pacing)
+  fi
+
+  if [[ "$vsync" == "1" ]]; then
+    out_ref+=(--vsync)
+  else
+    out_ref+=(--no-vsync)
+  fi
 
   if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE:-1}" == "1" ]]; then
     out_ref+=(--absolute-mouse)
+  else
+    out_ref+=(--no-absolute-mouse)
   fi
   if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_QUIT_AFTER:-0}" == "1" ]]; then
     out_ref+=(--quit-after)

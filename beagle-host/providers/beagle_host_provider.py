@@ -990,7 +990,7 @@ class BeagleHostProvider:
             "    <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'>",
             "      <listen type='address' address='127.0.0.1'/>",
             "    </graphics>",
-            "    <video><model type='vga' vram='16384'/></video>",
+            "    <video><model type='virtio' vram='65536' heads='1' primary='yes'/></video>",
             "    <rng model='virtio'><backend model='random'>/dev/urandom</backend></rng>",
             "    <memballoon model='virtio'/>",
             "  </devices>",

@@ -380,9 +380,9 @@ lines.extend(
         "beagle-stream-client-app: Desktop",
         "beagle-stream-client-resolution: auto",
         "beagle-stream-client-fps: 60",
-        "beagle-stream-client-bitrate: 20000",
+        "beagle-stream-client-bitrate: 32000",
         "beagle-stream-client-video-codec: H.264",
-        "beagle-stream-client-video-decoder: auto",
+        "beagle-stream-client-video-decoder: software",
         "beagle-stream-client-audio-config: stereo",
         "thinclient-default-mode: BEAGLE_STREAM_CLIENT",
         f"beagle-identity-locale: {identity_locale}",
@@ -614,9 +614,12 @@ curl -fsSLo "\$tmpdir/beagle-stream-server.deb" "\$BEAGLE_STREAM_SERVER_URL"
 apt-get install -y "\$tmpdir/beagle-stream-server.deb"
 write_stream_runtime_status "\$stream_runtime_variant" "\$stream_runtime_package_url"
 BEAGLE_STREAM_SERVER_EXEC="\$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
-if [[ ! -x /usr/local/bin/beagle-stream-server && -n "\$(command -v sunshine 2>/dev/null || true)" ]]; then
+if [[ -x /usr/local/bin/sunshine || -n "\$(command -v sunshine 2>/dev/null || true)" ]]; then
 cat > /usr/local/bin/beagle-stream-server <<'BEAGLEWRAP'
 #!/usr/bin/env bash
+if [[ -x /usr/local/bin/sunshine ]]; then
+  exec /usr/local/bin/sunshine "\$@"
+fi
 exec "\$(command -v sunshine)" "\$@"
 BEAGLEWRAP
 chmod 0755 /usr/local/bin/beagle-stream-server
@@ -673,23 +676,23 @@ cat > /etc/X11/Xsession.d/19-beagle-lightdm-session-compat <<'XSESSIONCOMPAT'
 # LightDM may source Xsession.d snippets directly without the helpers from
 # /etc/X11/Xsession. Provide safe fallbacks so downstream snippets stay valid.
 
-: "${OPTIONFILE:=/etc/X11/Xsession.options}"
-: "${SYSRESOURCES:=/etc/X11/Xresources}"
-: "${USRRESOURCES:=$HOME/.Xresources}"
-: "${USERXSESSION:=$HOME/.xsession}"
-: "${USERXSESSIONRC:=$HOME/.xsessionrc}"
-: "${ALTUSERXSESSION:=$HOME/.Xsession}"
+: "\${OPTIONFILE:=/etc/X11/Xsession.options}"
+: "\${SYSRESOURCES:=/etc/X11/Xresources}"
+: "\${USRRESOURCES:=\$HOME/.Xresources}"
+: "\${USERXSESSION:=\$HOME/.xsession}"
+: "\${USERXSESSIONRC:=\$HOME/.xsessionrc}"
+: "\${ALTUSERXSESSION:=\$HOME/.Xsession}"
 
 if ! type has_option >/dev/null 2>&1; then
   OPTIONS="$({
-    [ -r "$OPTIONFILE" ] && cat "$OPTIONFILE"
+    [ -r "\$OPTIONFILE" ] && cat "\$OPTIONFILE"
     if [ -d /etc/X11/Xsession.options.d ]; then
       run-parts --list --regex '\\.conf$' /etc/X11/Xsession.options.d | xargs -d '\n' cat
     fi
   } 2>/dev/null)"
 
   has_option() {
-    if [ "$(echo "$OPTIONS" | grep -Eo "^(no-)?$1\\>" | tail -n 1)" = "$1" ]; then
+    if [ "$(echo "\$OPTIONS" | grep -Eo "^(no-)?\$1\\>" | tail -n 1)" = "\$1" ]; then
       return 0
     fi
     return 1
@@ -698,7 +701,7 @@ fi
 
 if ! type message >/dev/null 2>&1; then
   message() {
-    echo "Xsession: $*" >&2
+    echo "Xsession: \$*" >&2
   }
 fi
 
@@ -737,11 +740,13 @@ min_log_level = info
 origin_web_ui_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
 origin_pin_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
 encoder = software
-sw_preset = superfast
+sw_preset = ultrafast
 sw_tune = zerolatency
-capture = x11
+capture = kms
 hevc_mode = 0
 av1_mode = 0
+minimum_fps_target = 60
+max_bitrate = 35000
 $( if [[ -n "${BEAGLE_STREAM_SERVER_PORT}" ]]; then printf 'port = %s\n' "${BEAGLE_STREAM_SERVER_PORT}"; fi )
 SUNCONF
 cp "/home/\$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" "/home/\$GUEST_USER/.config/beagle-stream-server/sunshine.conf"
@@ -801,7 +806,9 @@ cat > "/home/\$GUEST_USER/.config/autostart/light-locker.desktop" <<'AUTOSTARTLO
 [Desktop Entry]
 Type=Application
 Name=Light Locker
+Exec=light-locker
 Hidden=true
+X-GNOME-Autostart-enabled=false
 AUTOSTARTLOCK
 
 cat > "/home/\$GUEST_USER/.config/autostart/xfce4-power-manager.desktop" <<'AUTOSTARTPOWER'
@@ -834,6 +841,12 @@ StartLimitIntervalSec=0
 Type=simple
 User=\$GUEST_USER
 Group=\$GUEST_USER
+SupplementaryGroups=video render input
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_SYS_NICE CAP_SETPCAP CAP_DAC_OVERRIDE CAP_CHOWN CAP_FOWNER CAP_KILL CAP_SETGID CAP_SETUID
+AmbientCapabilities=CAP_SYS_ADMIN CAP_SYS_NICE
+LimitNICE=-15
+Nice=-10
+CPUWeight=10000
 Environment=HOME=/home/\$GUEST_USER
 Environment=XDG_CONFIG_HOME=/home/\$GUEST_USER/.config
 Environment=DISPLAY=:0
@@ -919,7 +932,7 @@ if ! systemctl is-active --quiet beagle-stream-server.service; then
   exit 0
 fi
 
-if ! pgrep -x beagle-stream-server >/dev/null 2>&1; then
+if ! pgrep -x sunshine >/dev/null 2>&1 && ! pgrep -x beagle-stream-server >/dev/null 2>&1; then
   restart_stack
   exit 0
 fi

@@ -201,7 +201,7 @@ PY
 
 beagle_stream_server_guest_status_json() {
   local command
-  command='binary=0; service=0; process=0; command -v beagle-stream-server >/dev/null 2>&1 && binary=1; (systemctl is-active beagle-stream-server >/dev/null 2>&1 || systemctl is-active beagle-stream-server.service >/dev/null 2>&1) && service=1; pgrep -x beagle-stream-server >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
+  command='binary=0; service=0; process=0; command -v beagle-stream-server >/dev/null 2>&1 && binary=1; (systemctl is-active beagle-stream-server >/dev/null 2>&1 || systemctl is-active beagle-stream-server.service >/dev/null 2>&1) && service=1; (pgrep -x sunshine >/dev/null 2>&1 || pgrep -x beagle-stream-server >/dev/null 2>&1) && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
   beagle_provider_guest_exec_sync_bash "$VMID" "$command"
 }
 
@@ -233,7 +233,7 @@ EOF
 
 repair_beagle_stream_server_guest_runtime() {
   local command
-  command='if command -v /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1; then /usr/local/bin/beagle-stream-server-healthcheck --repair-only >/dev/null 2>&1 || true; else systemctl daemon-reload >/dev/null 2>&1 || true; systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true; systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true; fi; binary=0; service=0; process=0; command -v beagle-stream-server >/dev/null 2>&1 && binary=1; (systemctl is-active beagle-stream-server >/dev/null 2>&1 || systemctl is-active beagle-stream-server.service >/dev/null 2>&1) && service=1; pgrep -x beagle-stream-server >/dev/null 2>&1 && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
+  command='if command -v /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1; then /usr/local/bin/beagle-stream-server-healthcheck --repair-only >/dev/null 2>&1 || true; else systemctl daemon-reload >/dev/null 2>&1 || true; systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true; systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true; fi; binary=0; service=0; process=0; command -v beagle-stream-server >/dev/null 2>&1 && binary=1; (systemctl is-active beagle-stream-server >/dev/null 2>&1 || systemctl is-active beagle-stream-server.service >/dev/null 2>&1) && service=1; (pgrep -x sunshine >/dev/null 2>&1 || pgrep -x beagle-stream-server >/dev/null 2>&1) && process=1; printf "{\"binary\":%s,\"service\":%s,\"process\":%s}\n" "$binary" "$service" "$process"'
   beagle_provider_guest_exec_sync_bash "$VMID" "$command"
 }
 

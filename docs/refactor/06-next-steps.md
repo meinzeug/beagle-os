@@ -1,5 +1,66 @@
 # Next Steps
 
+## Stand (2026-05-07, VM100 Virtio-GPU Stream Recovery)
+
+**Zuletzt erledigt**:
+- VM100 live von legacy `vga`/Bochs auf `virtio-vga` umgestellt; Guest hat jetzt `virtio_gpu` und `/dev/dri/renderD128`.
+- `vkms-virtual-display.service` in VM100 deaktiviert/maskiert, weil er nach virtio-gpu den Grafikstart blockierte.
+- BeagleStream Server stabilisiert: Healthcheck akzeptiert jetzt den echten `sunshine`-Prozess und startet den Dienst nicht mehr endlos neu.
+- Thinclient streamt wieder sicher ueber WireGuard zu `192.168.123.114:50000`; aktueller Log zeigt `1920x1080x60`, `queue_overflow=0`, `waiting_idr=0`.
+- Public-BeagleStream-Ports auf `46.4.96.80` bleiben geschlossen, interne VM-Ports sind offen.
+
+**Naechste konkrete Schritte**:
+
+1. Hardware-Encode-Pfad pruefen/beschaffen: srv1 hat aktuell keinen nutzbaren Host-Render-/Encoder-Node; fuer echtes GeForce-Niveau braucht BeagleStream NVENC/VAAPI/QSV oder einen dedizierten GPU-Passthrough/vGPU-Pfad.
+2. Legacy-Quelle der `inet beagle_stream` DNAT-Tabelle entfernen, damit Public-DNAT nicht mehr erzeugt wird und der Guard nur noch Absicherung ist.
+3. BeagleStream-Forks um messbare Capture-/Encode-/Decode-/Render-Latenzen erweitern; subjektives Stocken darf nicht nur ueber Ping/Logs bewertet werden.
+4. Neue virtio-gpu-Defaults in einem frischen VM-Provisioning-Smoke testen und danach die passenden Checklisten/Validation-Matrix aktualisieren.
+
+## Stand (2026-05-07, Secure High-Quality VPN Stream)
+
+**Zuletzt erledigt**:
+- Direct-Public-Test beendet; Thinclient streamt wieder ueber WireGuard/Broker zu `192.168.123.114:50000`.
+- Public-BeagleStream-TCP-Ports auf `46.4.96.80` sind von extern geschlossen.
+- Hohe Qualitaet ist wieder aktiv: `1920x1080`, `60 fps`, `32000 kbps`, SDL/OpenGL, Vulkan aus, Frame-Pacing/VSync aus.
+- Live-Tuning fuer QEMU/Sunshine/Client und CPU-Governor angewendet; reproduzierbares Script und Systemd-Prioritaeten im Repo ergaenzt.
+
+**Naechste konkrete Schritte**:
+
+1. Legacy-Quelle der `inet beagle_stream` DNAT-Tabelle entfernen, damit Public-DNAT nicht mehr erzeugt wird und der Guard nur noch Absicherung ist.
+2. VM100 Grafikpfad fixen: weg von `vga=std`/bochs/vkms und Software-Encoding hin zu Stream-tauglichem Render-/Encode-Pfad.
+3. BeagleStream-Forks weiter Richtung GeForce-Ersatz bringen: messbare Capture-/Encode-/Decode-/Render-Latenzen und token-native Security statt Public-Port-Fallback.
+
+## Stand (2026-05-07, Direct-Low-Quality Smoothness-Test)
+
+**Zuletzt erledigt**:
+- Direct-Public-Test ohne WireGuard weitergefuehrt, um VPN als Ursache auszuschliessen.
+- Streamqualitaet live reduziert auf `1280x720`, `30 fps`, `8000 kbps`, Software-Decoding; VM100 serverseitig auf `max_bitrate=9000` und `minimum_fps_target=30` begrenzt.
+- Vulkan im Direct-Modus live deaktiviert und im Repo reproduzierbar gemacht.
+- Bester aktueller Testzustand: `windowed` + SDL/OpenGL + `1280x720x30` meldet `queue_overflow=0` und `waiting_idr=0`.
+
+**Naechste konkrete Schritte**:
+
+1. User-seitig beurteilen lassen, ob der aktuelle Windowed-Direct-Test sichtbar fluessiger ist; falls ja, daraus ein sauberes Low-Latency-Profil ableiten.
+2. Falls es weiterhin stockt: naechster Test `960x540`, `30 fps`, `4000-5000 kbps`, weiterhin Direct + Vulkan aus.
+3. Fullscreen separat fixen: Renderer-Recreate/Window-Event-Pfad untersuchen, weil Fullscreen trotz niedriger Bitrate Queue-/IDR-Fehler ausloest.
+4. VM100 Grafikpfad weiterhin priorisiert reparieren: `vga=std`/bochs/vkms durch Stream-tauglichen Grafik-/Render-Pfad oder Hardware-Encoding ersetzen.
+
+## Stand (2026-05-07, BeagleStream-Latenz/Smoothness-Audit)
+
+**Zuletzt erledigt**:
+- Thinclient/VM100/srv1 BeagleStream-Pfad komplett live geprueft.
+- VM100 Legacy-Metadata auf `1920x1080`, `60 fps`, `32000 kbps`, `hardware` repariert.
+- Broker/WireGuard-Pfad wiederhergestellt; Stream laeuft sichtbar mit `1920x1080x60`.
+- Public-Direct-Pfad getestet: Ports sind erreichbar, aber der Client/Fork aktiviert weiterhin Beagle-VPN und ist damit aktuell kein sauberer Direct-Public-Fallback.
+- `scripts/repair-vm-stream-profile.py` hinzugefuegt, damit alte VM-Metadata reproduzierbar repariert werden kann.
+
+**Naechste konkrete Schritte**:
+
+1. VM100 Grafikpfad reparieren: `vga=std`/bochs/vkms durch einen Stream-tauglichen Grafik-/Render-Pfad ersetzen oder Hardware-Encoding bereitstellen; aktueller Hauptbottleneck ist `capture=kms` + `encoder=software` ohne Render-Node.
+2. BeagleStream-Fork/Policy pruefen: Direct-Public darf nur funktionieren, wenn Policy es explizit erlaubt und der Client dann keine Beagle-VPN-Aktivierung erzwingt.
+3. Live-Metriken ergaenzen: Server-Capture/Encode-Frame-Time, Client-Decode/Render-Time und Netz-RTT getrennt ausgeben, damit subjektive Latenz nicht mehr nur ueber Ping geschaetzt wird.
+4. Nach Grafik-/Fork-Fix denselben Thinclient erneut gegen VM100 testen und `docs/lasthope/04-validation-matrix.md` erst bei fluessigem echten Desktop-Stream aktualisieren.
+
 ## Stand (2026-05-04, D1/D2 Live-Hotfixes eingespielt)
 
 **Zuletzt erledigt**:
@@ -1335,8 +1396,6 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
   - Pool-Wizard fuer GPU-Pooltypen weiterziehen: heute live Passthrough-Selektor + mdev/SR-IOV-Hints; als naechstes echte authentifizierte Slot-/Klassenvalidierung vervollstaendigen
 - authenticated Live-Smoke fuer Gaming-Pools auf `srv1`/`srv2`: Stream-Health fuer echte Gaming-Session einspeisen und Dashboard mit Live-Daten pruefen
 - `docs/goenterprise/03-gaming-kiosk-pools.md`: verbleibende Testpflicht fuer Gaming-Pool-Allocation ohne GPU sowie Kiosk-/RBAC-E2E sauber abschliessen
-# Next Steps
-
 ## Stand (2026-05-01, BeagleStream-Forks angelegt)
 
 **Zuletzt erledigt**:

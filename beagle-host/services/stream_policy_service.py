@@ -26,7 +26,7 @@ class StreamPolicy:
     name: str
     # Stream parameters
     max_fps: int = 60                       # 30 | 60 | 120 | 144
-    max_bitrate_mbps: int = 20
+    max_bitrate_mbps: int = 35
     resolution: str = "1920x1080"           # e.g. "1920x1080", "2560x1440"
     codec: Codec = "h264"
     # Device redirects
@@ -43,7 +43,7 @@ def stream_policy_from_dict(d: dict[str, Any]) -> StreamPolicy:
         policy_id=d["policy_id"],
         name=d.get("name", d["policy_id"]),
         max_fps=int(d.get("max_fps", 60)),
-        max_bitrate_mbps=int(d.get("max_bitrate_mbps", 20)),
+        max_bitrate_mbps=int(d.get("max_bitrate_mbps", 35)),
         resolution=d.get("resolution", "1920x1080"),
         codec=d.get("codec", "h264"),
         clipboard_redirect=bool(d.get("clipboard_redirect", True)),

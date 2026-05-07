@@ -36,6 +36,7 @@
 - [x] Thin Client Install / Enrollment / QR-Pairing live
 - [x] Streaming-Stream-Persistenz ueber Voll-Reboot (srv1 PASS)
 - [x] Beagle Stream Server Stream-Prep unattended (`ensure-vm-stream-ready.sh`) — VM100 PASS
+- [x] BeagleStream Produktions-Baseline eingefroren (2026-05-07): VM100/srv1/Thinclient fluessig ueber Broker/WireGuard, 1080p60/32Mbps, SDL/OpenGL, Vulkan aus, Software-Decoding, Public-DNAT entfernt, Regressionstests gruen.
 - [x] VM102 Provider-State unblocken + Rerun (externe Inventar-Diskrepanz) — auf `srv1` als echte zweite VM `beagle-102` neu aufgebaut, eigene Guest-IP `192.168.123.116` gesetzt, `ensure-vm-stream-ready.sh --vmid 102 --node beagle-0` mit `RC=0`.
 - [ ] Endpoint-Update-Architektur live in Hardware-Test-Matrix
 

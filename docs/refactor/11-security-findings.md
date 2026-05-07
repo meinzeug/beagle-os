@@ -1,5 +1,33 @@
 # Security Findings
 
+Stand: 2026-05-07 (ergaenzt: S-047 Public-BeagleStream-Forwarding fuer VM100 geschlossen)
+
+## S-047 — Public-BeagleStream-DNAT machte VM100-Streamports direkt aus dem Internet erreichbar (PATCHED)
+
+- Status: **gepatcht** (2026-05-07)
+- Risiko: **Hoch**
+- Betroffene Runtime:
+  - `srv1.beagle-os.com` nft table `inet beagle_stream`
+  - VM100 Streamports `49995`, `50000`, `50001`, `50021`, UDP `50009-50015`
+  - Lokaler Thinclient waehrend Direct-Public-Test
+- Beschreibung:
+  - Fuer den Latenzvergleich war temporaer Direct-Public-Forwarding von `46.4.96.80` auf VM100 aktiv.
+  - Damit waren BeagleStream-Ports aus dem Internet erreichbar. Auch wenn der Stream selbst nicht ohne Pairing nutzbar sein soll, ist das fuer das Produktziel nicht akzeptabel: BeagleStream muss standardmaessig ueber Broker/WireGuard laufen und darf nicht als offene Public-Portweiterleitung betrieben werden.
+- Fix:
+  - Thinclient aus dem Direct-Test zurueck auf `wg-beagle`/Broker gestellt; laufender Stream nutzt wieder `192.168.123.114:50000` ueber WireGuard.
+  - Auf `srv1` eine nft-Prerouting-Guard-Regel mit hoeherer Prioritaet als DNAT gesetzt, die Public-BeagleStream-TCP/UDP-Ports verwirft.
+  - `scripts/apply-beagle-firewall.sh` schreibt diesen Public-Stream-Guard jetzt reproduzierbar in die Beagle-Firewall.
+  - Die alte live `inet beagle_stream` Public-DNAT-Tabelle wurde entfernt; `scripts/apply-beagle-firewall.sh` loescht diese Legacy-Tabelle beim Anwenden der Firewall defensiv mit.
+  - Der Reconciler `scripts/reconcile-public-streams.sh` ist produktionsseitig opt-in; ohne `BEAGLE_PUBLIC_STREAMS_ENABLED=1` entfernt er die Legacy-DNAT-Tabelle und beendet sich. `beagle-public-streams.timer` wird im Host-Service-Installer standardmaessig deaktiviert.
+- Verifikation:
+  - Von extern: `46.4.96.80:49995/50000/50001/50021` geschlossen.
+  - Thinclient: `wg-beagle` Handshake aktiv, Traffic ueber Tunnel, Streamprozess auf `192.168.123.114:50000`.
+  - Nach VM100 virtio-gpu-Reboot erneut verifiziert: interne VM-Ports `49995/50000/50001/50021` offen, Public-Ports auf `46.4.96.80` geschlossen, Client-Log `queue_overflow=0` und `waiting_idr=0`.
+  - Nach Entfernen der Legacy-DNAT-Tabelle erneut verifiziert: `nft list table inet beagle_stream` liefert `No such file or directory`, interne VM100-Ports bleiben offen, Public-TCP-Ports bleiben geschlossen.
+- Rest-Risiko / naechster Schritt:
+  - Direct-Public darf weiterhin nur als explizit autorisierter, zeitlich begrenzter Debug-Modus existieren. Produktpfad bleibt Broker/WireGuard; BeagleStream-Forks muessen dafuer token-native Security und Latenzmetriken weiter ausbauen.
+
+
 Stand: 2026-05-04 (ergaenzt: S-046 Enrollment-Token-Store darf keine Thinclient-Passwoerter persistieren)
 
 ## S-046 — Enrollment-Token-Metadaten speicherten Thinclient-Passwoerter im Klartext (PATCHED)

@@ -1074,7 +1074,12 @@ else
 fi
 systemctl enable "$BEAGLE_CONTROL_SERVICE" 2>/dev/null || true
 systemctl enable "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" 2>/dev/null || true
-systemctl enable "$BEAGLE_PUBLIC_STREAM_TIMER" 2>/dev/null || true
+if [[ "${BEAGLE_PUBLIC_STREAMS_ENABLED:-0}" =~ ^(1|true|yes|on)$ ]]; then
+  systemctl enable "$BEAGLE_PUBLIC_STREAM_TIMER" 2>/dev/null || true
+else
+  systemctl disable "$BEAGLE_PUBLIC_STREAM_TIMER" 2>/dev/null || true
+  systemctl stop "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" 2>/dev/null || true
+fi
 systemctl enable "$BEAGLE_WIREGUARD_RECONCILE_PATH" 2>/dev/null || true
 if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   systemctl enable "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
@@ -1083,7 +1088,10 @@ else
   systemctl disable "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
   systemctl stop "$BEAGLE_NOVNC_PROXY_SERVICE" 2>/dev/null || true
 fi
-start_units=("$TIMER_NAME" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" "$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE" "$BEAGLE_WIREGUARD_RECONCILE_PATH")
+start_units=("$TIMER_NAME" "$BEAGLE_CONTROL_SERVICE" "$BEAGLE_CLUSTER_AUTO_JOIN_SERVICE" "$BEAGLE_WIREGUARD_RECONCILE_PATH")
+if [[ "${BEAGLE_PUBLIC_STREAMS_ENABLED:-0}" =~ ^(1|true|yes|on)$ ]]; then
+  start_units+=("$BEAGLE_PUBLIC_STREAM_TIMER" "$BEAGLE_PUBLIC_STREAM_SERVICE")
+fi
 if [[ "$artifact_watchdog_enabled" == "1" ]]; then
   start_units+=("$WATCHDOG_TIMER_NAME")
 fi

@@ -10,7 +10,7 @@ def test_configure_beagle_stream_server_guest_disables_display_idle_and_lockers(
 
     assert "/etc/X11/Xsession.d/19-beagle-lightdm-session-compat" in content
     assert 'if ! type has_option >/dev/null 2>&1; then' in content
-    assert ': "${OPTIONFILE:=/etc/X11/Xsession.options}"' in content
+    assert ': "${OPTIONFILE:=/etc/X11/Xsession.options}"' in content or ': "\\${OPTIONFILE:=/etc/X11/Xsession.options}"' in content
     assert "/etc/X11/Xsession.d/90-beagle-disable-display-idle" in content
     assert 'xset -dpms >/dev/null 2>&1 || true' in content
     assert 'xset s off >/dev/null 2>&1 || true' in content
@@ -65,3 +65,19 @@ def test_configure_beagle_stream_server_guest_detects_beagle_stream_server_exec_
     assert 'ExecStart=\\$BEAGLE_STREAM_SERVER_EXEC' in content
     assert 'ExecStart=/usr/bin/beagle-stream-server\n' not in content
     assert 'ExecStart=/usr/local/bin/beagle-stream-server\n' not in content
+
+
+def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_baseline() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+
+    assert "encoder = software" in content
+    assert "sw_preset = ultrafast" in content
+    assert "sw_tune = zerolatency" in content
+    assert "capture = kms" in content
+    assert "hevc_mode = 0" in content
+    assert "av1_mode = 0" in content
+    assert "minimum_fps_target = 60" in content
+    assert "max_bitrate = 35000" in content
+    assert "BEAGLE_STREAM_SERVER_ALLOWED_CIDRS=\"${BEAGLE_STREAM_SERVER_ALLOWED_CIDRS:-10.88.0.0/16}\"" in content
+    assert "beagle-stream-client-video-decoder: software" in content
+    assert "pgrep -x sunshine" in content

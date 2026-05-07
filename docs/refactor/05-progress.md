@@ -1,3 +1,99 @@
+## Update (2026-05-07, VM100 Virtio-GPU + Stable Internal BeagleStream)
+
+**Scope**: VM100 vom alten VGA/Bochs-Pfad auf virtio-gpu umgestellt, BeagleStream nach Reboot stabilisiert und Healthcheck-Drift reproduzierbar gepatcht.
+
+- **Live-Fix VM100**:
+  - VM100 libvirt-XML gesichert und Video-Modell von `vga`/Bochs auf `virtio` umgestellt; laufender QEMU nutzt jetzt `virtio-vga`.
+  - Guest sieht `Red Hat, Inc. Virtio 1.0 GPU [1af4:1050]`, Modul `virtio_gpu` und `/dev/dri/renderD128`.
+  - Alter `vkms-virtual-display.service` in VM100 deaktiviert/maskiert, weil er nach virtio-gpu `graphical.target` blockierte.
+  - LightDM/Xorg und BeagleStream Server wieder gestartet; VM100 Streamports `49995/50000/50001/50021` sind intern offen.
+
+- **Stream-Verifikation**:
+  - Thinclient streamt wieder ueber WireGuard direkt zu `192.168.123.114:50000`, nicht zu Public-DNAT.
+  - Aktueller Client-Prozess: `1920x1080`, `60 fps`, `32000 kbps`, H.264, Software-Decoding, SDL/OpenGL, Vulkan aus, Frame-Pacing/VSync aus.
+  - Client-Log: `Video stream is 1920x1080x60`, erster Videopacket nach `0 ms`, `queue_overflow=0`, `waiting_idr=0`.
+  - Public-BeagleStream-TCP-Ports auf `46.4.96.80` bleiben geschlossen; interne VM-Ports bleiben erreichbar.
+  - Alte live `inet beagle_stream` Public-DNAT-Tabelle wurde entfernt; der Firewall-Guard bleibt aktiv und `scripts/apply-beagle-firewall.sh` loescht die Legacy-Tabelle beim Anwenden defensiv mit.
+
+- **Repo-Fix**:
+  - Beagle-Provider erzeugt neue VMs jetzt mit virtio-Video statt legacy VGA.
+  - Regressionstest `tests/unit/test_beagle_vm_video_model.py` verhindert Rueckfall auf `<model type='vga'>`.
+  - BeagleStream-Healthchecks und Statuspfade erkennen den echten Prozessnamen `sunshine` statt nur den Wrapper-Namen `beagle-stream-server`.
+  - Der live fluessige Thinclient-Pfad ist als Produktions-Baseline eingefroren: H.264, `1920x1080x60`, `32000 kbps`, Software-Decoding, SDL/OpenGL, Vulkan aus, Windowed, `--no-frame-pacing`, `--no-vsync`.
+  - `scripts/check-beaglestream-production-baseline.sh` und `docs/runbooks/beaglestream-production-baseline.md` dokumentieren und pruefen den sicheren Produktionspfad.
+  - Public-Stream-DNAT ist jetzt opt-in: `scripts/reconcile-public-streams.sh` entfernt die Legacy-Tabelle standardmaessig, und `scripts/install-beagle-host-services.sh` aktiviert `beagle-public-streams.timer` nur noch mit `BEAGLE_PUBLIC_STREAMS_ENABLED=1`.
+
+- **Rest-Risiko**:
+  - srv1 hat weiterhin keine echte Host-GPU/Hardware-Encoder-Node; Sunshine nutzt aktuell `encoder = software`. GeForce-Niveau ist damit funktional naeher, aber noch nicht erreicht.
+
+---
+
+## Update (2026-05-07, BeagleStream Security + High-Quality VPN Path)
+
+**Scope**: Direct-Public-Test beendet, Stream-Pfad wieder abgesichert und hohe Qualitaet beibehalten.
+
+- **Security-Fix live**:
+  - Thinclient zurueck auf `wg-beagle`/Broker gestellt; aktueller Stream nutzt `192.168.123.114:50000` ueber WireGuard statt `46.4.96.80:50000`.
+  - Public-BeagleStream-TCP-Ports `49995/50000/50001/50021` auf `46.4.96.80` sind von extern geschlossen.
+  - `srv1` blockt Public-BeagleStream-Forwarding jetzt vor DNAT per nft-Prerouting-Guard.
+
+- **Qualitaet/Latenz live**:
+  - Stream bleibt auf `1920x1080`, `60 fps`, `32000 kbps`, Software-Decoding, SDL/OpenGL, Vulkan aus, Frame-Pacing aus, VSync aus.
+  - Client-Log nach Rueckkehr zu WireGuard: `queue_overflow=0`, `waiting_idr=0`, erster Videopacket nach `0 ms`.
+
+- **Repo-Fix**:
+  - `scripts/apply-beagle-firewall.sh` schreibt den Public-Stream-Guard reproduzierbar in die Beagle-Firewall.
+  - `scripts/apply-beagle-stream-latency-tuning.sh` ergaenzt konservatives Performance-/Nice-Tuning fuer Host, Gast und Thinclient.
+  - BeagleStream-Server- und Thinclient-Systemd-Units bekommen `Nice=-10` und `CPUWeight=10000` fuer weniger Scheduling-Jitter.
+
+---
+
+## Update (2026-05-07, BeagleStream Direct-Low-Quality Smoothness Test)
+
+**Scope**: Lokalen Thinclient gegen VM100 auf srv1 im Direct-Public-Test weiter entlastet und den Client-Renderer-Blocker reproduzierbar eingegrenzt.
+
+- **Live-Test aktiv**:
+  - Thinclient nutzt temporaer Direct-Public ohne WireGuard (`46.4.96.80:50000`), `wg-beagle` ist absichtlich absent.
+  - Streamprofil auf `1280x720`, `30 fps`, `8000 kbps`, `H.264`, Software-Decoding reduziert.
+  - Sunshine/VM100 temporaer auf `minimum_fps_target = 30`, `max_bitrate = 9000`, `sw_preset = ultrafast`, `sw_tune = zerolatency` gesetzt.
+
+- **Befund**:
+  - Fullscreen mit Vulkan oder SDL-Recreate erzeugte weiter `Video decode unit queue overflow` und `Waiting for IDR frame`.
+  - Direct-Modus respektierte `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN=1` bisher nicht vollstaendig; Vulkan wurde nur im Hostless-Pfad konsequent unterdrueckt.
+  - Windowed `1280x720x30` mit Vulkan deaktiviert laeuft im Log ohne Queue-/IDR-Fehler (`queue_overflow=0`, `waiting_idr=0`) und nutzt SDL/OpenGL statt Vulkan.
+
+- **Repo-Fix**:
+  - `thin-client-assistant/runtime/launch-beagle-stream-client.sh` wendet `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN=1` jetzt auch im Direct-Modus an und setzt bei Bedarf den SDL/OpenGL-Renderer.
+
+- **Rest-Risiko**:
+  - VM100 nutzt weiterhin `vga=std`/bochs/vkms, `capture = kms`, `encoder = software` und besitzt keinen Render-Node; das bleibt der wahrscheinliche Hauptgrund fuer hohe CPU und die schlechte Fullscreen-Performance.
+
+---
+
+## Update (2026-05-07, BeagleStream Latency-Audit + Legacy-Profile Repair)
+
+**Scope**: VM100/Thinclient/Srv1 BeagleStream-Pfad auditiert, alte VM-Metadata korrigiert und reproduzierbares Repair-Tool hinzugefuegt.
+
+- **Root-Cause Stand jetzt**:
+  - VPN ist nicht der Hauptgrund fuer die ~30 ms: VPN-RTT und Public-RTT lagen beide stabil bei ca. 27 ms.
+  - VM100 nutzt Sunshine/BeagleStream Server `0.0.0-27f9bc7` mit `capture = kms` und `encoder = software`.
+  - In der VM existiert kein `/dev/dri/renderD128`; Hardware-Encoding ist damit aktuell nicht verfuegbar.
+  - `video::capture` belegt ca. einen vCPU-Thread, Sunshine insgesamt ca. 128% CPU; Kernel meldet `drm_fb_helper_damage_work hogged CPU` auf bochs/vkms.
+
+- **Live-Fixes**:
+  - srv1 Control-Plane-Code vorher auf aktuelle 32/35-Mbit-Defaults synchronisiert.
+  - VM100 Provider-Metadata von `resolution=auto`, `bitrate=20000`, `decoder=auto` auf `1920x1080`, `32000`, `hardware` korrigiert.
+  - Thinclient wieder auf stabilen Broker/WireGuard-Pfad gestellt; Stream laeuft mit `1920x1080x60`, `32000 kbps`, Hardware-Decoding.
+
+- **Direct-Public-Test**:
+  - TCP-Ports `46.4.96.80:49995/50000/50001/50021` sind erreichbar.
+  - Brokerloser Public-Test wurde versucht; der Client/Fork versucht trotzdem eine Beagle-VPN-Session zu aktivieren. Direct-Public ist damit aktuell kein sauberer Produktpfad ohne Fork-/Policy-Anpassung.
+
+- **Repo-Fix**:
+  - `scripts/repair-vm-stream-profile.py` ergaenzt. Das Tool repariert bestehende Beagle-VM-Metadata auf die aktuellen Stream-Defaults, damit Legacy-VMs nicht dauerhaft alte `20000/auto` Werte behalten.
+
+---
+
 ## Update (2026-05-05, Plasma-Desktop UX + Stream-Keyboard-Capture)
 
 **Scope**: VM100 sofort benutzbar gemacht und Repo-Provisioning so erweitert, dass neue Ubuntu-Beagle-Plasma-VMs einen vollwertigen Desktop statt eines kaputten Minimal-Shells bekommen.

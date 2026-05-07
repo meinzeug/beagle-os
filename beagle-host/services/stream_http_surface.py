@@ -544,7 +544,7 @@ class StreamHttpSurfaceService:
                 "policy_id": str(getattr(policy, "policy_id", "") or ""),
                 "name": str(getattr(policy, "name", "") or ""),
                 "max_fps": int(getattr(policy, "max_fps", 60) or 60),
-                "max_bitrate_mbps": int(getattr(policy, "max_bitrate_mbps", 20) or 20),
+                "max_bitrate_mbps": int(getattr(policy, "max_bitrate_mbps", 35) or 35),
                 "resolution": str(getattr(policy, "resolution", "1920x1080") or "1920x1080"),
                 "codec": str(getattr(policy, "codec", "h264") or "h264"),
                 "clipboard_redirect": bool(getattr(policy, "clipboard_redirect", True)),

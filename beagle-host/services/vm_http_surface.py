@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import os
 import re
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Callable
 
 from update_feed import _version_lt
+
+
+STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
 
 
 class VmHttpSurfaceService:
@@ -146,6 +150,11 @@ class VmHttpSurfaceService:
     def _update_payload(self, vm: Any) -> dict[str, Any]:
         profile = self._build_profile(vm)
         endpoint = self._summarize_endpoint_report(self._load_endpoint_report(vm.node, vm.vmid) or {})
+        report_age_seconds = endpoint.get("report_age_seconds")
+        endpoint_report_stale = (
+            isinstance(report_age_seconds, int)
+            and report_age_seconds > max(60, STALE_ENDPOINT_SECONDS)
+        )
         downloads_status = self._load_json_file(self._downloads_status_file, {})
         if not isinstance(downloads_status, dict):
             downloads_status = {}
@@ -189,7 +198,7 @@ class VmHttpSurfaceService:
                     "version_pin": str(profile.get("update_version_pin", "") or ""),
                 },
                 "endpoint": {
-                    "state": endpoint.get("update_state", ""),
+                    "state": "stale-report" if endpoint_report_stale else endpoint.get("update_state", ""),
                     "current_version": current_version,
                     "latest_version": endpoint.get("update_latest_version", ""),
                     "staged_version": endpoint.get("update_staged_version", ""),
@@ -198,10 +207,12 @@ class VmHttpSurfaceService:
                     "available": endpoint.get("update_available", False),
                     "pending_reboot": endpoint.get("update_pending_reboot", False),
                     "last_scan_at": endpoint.get("update_last_scan_at", ""),
-                    "last_error": endpoint.get("update_last_error", ""),
-                    "health_failure": endpoint.get("update_health_failure", False),
-                    "rollback_recommended": endpoint.get("update_rollback_recommended", False),
-                    "last_health_failure_at": endpoint.get("update_last_health_failure_at", ""),
+                    "last_error": "" if endpoint_report_stale else endpoint.get("update_last_error", ""),
+                    "health_failure": False if endpoint_report_stale else endpoint.get("update_health_failure", False),
+                    "rollback_recommended": False if endpoint_report_stale else endpoint.get("update_rollback_recommended", False),
+                    "last_health_failure_at": "" if endpoint_report_stale else endpoint.get("update_last_health_failure_at", ""),
+                    "report_stale": endpoint_report_stale,
+                    "report_age_seconds": report_age_seconds,
                 },
                 "published_latest_version": published_latest_version,
                 "compatibility": {

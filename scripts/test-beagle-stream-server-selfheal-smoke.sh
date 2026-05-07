@@ -55,11 +55,11 @@ fi
 
 # 2. Check beagle-stream-server process is running
 echo "[2] Verifying beagle-stream-server process is running ..."
-if ! ssh_run 'pgrep -x beagle-stream-server >/dev/null 2>&1'; then
+if ! ssh_run 'pgrep -x sunshine >/dev/null 2>&1 || pgrep -x beagle-stream-server >/dev/null 2>&1'; then
   # Try starting via service first
   ssh_run 'sudo systemctl start beagle-stream-server.service >/dev/null 2>&1 || true'
   sleep 10
-  if ! ssh_run 'pgrep -x beagle-stream-server >/dev/null 2>&1'; then
+  if ! ssh_run 'pgrep -x sunshine >/dev/null 2>&1 || pgrep -x beagle-stream-server >/dev/null 2>&1'; then
     echo "[ERROR] beagle-stream-server process is not running and could not be started." >&2
     exit 1
   fi
@@ -68,7 +68,7 @@ echo "[OK]  beagle-stream-server process running"
 
 # 3. Kill beagle-stream-server to simulate a crash
 echo "[3] Simulating crash: pkill beagle-stream-server ..."
-ssh_run 'sudo pkill -9 -x beagle-stream-server >/dev/null 2>&1 || pkill -9 -x beagle-stream-server >/dev/null 2>&1 || true'
+ssh_run 'sudo pkill -9 -x sunshine >/dev/null 2>&1 || sudo pkill -9 -x beagle-stream-server >/dev/null 2>&1 || pkill -9 -x sunshine >/dev/null 2>&1 || pkill -9 -x beagle-stream-server >/dev/null 2>&1 || true'
 echo "[OK]  beagle-stream-server killed"
 
 # 4. Wait for beagle-stream-server.service to restart (Restart=always, RestartSec=3)
@@ -76,7 +76,7 @@ echo "[4] Waiting up to ${WAIT_SEC}s for Beagle Stream Server to restart ..."
 DEADLINE=$(( SECONDS + WAIT_SEC ))
 RESTARTED=0
 while (( SECONDS < DEADLINE )); do
-  if ssh_run 'pgrep -x beagle-stream-server >/dev/null 2>&1'; then
+  if ssh_run 'pgrep -x sunshine >/dev/null 2>&1 || pgrep -x beagle-stream-server >/dev/null 2>&1'; then
     RESTARTED=1
     break
   fi

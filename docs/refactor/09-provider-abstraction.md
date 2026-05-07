@@ -1,5 +1,11 @@
 # Provider-Abstraction Notes (2026-04-18)
 
+- 2026-05-07 Beagle VM video default follow-up:
+	- Beagle libvirt domain generation now emits virtio video (`<model type='virtio' ... primary='yes'/>`) instead of legacy VGA.
+	- Live VM100 was migrated to `virtio-vga` with XML backup before shutdown/start; the guest now exposes `virtio_gpu` and `/dev/dri/renderD128`.
+	- This remains provider-internal XML generation: HTTP/UI provisioning surfaces stay generic and no new Proxmox coupling was introduced.
+	- Regression coverage: [tests/unit/test_beagle_vm_video_model.py](tests/unit/test_beagle_vm_video_model.py).
+
 - 2026-04-21 contract-extension follow-up (Plan 05 step 1/3):
 	- Provider contract in [beagle-host/providers/host_provider_contract.py](beagle-host/providers/host_provider_contract.py) was extended with:
 		- `snapshot_vm(...)`
