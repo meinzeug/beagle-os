@@ -2517,7 +2517,7 @@ def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: d
 
 
 def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], pairing_token: str) -> dict[str, Any]:
-    payload = pairing_service().consume_token(pairing_token)
+    payload = pairing_service().validate_token(pairing_token)
     if not isinstance(payload, dict):
         return {"ok": False, "error": "invalid or expired pairing token"}
 
@@ -2539,7 +2539,11 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
         request_path="/api/pair-token",
         query="",
         method="POST",
-        body=json.dumps({"token": pairing_secret, "name": device_name}, separators=(",", ":"), ensure_ascii=True).encode("utf-8"),
+        body=json.dumps(
+            {"access_token": pairing_secret, "token": pairing_secret, "name": device_name},
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8"),
         request_headers={"Content-Type": "application/json", "Accept": "application/json"},
     )
     if int(status) >= 400:
@@ -2551,6 +2555,7 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
         response_payload = {}
     if not bool((response_payload or {}).get("status")):
         return {"ok": False, "error": "beagle-stream-server token exchange rejected"}
+    pairing_service().consume_token(pairing_token)
     return {"ok": True}
 
 

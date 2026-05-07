@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+BEAGLE_STREAM_CLIENT_LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/beagle-stream-client-launch.lock"
+exec 9>"$BEAGLE_STREAM_CLIENT_LOCK_FILE"
+flock -n 9 || exit 0
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BEAGLE_STREAM_CLIENT_TARGETING_SH="${BEAGLE_STREAM_CLIENT_TARGETING_SH:-$SCRIPT_DIR/beagle_stream_client_targeting.sh}"
 BEAGLE_STREAM_CLIENT_PAIRING_SH="${BEAGLE_STREAM_CLIENT_PAIRING_SH:-$SCRIPT_DIR/beagle_stream_client_pairing.sh}"
@@ -67,11 +71,30 @@ wait_for_stream_server_ready() {
 # Workaround: beagle-stream skips activatePeer() when wg-beagle interface exists,
 # even if the peer was removed by a previous deactivatePeer() call.
 # Ensure the peer is always configured before launching beagle-stream.
+ensure_wg_interface() {
+  local iface="wg-beagle"
+  local wg_conf="/etc/wireguard/wg-beagle.conf"
+
+  sudo test -f "$wg_conf" 2>/dev/null || return 0
+  if ip link show "$iface" &>/dev/null; then
+    return 0
+  fi
+
+  beagle_log_event "beagle-stream-client.wg-interface-up" "iface=${iface} conf=${wg_conf}"
+  sudo systemctl start "wg-quick@${iface}.service" >/dev/null 2>&1 || \
+    sudo wg-quick up "$iface" >/dev/null 2>&1 || true
+
+  if ! ip link show "$iface" &>/dev/null; then
+    beagle_log_event "beagle-stream-client.wg-interface-missing" "iface=${iface}"
+  fi
+}
+
 ensure_wg_peer() {
   local iface="wg-beagle"
   local wg_conf="/etc/wireguard/wg-beagle.conf"
   # conf is root-owned; check existence via sudo
   sudo test -f "$wg_conf" 2>/dev/null || return 0
+  ensure_wg_interface
   ip link show "$iface" &>/dev/null || return 0
   # If no peers are configured, restore peer from the persisted conf file.
   # NOTE: wg addconf fails on wg-quick configs (Address/DNS fields are not

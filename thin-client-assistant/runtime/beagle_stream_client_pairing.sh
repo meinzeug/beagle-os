@@ -80,10 +80,7 @@ ensure_paired() {
   pair_pid=$!
   paired_ok="0"
 
-  for attempt in $(seq 1 20); do
-    if ! kill -0 "$pair_pid" >/dev/null 2>&1; then
-      break
-    fi
+  while kill -0 "$pair_pid" >/dev/null 2>&1; do
     if exchange_beagle_stream_client_pairing_token_via_manager "$pairing_token"; then
       paired_ok="1"
       break
@@ -94,7 +91,8 @@ ensure_paired() {
   pair_status=0
   wait "$pair_pid" || pair_status=$?
 
-  [[ "$pair_status" == "0" ]] || return "$pair_status"
+  # Manager-side exchange is authoritative for Beagle auto-pairing. The local
+  # pair command can time out after exchange already succeeded.
   [[ "$paired_ok" == "1" ]] || return 1
   beagle_stream_client_stream_ready
 }

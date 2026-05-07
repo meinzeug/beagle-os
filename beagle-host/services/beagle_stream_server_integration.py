@@ -397,20 +397,20 @@ curl -fsS --connect-timeout 3 --max-time 5 "http://127.0.0.1:{stream_port}/serve
             "stream_port": str(payload.get("stream_port", "") or "").strip(),
         }
 
-        def prepare_virtual_display_on_vm(self, vm: Any, *, resolution: str) -> dict[str, Any]:
-                configured = str(resolution or "").strip().lower()
-                if not re.fullmatch(r"\d{3,5}x\d{3,5}", configured):
-                        return {
-                                "ok": False,
-                                "error": "invalid resolution",
-                                "resolution": configured,
-                                "exitcode": 1,
-                                "stdout": "",
-                                "stderr": "invalid resolution format",
-                        }
+    def prepare_virtual_display_on_vm(self, vm: Any, *, resolution: str) -> dict[str, Any]:
+        configured = str(resolution or "").strip().lower()
+        if not re.fullmatch(r"\d{3,5}x\d{3,5}", configured):
+            return {
+                "ok": False,
+                "error": "invalid resolution",
+                "resolution": configured,
+                "exitcode": 1,
+                "stdout": "",
+                "stderr": "invalid resolution format",
+            }
 
-                guest_user = self.beagle_stream_server_guest_user(vm)
-                script = f"""#!/usr/bin/env bash
+        guest_user = self.beagle_stream_server_guest_user(vm)
+        script = f"""#!/usr/bin/env bash
 set -euo pipefail
 
 RESOLUTION={configured!r}
@@ -449,15 +449,15 @@ echo "failed to apply resolution on output $output" >&2
 xrandr --query >/dev/null 2>&1 || true
 exit 4
 """
-                exitcode, stdout, stderr = self.guest_exec_text(vm.vmid, script)
-                return {
-                        "ok": exitcode == 0,
-                        "exitcode": exitcode,
-                        "resolution": configured,
-                        "stdout": stdout,
-                        "stderr": stderr,
-                        "guest_user": guest_user,
-                }
+        exitcode, stdout, stderr = self.guest_exec_text(vm.vmid, script)
+        return {
+            "ok": exitcode == 0,
+            "exitcode": exitcode,
+            "resolution": configured,
+            "stdout": stdout,
+            "stderr": stderr,
+            "guest_user": guest_user,
+        }
 
     def internal_beagle_stream_server_api_url(self, vm: Any, profile: dict[str, Any] | None = None) -> str:
         resolved_profile = profile if isinstance(profile, dict) else self._build_profile(vm)
@@ -470,6 +470,8 @@ exit 4
             if guest_ip and api_port:
                 return f"https://{guest_ip}:{int(api_port)}"
         base_url = str(resolved_profile.get("beagle_stream_server_api_url", "") or "")
+        if not base_url and public_stream:
+            base_url = str(public_stream.get("beagle_stream_server_api_url", "") or "")
         if guest_ip and base_url:
             parsed = urlparse(base_url)
             if parsed.scheme and parsed.port:

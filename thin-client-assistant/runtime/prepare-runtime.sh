@@ -70,6 +70,28 @@ prepare_runtime_mark_ready() {
   chmod 0644 "$state_file" >/dev/null 2>&1 || true
 }
 
+ensure_wireguard_runtime_capabilities() {
+  local wg_bin current_caps
+
+  command -v setcap >/dev/null 2>&1 || return 0
+  wg_bin="$(command -v wg 2>/dev/null || true)"
+  [[ -n "$wg_bin" ]] || return 0
+
+  if command -v getcap >/dev/null 2>&1; then
+    current_caps="$(getcap "$wg_bin" 2>/dev/null || true)"
+    if [[ "$current_caps" == *"cap_net_admin=ep"* ]]; then
+      beagle_log_event "prepare-runtime.wg-capability" "status=ok binary=$wg_bin capability=cap_net_admin"
+      return 0
+    fi
+  fi
+
+  if setcap cap_net_admin+ep "$wg_bin" >/dev/null 2>&1; then
+    beagle_log_event "prepare-runtime.wg-capability" "status=applied binary=$wg_bin capability=cap_net_admin"
+  else
+    beagle_log_event "prepare-runtime.wg-capability-error" "binary=$wg_bin capability=cap_net_admin"
+  fi
+}
+
 prepare_runtime_reentry=0
 if prepare_runtime_already_ready; then
   prepare_runtime_reentry=1
@@ -107,6 +129,8 @@ if [[ "$prepare_runtime_reentry" -eq 0 && -x "$SCRIPT_DIR/apply-network-config.s
   "$SCRIPT_DIR/apply-network-config.sh" || beagle_log_event "prepare-runtime.network-error" "network configuration failed"
   write_runtime_debug_report "after-network" || true
 fi
+
+ensure_wireguard_runtime_capabilities
 
 plymouth_status "Connecting device to Beagle Manager..."
 enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"

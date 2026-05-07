@@ -58,7 +58,7 @@ import sys
 
 secret = sys.argv[1]
 name = sys.argv[2]
-print(json.dumps({"token": secret, "name": name}, separators=(",", ":")))
+print(json.dumps({"access_token": secret, "token": secret, "name": name}, separators=(",", ":")))
 PY
 	)"
 
