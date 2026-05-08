@@ -134,6 +134,11 @@ if [[ ! -f "$conf" ]]; then
   conf=/home/dennis/.config/beagle-stream-server/beagle-stream-server.conf
 fi
 grep -E '^(encoder|sw_preset|sw_tune|capture|minimum_fps_target|max_bitrate|hevc_mode|av1_mode|port)\s*=' "$conf" || true
+if grep -q 'Option "SWCursor" "true"' /etc/X11/xorg.conf.d/20-beagle-software-cursor.conf 2>/dev/null; then
+  echo xorg_swcursor=true
+else
+  echo xorg_swcursor=false
+fi
 systemctl is-active beagle-stream-server.service 2>/dev/null | sed 's/^/service=/' || true
 ps -eo ni,args | grep -E '[s]unshine|[b]eagle-stream-server' | head -n 1 | sed -E 's/^ *([^ ]+).*/nice=\1/' || true
 '''
@@ -181,6 +186,7 @@ if [[ "$SKIP_GUEST_CONFIG_CHECK" != "1" ]]; then
   grep -q '^av1_mode = 0$' <<<"$host_output" || record_fail "guest stream av1_mode is not disabled"
   grep -q '^minimum_fps_target = 60$' <<<"$host_output" || record_fail "guest stream minimum_fps_target is not 60"
   grep -q '^max_bitrate = 35000$' <<<"$host_output" || record_fail "guest stream max_bitrate is not 35000"
+  grep -q '^xorg_swcursor=true$' <<<"$host_output" || record_fail "guest Xorg software cursor is not enabled"
   grep -q '^service=active$' <<<"$host_output" || record_fail "guest stream service is not active"
   grep -q '^nice=-10$' <<<"$host_output" || record_fail "guest stream process nice is not -10"
 fi

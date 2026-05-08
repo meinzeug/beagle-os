@@ -8,6 +8,10 @@ SCRIPT = ROOT_DIR / "scripts" / "configure-beagle-stream-server-guest.sh"
 def test_configure_beagle_stream_server_guest_disables_display_idle_and_lockers() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 
+    assert "/etc/X11/xorg.conf.d/20-beagle-software-cursor.conf" in content
+    assert 'Identifier "Beagle Virtio GPU Software Cursor"' in content
+    assert 'Driver "modesetting"' in content
+    assert 'Option "SWCursor" "true"' in content
     assert "/etc/X11/Xsession.d/19-beagle-lightdm-session-compat" in content
     assert 'if ! type has_option >/dev/null 2>&1; then' in content
     assert ': "${OPTIONFILE:=/etc/X11/Xsession.options}"' in content or ': "\\${OPTIONFILE:=/etc/X11/Xsession.options}"' in content

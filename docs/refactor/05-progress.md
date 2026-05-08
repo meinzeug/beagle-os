@@ -1,3 +1,32 @@
+## Update (2026-05-08, VM100 KMS Cursor Hotfix)
+
+**Scope**: Unsichtbaren Mauszeiger im VM100-BeagleStream behoben, waehrend der Stream ueber den neuen Live-USB-Thinclient aktiv war.
+
+- **Root-Cause**:
+  - Sunshine streamt VM100 mit `capture = kms`.
+  - VM100 loggte wiederholt `No KMS cursor plane found. Cursor may not be displayed while streaming!`.
+  - Auf dem aktuellen virtio/vkms-Pfad wurde der Hardware-Cursor nicht als separater KMS-Cursor-Plane geliefert; am Rand war er sporadisch sichtbar, im Videoframe aber nicht verlaesslich.
+
+- **Live-Fix VM100**:
+  - `/etc/X11/xorg.conf.d/20-beagle-software-cursor.conf` installiert.
+  - Xorg `modesetting` nutzt jetzt `Option "SWCursor" "true"`, bestaetigt in `/var/log/Xorg.0.log` mit `modeset(0): Option "SWcursor" "true"`.
+  - LightDM/Xorg und `beagle-stream-server.service` neu gestartet; Sunshine laeuft wieder mit `nice=-10`, Streamports sind offen.
+
+- **Thinclient-Befund**:
+  - Thinclient `192.168.178.37` ist per auf `srv1` hinterlegtem VM100-Thinclient-Passwort erreichbar.
+  - Live-E2E-Baseline ist gruen, WireGuard-Peer `10.88.1.1/32` hat Endpoint und Traffic.
+  - BeagleStream-Client laeuft auf dem Thinclient gegen `192.168.123.114:50000`.
+
+- **Repo-Fix**:
+  - Guest-Provisioning und Ubuntu-Beagle-Firstboot schreiben die Xorg-Software-Cursor-Konfiguration reproduzierbar.
+  - Der Produktionsbaseline-Checker prueft jetzt `xorg_swcursor=true`, damit dieser Cursor-Regression nicht mehr bei gruener Stream-Baseline durchrutscht.
+
+- **Verifiziert**:
+  - Focused Tests: `21 passed`.
+  - Live-E2E-Baseline mit WireGuard-Handshake: `beaglestream_production_baseline=PASS` inkl. `xorg_swcursor=true`.
+
+---
+
 ## Update (2026-05-07, BeagleStream E2E Handshake Diagnostic)
 
 **Scope**: Nach VM100-Server-Reparatur den verbleibenden Thinclient-Bruch reproduzierbar eingegrenzt.

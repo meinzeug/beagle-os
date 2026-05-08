@@ -81,6 +81,10 @@ def test_firstboot_writes_beaglestream_config_before_sunshine_compat_copy() -> N
 def test_firstboot_disables_display_idle_and_lockers_for_streaming() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 
+    assert "/etc/X11/xorg.conf.d/20-beagle-software-cursor.conf" in script
+    assert 'Identifier "Beagle Virtio GPU Software Cursor"' in script
+    assert 'Driver "modesetting"' in script
+    assert 'Option "SWCursor" "true"' in script
     assert "/etc/X11/Xsession.d/19-beagle-lightdm-session-compat" in script
     assert "if ! type has_option >/dev/null 2>&1; then" in script
     assert ': "${OPTIONFILE:=/etc/X11/Xsession.options}"' in script

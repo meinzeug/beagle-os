@@ -18,6 +18,8 @@ def test_baseline_checker_verifies_guest_stream_config_and_scheduler() -> None:
     assert "^capture = kms$" in content
     assert "^minimum_fps_target = 60$" in content
     assert "^max_bitrate = 35000$" in content
+    assert "xorg_swcursor=true" in content
+    assert "guest Xorg software cursor is not enabled" in content
     assert "^service=active$" in content
     assert "^nice=-10$" in content
 

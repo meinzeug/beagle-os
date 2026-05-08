@@ -1,5 +1,21 @@
 # Next Steps
 
+## Stand (2026-05-08, VM100 KMS Cursor Hotfix)
+
+**Zuletzt erledigt**:
+- VM100 KMS-Cursor-Problem hot gefixt: Xorg `modesetting` nutzt jetzt `SWCursor`, damit der Mauszeiger in den Videoframe gezeichnet wird.
+- Fix in `scripts/configure-beagle-stream-server-guest.sh` und `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl` reproduzierbar gemacht.
+- `scripts/check-beaglestream-production-baseline.sh` prueft jetzt zusaetzlich `xorg_swcursor=true`.
+- Thinclient `192.168.178.37` ist per srv1-VM100-Secret erreichbar; Live-E2E-Baseline mit WireGuard-Handshake ist gruen.
+
+**Naechste konkrete Schritte**:
+
+1. Sichttest auf dem Thinclient bestaetigen: Mauszeiger muss im VM100-Desktop dauerhaft sichtbar sein, nicht nur am Rand.
+2. Falls der Cursor trotz `SWCursor` weiter fehlt: als naechsten Fallback `capture = x11` nur fuer den virtio/vkms-Software-Cursor-Pfad testen und Performance gegen KMS vergleichen.
+3. Danach frischen Live-USB-/VM-Provisioning-Pfad erneut bauen und pruefen, damit der Cursor-Fix aus Repo-Artefakten ohne Live-Hotfix greift.
+
+---
+
 ## Stand (2026-05-07, BeagleStream E2E Handshake Diagnostic)
 
 **Zuletzt erledigt**:

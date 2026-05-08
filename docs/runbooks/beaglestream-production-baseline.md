@@ -13,6 +13,7 @@ Dieser Runbook-Eintrag friert den auf VM100/srv1/lokalem Thinclient live validie
 - Thinclient-Decode: `software` als getesteter stabiler Default.
 - Client-Flags: `--display-mode windowed`, `--no-frame-pacing`, `--no-vsync`, `--absolute-mouse`, `--no-hdr`, `--no-yuv444`.
 - Guest/Sunshine: `encoder = software`, `sw_preset = ultrafast`, `sw_tune = zerolatency`, `capture = kms`, `minimum_fps_target = 60`, `max_bitrate = 35000`.
+- Guest/Xorg: `SWCursor` ist fuer den modesetting-Treiber aktiv, damit KMS den Mauszeiger auch ohne dedizierten Cursor-Plane im Videoframe sieht.
 - VM-Grafik: libvirt `virtio` video, nicht legacy VGA/Bochs.
 - Prozessprioritaet: QEMU, Sunshine und Thinclient-Client koennen mit `scripts/apply-beagle-stream-latency-tuning.sh` auf `Nice=-10` gebracht werden.
 

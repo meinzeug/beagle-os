@@ -1749,6 +1749,14 @@ EOF
   install -d -m 0755 /etc/X11/xorg.conf.d
   GUEST_UID="$(id -u "$GUEST_USER")"
 
+  cat > /etc/X11/xorg.conf.d/20-beagle-software-cursor.conf <<'EOF'
+Section "Device"
+    Identifier "Beagle Virtio GPU Software Cursor"
+    Driver "modesetting"
+    Option "SWCursor" "true"
+EndSection
+EOF
+
   cat > /etc/X11/xorg.conf.d/90-beagle-ignore-virtual-input.conf <<'EOF'
 Section "InputClass"
     Identifier "beagle-ignore-touch-passthrough"
