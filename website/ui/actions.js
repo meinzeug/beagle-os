@@ -154,6 +154,12 @@ export function executeAction(action, sourceButton) {
     });
     return;
   }
+  if (action === 'spice-ui') {
+    blobRequest('/vms/' + vmid + '/spice.vv', 'beagle-vm-' + vmid + '.vv').catch((error) => {
+      actionHooks.setBanner('SPICE Download fehlgeschlagen: ' + error.message, 'warn');
+    });
+    return;
+  }
   if (action.indexOf('update-') === 0) {
     const operation = action.replace('update-', '');
     runSingleFlight('vm-action:' + vmid + ':update:' + operation, () => {

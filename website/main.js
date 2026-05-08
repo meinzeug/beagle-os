@@ -155,6 +155,18 @@ function buildUsbDownloadMenuHtml() {
   );
 }
 
+function buildConsoleMenuHtml() {
+  return (
+    '<details class="detail-action-menu">' +
+    '<summary class="btn btn-ghost">Konsole</summary>' +
+    '<div class="detail-action-menu-panel">' +
+    actionButton('novnc-ui', 'noVNC', 'ghost') +
+    actionButton('spice-ui', 'SPICE (.vv)', 'ghost') +
+    '</div>' +
+    '</details>'
+  );
+}
+
 function buildDetailActionsHtml(status) {
   let html = actionButton('refresh-detail', 'Refresh', 'ghost');
   if (status === 'stopped' || status === 'shutoff') {
@@ -164,7 +176,7 @@ function buildDetailActionsHtml(status) {
     html += actionButton('vm-migrate', 'VM verschieben', 'ghost');
     html += actionButton('vm-stop', 'Stoppen', 'ghost');
     html += actionButton('vm-reboot', 'Neustart', 'ghost');
-    html += actionButton('novnc-ui', 'noVNC', 'ghost');
+    html += buildConsoleMenuHtml();
     html += actionButton('beagle-stream-server-ui', 'Beagle Stream Server', 'ghost');
     html += buildUsbDownloadMenuHtml();
   }

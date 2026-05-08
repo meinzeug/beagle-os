@@ -7,7 +7,10 @@ import socket
 import time
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import parse_qs
 from urllib.parse import quote
+from urllib.parse import urlparse
+import xml.etree.ElementTree as ET
 
 from core.persistence.json_state_store import JsonStateStore
 
@@ -26,6 +29,7 @@ class VmConsoleAccessService:
     def __init__(
         self,
         *,
+        ensure_vm_secret: Callable[[Any], dict[str, Any]] | None,
         host_provider_kind: str,
         listify: Callable[[object], list[str]],
         novnc_path: str,
@@ -40,6 +44,7 @@ class VmConsoleAccessService:
         # JSON store used by BeagleTokenFile plugin (single-use, TTL-based).
         self._novnc_console_token_store = self._novnc_token_file.parent / "console-tokens.json"
         self._public_server_name = str(public_server_name or "").strip()
+        self._ensure_vm_secret = ensure_vm_secret or (lambda _vm: {})
 
     @staticmethod
     def _libvirt_guest_ip(vmid: int, domain_name: str | None = None) -> str | None:
@@ -221,6 +226,182 @@ class VmConsoleAccessService:
         token_q = quote(token, safe="")
         path_q = quote(f"beagle-novnc/websockify?token={token_q}", safe="/?=&")
         return f"https://{resolved_host}{base_path}/vnc.html?autoconnect=1&resize=scale&path={path_q}"
+
+    @staticmethod
+    def _extract_spice_ports_from_uri(uri: str) -> tuple[int, int]:
+        parsed = urlparse(str(uri or "").strip())
+        port = int(parsed.port or 0)
+        tls_port = 0
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        for key in ("tls-port", "tls_port", "tlsPort"):
+            values = query.get(key) or []
+            for value in values:
+                try:
+                    candidate = int(str(value).strip() or "0")
+                except ValueError:
+                    candidate = 0
+                if candidate > 0:
+                    tls_port = candidate
+                    break
+            if tls_port > 0:
+                break
+        return port, tls_port
+
+    def _libvirt_spice_graphics(self, vmid: int, domain_name: str | None = None) -> dict[str, Any] | None:
+        from core.validation.identifiers import validate_vmid
+
+        vmid_int = validate_vmid(vmid)
+        default_domain = f"beagle-{vmid_int}"
+        domain = str(domain_name or "").strip() or default_domain
+
+        for dom in (domain, default_domain):
+            try:
+                raw_display = _LIBVIRT.virsh("domdisplay", dom, "--type", "spice")
+            except Exception:
+                raw_display = ""
+            if raw_display:
+                try:
+                    parsed = urlparse(raw_display.strip())
+                except Exception:
+                    parsed = None
+                if parsed and parsed.scheme == "spice":
+                    port, tls_port = self._extract_spice_ports_from_uri(raw_display)
+                    return {
+                        "listen": str(parsed.hostname or "").strip(),
+                        "port": int(port or 0),
+                        "tls_port": int(tls_port or 0),
+                        "password": "",
+                    }
+
+            try:
+                raw_xml = _LIBVIRT.virsh("dumpxml", dom)
+            except Exception:
+                continue
+            try:
+                root = ET.fromstring(raw_xml)
+            except ET.ParseError:
+                continue
+            graphics = root.find("./devices/graphics[@type='spice']")
+            if graphics is None:
+                continue
+            attrs = graphics.attrib
+            listen = str(attrs.get("listen") or "").strip()
+            if not listen:
+                listen_node = graphics.find("./listen")
+                if listen_node is not None:
+                    listen = str(listen_node.attrib.get("address") or "").strip()
+            port = int(str(attrs.get("port") or "0") or "0")
+            tls_raw = attrs.get("tlsPort") or attrs.get("tlsport") or attrs.get("tls-port") or "0"
+            tls_port = int(str(tls_raw or "0") or "0")
+            return {
+                "listen": listen,
+                "port": port,
+                "tls_port": tls_port,
+                "password": str(attrs.get("passwd") or ""),
+            }
+        return None
+
+    @staticmethod
+    def _build_spice_vv_content(
+        *,
+        host: str,
+        vmid: int,
+        title: str,
+        port: int,
+        tls_port: int,
+        password: str,
+    ) -> str:
+        lines = [
+            "[virt-viewer]",
+            "type=spice",
+            f"host={host}",
+            f"title={title}",
+            f"port={int(port)}",
+            "delete-this-file=1",
+            "fullscreen=0",
+            "enable-usbredir=1",
+        ]
+        if int(tls_port) > 0:
+            lines.append(f"tls-port={int(tls_port)}")
+        if str(password or "").strip():
+            lines.append(f"password={password}")
+        return "\n".join(lines) + "\n"
+
+    def build_spice_access(self, vm: Any) -> dict[str, Any]:
+        vmid = int(getattr(vm, "vmid", 0) or 0)
+        node = str(getattr(vm, "node", "") or "").strip()
+        host = self._public_server_name or node
+        if vmid <= 0 or not host:
+            return {
+                "provider": self._host_provider_kind or "unknown",
+                "available": False,
+                "host": "",
+                "port": 0,
+                "tls_port": 0,
+                "reason": "VM-Kontext fuer SPICE unvollstaendig.",
+            }
+        if self._host_provider_kind != "beagle":
+            return {
+                "provider": self._host_provider_kind or "unknown",
+                "available": False,
+                "host": "",
+                "port": 0,
+                "tls_port": 0,
+                "reason": "SPICE ist fuer diesen Provider noch nicht implementiert.",
+            }
+
+        vm_domain = str(getattr(vm, "name", "") or "").strip() or None
+        graphics = self._libvirt_spice_graphics(vmid=vmid, domain_name=vm_domain)
+        if not graphics:
+            return {
+                "provider": "beagle",
+                "available": False,
+                "host": "",
+                "port": 0,
+                "tls_port": 0,
+                "reason": "SPICE-Display der VM ist aktuell nicht verfuegbar.",
+            }
+
+        port = int(graphics.get("port") or 0)
+        tls_port = int(graphics.get("tls_port") or 0)
+        if port <= 0 and tls_port <= 0:
+            return {
+                "provider": "beagle",
+                "available": False,
+                "host": "",
+                "port": 0,
+                "tls_port": 0,
+                "reason": "SPICE-Ports der VM sind aktuell nicht aktiv (laeuft die VM?).",
+            }
+
+        resolved_host = self._resolve_novnc_host(host)
+        return {
+            "provider": "beagle",
+            "available": True,
+            "host": resolved_host,
+            "port": port,
+            "tls_port": tls_port,
+            "reason": "",
+        }
+
+    def render_spice_vv(self, vm: Any) -> tuple[bytes, str]:
+        vmid = int(getattr(vm, "vmid", 0) or 0)
+        name = str(getattr(vm, "name", "") or "").strip() or f"VM {vmid}"
+        access = self.build_spice_access(vm)
+        if not access.get("available"):
+            raise ValueError(str(access.get("reason") or "SPICE ist fuer diese VM nicht verfuegbar."))
+
+        secret = self._ensure_vm_secret(vm)
+        password = str(secret.get("guest_password") or secret.get("password") or "").strip()
+        vv_text = self._build_spice_vv_content(
+            host=str(access.get("host") or "").strip(),
+            vmid=vmid,
+            title=f"Beagle VM {vmid} ({name})",
+            port=int(access.get("port") or 0),
+            tls_port=int(access.get("tls_port") or 0),
+            password=password,
+        )
+        return vv_text.encode("utf-8"), f"beagle-vm-{vmid}.vv"
 
     def build_novnc_access(self, vm: Any) -> dict[str, Any]:
         vmid = int(getattr(vm, "vmid", 0) or 0)

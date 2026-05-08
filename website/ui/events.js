@@ -590,10 +590,10 @@ export function bindEvents() {
       if (consoleButton) {
         const consoleName = String(consoleButton.getAttribute('data-vm-console') || '').trim().toLowerCase();
         const consoleVmid = Number(consoleButton.getAttribute('data-vmid') || '0');
-        if (consoleName === 'novnc' && consoleVmid > 0) {
+        if ((consoleName === 'novnc' || consoleName === 'spice') && consoleVmid > 0) {
           const previousVmid = state.selectedVmid;
           state.selectedVmid = consoleVmid;
-          executeAction('novnc-ui', consoleButton);
+          executeAction(consoleName === 'spice' ? 'spice-ui' : 'novnc-ui', consoleButton);
           state.selectedVmid = previousVmid;
         }
         return;

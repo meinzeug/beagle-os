@@ -80,7 +80,8 @@ def test_delete_provisioned_vm_maps_missing_vm_to_404() -> None:
     assert response["payload"] == {"ok": False, "error": "vm not found: 404"}
 
 
-def make_vm_surface(vm: Vm | None, novnc_payload: dict) -> VmHttpSurfaceService:
+def make_vm_surface(vm: Vm | None, novnc_payload: dict, spice_payload: dict | None = None) -> VmHttpSurfaceService:
+    spice_payload = spice_payload or {}
     return VmHttpSurfaceService(
         build_profile=lambda _vm: {},
         build_novnc_access=lambda _vm: novnc_payload,
@@ -106,6 +107,8 @@ def make_vm_surface(vm: Vm | None, novnc_payload: dict) -> VmHttpSurfaceService:
         usb_tunnel_ssh_user="beagle-tunnel",
         utcnow=lambda: "2026-04-26T00:00:00Z",
         version="test",
+        build_spice_access=lambda _vm: spice_payload,
+        render_vm_spice_vv=lambda _vm: (b"[virt-viewer]\ntype=spice\n", "beagle-vm-101.vv"),
     )
 
 
@@ -135,6 +138,31 @@ def test_windows_live_usb_download_route_returns_script() -> None:
 
     assert response["status"] == HTTPStatus.OK
     assert response["filename"] == "live-usb.ps1"
+
+
+def test_spice_access_and_download_routes_return_payload_for_existing_vm() -> None:
+    spice_payload = {"available": True, "host": "example.invalid", "port": 5900, "tls_port": 0}
+    surface = make_vm_surface(Vm(vmid=101), {}, spice_payload)
+
+    access = surface.route_get("/api/v1/vms/101/spice-access")
+    vv = surface.route_get("/api/v1/vms/101/spice.vv")
+
+    assert access["status"] == HTTPStatus.OK
+    assert access["payload"]["spice_access"] == spice_payload
+    assert vv["status"] == HTTPStatus.OK
+    assert vv["filename"] == "beagle-vm-101.vv"
+
+
+def test_spice_routes_return_404_for_missing_vm() -> None:
+    surface = make_vm_surface(None, {}, {})
+
+    access = surface.route_get("/api/v1/vms/101/spice-access")
+    vv = surface.route_get("/api/v1/vms/101/spice.vv")
+
+    assert access["status"] == HTTPStatus.NOT_FOUND
+    assert access["payload"] == {"ok": False, "error": "vm not found"}
+    assert vv["status"] == HTTPStatus.NOT_FOUND
+    assert vv["payload"] == {"ok": False, "error": "vm not found"}
 
 
 def test_concurrent_refreshes_do_not_corrupt_session_state() -> None:

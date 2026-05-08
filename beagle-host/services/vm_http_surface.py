@@ -40,9 +40,19 @@ class VmHttpSurfaceService:
         usb_tunnel_ssh_user: str,
         utcnow: Callable[[], str],
         version: str,
+        build_spice_access: Callable[[Any], dict[str, Any]] | None = None,
+        render_vm_spice_vv: Callable[[Any], tuple[bytes, str]] | None = None,
     ) -> None:
         self._build_profile = build_profile
         self._build_novnc_access = build_novnc_access
+        self._build_spice_access = build_spice_access or (lambda _vm: {
+            "provider": "unknown",
+            "available": False,
+            "host": "",
+            "port": 0,
+            "tls_port": 0,
+            "reason": "SPICE ist nicht konfiguriert.",
+        })
         self._build_vm_state = build_vm_state
         self._build_vm_usb_state = build_vm_usb_state
         self._downloads_status_file = Path(downloads_status_file)
@@ -57,6 +67,7 @@ class VmHttpSurfaceService:
         self._public_server_name = str(public_server_name or "")
         self._render_vm_installer_script = render_vm_installer_script
         self._render_vm_live_usb_script = render_vm_live_usb_script
+        self._render_vm_spice_vv = render_vm_spice_vv
         self._render_vm_windows_installer_script = render_vm_windows_installer_script
         self._render_vm_windows_live_usb_script = render_vm_windows_live_usb_script
         self._service_name = str(service_name or "beagle-control-plane")
@@ -137,6 +148,30 @@ class VmHttpSurfaceService:
 
     def _novnc_access_payload(self, vm: Any) -> dict[str, Any]:
         return self._envelope(novnc_access=self._build_novnc_access(vm))
+
+    def _spice_access_payload(self, vm: Any) -> dict[str, Any]:
+        return self._envelope(spice_access=self._build_spice_access(vm))
+
+    def _spice_vv_download(self, vm: Any) -> dict[str, Any]:
+        if self._render_vm_spice_vv is None:
+            return self._json_response(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                {"ok": False, "error": "SPICE-Download ist nicht konfiguriert."},
+            )
+        try:
+            body, filename = self._render_vm_spice_vv(vm)
+        except ValueError as exc:
+            return self._json_response(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
+        except FileNotFoundError as exc:
+            return self._json_response(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
+        except RuntimeError as exc:
+            return self._json_response(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
+        return self._bytes_response(
+            HTTPStatus.OK,
+            body,
+            content_type="application/x-virt-viewer; charset=utf-8",
+            filename=filename,
+        )
 
     def _support_bundles_payload(self, vm: Any) -> dict[str, Any]:
         return self._envelope(
@@ -317,6 +352,15 @@ class VmHttpSurfaceService:
         if path.endswith("/live-usb.ps1"):
             return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
 
+        match = re.match(r"^/api/v1/vms/(?P<vmid>\d+)/spice\.vv$", path)
+        if match:
+            vm = self._find_vm(int(match.group("vmid")))
+            if vm is None:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+            return self._spice_vv_download(vm)
+        if path.endswith("/spice.vv"):
+            return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+
         if path.endswith("/credentials"):
             vmid_text = path.split("/")[-2]
             if not vmid_text.isdigit():
@@ -352,6 +396,15 @@ class VmHttpSurfaceService:
             if vm is None:
                 return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
             return self._json_response(HTTPStatus.OK, self._novnc_access_payload(vm))
+
+        if path.endswith("/spice-access"):
+            vmid_text = path.split("/")[-2]
+            if not vmid_text.isdigit():
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "invalid vmid"})
+            vm = self._find_vm(int(vmid_text))
+            if vm is None:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+            return self._json_response(HTTPStatus.OK, self._spice_access_payload(vm))
 
         if path.endswith("/support-bundles"):
             vmid_text = path.split("/")[-2]

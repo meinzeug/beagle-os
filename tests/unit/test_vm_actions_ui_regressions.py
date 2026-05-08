@@ -19,11 +19,16 @@ def test_novnc_actions_are_available_in_inventory_and_detail() -> None:
     main = _read(MAIN_JS)
 
     assert "if (action === 'novnc-ui')" in actions
+    assert "if (action === 'spice-ui')" in actions
     assert "request('/vms/' + vmid + '/novnc-access'" in actions
+    assert "blobRequest('/vms/' + vmid + '/spice.vv'" in actions
     assert "window.open(url, '_blank', 'noopener')" in actions
     assert "noVNC Zugriff fehlgeschlagen" in actions
     assert 'data-vm-console="novnc"' in inventory
+    assert 'data-vm-console="spice"' in inventory
+    assert 'summary class="btn btn-ghost">Konsole</summary>' in main
     assert "actionButton('novnc-ui', 'noVNC', 'ghost')" in main
+    assert "actionButton('spice-ui', 'SPICE (.vv)', 'ghost')" in main
 
 
 def test_novnc_action_launch_and_error_guards_are_wired() -> None:
@@ -38,6 +43,7 @@ def test_novnc_action_launch_and_error_guards_are_wired() -> None:
     assert "Unsichere noVNC URL blockiert." in actions
     assert "window.open(url, '_blank', 'noopener');" in actions
     assert "actionHooks.setBanner('noVNC Zugriff fehlgeschlagen: ' + error.message, 'warn');" in actions
+    assert "actionHooks.setBanner('SPICE Download fehlgeschlagen: ' + error.message, 'warn');" in actions
 
 
 def test_vm_delete_action_clears_selection_and_refreshes_dashboard() -> None:

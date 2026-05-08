@@ -836,10 +836,13 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   if ! standalone_runtime_tools_ready; then
     qemu_system_package="$(resolve_qemu_system_package)"
     install_runtime_packages \
-      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso zip nodejs npm novnc websockify wireguard-tools
+      libvirt-daemon-system libvirt-clients "$qemu_system_package" qemu-utils ovmf xorriso zip nodejs npm novnc websockify wireguard-tools virt-viewer
   fi
   if ! command -v websockify >/dev/null 2>&1 || [[ ! -f /usr/share/novnc/vnc.html ]]; then
     install_runtime_packages novnc websockify
+  fi
+  if ! command -v remote-viewer >/dev/null 2>&1; then
+    install_runtime_packages virt-viewer
   fi
 
   if can_manage_libvirt_system; then

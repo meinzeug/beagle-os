@@ -466,7 +466,13 @@ export function renderInventory() {
         '      <div class="vm-card-menu-panel">' +
         '        <button type="button" data-vm-power="stop" data-vmid="' + escapeHtml(vmid) + '"' + (canStop ? '' : ' disabled') + '>' + iconStop + '<span>Stoppen</span></button>' +
         '        <button type="button" data-vm-power="reboot" data-vmid="' + escapeHtml(vmid) + '">' + iconReboot + '<span>Neustart</span></button>' +
-        '        <button type="button" data-vm-console="novnc" data-vmid="' + escapeHtml(vmid) + '">' + iconConsole + '<span>Konsole</span></button>' +
+        '        <details class="vm-card-submenu">' +
+        '          <summary>' + iconConsole + '<span>Konsole</span></summary>' +
+        '          <div class="vm-card-submenu-panel">' +
+        '            <button type="button" data-vm-console="novnc" data-vmid="' + escapeHtml(vmid) + '"><span>noVNC</span></button>' +
+        '            <button type="button" data-vm-console="spice" data-vmid="' + escapeHtml(vmid) + '"><span>SPICE (.vv)</span></button>' +
+        '          </div>' +
+        '        </details>' +
         '        <button type="button" data-vm-detail="' + escapeHtml(vmid) + '">' + iconInfo + '<span>Details</span></button>' +
         '      </div>' +
         '    </details>' +

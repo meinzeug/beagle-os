@@ -57,6 +57,8 @@ def _surface(tmp_path: Path) -> VmHttpSurfaceService:
         usb_tunnel_ssh_user="beagle-usb",
         utcnow=lambda: "2026-04-27T00:00:00Z",
         version="6.7.0",
+        build_spice_access=lambda item: {"available": True, "host": "srv1.beagle-os.com", "port": 5900, "tls_port": 0},
+        render_vm_spice_vv=lambda item: (b"[virt-viewer]\ntype=spice\n", f"beagle-vm-{item.vmid}.vv"),
     )
 
 
@@ -66,6 +68,7 @@ def test_vm_http_surface_returns_profile_and_downloads(tmp_path: Path) -> None:
     profile = surface.route_get("/api/v1/vms/100")
     installer = surface.route_get("/api/v1/vms/100/installer.sh")
     live_usb_ps1 = surface.route_get("/api/v1/vms/100/live-usb.ps1")
+    spice_vv = surface.route_get("/api/v1/vms/100/spice.vv")
 
     assert int(profile["status"]) == 200
     assert profile["payload"]["profile"]["vmid"] == 100
@@ -73,6 +76,8 @@ def test_vm_http_surface_returns_profile_and_downloads(tmp_path: Path) -> None:
     assert installer["filename"] == "installer.sh"
     assert int(live_usb_ps1["status"]) == 200
     assert live_usb_ps1["filename"] == "live-usb.ps1"
+    assert int(spice_vv["status"]) == 200
+    assert spice_vv["filename"] == "beagle-vm-100.vv"
 
 
 def test_vm_http_surface_returns_state_actions_and_endpoint(tmp_path: Path) -> None:

@@ -902,6 +902,42 @@ body.light-mode .vm-card-menu-panel {
   font-weight: 700;
 }
 
+.vm-card-submenu {
+  display: grid;
+  gap: 6px;
+}
+
+.vm-card-submenu summary {
+  list-style: none;
+  min-height: 34px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.vm-card-submenu summary::-webkit-details-marker {
+  display: none;
+}
+
+.vm-card-submenu-panel {
+  display: grid;
+  gap: 6px;
+  padding-left: 8px;
+}
+
+body.light-mode .vm-card-submenu summary {
+  border-color: rgba(15, 23, 42, 0.14);
+  background: rgba(15, 23, 42, 0.03);
+}
+
 .inventory-console .vm-body-grid {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 12px;

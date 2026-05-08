@@ -3454,6 +3454,7 @@ def vm_console_access_service() -> VmConsoleAccessService:
     global VM_CONSOLE_ACCESS_SERVICE
     if VM_CONSOLE_ACCESS_SERVICE is None:
         VM_CONSOLE_ACCESS_SERVICE = VmConsoleAccessService(
+            ensure_vm_secret=ensure_vm_secret,
             host_provider_kind=BEAGLE_HOST_PROVIDER_KIND,
             listify=listify,
             novnc_path=NOVNC_PATH,
@@ -3469,6 +3470,7 @@ def vm_http_surface_service() -> VmHttpSurfaceService:
         VM_HTTP_SURFACE_SERVICE = VmHttpSurfaceService(
             build_profile=build_profile,
             build_novnc_access=vm_console_access_service().build_novnc_access,
+            build_spice_access=vm_console_access_service().build_spice_access,
             build_vm_state=build_vm_state,
             build_vm_usb_state=build_vm_usb_state,
             downloads_status_file=DOWNLOADS_STATUS_FILE,
@@ -3483,6 +3485,7 @@ def vm_http_surface_service() -> VmHttpSurfaceService:
             public_server_name=PUBLIC_SERVER_NAME,
             render_vm_installer_script=render_vm_installer_script,
             render_vm_live_usb_script=render_vm_live_usb_script,
+            render_vm_spice_vv=vm_console_access_service().render_spice_vv,
             render_vm_windows_installer_script=render_vm_windows_installer_script,
             render_vm_windows_live_usb_script=render_vm_windows_live_usb_script,
             service_name="beagle-control-plane",
