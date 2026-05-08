@@ -92,6 +92,56 @@ ensure_wireguard_runtime_capabilities() {
   fi
 }
 
+wireguard_peer_restore_state_file() {
+  printf '%s\n' "${BEAGLE_WG_PEER_RESTORE_STATE_FILE:-/run/beagle/wg-beagle-peer.env}"
+}
+
+wireguard_conf_value() {
+  local key conf_file
+  key="$1"
+  conf_file="$2"
+  awk -v key="$key" '
+    /^\[Peer\]/{p=1; next}
+    /^\[/{p=0}
+    p && index($0, "=") {
+      lhs=substr($0, 1, index($0, "=") - 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
+      if (lhs == key) {
+        value=substr($0, index($0, "=") + 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        print value
+        exit
+      }
+    }
+  ' "$conf_file"
+}
+
+write_wireguard_peer_restore_state() {
+  local wg_conf state_file state_dir tmp_file pubkey endpoint allowed_ips keepalive
+  wg_conf="${WG_CONF:-/etc/wireguard/wg-beagle.conf}"
+  [[ -r "$wg_conf" ]] || return 0
+
+  pubkey="$(wireguard_conf_value PublicKey "$wg_conf")"
+  endpoint="$(wireguard_conf_value Endpoint "$wg_conf")"
+  allowed_ips="$(wireguard_conf_value AllowedIPs "$wg_conf" | tr -d '[:space:]')"
+  keepalive="$(wireguard_conf_value PersistentKeepalive "$wg_conf")"
+  [[ -n "$pubkey" ]] || return 0
+
+  state_file="$(wireguard_peer_restore_state_file)"
+  state_dir="$(dirname "$state_file")"
+  install -d -m 0755 "$state_dir" >/dev/null 2>&1 || mkdir -p "$state_dir"
+  tmp_file="${state_file}.tmp.$$"
+  {
+    printf 'WG_PEER_PUBLIC_KEY=%s\n' "$pubkey"
+    printf 'WG_PEER_ENDPOINT=%s\n' "$endpoint"
+    printf 'WG_PEER_ALLOWED_IPS=%s\n' "$allowed_ips"
+    printf 'WG_PEER_KEEPALIVE=%s\n' "$keepalive"
+  } >"$tmp_file"
+  chmod 0644 "$tmp_file" >/dev/null 2>&1 || true
+  mv -f "$tmp_file" "$state_file"
+  beagle_log_event "prepare-runtime.wg-peer-restore-state" "status=ready file=$state_file"
+}
+
 prepare_runtime_reentry=0
 if prepare_runtime_already_ready; then
   prepare_runtime_reentry=1
@@ -135,6 +185,7 @@ ensure_wireguard_runtime_capabilities
 plymouth_status "Connecting device to Beagle Manager..."
 enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"
 enroll_wireguard_if_needed || beagle_log_event "prepare-runtime.wireguard-error" "wireguard enrollment failed"
+write_wireguard_peer_restore_state || beagle_log_event "prepare-runtime.wg-peer-restore-state-error" "write failed"
 adjust_secret_permissions
 if [[ "$prepare_runtime_reentry" -eq 0 ]]; then
   ensure_runtime_ssh_host_keys

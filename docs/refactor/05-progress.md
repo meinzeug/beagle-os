@@ -1,3 +1,30 @@
+## Update (2026-05-08, Thinclient WireGuard Restore Without Sudo)
+
+**Scope**: Wiederkehrende Thinclient-Abbrueche mit `Failed to connect to 192.168.123.114:50000` nach dem ersten Peer-Parser-Fix erneut untersucht.
+
+- **Root-Cause**:
+  - `beagle-stream` entfernt bei Disconnects den Peer aus `wg-beagle`.
+  - `ensure_wg_peer()` sollte ihn wiederherstellen, lief aber im `pve-thin-client-runtime.service` als User `thinclient` mit engem `CapabilityBoundingSet=CAP_SYS_NICE CAP_NET_ADMIN`.
+  - Dadurch konnte `sudo` im Service-Kontext nicht verlaesslich auf root wechseln; der Restore kehrte bei `sudo test -f /etc/wireguard/wg-beagle.conf` still zurueck.
+  - Ergebnis: Interface und Route blieben sichtbar, aber `wg show wg-beagle` hatte keinen Peer; alle VM100-Ports waren vom Thinclient aus geschlossen.
+
+- **Live-Fix Thinclient**:
+  - Peer als root wiederhergestellt und Runtime-Skripte auf dem Thinclient aktualisiert.
+  - `/run/beagle/wg-beagle-peer.env` mit nur oeffentlichen Peer-Restore-Werten erzeugt.
+  - Verifiziert: Peer entfernen, als `thinclient` ohne `sudo` aus der Restore-Datei per `wg set` wieder setzen, danach VM100-Ports offen.
+  - Runtime neu gestartet; aktiver Stream laeuft wieder gegen `192.168.123.114:50000`.
+
+- **Repo-Fix**:
+  - `prepare-runtime.sh` schreibt nach WireGuard-Enrollment eine oeffentliche Restore-State-Datei unter `/run/beagle/wg-beagle-peer.env`.
+  - `launch-beagle-stream-client.sh` nutzt diese Datei zuerst und ruft `wg set` direkt auf; `sudo` bleibt nur Fallback fuer nicht-sandboxed Kontexte.
+  - Private WireGuard-Keys bleiben in `/etc/wireguard/wg-beagle.conf` root-only.
+
+- **Verifiziert**:
+  - Thinclient: Stream-Prozess `beagle-stream stream 192.168.123.114:50000`, RTSP/Audio/Video/Control gestartet.
+  - Live-E2E-Baseline mit WireGuard-Handshake: `beaglestream_production_baseline=PASS`.
+
+---
+
 ## Update (2026-05-08, Thinclient WireGuard Peer Restore Fix)
 
 **Scope**: Abgebrochene VM100-Stream-Verbindung auf dem Live-USB-Thinclient `192.168.178.37` untersucht und repariert.

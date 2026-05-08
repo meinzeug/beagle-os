@@ -44,6 +44,37 @@ have_binary() {
   command -v "$1" >/dev/null 2>&1
 }
 
+wireguard_peer_restore_state_file() {
+  printf '%s\n' "${BEAGLE_WG_PEER_RESTORE_STATE_FILE:-/run/beagle/wg-beagle-peer.env}"
+}
+
+wireguard_peer_state_value() {
+  local key state_file
+  key="$1"
+  state_file="$2"
+  awk -F= -v key="$key" '$1 == key {print substr($0, index($0, "=") + 1); exit}' "$state_file"
+}
+
+wireguard_conf_value() {
+  local key conf_file
+  key="$1"
+  conf_file="$2"
+  sudo awk -v key="$key" '
+    /^\[Peer\]/{p=1; next}
+    /^\[/{p=0}
+    p && index($0, "=") {
+      lhs=substr($0, 1, index($0, "=") - 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
+      if (lhs == key) {
+        value=substr($0, index($0, "=") + 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        print value
+        exit
+      }
+    }
+  ' "$conf_file"
+}
+
 # After a forced restart (ENet/control-channel disconnect), poll the Sunshine HTTP
 # endpoint until it accepts connections or the timeout expires. This prevents
 # "Connection refused (Error 1)" on restart attempt 2 caused by Sunshine briefly
@@ -92,8 +123,11 @@ ensure_wg_interface() {
 ensure_wg_peer() {
   local iface="wg-beagle"
   local wg_conf="/etc/wireguard/wg-beagle.conf"
-  # conf is root-owned; check existence via sudo
-  sudo test -f "$wg_conf" 2>/dev/null || return 0
+  local peer_state
+  peer_state="$(wireguard_peer_restore_state_file)"
+  # The root-owned wg-quick config contains the private key. The root prepare
+  # step publishes only public peer restore values for this sandboxed launcher.
+  [[ -r "$peer_state" ]] || sudo test -f "$wg_conf" 2>/dev/null || return 0
   ensure_wg_interface
   ip link show "$iface" &>/dev/null || return 0
   # If no peers are configured, restore peer from the persisted conf file.
@@ -102,68 +136,23 @@ ensure_wg_peer() {
   if ! wg show "$iface" peers 2>/dev/null | grep -q .; then
     beagle_log_event "beagle-stream-client.wg-peer-restore" "iface=${iface} conf=${wg_conf}"
     local pubkey endpoint allowed_ips keepalive
-    pubkey="$(sudo awk -v key="PublicKey" '
-      /^\[Peer\]/{p=1; next}
-      /^\[/{p=0}
-      p && index($0, "=") {
-        lhs=substr($0, 1, index($0, "=") - 1)
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
-        if (lhs == key) {
-          value=substr($0, index($0, "=") + 1)
-          gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-          print value
-          exit
-        }
-      }
-    ' "$wg_conf")"
-    endpoint="$(sudo awk -v key="Endpoint" '
-      /^\[Peer\]/{p=1; next}
-      /^\[/{p=0}
-      p && index($0, "=") {
-        lhs=substr($0, 1, index($0, "=") - 1)
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
-        if (lhs == key) {
-          value=substr($0, index($0, "=") + 1)
-          gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-          print value
-          exit
-        }
-      }
-    ' "$wg_conf")"
-    allowed_ips="$(sudo awk -v key="AllowedIPs" '
-      /^\[Peer\]/{p=1; next}
-      /^\[/{p=0}
-      p && index($0, "=") {
-        lhs=substr($0, 1, index($0, "=") - 1)
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
-        if (lhs == key) {
-          value=substr($0, index($0, "=") + 1)
-          gsub(/[[:space:]]+/, "", value)
-          print value
-          exit
-        }
-      }
-    ' "$wg_conf")"
-    keepalive="$(sudo awk -v key="PersistentKeepalive" '
-      /^\[Peer\]/{p=1; next}
-      /^\[/{p=0}
-      p && index($0, "=") {
-        lhs=substr($0, 1, index($0, "=") - 1)
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
-        if (lhs == key) {
-          value=substr($0, index($0, "=") + 1)
-          gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-          print value
-          exit
-        }
-      }
-    ' "$wg_conf")"
+    if [[ -r "$peer_state" ]]; then
+      pubkey="$(wireguard_peer_state_value WG_PEER_PUBLIC_KEY "$peer_state")"
+      endpoint="$(wireguard_peer_state_value WG_PEER_ENDPOINT "$peer_state")"
+      allowed_ips="$(wireguard_peer_state_value WG_PEER_ALLOWED_IPS "$peer_state")"
+      keepalive="$(wireguard_peer_state_value WG_PEER_KEEPALIVE "$peer_state")"
+    else
+      pubkey="$(wireguard_conf_value PublicKey "$wg_conf")"
+      endpoint="$(wireguard_conf_value Endpoint "$wg_conf")"
+      allowed_ips="$(wireguard_conf_value AllowedIPs "$wg_conf" | tr -d '[:space:]')"
+      keepalive="$(wireguard_conf_value PersistentKeepalive "$wg_conf")"
+    fi
     [[ -n "$pubkey" ]] || return 0
     local -a wg_args=("$iface" peer "$pubkey")
     [[ -n "$endpoint" ]]    && wg_args+=(endpoint "$endpoint")
     [[ -n "$allowed_ips" ]] && wg_args+=(allowed-ips "$allowed_ips")
     [[ -n "$keepalive" ]]   && wg_args+=(persistent-keepalive "$keepalive")
-    sudo wg set "${wg_args[@]}" 2>/dev/null || true
+    wg set "${wg_args[@]}" 2>/dev/null || sudo wg set "${wg_args[@]}" 2>/dev/null || true
   fi
 }
 

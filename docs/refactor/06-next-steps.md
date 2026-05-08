@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-08, Thinclient WireGuard Restore Without Sudo)
+
+**Zuletzt erledigt**:
+- Wiederkehrenden Disconnect auf fehlenden Peer im bestehenden `wg-beagle`-Interface eingegrenzt.
+- Live verifiziert, dass der Runtime-Service `sudo` im engen Capability-Kontext nicht als Restore-Pfad nutzen darf.
+- Repo-Fix ergaenzt: Root-Prepare schreibt oeffentliche Peer-Restore-State-Datei; Launcher setzt den Peer ohne `sudo` direkt per `wg set` zurueck.
+
+**Naechste konkrete Schritte**:
+
+1. Beim naechsten realen Disconnect pruefen, ob `phase=beagle-stream-client.wg-peer-restore` erscheint und der Stream ohne manuelles Eingreifen neu startet.
+2. Frischen Live-USB-Build aus dem Repo erzeugen und Peer-Remove-/Reconnect-Szenario ohne Live-Hotfix wiederholen.
+3. Langfristig das `beagle-stream`-Clientverhalten pruefen: Peer-Remove bei Session-Ende sollte entweder entfallen oder mit dem Runtime-Restore-Vertrag dokumentiert sein.
+
+---
+
 ## Stand (2026-05-08, Thinclient WireGuard Peer Restore Fix)
 
 **Zuletzt erledigt**:
