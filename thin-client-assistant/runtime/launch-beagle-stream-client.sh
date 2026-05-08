@@ -102,10 +102,62 @@ ensure_wg_peer() {
   if ! wg show "$iface" peers 2>/dev/null | grep -q .; then
     beagle_log_event "beagle-stream-client.wg-peer-restore" "iface=${iface} conf=${wg_conf}"
     local pubkey endpoint allowed_ips keepalive
-    pubkey="$(sudo awk '/^\[Peer\]/{p=1} p && /^PublicKey/{print $3; exit}' "$wg_conf")"
-    endpoint="$(sudo awk '/^\[Peer\]/{p=1} p && /^Endpoint/{print $3; exit}' "$wg_conf")"
-    allowed_ips="$(sudo awk '/^\[Peer\]/{p=1} p && /^AllowedIPs/{$1=$2=""; gsub(/^ +/,""); gsub(/ /,""); print; exit}' "$wg_conf")"
-    keepalive="$(sudo awk '/^\[Peer\]/{p=1} p && /^PersistentKeepalive/{print $3; exit}' "$wg_conf")"
+    pubkey="$(sudo awk -v key="PublicKey" '
+      /^\[Peer\]/{p=1; next}
+      /^\[/{p=0}
+      p && index($0, "=") {
+        lhs=substr($0, 1, index($0, "=") - 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
+        if (lhs == key) {
+          value=substr($0, index($0, "=") + 1)
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+          print value
+          exit
+        }
+      }
+    ' "$wg_conf")"
+    endpoint="$(sudo awk -v key="Endpoint" '
+      /^\[Peer\]/{p=1; next}
+      /^\[/{p=0}
+      p && index($0, "=") {
+        lhs=substr($0, 1, index($0, "=") - 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
+        if (lhs == key) {
+          value=substr($0, index($0, "=") + 1)
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+          print value
+          exit
+        }
+      }
+    ' "$wg_conf")"
+    allowed_ips="$(sudo awk -v key="AllowedIPs" '
+      /^\[Peer\]/{p=1; next}
+      /^\[/{p=0}
+      p && index($0, "=") {
+        lhs=substr($0, 1, index($0, "=") - 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
+        if (lhs == key) {
+          value=substr($0, index($0, "=") + 1)
+          gsub(/[[:space:]]+/, "", value)
+          print value
+          exit
+        }
+      }
+    ' "$wg_conf")"
+    keepalive="$(sudo awk -v key="PersistentKeepalive" '
+      /^\[Peer\]/{p=1; next}
+      /^\[/{p=0}
+      p && index($0, "=") {
+        lhs=substr($0, 1, index($0, "=") - 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", lhs)
+        if (lhs == key) {
+          value=substr($0, index($0, "=") + 1)
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+          print value
+          exit
+        }
+      }
+    ' "$wg_conf")"
     [[ -n "$pubkey" ]] || return 0
     local -a wg_args=("$iface" peer "$pubkey")
     [[ -n "$endpoint" ]]    && wg_args+=(endpoint "$endpoint")

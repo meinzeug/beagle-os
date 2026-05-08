@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-08, Thinclient WireGuard Peer Restore Fix)
+
+**Zuletzt erledigt**:
+- Thinclient-Abbruch auf fehlenden laufenden `wg-beagle`-Peer eingegrenzt; Interface war vorhanden, Peer fehlte.
+- Live-Peer aus `/etc/wireguard/wg-beagle.conf` wiederhergestellt und Thinclient-Runtime zurueck auf `192.168.123.114:50000` gebracht.
+- `ensure_wg_peer()` im Repo gegen Base64-Padding-Verlust repariert; PublicKey wird nicht mehr per `$3` abgeschnitten.
+
+**Naechste konkrete Schritte**:
+
+1. Stream auf dem Thinclient weiter beobachten; bei erneutem Disconnect muss `wg show wg-beagle` den Peer weiterhin mit aktuellem Handshake zeigen.
+2. Den naechsten Live-USB-Build aus dem gepushten Repo erzeugen und dieselbe Disconnect-/Reconnect-Situation ohne Live-Patch verifizieren.
+3. Optional einen kleinen Runtime-Smoke fuer `ensure_wg_peer()` ergaenzen, der einen `PublicKey` mit `=`-Padding aus einer wg-quick-Konfig gegen einen Fake-`wg set`-Aufruf prueft.
+
+---
+
 ## Stand (2026-05-08, VM100 KMS Cursor Hotfix)
 
 **Zuletzt erledigt**:

@@ -1,3 +1,27 @@
+## Update (2026-05-08, Thinclient WireGuard Peer Restore Fix)
+
+**Scope**: Abgebrochene VM100-Stream-Verbindung auf dem Live-USB-Thinclient `192.168.178.37` untersucht und repariert.
+
+- **Root-Cause**:
+  - Auf dem Thinclient existierte `wg-beagle`, aber der laufende WireGuard-Peer war aus dem Interface verschwunden.
+  - `ensure_wg_peer()` sollte den Peer aus `/etc/wireguard/wg-beagle.conf` wiederherstellen, las den `PublicKey` aber mit `awk ... {print $3}`.
+  - WireGuard-Base64-Keys enden haeufig auf `=`; dadurch wurde der Key beim Restore abgeschnitten und `wg set` schlug mit `Key is not the correct length or format` fehl.
+
+- **Live-Fix Thinclient**:
+  - Peer mit korrekt geparstem PublicKey aus `/etc/wireguard/wg-beagle.conf` wieder gesetzt.
+  - VM100-Ports `49995/50000/50001/50021` waren danach vom Thinclient ueber `192.168.123.114` erreichbar.
+  - Thinclient-Runtime neu verbunden; der aktive Client streamt wieder zu `192.168.123.114:50000`.
+
+- **Repo-Fix**:
+  - `thin-client-assistant/runtime/launch-beagle-stream-client.sh` liest Peer-Konfigwerte jetzt ueber den kompletten String nach dem ersten `=` und erhaelt Base64-Padding.
+  - Regressionstest verhindert den Rueckfall auf `$3`-Parsing.
+
+- **Verifiziert**:
+  - Focused Tests: `21 passed`.
+  - Live-E2E-Baseline mit WireGuard-Handshake: `beaglestream_production_baseline=PASS`.
+
+---
+
 ## Update (2026-05-08, VM100 KMS Cursor Hotfix)
 
 **Scope**: Unsichtbaren Mauszeiger im VM100-BeagleStream behoben, waehrend der Stream ueber den neuen Live-USB-Thinclient aktiv war.

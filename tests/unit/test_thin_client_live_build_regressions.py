@@ -121,6 +121,15 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'if beagle_stream_broker_connection; then' in targeting_text
 
 
+def test_beaglestream_launcher_restores_wireguard_peer_without_truncating_base64_padding() -> None:
+    launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+
+    assert 'index($0, "=")' in launcher_text
+    assert 'value=substr($0, index($0, "=") + 1)' in launcher_text
+    assert 'pubkey="$(sudo awk -v key="PublicKey"' in launcher_text
+    assert "print $3; exit" not in launcher_text
+
+
 def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -> None:
     runtime_text = BEAGLE_STREAM_CLIENT_RUNTIME_EXEC.read_text(encoding="utf-8")
     launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
