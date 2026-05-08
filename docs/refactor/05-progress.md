@@ -1,3 +1,24 @@
+## Update (2026-05-08, Thinclient Reconnect Wait Target Fix)
+
+**Scope**: Wieder verschwundener Desktop auf dem Thinclient untersucht.
+
+- **Befund**:
+  - `pve-thin-client-runtime.service` selbst startete nicht neu (`NRestarts=0`); Xorg/Openbox blieben aktiv.
+  - Der sichtbare Ausfall war ein Stream-Client-Restart nach `Control stream received unexpected disconnect event` / `Connection terminated`.
+  - Beim Reconnect wartete `wait_for_stream_server_ready()` nach Peer-Remove/Restore teils neu gegen den Broker/Public-Host `46.4.96.80:50000` statt gegen den bereits aufgeloesten internen Zielhost `192.168.123.114:50000`.
+  - Da Public-Stream-Ports absichtlich geschlossen sind, verlaengerte das den schwarzen Bildschirm bis zum Timeout.
+
+- **Fix**:
+  - `wait_for_stream_server_ready()` akzeptiert jetzt explizit Host/Port.
+  - Der forced-restart-Pfad stellt zuerst den WireGuard-Peer wieder her und prueft dann `${connect_host:-$host}` / `$port`, also den Broker-resolvierten internen VM100-Zielhost.
+
+- **Live-Fix Thinclient**:
+  - Launcher auf `192.168.178.37` aktualisiert und Runtime einmal kontrolliert neu gestartet.
+  - Stream laeuft wieder als `beagle-stream stream 192.168.123.114:50000 Desktop ...`.
+  - `wg-beagle` hat Peer/Handshake; VM100-Ports sind vom Thinclient offen.
+
+---
+
 ## Update (2026-05-08, Thinclient WireGuard Restore Without Sudo)
 
 **Scope**: Wiederkehrende Thinclient-Abbrueche mit `Failed to connect to 192.168.123.114:50000` nach dem ersten Peer-Parser-Fix erneut untersucht.

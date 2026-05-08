@@ -81,11 +81,17 @@ wireguard_conf_value() {
 # being unavailable while cleaning up the previous session or restarting.
 wait_for_stream_server_ready() {
   local host port target max_wait elapsed
-  host="$(beagle_stream_client_connect_host 2>/dev/null || true)"
-  port="$(beagle_stream_client_port 2>/dev/null || true)"
+  host="${1:-}"
+  port="${2:-}"
+  max_wait="${3:-15}"
+  if [[ -z "$host" ]]; then
+    host="$(beagle_stream_client_connect_host 2>/dev/null || true)"
+  fi
+  if [[ -z "$port" ]]; then
+    port="$(beagle_stream_client_port 2>/dev/null || true)"
+  fi
   [[ -n "$host" && -n "$port" ]] || return 0
   target="http://${host}:${port}/serverinfo"
-  max_wait="${1:-15}"
   elapsed=0
   while [[ "$elapsed" -lt "$max_wait" ]]; do
     if curl -fsS --connect-timeout 2 --max-time 3 "$target" >/dev/null 2>&1; then
@@ -415,7 +421,8 @@ main() {
     # After a forced restart (ENet disconnect), wait for Sunshine to finish session
     # cleanup before retrying — avoids "Connection refused (Error 1)" on attempt 2+.
     if [[ "$stream_forced_restart" -eq 1 ]]; then
-      wait_for_stream_server_ready 15 || true
+      ensure_wg_peer
+      wait_for_stream_server_ready "${connect_host:-$host}" "$port" 15 || true
     fi
     sleep "$retry_delay"
     stream_attempt=$((stream_attempt + 1))

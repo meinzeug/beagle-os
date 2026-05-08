@@ -116,6 +116,7 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'value("beagle_stream_client_local_host", "stream_local_host", "guest_ip")' in host_sync_text
     assert 'beagle-stream-client.connection-terminated' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_MAX_RESTARTS:-3' in launcher_text
+    assert 'wait_for_stream_server_ready "${connect_host:-$host}" "$port" 15' in launcher_text
     assert 'if [[ "$method" == "broker" && -r /etc/beagle/enrollment.conf ]]; then' in launch_session_text
     assert 'beagle_stream_connection_method()' in targeting_text
     assert 'if beagle_stream_broker_connection; then' in targeting_text

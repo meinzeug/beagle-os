@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-05-08, Thinclient Reconnect Wait Target Fix)
+
+**Zuletzt erledigt**:
+- Klaergestellt: Nicht der gesamte Thinclient-Desktop-Service startet permanent neu; der Stream-Client wird nach Control-Disconnect vom Launcher neu gestartet.
+- Reconnect-Wartepfad auf den bereits gebrokerten internen Zielhost `192.168.123.114:50000` korrigiert, statt nach Peer-Remove erneut auf den geblockten Public-Host zu fallen.
+
+**Naechste konkrete Schritte**:
+
+1. Beim naechsten echten `connection-terminated` im Journal muss `server-ready host=192.168.123.114` erscheinen, nicht `host=46.4.96.80`.
+2. Falls Control-Disconnects weiterhin im 2-3-Minuten-Fenster auftreten, Sunshine/Client-Control-Timeouts und ENet-Keepalive gesondert untersuchen; der aktuelle Fix reduziert den sichtbaren Ausfall beim Reconnect, ist aber nicht der Beweis fuer die Ursache jedes Control-Disconnects.
+
+---
+
 ## Stand (2026-05-08, Thinclient WireGuard Restore Without Sudo)
 
 **Zuletzt erledigt**:
