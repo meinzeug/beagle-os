@@ -232,6 +232,8 @@ prepare_rootfs_stage() {
   # live-build can fail before chroot includes are copied into the rootfs.
   # Normalize ownership here so the staged filesystem matches a real image.
   rsync -a --chown=root:root "$BUILD_DIR/config/includes.chroot/" "$ROOTFS_STAGE_DIR/"
+  install -d -m 0755 "$ROOTFS_STAGE_DIR/usr/local/lib/pve-thin-client"
+
   # Keep thin-client assets in sync with the repo even when the cached chroot is stale.
   rsync -a --delete --chown=root:root \
     "$ROOT_DIR/thin-client-assistant/runtime/" \

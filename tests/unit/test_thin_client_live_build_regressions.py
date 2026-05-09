@@ -173,6 +173,7 @@ def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
     assert 'beagle_wrapper_path="$BUILD_DIR/config/includes.chroot/usr/local/bin/beagle-stream"' in build_text
     assert 'if [[ -x "$target_dir/usr/bin/beagle-stream" ]]; then' in build_text
     assert '"$ROOT_DIR/scripts/lib/trace-guard.sh"' in build_text
+    assert 'install -d -m 0755 "$ROOTFS_STAGE_DIR/usr/local/lib/pve-thin-client"' in build_text
     assert 'find "$target_dir" -type d -exec chmod 0755 {} +' in build_text
 
 
