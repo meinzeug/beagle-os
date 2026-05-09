@@ -43,7 +43,7 @@ def test_update_client_preserves_live_usb_kernel_flags_when_rewriting_grub() -> 
     assert "pve_thin_client.network_tui=1" in script
     assert "pve_thin_client.live_usb=" in script
     assert "pve_thin_client.update_persistence=" in script
-    assert "pve_thin_client.client_mode=desktop{extra_args}" in script
+    assert "pve_thin_client.mode=runtime{extra_args}" in script
 
 
 def test_installed_thinclient_ab_update_path_keeps_two_slots_and_pending_manifest() -> None:
