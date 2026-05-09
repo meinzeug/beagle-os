@@ -391,8 +391,11 @@ class VmConsoleAccessService:
         if not access.get("available"):
             raise ValueError(str(access.get("reason") or "SPICE ist fuer diese VM nicht verfuegbar."))
 
-        secret = self._ensure_vm_secret(vm)
-        password = str(secret.get("guest_password") or secret.get("password") or "").strip()
+        vm_domain = str(getattr(vm, "name", "") or "").strip() or None
+        graphics = self._libvirt_spice_graphics(vmid=vmid, domain_name=vm_domain) or {}
+        # SPICE auth is independent from guest credentials. Only emit password
+        # when libvirt actually configured a SPICE ticket.
+        password = str(graphics.get("password") or "").strip()
         vv_text = self._build_spice_vv_content(
             host=str(access.get("host") or "").strip(),
             vmid=vmid,
