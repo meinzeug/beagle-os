@@ -262,8 +262,87 @@ recover_packaged_artifacts_from_existing_builds() {
   copy_if_missing_or_older "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1" "$DIST_DIR/pve-thin-client-usb-installer-latest.ps1" 0644
   copy_if_missing_or_older "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.ps1" "$DIST_DIR/pve-thin-client-live-usb-latest.ps1" 0644
 
+  validate_and_repair_payload_assets
   ensure_bootstrap_from_deployed_iso
 }
+
+validate_and_repair_payload_assets() {
+  local packaged_payload="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
+  local iso="$DIST_DIR/beagle-os-installer-amd64.iso"
+
+  # Nothing to do if payload is missing
+  [[ -f "$packaged_payload" ]] || return 0
+
+  # Check if payload contains required live assets
+  local tmpcheck="$(mktemp -d)"
+  local has_assets=1
+  trap "rm -rf '$tmpcheck'" RETURN
+
+  for required_asset in "dist/pve-thin-client-installer/live/vmlinuz" \
+                        "dist/pve-thin-client-installer/live/initrd.img" \
+                        "dist/pve-thin-client-installer/live/filesystem.squashfs" \
+                        "dist/pve-thin-client-installer/live/SHA256SUMS"; do
+    if ! tar -tzf "$packaged_payload" "$required_asset" >/dev/null 2>&1; then
+      has_assets=0
+      break
+    fi
+  done
+
+  [[ "$has_assets" -eq 1 ]] && return 0
+
+  # Payload is missing live assets; try to rebuild from ISO
+  [[ -f "$iso" ]] || {
+    echo "WARNING: Payload tarball missing live assets and no ISO available for recovery" >&2
+    echo "This will cause live-usb installations to fail. Please rebuild the thin-client installer." >&2
+    return 1
+  }
+
+  command -v xorriso >/dev/null 2>&1 || {
+    echo "WARNING: Cannot extract live assets from $iso — xorriso not found" >&2
+    return 1
+  }
+
+  echo "Repairing payload tarball: extracting live assets from ISO..."
+
+  local tmpstage="$(mktemp -d)"
+  local live_dir="$tmpstage/dist/pve-thin-client-installer/live"
+  mkdir -p "$live_dir"
+
+  local cleanup_cmd="$(printf 'rm -rf %q' "$tmpstage")"
+  trap "$cleanup_cmd" RETURN
+
+  xorriso -osirrox on -indev "$iso" \
+    -extract /live/vmlinuz          "$live_dir/vmlinuz" \
+    -extract /live/initrd.img       "$live_dir/initrd.img" \
+    -extract /live/filesystem.squashfs "$live_dir/filesystem.squashfs" \
+    -extract /live/SHA256SUMS       "$live_dir/SHA256SUMS" \
+    >/dev/null 2>&1 || {
+      echo "ERROR: Failed to extract live assets from $iso for payload repair" >&2
+      return 1
+    }
+
+  # Rebuild payload with extracted assets
+  local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
+  (
+    cd /
+    tar -czf "$payload_versioned" \
+      -C "$ROOT_DIR" thin-client-assistant \
+      -C "$ROOT_DIR" scripts \
+      -C "$ROOT_DIR" docs \
+      -C "$ROOT_DIR" README.md \
+      -C "$ROOT_DIR" LICENSE \
+      -C "$ROOT_DIR" CHANGELOG.md \
+      -C "$ROOT_DIR" VERSION \
+      -C "$tmpstage" "dist/pve-thin-client-installer/live"
+  )
+
+  install -m 0644 "$payload_versioned" "$packaged_payload"
+  echo "Payload tarball repaired: $packaged_payload"
+
+  trap - RETURN
+  eval "$cleanup_cmd"
+}
+
 
 download_public_artifact_if_missing() {
   local filename="$1"

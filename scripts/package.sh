@@ -301,6 +301,18 @@ rsync -a --delete \
     -C "$USB_PAYLOAD_STAGE_DIR" "dist/$(basename "$INSTALLER_BUILD_DIR")/live"
 )
 
+# Validate that USB payload contains required live assets
+# This ensures the installer can boot without downloading a fallback ISO
+PAYLOAD_LIVE_ASSETS_DIR="$USB_PAYLOAD_STAGE_DIR/dist/$(basename "$INSTALLER_BUILD_DIR")/live"
+for required_asset in vmlinuz initrd.img filesystem.squashfs SHA256SUMS; do
+  if [[ ! -f "$PAYLOAD_LIVE_ASSETS_DIR/$required_asset" ]]; then
+    echo "ERROR: USB payload missing required live asset: $required_asset" >&2
+    echo "This indicates the thin-client installer build failed to produce the live ISO assets." >&2
+    echo "Check INSTALLER_BUILD_DIR=$INSTALLER_BUILD_DIR for issues." >&2
+    exit 1
+  fi
+done
+
 install -m 0644 "$DIST_DIR/$USB_PAYLOAD_NAME" "$DIST_DIR/$USB_PAYLOAD_LATEST_NAME"
 ln -f "$DIST_DIR/$USB_PAYLOAD_NAME" "$DIST_DIR/$USB_BOOTSTRAP_NAME"
 ln -f "$DIST_DIR/$USB_PAYLOAD_LATEST_NAME" "$DIST_DIR/$USB_BOOTSTRAP_LATEST_NAME"
