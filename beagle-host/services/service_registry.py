@@ -2494,7 +2494,6 @@ def rotate_beagle_stream_server_token(vm: VmSummary, *, grace_seconds: int | Non
 
 
 def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], device_name: str) -> dict[str, Any]:
-    pin = random_pin()
     endpoint_id = str(endpoint_identity.get("endpoint_id", "") or "").strip()
     hostname = str(endpoint_identity.get("hostname", "") or "").strip()
     token = pairing_service().issue_token(
@@ -2505,7 +2504,7 @@ def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: d
             "endpoint_id": endpoint_id,
             "hostname": hostname,
             "device_name": str(device_name or "").strip(),
-            "pairing_pin": pin,
+            "pairing_secret": random_secret(32),
         }
     )
     payload = pairing_service().validate_token(token) or {}
@@ -2517,7 +2516,7 @@ def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: d
 
 
 def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], pairing_token: str) -> dict[str, Any]:
-    payload = pairing_service().validate_token(pairing_token)
+    payload = pairing_service().consume_token(pairing_token)
     if not isinstance(payload, dict):
         return {"ok": False, "error": "invalid or expired pairing token"}
 
@@ -2529,29 +2528,28 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
     if scoped_endpoint_id and identity_endpoint_id and scoped_endpoint_id != identity_endpoint_id:
         return {"ok": False, "error": "pairing token endpoint mismatch"}
 
-    pin = str(payload.get("pairing_pin", "") or "").strip()
-    if not pin:
-        return {"ok": False, "error": "pairing token missing pin"}
+    pairing_secret = str(payload.get("pairing_secret", "") or "").strip() or str(pairing_token or "").strip()
+    if not pairing_secret:
+        return {"ok": False, "error": "pairing token missing secret"}
     device_name = str(payload.get("device_name", "") or "").strip() or f"beagle-vm{vm.vmid}-client"
 
     status, _, body = proxy_beagle_stream_server_request(
         vm,
-        request_path="/api/pin",
+        request_path="/api/pair-token",
         query="",
         method="POST",
-        body=json.dumps({"pin": pin, "name": device_name}, separators=(",", ":"), ensure_ascii=True).encode("utf-8"),
+        body=json.dumps({"token": pairing_secret, "name": device_name}, separators=(",", ":"), ensure_ascii=True).encode("utf-8"),
         request_headers={"Content-Type": "application/json", "Accept": "application/json"},
     )
     if int(status) >= 400:
-        return {"ok": False, "error": f"beagle-stream-server pin exchange failed with HTTP {int(status)}"}
+        return {"ok": False, "error": f"beagle-stream-server token exchange failed with HTTP {int(status)}"}
 
     try:
         response_payload = json.loads((body or b"{}").decode("utf-8", errors="replace"))
     except json.JSONDecodeError:
         response_payload = {}
     if not bool((response_payload or {}).get("status")):
-        return {"ok": False, "error": "beagle-stream-server pin exchange rejected"}
-    pairing_service().consume_token(pairing_token)
+        return {"ok": False, "error": "beagle-stream-server token exchange rejected"}
     return {"ok": True}
 
 
