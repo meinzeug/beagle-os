@@ -541,6 +541,12 @@ while (( attempt <= THINCLIENT_LB_BUILD_ATTEMPTS )); do
   if (( attempt < THINCLIENT_LB_BUILD_ATTEMPTS )); then
     echo "Retrying thin-client live-build after cleanup..." >&2
     cleanup_stale_build_mounts
+    # lb clean --purge can remove auto/ in some live-build versions.
+    # Re-sync the template so auto/config is present for the next attempt.
+    popd >/dev/null
+    rsync -a --delete "$LB_TEMPLATE_DIR/" "$BUILD_DIR/"
+    pushd "$BUILD_DIR" >/dev/null
+    chmod +x auto/config
   fi
   attempt=$((attempt + 1))
 done
