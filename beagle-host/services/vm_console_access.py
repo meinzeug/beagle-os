@@ -23,6 +23,7 @@ from libvirt_runner import LibvirtRunner as _LibvirtRunner
 _LIBVIRT = _LibvirtRunner()
 
 _NOVNC_TOKEN_TTL_SECONDS: float = 30.0
+_SPICE_TICKET_TTL_SECONDS: int = 30
 
 
 class VmConsoleAccessService:
@@ -327,6 +328,27 @@ class VmConsoleAccessService:
             lines.append(f"password={password}")
         return "\n".join(lines) + "\n"
 
+    def _issue_ephemeral_spice_ticket(self, *, vmid: int, domain_name: str | None = None) -> str:
+        from core.validation.identifiers import validate_vmid
+
+        vmid_int = validate_vmid(vmid)
+        default_domain = f"beagle-{vmid_int}"
+        domain = str(domain_name or "").strip() or default_domain
+        ticket = secrets.token_hex(16)
+        ttl_seconds = max(1, int(_SPICE_TICKET_TTL_SECONDS))
+        last_error: Exception | None = None
+
+        for dom in (domain, default_domain):
+            try:
+                _LIBVIRT.virsh("qemu-monitor-command", dom, "--hmp", f"set_password spice {ticket}")
+                _LIBVIRT.virsh("qemu-monitor-command", dom, "--hmp", f"expire_password spice +{ttl_seconds}")
+                return ticket
+            except Exception as exc:
+                last_error = exc
+
+        detail = str(last_error or "unknown error").strip()
+        raise RuntimeError(f"SPICE-Ticket konnte nicht gesetzt werden: {detail}")
+
     def build_spice_access(self, vm: Any) -> dict[str, Any]:
         vmid = int(getattr(vm, "vmid", 0) or 0)
         node = str(getattr(vm, "node", "") or "").strip()
@@ -392,10 +414,11 @@ class VmConsoleAccessService:
             raise ValueError(str(access.get("reason") or "SPICE ist fuer diese VM nicht verfuegbar."))
 
         vm_domain = str(getattr(vm, "name", "") or "").strip() or None
-        graphics = self._libvirt_spice_graphics(vmid=vmid, domain_name=vm_domain) or {}
-        # SPICE auth is independent from guest credentials. Only emit password
-        # when libvirt actually configured a SPICE ticket.
-        password = str(graphics.get("password") or "").strip()
+        try:
+            # Match Proxmox behavior: issue a per-request SPICE ticket with short TTL.
+            password = self._issue_ephemeral_spice_ticket(vmid=vmid, domain_name=vm_domain)
+        except Exception as exc:
+            raise ValueError(f"SPICE-Ticket konnte nicht erstellt werden: {exc}") from exc
         vv_text = self._build_spice_vv_content(
             host=str(access.get("host") or "").strip(),
             vmid=vmid,

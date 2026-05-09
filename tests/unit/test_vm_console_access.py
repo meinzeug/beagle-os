@@ -40,6 +40,7 @@ def test_render_spice_vv_ignores_guest_password_when_spice_has_no_auth(monkeypat
         "_libvirt_spice_graphics",
         lambda vmid, domain_name=None: {"listen": "0.0.0.0", "port": 5902, "tls_port": 0, "password": ""},
     )
+    monkeypatch.setattr(service, "_issue_ephemeral_spice_ticket", lambda vmid, domain_name=None: "ticket-abc")
 
     body, filename = service.render_spice_vv(_Vm())
     text = body.decode("utf-8")
@@ -47,7 +48,8 @@ def test_render_spice_vv_ignores_guest_password_when_spice_has_no_auth(monkeypat
     assert filename == "beagle-vm-100.vv"
     assert "port=5902" in text
     assert "host=srv1.beagle-os.com" in text
-    assert "password=" not in text
+    assert "password=ticket-abc" in text
+    assert "password=LoL123LoL" not in text
 
 
 def test_render_spice_vv_uses_spice_password_when_configured(monkeypatch) -> None:
@@ -59,12 +61,34 @@ def test_render_spice_vv_uses_spice_password_when_configured(monkeypatch) -> Non
             "listen": "0.0.0.0",
             "port": 5902,
             "tls_port": 0,
-            "password": "spice-ticket",
+            "password": "legacy-static-password",
         },
     )
+    monkeypatch.setattr(service, "_issue_ephemeral_spice_ticket", lambda vmid, domain_name=None: "ticket-xyz")
 
     body, _ = service.render_spice_vv(_Vm())
     text = body.decode("utf-8")
 
-    assert "password=spice-ticket" in text
+    assert "password=ticket-xyz" in text
+    assert "password=legacy-static-password" not in text
     assert "password=LoL123LoL" not in text
+
+
+def test_render_spice_vv_raises_when_ticket_cannot_be_created(monkeypatch) -> None:
+    service = _service()
+    monkeypatch.setattr(
+        service,
+        "_libvirt_spice_graphics",
+        lambda vmid, domain_name=None: {"listen": "0.0.0.0", "port": 5902, "tls_port": 0, "password": ""},
+    )
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("monitor failed")
+
+    monkeypatch.setattr(service, "_issue_ephemeral_spice_ticket", _raise)
+
+    try:
+        service.render_spice_vv(_Vm())
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "SPICE-Ticket konnte nicht erstellt werden" in str(exc)
