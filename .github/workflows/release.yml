@@ -495,11 +495,32 @@ jobs:
               git fetch origin main
               git rebase origin/main
               git remote set-url origin "https://x-access-token:${RELEASE_SYNC_TOKEN}@github.com/${REPO}.git"
-              push_error="$(git push origin "HEAD:refs/heads/main" 2>&1)" || {
-                echo "::error::Direct push to main failed while syncing release metadata: ${push_error}" >&2
-                echo "::error::Aborting release to avoid version drift between main and published artifacts." >&2
-                exit 1
-              }
+              push_error=""
+              if ! push_error="$(git push origin "HEAD:refs/heads/main" 2>&1)"; then
+                echo "::warning::Direct push to main failed (branch protection active): ${push_error}" >&2
+                echo "::warning::Falling back to PR-based metadata sync." >&2
+                safe_version="${VERSION//[^a-zA-Z0-9._-]/-}"
+                sync_branch="release/metadata-sync-v${safe_version}"
+                if git push origin "HEAD:refs/heads/${sync_branch}" --force 2>&1; then
+                  pr_url="$(gh pr create \
+                    --base main \
+                    --head "${sync_branch}" \
+                    --title "release: sync metadata to ${VERSION} [skip release]" \
+                    --body "Automated metadata sync for release v${VERSION}. Direct push to \`main\` was blocked by branch protection rules. Merge this PR to keep repository metadata in sync." \
+                    --repo "${REPO}" 2>/dev/null)" \
+                    || pr_url="$(gh pr list \
+                         --head "${sync_branch}" \
+                         --repo "${REPO}" \
+                         --json url \
+                         --jq '.[0].url' 2>/dev/null || true)"
+                  if [[ -n "$pr_url" ]]; then
+                    gh pr merge "$pr_url" --auto --squash --repo "${REPO}" 2>&1 || true
+                    echo "::notice::Metadata sync PR: ${pr_url}" >&2
+                  fi
+                else
+                  echo "::warning::Could not push sync branch either; will verify origin/main version below." >&2
+                fi
+              fi
             fi
             git fetch origin main
             origin_main_version="$(git show origin/main:VERSION | tr -d ' \n\r')"
