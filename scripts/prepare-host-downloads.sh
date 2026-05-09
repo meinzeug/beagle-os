@@ -306,6 +306,10 @@ hydrate_packaged_artifacts_from_public_release() {
     "$SERVER_INSTALLIMAGE_FILENAME"
   )
   local file
+  local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
+  local payload_latest="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
+  local bootstrap_versioned="$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
+  local bootstrap_latest="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
 
   for file in "${required_public_files[@]}"; do
     if ! download_public_artifact_if_missing "$file"; then
@@ -313,6 +317,17 @@ hydrate_packaged_artifacts_from_public_release() {
       return 1
     fi
   done
+
+  # Keep latest aliases aligned with the hydrated versioned payload/bootstrap
+  # so WebUI and hosted downloads do not continue to point at stale content.
+  if [[ -f "$payload_versioned" ]]; then
+    install -m 0644 "$payload_versioned" "$payload_latest"
+  fi
+  if [[ -f "$bootstrap_versioned" ]]; then
+    install -m 0644 "$bootstrap_versioned" "$bootstrap_latest"
+  elif [[ -f "$payload_versioned" ]]; then
+    install -m 0644 "$payload_versioned" "$bootstrap_latest"
+  fi
 
   return 0
 }
