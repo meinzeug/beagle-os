@@ -23,7 +23,18 @@ from libvirt_runner import LibvirtRunner as _LibvirtRunner
 _LIBVIRT = _LibvirtRunner()
 
 _NOVNC_TOKEN_TTL_SECONDS: float = 30.0
-_SPICE_TICKET_TTL_SECONDS: int = 30
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = str(os.environ.get(name, default)).strip()
+    try:
+        value = int(raw)
+    except Exception:
+        return int(default)
+    return value if value > 0 else int(default)
+
+
+_SPICE_TICKET_TTL_SECONDS: int = _env_int("BEAGLE_SPICE_TICKET_TTL_SECONDS", 180)
 
 
 class VmConsoleAccessService:
