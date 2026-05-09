@@ -265,6 +265,58 @@ recover_packaged_artifacts_from_existing_builds() {
   ensure_bootstrap_from_deployed_iso
 }
 
+download_public_artifact_if_missing() {
+  local filename="$1"
+  local public_base_url="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
+  local target_path="$DIST_DIR/$filename"
+  local tmp_path="${target_path}.tmp"
+  local mode="0644"
+
+  public_base_url="${public_base_url%/}"
+  [[ -f "$target_path" ]] && return 0
+
+  command -v curl >/dev/null 2>&1 || {
+    echo "Missing required tool for public artifact fallback: curl" >&2
+    return 1
+  }
+
+  case "$filename" in
+    *.sh)
+      mode="0755"
+      ;;
+  esac
+
+  echo "Downloading missing release artifact from public mirror: ${public_base_url}/${filename}"
+  if ! curl -fsSL --retry 6 --retry-delay 3 --retry-connrefused -o "$tmp_path" "${public_base_url}/${filename}"; then
+    rm -f "$tmp_path"
+    return 1
+  fi
+  install -m "$mode" "$tmp_path" "$target_path"
+  rm -f "$tmp_path"
+}
+
+hydrate_packaged_artifacts_from_public_release() {
+  local -a required_public_files=(
+    "beagle-os-v${VERSION}.tar.gz"
+    "beagle-os-latest.tar.gz"
+    "pve-thin-client-usb-payload-v${VERSION}.tar.gz"
+    "pve-thin-client-usb-payload-latest.tar.gz"
+    "beagle-os-installer-amd64.iso"
+    "beagle-os-server-installer-amd64.iso"
+    "$SERVER_INSTALLIMAGE_FILENAME"
+  )
+  local file
+
+  for file in "${required_public_files[@]}"; do
+    if ! download_public_artifact_if_missing "$file"; then
+      echo "Public artifact fallback failed for $file" >&2
+      return 1
+    fi
+  done
+
+  return 0
+}
+
 ensure_current_packaged_artifacts() {
   local needs_package=0
   local source_revision=""
@@ -316,9 +368,13 @@ ensure_current_packaged_artifacts() {
   fi
 
   if [[ "$needs_package" -eq 1 ]]; then
-    BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS="$BEAGLE_HOST_BUILD_SERVER_RELEASE_ARTIFACTS" \
-    BEAGLE_PACKAGE_INCLUDE_ENDPOINT_INSTALLER_ISO=0 \
-      "$ROOT_DIR/scripts/package.sh"
+    if ! BEAGLE_PACKAGE_INCLUDE_SERVER_RELEASE_ARTIFACTS="$BEAGLE_HOST_BUILD_SERVER_RELEASE_ARTIFACTS" \
+      BEAGLE_PACKAGE_INCLUDE_ENDPOINT_INSTALLER_ISO=0 \
+      "$ROOT_DIR/scripts/package.sh"; then
+      echo "Local package build failed; attempting to hydrate required artifacts from public release mirror." >&2
+      hydrate_packaged_artifacts_from_public_release
+      recover_packaged_artifacts_from_existing_builds
+    fi
   fi
 
   write_thin_client_artifact_stamp "$source_revision"

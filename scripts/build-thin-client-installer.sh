@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/disk_guardrails.sh"
+source "$ROOT_DIR/scripts/lib/artifact_lock.sh"
 LB_TEMPLATE_DIR="$ROOT_DIR/thin-client-assistant/live-build"
 BUILD_DIR="${THINCLIENT_BUILD_DIR:-$ROOT_DIR/.build/pve-thin-client-live-build}"
 DIST_DIR="${THINCLIENT_DIST_DIR:-$ROOT_DIR/dist/pve-thin-client-installer}"
@@ -20,6 +21,16 @@ GRUB_BACKGROUND_SRC="$ROOT_DIR/thin-client-assistant/usb/assets/grub-background.
 ROOTFS_STAGE_DIR="$BUILD_DIR/rootfs-stage"
 THINCLIENT_USER="thinclient"
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+
+lock_rc=0
+beagle_artifact_lock_acquire "build-thin-client-installer" || lock_rc=$?
+if [[ "$lock_rc" -ne 0 ]]; then
+  if [[ "$lock_rc" -eq 75 ]]; then
+    echo "Skipping duplicate thin-client build because another artifact refresh already holds the lock."
+    exit 0
+  fi
+  exit "$lock_rc"
+fi
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
