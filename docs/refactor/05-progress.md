@@ -1,3 +1,33 @@
+## Update (2026-05-09, SPICE .vv ueber 443 CONNECT-Proxy statt Raw-Port)
+
+**Scope**: VM100-SPICE-Connect fuer externe Clients (Desktop/Android) ohne offenen Raw-SPICE-Port stabilisiert.
+
+- **Root-Cause**:
+  - Live-.vv zeigte zwar bereits kein Guest-Passwort mehr, targetete aber weiterhin direkten SPICE-Port (`5902`), der extern nicht erreichbar ist.
+  - Smartphone/Desktop liefen dadurch in `Socket I/O timed out` gegen `srv1.beagle-os.com:5902`.
+
+- **Repo-Fix**:
+  - `beagle-host/services/vm_console_access.py`:
+    - tokenisierte, kurzlebige SPICE-TCP-Proxy-Sessions (`_SpiceTcpProxySession`) mit TTL.
+    - optionale `.vv`-Ausgabe mit `proxy=http://<token>@<host>:443` und `host=127.0.0.1` fuer HTTP-CONNECT-Tunneling.
+    - CONNECT-Token-Pruefung via `authorize_spice_proxy_connect(...)`.
+  - `beagle-host/services/control_plane_handler.py`:
+    - `do_CONNECT` implementiert (Proxy-Authorization Basic, Port-/Token-Validierung, bidirektionales Tunnel-Forwarding).
+  - `scripts/install-beagle-proxy.sh`:
+    - installiert `libnginx-mod-stream`.
+    - schreibt 443-Stream-Mux (`ssl_preread`): TLS -> lokales nginx-HTTPS (`127.0.0.1:4443`), non-TLS CONNECT -> Control Plane (`127.0.0.1:9088`).
+    - setzt Manager-Defaults fuer SPICE-CONNECT-Proxy (`BEAGLE_SPICE_HTTP_CONNECT_PROXY=1`, Host/Port, Loopback-Bind).
+  - `tests/unit/test_vm_console_access.py` erweitert (Proxy-Feld und CONNECT-Token-Autorisierung).
+
+- **Live-Verifikation (`srv1`)**:
+  - Focused Unit-Test: `6 passed`.
+  - Live `.vv` fuer VM100 enthaelt jetzt `host=127.0.0.1` und `proxy=http://<token>@srv1.beagle-os.com:443`.
+  - Extern von Lab-Kiosk: `CONNECT 127.0.0.1:<ephemeral-port>` gegen `srv1.beagle-os.com:443` -> `HTTP/1.0 200 Connection Established`.
+  - HTTPS-WebUI auf `https://srv1.beagle-os.com/` bleibt `200 OK`.
+  - `remote-viewer`-Strace zeigt Verbindungsaufbau ueber `:443` statt `:5902`.
+
+---
+
 ## Update (2026-05-08, Thinclient Reconnect Wait Target Fix)
 
 **Scope**: Wieder verschwundener Desktop auf dem Thinclient untersucht.

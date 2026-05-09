@@ -41,12 +41,13 @@ def test_render_spice_vv_ignores_guest_password_when_spice_has_no_auth(monkeypat
         lambda vmid, domain_name=None: {"listen": "0.0.0.0", "port": 5902, "tls_port": 0, "password": ""},
     )
     monkeypatch.setattr(service, "_issue_ephemeral_spice_ticket", lambda vmid, domain_name=None: "ticket-abc")
+    monkeypatch.setattr(service, "_create_spice_proxy", lambda target_host, target_port: {"host": "srv1.beagle-os.com", "port": 46002})
 
     body, filename = service.render_spice_vv(_Vm())
     text = body.decode("utf-8")
 
     assert filename == "beagle-vm-100.vv"
-    assert "port=5902" in text
+    assert "port=46002" in text
     assert "host=srv1.beagle-os.com" in text
     assert "password=ticket-abc" in text
     assert "password=LoL123LoL" not in text
@@ -65,10 +66,12 @@ def test_render_spice_vv_uses_spice_password_when_configured(monkeypatch) -> Non
         },
     )
     monkeypatch.setattr(service, "_issue_ephemeral_spice_ticket", lambda vmid, domain_name=None: "ticket-xyz")
+    monkeypatch.setattr(service, "_create_spice_proxy", lambda target_host, target_port: {"host": "srv1.beagle-os.com", "port": 46003})
 
     body, _ = service.render_spice_vv(_Vm())
     text = body.decode("utf-8")
 
+    assert "port=46003" in text
     assert "password=ticket-xyz" in text
     assert "password=legacy-static-password" not in text
     assert "password=LoL123LoL" not in text
@@ -86,9 +89,86 @@ def test_render_spice_vv_raises_when_ticket_cannot_be_created(monkeypatch) -> No
         raise RuntimeError("monitor failed")
 
     monkeypatch.setattr(service, "_issue_ephemeral_spice_ticket", _raise)
+    monkeypatch.setattr(service, "_runtime_spice_auth_mode", lambda vmid, domain_name=None: "ticket")
+    monkeypatch.setattr(service, "_create_spice_proxy", lambda target_host, target_port: {"host": "srv1.beagle-os.com", "port": 46004})
 
     try:
         service.render_spice_vv(_Vm())
         assert False, "expected ValueError"
     except ValueError as exc:
         assert "SPICE-Ticket konnte nicht erstellt werden" in str(exc)
+
+
+def test_render_spice_vv_falls_back_to_no_password_when_runtime_auth_is_none(monkeypatch) -> None:
+    service = _service()
+    monkeypatch.setattr(
+        service,
+        "_libvirt_spice_graphics",
+        lambda vmid, domain_name=None: {"listen": "0.0.0.0", "port": 5902, "tls_port": 0, "password": ""},
+    )
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("monitor failed")
+
+    monkeypatch.setattr(service, "_issue_ephemeral_spice_ticket", _raise)
+    monkeypatch.setattr(service, "_runtime_spice_auth_mode", lambda vmid, domain_name=None: "none")
+    monkeypatch.setattr(service, "_create_spice_proxy", lambda target_host, target_port: {"host": "srv1.beagle-os.com", "port": 46005})
+
+    body, _ = service.render_spice_vv(_Vm())
+    text = body.decode("utf-8")
+
+    assert "port=46005" in text
+    assert "password=" not in text
+
+
+def test_render_spice_vv_emits_http_connect_proxy_when_enabled(monkeypatch) -> None:
+    monkeypatch.setenv("BEAGLE_SPICE_HTTP_CONNECT_PROXY", "1")
+    monkeypatch.setenv("BEAGLE_SPICE_HTTP_PROXY_HOST", "srv1.beagle-os.com")
+    monkeypatch.setenv("BEAGLE_SPICE_HTTP_PROXY_PORT", "443")
+    service = _service()
+    monkeypatch.setattr(
+        service,
+        "_libvirt_spice_graphics",
+        lambda vmid, domain_name=None: {"listen": "0.0.0.0", "port": 5902, "tls_port": 0, "password": ""},
+    )
+    monkeypatch.setattr(service, "_issue_ephemeral_spice_ticket", lambda vmid, domain_name=None: "ticket-xyz")
+    monkeypatch.setattr(
+        service,
+        "_create_spice_proxy",
+        lambda target_host, target_port: {
+            "host": "srv1.beagle-os.com",
+            "port": 46006,
+            "proxy_token": "token-abc",
+        },
+    )
+
+    body, _ = service.render_spice_vv(_Vm())
+    text = body.decode("utf-8")
+
+    assert "host=127.0.0.1" in text
+    assert "port=46006" in text
+    assert "proxy=http://token-abc@srv1.beagle-os.com:443" in text
+
+
+def test_authorize_spice_proxy_connect_validates_token_and_target(monkeypatch) -> None:
+    service = _service()
+    monkeypatch.setattr(service, "_spice_proxy_bind_host", "127.0.0.1")
+    proxy = service._create_spice_proxy(target_host="127.0.0.1", target_port=5902)
+    port = int(proxy["port"])
+    token = str(proxy["proxy_token"])
+
+    assert service.authorize_spice_proxy_connect(
+        target_host="127.0.0.1",
+        target_port=port,
+        proxy_token=token,
+    )
+    assert not service.authorize_spice_proxy_connect(
+        target_host="srv1.beagle-os.com",
+        target_port=port,
+        proxy_token=token,
+    )
+    assert not service.authorize_spice_proxy_connect(
+        target_host="127.0.0.1",
+        target_port=port,
+        proxy_token="wrong-token",
+    )

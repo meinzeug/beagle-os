@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import select
 import secrets
 import socket
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -35,6 +37,85 @@ def _env_int(name: str, default: int) -> int:
 
 
 _SPICE_TICKET_TTL_SECONDS: int = _env_int("BEAGLE_SPICE_TICKET_TTL_SECONDS", 180)
+_SPICE_PROXY_TTL_SECONDS: int = _env_int("BEAGLE_SPICE_PROXY_TTL_SECONDS", 180)
+
+
+class _SpiceTcpProxySession:
+    def __init__(
+        self,
+        *,
+        listen_host: str,
+        target_host: str,
+        target_port: int,
+        ttl_seconds: int,
+    ) -> None:
+        self._target_host = str(target_host or "127.0.0.1").strip() or "127.0.0.1"
+        self._target_port = int(target_port)
+        self._expires_at = time.time() + max(1, int(ttl_seconds))
+        self._stop_event = threading.Event()
+        self._listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._listener.bind((str(listen_host or "0.0.0.0").strip() or "0.0.0.0", 0))
+        self._listener.listen(16)
+        self._listener.settimeout(1.0)
+        self.port = int(self._listener.getsockname()[1])
+        self._accept_thread = threading.Thread(target=self._accept_loop, daemon=True)
+        self._accept_thread.start()
+
+    @property
+    def expired(self) -> bool:
+        return time.time() >= self._expires_at
+
+    def _accept_loop(self) -> None:
+        try:
+            while not self._stop_event.is_set() and time.time() < self._expires_at:
+                try:
+                    client, _addr = self._listener.accept()
+                except socket.timeout:
+                    continue
+                except OSError:
+                    break
+                threading.Thread(target=self._bridge_client, args=(client,), daemon=True).start()
+        finally:
+            try:
+                self._listener.close()
+            except OSError:
+                pass
+
+    def _bridge_client(self, client: socket.socket) -> None:
+        upstream: socket.socket | None = None
+        try:
+            upstream = socket.create_connection((self._target_host, self._target_port), timeout=5.0)
+            upstream.settimeout(1.0)
+            client.settimeout(1.0)
+            sockets = [client, upstream]
+            while True:
+                readable, _, _ = select.select(sockets, [], [], 1.0)
+                if not readable:
+                    continue
+                for source in readable:
+                    data = source.recv(65536)
+                    if not data:
+                        return
+                    target = upstream if source is client else client
+                    target.sendall(data)
+        except OSError:
+            return
+        finally:
+            for sock in (client, upstream):
+                if sock is None:
+                    continue
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        try:
+            self._listener.close()
+        except OSError:
+            pass
 
 
 class VmConsoleAccessService:
@@ -57,6 +138,67 @@ class VmConsoleAccessService:
         self._novnc_console_token_store = self._novnc_token_file.parent / "console-tokens.json"
         self._public_server_name = str(public_server_name or "").strip()
         self._ensure_vm_secret = ensure_vm_secret or (lambda _vm: {})
+        self._spice_proxy_sessions: dict[int, _SpiceTcpProxySession] = {}
+        self._spice_proxy_tokens: dict[int, str] = {}
+        self._spice_proxy_lock = threading.Lock()
+        self._spice_proxy_bind_host = str(os.environ.get("BEAGLE_SPICE_PROXY_BIND_HOST", "127.0.0.1")).strip() or "127.0.0.1"
+        self._spice_http_connect_enabled = str(os.environ.get("BEAGLE_SPICE_HTTP_CONNECT_PROXY", "0")).strip().lower() in {"1", "true", "yes", "on"}
+        self._spice_http_proxy_host = str(
+            os.environ.get("BEAGLE_SPICE_HTTP_PROXY_HOST", self._public_server_name)
+        ).strip()
+        self._spice_http_proxy_port = _env_int("BEAGLE_SPICE_HTTP_PROXY_PORT", 443)
+
+    def _prune_spice_proxy_sessions(self) -> None:
+        with self._spice_proxy_lock:
+            stale_ports = [port for port, session in self._spice_proxy_sessions.items() if session.expired]
+            for port in stale_ports:
+                session = self._spice_proxy_sessions.pop(port, None)
+                self._spice_proxy_tokens.pop(port, None)
+                if session is not None:
+                    session.stop()
+
+    def _create_spice_proxy(self, *, target_host: str, target_port: int) -> dict[str, Any]:
+        self._prune_spice_proxy_sessions()
+        session = _SpiceTcpProxySession(
+            listen_host=self._spice_proxy_bind_host,
+            target_host=target_host,
+            target_port=target_port,
+            ttl_seconds=_SPICE_PROXY_TTL_SECONDS,
+        )
+        proxy_token = secrets.token_urlsafe(20)
+        with self._spice_proxy_lock:
+            self._spice_proxy_sessions[session.port] = session
+            self._spice_proxy_tokens[session.port] = proxy_token
+        return {
+            "host": self._public_server_name or self._resolve_novnc_host(""),
+            "port": int(session.port),
+            "proxy_token": proxy_token,
+        }
+
+    def authorize_spice_proxy_connect(self, *, target_host: str, target_port: int, proxy_token: str) -> bool:
+        host = str(target_host or "").strip().lower()
+        if host not in {"127.0.0.1", "localhost", "::1"}:
+            return False
+        try:
+            port = int(target_port)
+        except Exception:
+            return False
+        token = str(proxy_token or "").strip()
+        if not token:
+            return False
+        self._prune_spice_proxy_sessions()
+        with self._spice_proxy_lock:
+            session = self._spice_proxy_sessions.get(port)
+            expected = self._spice_proxy_tokens.get(port, "")
+        if session is None or session.expired:
+            return False
+        return secrets.compare_digest(token, expected)
+
+    @staticmethod
+    def _http_proxy_url(*, host: str, port: int, token: str) -> str:
+        token_q = quote(str(token or "").strip(), safe="")
+        host_q = str(host or "").strip()
+        return f"http://{token_q}@{host_q}:{int(port)}"
 
     @staticmethod
     def _libvirt_guest_ip(vmid: int, domain_name: str | None = None) -> str | None:
@@ -322,6 +464,7 @@ class VmConsoleAccessService:
         port: int,
         tls_port: int,
         password: str,
+        proxy: str = "",
     ) -> str:
         lines = [
             "[virt-viewer]",
@@ -335,6 +478,8 @@ class VmConsoleAccessService:
         ]
         if int(tls_port) > 0:
             lines.append(f"tls-port={int(tls_port)}")
+        if str(proxy or "").strip():
+            lines.append(f"proxy={proxy}")
         if str(password or "").strip():
             lines.append(f"password={password}")
         return "\n".join(lines) + "\n"
@@ -351,14 +496,36 @@ class VmConsoleAccessService:
 
         for dom in (domain, default_domain):
             try:
-                _LIBVIRT.virsh("qemu-monitor-command", dom, "--hmp", f"set_password spice {ticket}")
-                _LIBVIRT.virsh("qemu-monitor-command", dom, "--hmp", f"expire_password spice +{ttl_seconds}")
+                set_result = _LIBVIRT.virsh("qemu-monitor-command", dom, "--hmp", f"set_password spice {ticket}")
+                if str(set_result or "").strip().lower().startswith("error:"):
+                    raise RuntimeError(str(set_result).strip())
+                expire_result = _LIBVIRT.virsh("qemu-monitor-command", dom, "--hmp", f"expire_password spice +{ttl_seconds}")
+                if str(expire_result or "").strip().lower().startswith("error:"):
+                    raise RuntimeError(str(expire_result).strip())
                 return ticket
             except Exception as exc:
                 last_error = exc
 
         detail = str(last_error or "unknown error").strip()
         raise RuntimeError(f"SPICE-Ticket konnte nicht gesetzt werden: {detail}")
+
+    def _runtime_spice_auth_mode(self, *, vmid: int, domain_name: str | None = None) -> str:
+        from core.validation.identifiers import validate_vmid
+
+        vmid_int = validate_vmid(vmid)
+        default_domain = f"beagle-{vmid_int}"
+        domain = str(domain_name or "").strip() or default_domain
+
+        for dom in (domain, default_domain):
+            try:
+                raw = _LIBVIRT.virsh("qemu-monitor-command", dom, "--hmp", "info spice")
+            except Exception:
+                continue
+            for line in str(raw or "").splitlines():
+                stripped = line.strip()
+                if stripped.startswith("auth:"):
+                    return stripped.split(":", 1)[1].strip().lower()
+        return "unknown"
 
     def build_spice_access(self, vm: Any) -> dict[str, Any]:
         vmid = int(getattr(vm, "vmid", 0) or 0)
@@ -425,18 +592,41 @@ class VmConsoleAccessService:
             raise ValueError(str(access.get("reason") or "SPICE ist fuer diese VM nicht verfuegbar."))
 
         vm_domain = str(getattr(vm, "name", "") or "").strip() or None
+        graphics = self._libvirt_spice_graphics(vmid=vmid, domain_name=vm_domain) or {}
+        raw_port = int(access.get("port") or 0)
+        if raw_port <= 0:
+            raw_port = int(graphics.get("port") or 0)
+        if raw_port <= 0:
+            raise ValueError("SPICE-Proxy konnte nicht erstellt werden: kein aktiver Zielport gefunden")
+        proxy_access = self._create_spice_proxy(target_host="127.0.0.1", target_port=raw_port)
+        proxy_url = ""
+        vv_host = str(proxy_access.get("host") or "").strip()
+        if self._spice_http_connect_enabled and self._spice_http_proxy_host and int(self._spice_http_proxy_port) > 0:
+            proxy_token = str(proxy_access.get("proxy_token") or "").strip()
+            if proxy_token:
+                proxy_url = self._http_proxy_url(
+                    host=self._spice_http_proxy_host,
+                    port=self._spice_http_proxy_port,
+                    token=proxy_token,
+                )
+                vv_host = "127.0.0.1"
         try:
             # Match Proxmox behavior: issue a per-request SPICE ticket with short TTL.
             password = self._issue_ephemeral_spice_ticket(vmid=vmid, domain_name=vm_domain)
         except Exception as exc:
-            raise ValueError(f"SPICE-Ticket konnte nicht erstellt werden: {exc}") from exc
+            auth_mode = self._runtime_spice_auth_mode(vmid=vmid, domain_name=vm_domain)
+            if auth_mode == "none":
+                password = ""
+            else:
+                raise ValueError(f"SPICE-Ticket konnte nicht erstellt werden: {exc}") from exc
         vv_text = self._build_spice_vv_content(
-            host=str(access.get("host") or "").strip(),
+            host=vv_host,
             vmid=vmid,
             title=f"Beagle VM {vmid} ({name})",
-            port=int(access.get("port") or 0),
+            port=int(proxy_access.get("port") or 0),
             tls_port=int(access.get("tls_port") or 0),
             password=password,
+            proxy=proxy_url,
         )
         return vv_text.encode("utf-8"), f"beagle-vm-{vmid}.vv"
 

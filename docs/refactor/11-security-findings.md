@@ -1,5 +1,28 @@
 # Security Findings
 
+Stand: 2026-05-09 (ergaenzt: S-048 SPICE-Console nicht mehr als direkter Raw-Port)
+
+## S-048 — Direkte SPICE-Raw-Port-Auslieferung in `.vv` fuehrte zu externem Timeout und unsauberem Expose-Pfad (PATCHED)
+
+- Status: **gepatcht** (2026-05-09)
+- Risiko: **Hoch**
+- Betroffene Runtime:
+  - `srv1.beagle-os.com`
+  - VM100 SPICE (`5902`) und externe Client-Pfade (Desktop/Android)
+- Beschreibung:
+  - Der bisherige `.vv`-Pfad zeigte auf den direkten SPICE-Port (`host=srv1..., port=5902`).
+  - Dieser Raw-Port war extern nicht erreichbar und widersprach dem gewuenschten Control-Plane-Proxy-Modell.
+  - Ergebnis waren wiederkehrende Client-Timeouts (`Socket I/O timed out`) und kein sauber kontrollierter Proxy-/Token-Einstiegspunkt.
+- Fix:
+  - `.vv` nutzt jetzt optional einen tokenisierten HTTP-CONNECT-Proxy (`proxy=http://<token>@srv1...:443`) mit `host=127.0.0.1` + kurzlebigem lokalem SPICE-Proxy-Port.
+  - Control Plane implementiert `CONNECT` mit `Proxy-Authorization`-Tokenpruefung und Port-Scope-Validierung.
+  - nginx 443 wird per `stream`/`ssl_preread` multiplexed: TLS-Traffic bleibt WebUI/API, non-TLS CONNECT wird an Control Plane weitergeleitet.
+  - Manager-Defaults fuer den CONNECT-Proxy werden im Installer reproduzierbar gesetzt.
+- Verifikation:
+  - Live `.vv` enthaelt `proxy=` auf `:443`.
+  - Externer CONNECT-Test auf `srv1.beagle-os.com:443` liefert `200 Connection Established` fuer gueltigen Token+Port.
+  - HTTPS-WebUI bleibt parallel auf `https://srv1.beagle-os.com/` verfuegbar (`200 OK`).
+
 Stand: 2026-05-07 (ergaenzt: S-047 Public-BeagleStream-Forwarding fuer VM100 geschlossen)
 
 ## S-047 — Public-BeagleStream-DNAT machte VM100-Streamports direkt aus dem Internet erreichbar (PATCHED)

@@ -142,6 +142,7 @@ ensure_dependencies() {
   command -v nft >/dev/null 2>&1 || package+=(nftables)
   command -v certbot >/dev/null 2>&1 || package+=(certbot)
   [[ -f /usr/lib/python3/dist-packages/certbot_nginx/__init__.py || -f /usr/lib/python3/dist-packages/certbot_nginx/_internal/configurator.py ]] || package+=(python3-certbot-nginx)
+  [[ -f /etc/nginx/modules-enabled/50-mod-stream.conf ]] || package+=(libnginx-mod-stream)
 
   if (( ${#package[@]} == 0 )); then
     return 0
@@ -391,6 +392,42 @@ path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 PY
 }
 
+sync_manager_env_spice_defaults() {
+  install -d -m 0755 "$CONFIG_DIR"
+  python3 - "$MANAGER_ENV_FILE" "$SERVER_NAME" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+updates = {
+  "BEAGLE_SPICE_HTTP_CONNECT_PROXY": "1",
+  "BEAGLE_SPICE_HTTP_PROXY_HOST": sys.argv[2],
+  "BEAGLE_SPICE_HTTP_PROXY_PORT": "443",
+  "BEAGLE_SPICE_PROXY_BIND_HOST": "127.0.0.1",
+}
+
+lines: list[str] = []
+seen: set[str] = set()
+if path.exists():
+  for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    stripped = raw_line.strip()
+    if not stripped or stripped.startswith("#") or "=" not in stripped:
+      lines.append(raw_line)
+      continue
+    key, _value = stripped.split("=", 1)
+    key = key.strip()
+    if key in updates:
+      lines.append(f'{key}="{updates[key]}"')
+      seen.add(key)
+    else:
+      lines.append(raw_line)
+for key, value in updates.items():
+  if key not in seen:
+    lines.append(f'{key}="{value}"')
+path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+PY
+}
+
 tls_subject_alt_name() {
   if [[ "$SERVER_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     printf 'IP:%s,IP:127.0.0.1\n' "$SERVER_NAME"
@@ -470,8 +507,12 @@ cleanup_legacy_port_forward() {
 
 write_nginx_config() {
   local web_redirect_target
+  local https_listen_v4="listen ${SITE_PORT} ssl default_server;"
+  local https_listen_v6="listen [::]:${SITE_PORT} ssl default_server;"
   if [[ "$SITE_PORT" == "443" ]]; then
     web_redirect_target="https://\$host\$request_uri"
+    https_listen_v4="listen 127.0.0.1:4443 ssl default_server;"
+    https_listen_v6="listen [::1]:4443 ssl default_server;"
   else
     web_redirect_target="https://\$host:${SITE_PORT}\$request_uri"
   fi
@@ -499,8 +540,8 @@ limit_req_zone \$binary_remote_addr zone=beagle_auth:10m rate=120r/m;
 limit_req_zone \$binary_remote_addr zone=beagle_api:20m rate=1800r/m;
 
 server {
-  listen ${SITE_PORT} ssl default_server;
-  listen [::]:${SITE_PORT} ssl default_server;
+  ${https_listen_v4}
+  ${https_listen_v6}
     server_name _;
 
     ssl_certificate ${CERT_FILE};
@@ -640,6 +681,50 @@ server {
 EOF
 }
 
+ensure_nginx_stream_include() {
+  local nginx_conf="/etc/nginx/nginx.conf"
+  if grep -q 'include /etc/nginx/streams-enabled/\*;' "$nginx_conf"; then
+    return 0
+  fi
+  python3 - "$nginx_conf" <<'PY'
+from pathlib import Path
+import sys
+
+p = Path(sys.argv[1])
+t = p.read_text(encoding="utf-8")
+insert = "\nstream {\n    include /etc/nginx/streams-enabled/*;\n}\n"
+marker = "\n\n#mail {"
+if marker in t:
+    t = t.replace(marker, insert + marker, 1)
+else:
+    t += insert
+p.write_text(t, encoding="utf-8")
+PY
+}
+
+write_nginx_stream_mux_config() {
+  if [[ "$SITE_PORT" != "443" ]]; then
+    rm -f /etc/nginx/streams-enabled/beagle-443-mux.conf /etc/nginx/streams-available/beagle-443-mux.conf
+    return 0
+  fi
+  install -d -m 0755 /etc/nginx/streams-available /etc/nginx/streams-enabled
+  cat > /etc/nginx/streams-available/beagle-443-mux.conf <<'EOF'
+map $ssl_preread_protocol $beagle_443_backend {
+    ""      127.0.0.1:9088;
+    default 127.0.0.1:4443;
+}
+
+server {
+    listen 443;
+    listen [::]:443;
+    proxy_pass $beagle_443_backend;
+    ssl_preread on;
+}
+EOF
+  ln -sfn /etc/nginx/streams-available/beagle-443-mux.conf /etc/nginx/streams-enabled/beagle-443-mux.conf
+  ensure_nginx_stream_include
+}
+
 link_nginx_config() {
   ln -sfn "$NGINX_SITE" "$NGINX_ENABLED"
   if [[ -f /etc/nginx/sites-enabled/default ]]; then
@@ -687,9 +772,11 @@ fi
 
 write_env_file
 sync_host_env_proxy_defaults
+sync_manager_env_spice_defaults
 write_web_ui_config
 cleanup_legacy_port_forward
 write_nginx_config
+write_nginx_stream_mux_config
 link_nginx_config
 nginx -t
 apply_nginx_service_state

@@ -11,8 +11,11 @@ from __future__ import annotations
 
 import hmac
 import logging
+import select
+import socket
 import re
 import uuid
+from base64 import b64decode
 
 # Pull every symbol used below (BaseHTTPRequestHandler, HTTPStatus, urlparse,
 # parse_qs, json, VERSION, all *_service() factories, …) from service_registry.
@@ -29,6 +32,88 @@ def _redact_request_target(value: Any) -> str:
 
 class Handler(HandlerMixin, BaseHTTPRequestHandler):
     server_version = f"BeagleControlPlane/{VERSION}"
+
+    @staticmethod
+    def _proxy_auth_username(value: str) -> str:
+        header = str(value or "").strip()
+        if not header.lower().startswith("basic "):
+            return ""
+        encoded = header[6:].strip()
+        if not encoded:
+            return ""
+        try:
+            decoded = b64decode(encoded, validate=True).decode("utf-8", "replace")
+        except Exception:
+            return ""
+        return decoded.split(":", 1)[0].strip()
+
+    @staticmethod
+    def _parse_connect_authority(value: str) -> tuple[str, int] | None:
+        raw = str(value or "").strip()
+        if not raw:
+            return None
+        if raw.startswith("[") and "]:" in raw:
+            host, port_text = raw[1:].split("]:", 1)
+        elif ":" in raw:
+            host, port_text = raw.rsplit(":", 1)
+        else:
+            return None
+        host = str(host or "").strip()
+        if not host:
+            return None
+        try:
+            port = int(str(port_text or "0").strip())
+        except Exception:
+            return None
+        if port <= 0 or port > 65535:
+            return None
+        return host, port
+
+    def do_CONNECT(self) -> None:  # noqa: N802
+        authority = self._parse_connect_authority(self.path)
+        if authority is None:
+            self.send_error(HTTPStatus.BAD_REQUEST, "invalid connect target")
+            return
+        target_host, target_port = authority
+        proxy_token = self._proxy_auth_username(self.headers.get("Proxy-Authorization", ""))
+        if not vm_console_access_service().authorize_spice_proxy_connect(
+            target_host=target_host,
+            target_port=target_port,
+            proxy_token=proxy_token,
+        ):
+            self.send_response(HTTPStatus.PROXY_AUTHENTICATION_REQUIRED)
+            self.send_header("Proxy-Authenticate", 'Basic realm="Beagle SPICE"')
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
+        upstream: socket.socket | None = None
+        try:
+            upstream = socket.create_connection(("127.0.0.1", int(target_port)), timeout=5.0)
+            upstream.settimeout(1.0)
+            self.connection.settimeout(1.0)
+            self.send_response(HTTPStatus.OK, "Connection Established")
+            self.end_headers()
+            while True:
+                readers, _, _ = select.select([self.connection, upstream], [], [], 1.0)
+                if not readers:
+                    continue
+                for source in readers:
+                    chunk = source.recv(65536)
+                    if not chunk:
+                        return
+                    if source is self.connection:
+                        upstream.sendall(chunk)
+                    else:
+                        self.connection.sendall(chunk)
+        except OSError:
+            self.close_connection = True
+        finally:
+            if upstream is not None:
+                try:
+                    upstream.close()
+                except OSError:
+                    pass
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(HTTPStatus.NO_CONTENT)
