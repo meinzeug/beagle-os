@@ -332,31 +332,31 @@ set color_highlight=cyan/black
 set default=0
 set timeout=4
 
-menuentry 'Beagle OS Desktop' {{
+menuentry 'Beagle OS Live' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
   linux /live/{slot}/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/{slot} live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args}
   initrd /live/{slot}/initrd.img
 }}
 
-menuentry 'Beagle OS Gaming' {{
+menuentry 'Beagle OS Live Gaming' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
   linux /live/{slot}/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/{slot} live-media-timeout=10 ignore_uuid quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming{extra_args}
   initrd /live/{slot}/initrd.img
 }}
 
-menuentry 'Beagle OS Desktop (safe mode)' {{
+menuentry 'Beagle OS Live (safe mode)' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
   linux /live/{slot}/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/{slot} live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args} nomodeset irqpoll pci=nomsi noapic
   initrd /live/{slot}/initrd.img
 }}
 
-menuentry 'Beagle OS (Slot A fallback)' {{
+menuentry 'Beagle OS Live (Slot A fallback)' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
   linux /live/a/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/a live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args} nomodeset irqpoll pci=nomsi noapic
   initrd /live/a/initrd.img
 }}
 
-menuentry 'Beagle OS (Slot B fallback)' {{
+menuentry 'Beagle OS Live (Slot B fallback)' {{
   search --no-floppy --fs-uuid --set=root {root_uuid}
   linux /live/b/vmlinuz boot=live components username=thinclient hostname={hostname} live-media=/dev/disk/by-uuid/{root_uuid} live-media-path=/live/b live-media-timeout=10 ignore_uuid loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop{extra_args} nomodeset irqpoll pci=nomsi noapic
   initrd /live/b/initrd.img
