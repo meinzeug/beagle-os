@@ -265,7 +265,7 @@ class InstallerScriptService:
             self._read_shell_template(self._hosted_live_usb_template_file),
             preset_name,
             preset_b64,
-            self._public_installer_iso_url(),  # Fallback ISO URL if payload lacks live assets
+            "",  # No ISO URL for live-usb; payload bundle is validated to always contain live assets
             self._public_bootstrap_latest_download_url(),
             self._public_payload_latest_download_url(),
             "live",
@@ -307,7 +307,7 @@ class InstallerScriptService:
             self._raw_windows_installer_template_file.read_text(encoding="utf-8"),
             preset_name,
             preset_b64,
-            self._public_installer_iso_url(),  # Fallback ISO URL if payload lacks live assets
+            "",  # No ISO URL for live-usb; payload bundle is validated to always contain live assets
             "live",
             log_context["url"],
             log_context["token"],
