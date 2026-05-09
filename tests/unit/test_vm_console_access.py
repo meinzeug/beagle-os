@@ -72,8 +72,8 @@ def test_render_spice_vv_uses_spice_password_when_configured(monkeypatch) -> Non
     text = body.decode("utf-8")
 
     assert "port=46003" in text
-    assert "password=ticket-xyz" in text
-    assert "password=legacy-static-password" not in text
+    assert "password=legacy-static-password" in text
+    assert "password=ticket-xyz" not in text
     assert "password=LoL123LoL" not in text
 
 
@@ -119,6 +119,33 @@ def test_render_spice_vv_falls_back_to_no_password_when_runtime_auth_is_none(mon
 
     assert "port=46005" in text
     assert "password=" not in text
+
+
+def test_render_spice_vv_falls_back_to_static_graphics_password_when_ticket_fails(monkeypatch) -> None:
+    service = _service()
+    monkeypatch.setattr(
+        service,
+        "_libvirt_spice_graphics",
+        lambda vmid, domain_name=None: {
+            "listen": "0.0.0.0",
+            "port": 5902,
+            "tls_port": 0,
+            "password": "static-spice-pass",
+        },
+    )
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("monitor failed")
+
+    monkeypatch.setattr(service, "_issue_ephemeral_spice_ticket", _raise)
+    monkeypatch.setattr(service, "_runtime_spice_auth_mode", lambda vmid, domain_name=None: "none")
+    monkeypatch.setattr(service, "_create_spice_proxy", lambda target_host, target_port: {"host": "srv1.beagle-os.com", "port": 46007})
+
+    body, _ = service.render_spice_vv(_Vm())
+    text = body.decode("utf-8")
+
+    assert "port=46007" in text
+    assert "password=static-spice-pass" in text
 
 
 def test_render_spice_vv_emits_http_connect_proxy_when_enabled(monkeypatch) -> None:
@@ -172,3 +199,24 @@ def test_authorize_spice_proxy_connect_validates_token_and_target(monkeypatch) -
         target_port=port,
         proxy_token="wrong-token",
     )
+
+
+def test_render_spice_vv_emits_keymap_when_configured(monkeypatch) -> None:
+    monkeypatch.setenv("BEAGLE_SPICE_KEYMAP", "de")
+    service = _service()
+    monkeypatch.setattr(
+        service,
+        "_libvirt_spice_graphics",
+        lambda vmid, domain_name=None: {"listen": "0.0.0.0", "port": 5902, "tls_port": 0, "password": ""},
+    )
+    monkeypatch.setattr(service, "_issue_ephemeral_spice_ticket", lambda vmid, domain_name=None: "ticket-xyz")
+    monkeypatch.setattr(
+        service,
+        "_create_spice_proxy",
+        lambda target_host, target_port: {"host": "srv1.beagle-os.com", "port": 46008},
+    )
+
+    body, _ = service.render_spice_vv(_Vm())
+    text = body.decode("utf-8")
+
+    assert "keymap=de" in text

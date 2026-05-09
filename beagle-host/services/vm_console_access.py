@@ -147,6 +147,12 @@ class VmConsoleAccessService:
             os.environ.get("BEAGLE_SPICE_HTTP_PROXY_HOST", self._public_server_name)
         ).strip()
         self._spice_http_proxy_port = _env_int("BEAGLE_SPICE_HTTP_PROXY_PORT", 443)
+        self._spice_keymap = str(
+            os.environ.get(
+                "BEAGLE_SPICE_KEYMAP",
+                os.environ.get("BEAGLE_UBUNTU_DEFAULT_KEYMAP", ""),
+            )
+        ).strip().lower()
 
     def _prune_spice_proxy_sessions(self) -> None:
         with self._spice_proxy_lock:
@@ -430,9 +436,15 @@ class VmConsoleAccessService:
                         "password": "",
                     }
 
-            try:
-                raw_xml = _LIBVIRT.virsh("dumpxml", dom)
-            except Exception:
+            raw_xml = ""
+            for xml_args in (("dumpxml", "--security-info", dom), ("dumpxml", dom)):
+                try:
+                    raw_xml = _LIBVIRT.virsh(*xml_args)
+                except Exception:
+                    raw_xml = ""
+                if raw_xml:
+                    break
+            if not raw_xml:
                 continue
             try:
                 root = ET.fromstring(raw_xml)
@@ -468,6 +480,7 @@ class VmConsoleAccessService:
         tls_port: int,
         password: str,
         proxy: str = "",
+        keymap: str = "",
     ) -> str:
         lines = [
             "[virt-viewer]",
@@ -485,6 +498,8 @@ class VmConsoleAccessService:
             lines.append(f"proxy={proxy}")
         if str(password or "").strip():
             lines.append(f"password={password}")
+        if str(keymap or "").strip():
+            lines.append(f"keymap={keymap}")
         return "\n".join(lines) + "\n"
 
     def _issue_ephemeral_spice_ticket(self, *, vmid: int, domain_name: str | None = None) -> str:
@@ -613,15 +628,23 @@ class VmConsoleAccessService:
                     token=proxy_token,
                 )
                 vv_host = "127.0.0.1"
-        try:
-            # Match Proxmox behavior: issue a per-request SPICE ticket with short TTL.
-            password = self._issue_ephemeral_spice_ticket(vmid=vmid, domain_name=vm_domain)
-        except Exception as exc:
-            auth_mode = self._runtime_spice_auth_mode(vmid=vmid, domain_name=vm_domain)
-            if auth_mode == "none":
-                password = ""
-            else:
-                raise ValueError(f"SPICE-Ticket konnte nicht erstellt werden: {exc}") from exc
+        static_password = str(graphics.get("password") or "").strip()
+        if static_password:
+            # Prefer the configured libvirt graphics password for broad client
+            # compatibility (including Android Opaque) and to avoid short-lived
+            # ticket expiry races between download and connect.
+            password = static_password
+        else:
+            try:
+                # Match Proxmox behavior where possible: issue a per-request
+                # SPICE ticket with short TTL.
+                password = self._issue_ephemeral_spice_ticket(vmid=vmid, domain_name=vm_domain)
+            except Exception as exc:
+                auth_mode = self._runtime_spice_auth_mode(vmid=vmid, domain_name=vm_domain)
+                if auth_mode == "none":
+                    password = ""
+                else:
+                    raise ValueError(f"SPICE-Ticket konnte nicht erstellt werden: {exc}") from exc
         vv_text = self._build_spice_vv_content(
             host=vv_host,
             vmid=vmid,
@@ -630,6 +653,7 @@ class VmConsoleAccessService:
             tls_port=int(access.get("tls_port") or 0),
             password=password,
             proxy=proxy_url,
+            keymap=self._spice_keymap,
         )
         return vv_text.encode("utf-8"), f"beagle-vm-{vmid}.vv"
 
