@@ -2505,7 +2505,6 @@ def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: d
             "hostname": hostname,
             "device_name": str(device_name or "").strip(),
             "pairing_secret": random_secret(32),
-            "pairing_pin": f"{secrets.randbelow(10000):04d}",
         }
     )
     payload = pairing_service().validate_token(token) or {}

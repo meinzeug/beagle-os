@@ -274,6 +274,7 @@ named = root.setdefault("named_devices", [])
 for entry in named:
     if entry.get("cert") == cert:
         entry["name"] = device_name
+        entry["enabled"] = "true"
         _atomic_write_state(state_path, state)
         sys.stdout.write("updated-existing\\n")
         raise SystemExit(0)
@@ -282,6 +283,7 @@ named.append({{
     "name": device_name,
     "cert": cert,
     "uuid": str(uuid.uuid4()).upper(),
+    "enabled": "true",
 }})
 _atomic_write_state(state_path, state)
 sys.stdout.write("registered-new\\n")

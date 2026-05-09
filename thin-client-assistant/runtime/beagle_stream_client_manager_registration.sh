@@ -108,19 +108,8 @@ token = str(pairing.get("token") or "").strip()
 expires_at = str(pairing.get("expires_at") or "").strip()
 if not token:
     raise SystemExit(1)
-pairing_pin = ""
-parts = token.split(".")
-if len(parts) >= 2:
-  try:
-    import base64
-    raw = parts[1] + "=" * (-len(parts[1]) % 4)
-    claims = json.loads(base64.urlsafe_b64decode(raw.encode("ascii")).decode("utf-8"))
-    pairing_pin = str(claims.get("pairing_pin") or "").strip()
-  except Exception:
-    pairing_pin = ""
 print(token)
 print(expires_at)
-print(pairing_pin)
 PY
 }
 
@@ -238,7 +227,6 @@ request_beagle_stream_client_pairing_token_via_manager() {
   [[ "${#parsed[@]}" -ge 1 ]] || return 1
   export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN="${parsed[0]}"
   export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_EXPIRES_AT="${parsed[1]:-}"
-  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_PIN="${parsed[2]:-}"
   return 0
 }
 

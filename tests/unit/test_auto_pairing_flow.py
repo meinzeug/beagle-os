@@ -255,21 +255,21 @@ class TestPairingServiceTokenSecurity(unittest.TestCase):
     def test_token_contains_secret_not_exposed_to_client(self):
         """The pairing secret can remain inside the token payload rather than in a visible UI path."""
         svc = self._svc()
-        token = svc.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "4242"})
+        token = svc.issue_token({"vmid": 100, "node": "beagle-0", "pairing_secret": "secret-4242"})
         payload = svc.validate_token(token)
-        self.assertEqual(payload["pairing_pin"], "4242")
-        # Token is opaque to the recipient — they pass it as-is, never see the PIN
-        self.assertNotIn("4242", token.split(".")[0])  # PIN not in raw header
+        self.assertEqual(payload["pairing_secret"], "secret-4242")
+        # Token is opaque to the recipient — they pass it as-is, never see the secret in plain text UI.
+        self.assertNotIn("secret-4242", token.split(".")[0])
 
     def test_tampered_signature_rejected(self):
         svc = self._svc()
-        token = svc.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "1111"})
+        token = svc.issue_token({"vmid": 100, "node": "beagle-0", "pairing_secret": "secret-1111"})
         bad = token[:-4] + "XXXX"
         self.assertIsNone(svc.validate_token(bad))
 
     def test_expired_token_rejected(self):
         svc_issue = self._svc()
-        token = svc_issue.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "2222"})
+        token = svc_issue.issue_token({"vmid": 100, "node": "beagle-0", "pairing_secret": "secret-2222"})
 
         # Validate at t+10min (past 5-min TTL)
         svc_late = PairingService(
@@ -282,15 +282,15 @@ class TestPairingServiceTokenSecurity(unittest.TestCase):
     def test_wrong_secret_rejected(self):
         svc_a = self._svc(secret="secret-a")
         svc_b = self._svc(secret="secret-b")
-        token = svc_a.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "3333"})
+        token = svc_a.issue_token({"vmid": 100, "node": "beagle-0", "pairing_secret": "secret-3333"})
         self.assertIsNone(svc_b.validate_token(token))
 
     def test_valid_token_accepted(self):
         svc = self._svc()
-        token = svc.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "7777"})
+        token = svc.issue_token({"vmid": 100, "node": "beagle-0", "pairing_secret": "secret-7777"})
         payload = svc.validate_token(token)
         self.assertIsNotNone(payload)
-        self.assertEqual(payload["pairing_pin"], "7777")
+        self.assertEqual(payload["pairing_secret"], "secret-7777")
 
     def test_token_with_60_second_ttl_expires_after_61_seconds(self):
         svc_issue = PairingService(
@@ -298,7 +298,7 @@ class TestPairingServiceTokenSecurity(unittest.TestCase):
             token_ttl_seconds=60,
             utcnow=lambda: "2026-04-24T10:00:00+00:00",
         )
-        token = svc_issue.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "9999"})
+        token = svc_issue.issue_token({"vmid": 100, "node": "beagle-0", "pairing_secret": "secret-9999"})
 
         svc_late = PairingService(
             signing_secret="test-secret",
@@ -313,7 +313,7 @@ class TestPairingServiceTokenSecurity(unittest.TestCase):
             token_ttl_seconds=60,
             utcnow=lambda: "2026-04-24T10:00:00+00:00",
         )
-        token = svc.issue_token({"vmid": 100, "node": "beagle-0", "pairing_pin": "1010"})
+        token = svc.issue_token({"vmid": 100, "node": "beagle-0", "pairing_secret": "secret-1010"})
 
         first = svc.consume_token(token)
         second = svc.consume_token(token)
