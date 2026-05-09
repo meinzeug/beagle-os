@@ -2505,6 +2505,7 @@ def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: d
             "hostname": hostname,
             "device_name": str(device_name or "").strip(),
             "pairing_secret": random_secret(32),
+            "pairing_pin": f"{secrets.randbelow(10000):04d}",
         }
     )
     payload = pairing_service().validate_token(token) or {}
@@ -2528,9 +2529,9 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
     if scoped_endpoint_id and identity_endpoint_id and scoped_endpoint_id != identity_endpoint_id:
         return {"ok": False, "error": "pairing token endpoint mismatch"}
 
-    pairing_secret = str(payload.get("pairing_secret", "") or "").strip() or str(pairing_token or "").strip()
-    if not pairing_secret:
-        return {"ok": False, "error": "pairing token missing secret"}
+    submitted_token = str(pairing_token or "").strip()
+    if not submitted_token:
+        return {"ok": False, "error": "pairing token missing token"}
     device_name = str(payload.get("device_name", "") or "").strip() or f"beagle-vm{vm.vmid}-client"
 
     status, _, body = proxy_beagle_stream_server_request(
@@ -2538,7 +2539,11 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
         request_path="/api/pair-token",
         query="",
         method="POST",
-        body=json.dumps({"token": pairing_secret, "name": device_name}, separators=(",", ":"), ensure_ascii=True).encode("utf-8"),
+        body=json.dumps(
+            {"token": submitted_token, "access_token": submitted_token, "name": device_name},
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8"),
         request_headers={"Content-Type": "application/json", "Accept": "application/json"},
     )
     if int(status) >= 400:
