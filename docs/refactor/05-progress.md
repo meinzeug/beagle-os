@@ -26,6 +26,29 @@
   - HTTPS-WebUI auf `https://srv1.beagle-os.com/` bleibt `200 OK`.
   - `remote-viewer`-Strace zeigt Verbindungsaufbau ueber `:443` statt `:5902`.
 
+## Update (2026-05-09, Thinclient Live-USB Broker Host Fallback)
+
+**Scope**: Live-USB-Thinclient nach Reboot und 3-Sekunden-Netzwerk-Banner weiter eingegrenzt.
+
+- **Root-Cause**:
+  - Der Runtime-Launcher lief im Broker-Modus mit leerem `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST`.
+  - In dieser Lage brach `launch-beagle-stream-client.sh` sofort mit `Missing Beagle Stream Client host.` ab, obwohl der Fallback-Host `46.4.96.80` in der Runtime-Konfig vorhanden war.
+  - Das erklaert den sichtbaren Fehler nach dem Reboot: Netzwerk war da, aber der Desktop startete nicht, weil der Stream-Launcher vor dem eigentlichen Client-Start ausstieg.
+
+- **Repo-Fix**:
+  - `thin-client-assistant/runtime/beagle_stream_client_targeting.sh` nutzt im Broker-Modus jetzt zuerst Broker-Host, dann Runtime-Host und zuletzt den konfigurierten Fallback-Host.
+  - Regressionstest `tests/unit/test_beagle_stream_client_broker.py` deckt den Fallback auf `46.4.96.80` ab.
+
+- **Live-Verifikation (`192.168.178.25`)**:
+  - Der installierte Launcher lief nach dem Hotfix nicht mehr sofort in den Missing-Host-Abbruch.
+  - Die Runtime kam bis zur Broker-/Pairing-Phase; der Control-Plane-Pair-Token-Endpoint antwortet mit `201`.
+  - Auf dem Thinclient existieren X11/Openbox und die Runtime-Session laeuft; der fruehere Launcher-Abbruch war damit kein Display-Startfehler.
+
+- **Rest-Risiko / offener Punkt**:
+  - Der Live-Launcher muss nach dem Host-Fallback noch einmal end-to-end ueber einen kompletten Reboot des USB-Sticks bestaetigt werden.
+  - Der Thinclient-Runtime-Flow startet inzwischen keinen lokalen `beagle-stream pair --pin`-Dialog mehr; die Pairing-Phase laeuft tokenbasiert ueber Manager-/Server-Exchange.
+  - Naechster Live-Check ist damit nicht mehr die alte PIN-Eingabe, sondern der erfolgreiche Token-Exchange bis zum sichtbaren Desktop nach Reboot.
+
 ---
 
 ## Update (2026-05-08, Thinclient Reconnect Wait Target Fix)

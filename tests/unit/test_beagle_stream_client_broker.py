@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +17,9 @@ if str(SERVICES_DIR) not in sys.path:
 
 from stream_http_surface import StreamHttpSurfaceService
 from stream_policy_service import StreamPolicy, StreamPolicyService
+
+
+RUNTIME_DIR = ROOT_DIR / "thin-client-assistant" / "runtime"
 
 
 class _Vm:
@@ -230,6 +235,27 @@ def test_stream_allocate_accepts_direct_vm_id_with_endpoint_identity(tmp_path: P
     assert allocation["session_id"] == "vm-303:device:thin-303"
     assert allocation["token"] == "tok-303-device:thin-303-thin-303"
     assert pool_manager._allocated == []
+
+
+def test_broker_mode_falls_back_to_configured_stream_host() -> None:
+    env = os.environ.copy()
+    env.update(
+        {
+            "PVE_THIN_CLIENT_CONNECTION_METHOD": "broker",
+            "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BROKER_HOST": "",
+            "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST": "",
+            "PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST": "46.4.96.80",
+        }
+    )
+
+    command = [
+        "bash",
+        "-lc",
+        f'source "{RUNTIME_DIR / "runtime_value_helpers.sh"}" && source "{RUNTIME_DIR / "beagle_stream_client_targeting.sh"}" && beagle_stream_client_host',
+    ]
+    result = subprocess.run(command, check=True, capture_output=True, text=True, env=env)
+
+    assert result.stdout.strip() == "46.4.96.80"
 
 
 def test_stream_allocate_rejects_missing_user_and_device_identity(tmp_path: Path) -> None:

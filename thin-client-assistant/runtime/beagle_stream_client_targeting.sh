@@ -39,6 +39,19 @@ beagle_stream_client_host() {
     host="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BROKER_HOST:-}"
     if [[ -n "$host" ]]; then
       printf '%s\n' "$host"
+      return 0
+    fi
+
+    host="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-}" 2>/dev/null || true)"
+    if [[ -n "$host" ]]; then
+      printf '%s\n' "$host"
+      return 0
+    fi
+
+    fallback_host="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST:-}" 2>/dev/null || true)"
+    if [[ -n "$fallback_host" ]]; then
+      printf '%s\n' "$fallback_host"
+      return 0
     fi
     return 0
   fi

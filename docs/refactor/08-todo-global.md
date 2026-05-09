@@ -8,11 +8,11 @@
 - [x] Plasma-Cyberpunk-Wallpaper im Ubuntu-Firstboot robust machen: Asset via cloud-init `write_files` nach `/var/lib/beagle/seed/` schreiben und den Firstboot nicht mehr von zufaellig exponierten `/var/lib/cloud/*`-Seed-Dateien abhaengig machen.
 - [x] Stale VM-Runtime-Artefakte bei Delete/Recreate derselben VMID bereinigen, damit `vm100`-artige Recreates keine alten Endpoint-/Update-/Provisioning-Zustaende mitziehen.
 
-- [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen.
+- [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen. Live-USB-Reboot-Hotfix fuer Broker-Host-Fallback vor dem finalen Abnahmelauf mitziehen.
 
 - [x] BeagleStream Runtime-Status in der WebUI sichtbar machen: `stream_runtime.variant` fuer VM-/Installer-Readiness verwenden; `website/main.js` rendert BeagleStream-Server vs. Beagle Stream Server-Fallback inkl. Paketstatus (2026-05-02 Docs-Triage). Thin-Client-Artefakt-/Health-Paritaet bleibt als separater Restpfad in `06-next-steps.md`.
 - [ ] BeagleStream End-to-End-Abnahme fuer VM100 auf `srv1` reproduzierbar abschliessen: Thinclient boot -> Broker-Allocate -> WireGuard -> sichtbarer Desktop-Stream.
-- [ ] BeagleStream Fork-Produktgrenze schliessen: `beagle-stream-server` token-native Pairing/Rotation ohne PIN-Shim implementieren und `beagle-stream-client` CLI/UI/Runtime auf Pairing-Token plus explizites Broker-Ziel umbauen.
+- [ ] BeagleStream Fork-Produktgrenze schliessen: `beagle-stream-server` token-native Pairing/Rotation ohne PIN-Shim implementieren und `beagle-stream-client` CLI/UI/Runtime auf Pairing-Token plus explizites Broker-Ziel umbauen. Der Thin-Client-Runtime-Flow nutzt den alten PIN-basierenden lokalen Pair-Dialog bereits nicht mehr.
 - [ ] VM100 RTSP/Media-Restblocker schliessen: nach erfolgreichem Launch (`SUNSHINE_SERVER_BUSY`, `currentgame=881448767`) den `RTSP ANNOUNCE request failed: 110`-Pfad reproduzierbar in Repo-/Host-Konfig beheben.
 
 - [x] R1-VM-Lifecycle ueber API reproduzierbar geschlossen: `scripts/test-vm-lifecycle-r1-smoke.py` fuehrt `create -> start -> snapshot -> reboot -> delete` gegen `srv1` aus (PASS, 2026-04-30, inkl. Cleanup).

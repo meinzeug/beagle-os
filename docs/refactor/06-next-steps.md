@@ -11,6 +11,21 @@
 1. Beim naechsten echten `connection-terminated` im Journal muss `server-ready host=192.168.123.114` erscheinen, nicht `host=46.4.96.80`.
 2. Falls Control-Disconnects weiterhin im 2-3-Minuten-Fenster auftreten, Sunshine/Client-Control-Timeouts und ENet-Keepalive gesondert untersuchen; der aktuelle Fix reduziert den sichtbaren Ausfall beim Reconnect, ist aber nicht der Beweis fuer die Ursache jedes Control-Disconnects.
 
+# Next Steps
+
+## Stand (2026-05-09, Thinclient Live-USB Broker Host Fallback)
+
+**Zuletzt erledigt**:
+- Der Live-USB-Thinclient brach nach Reboot nicht an der 3-Sekunden-Netzwerkauswahl selbst ab, sondern im Broker-Launcher mit leerem Stream-Host.
+- Der Launcher-Fallback nutzt jetzt im Broker-Modus wieder den Runtime- bzw. Fallback-Host und kommt damit nicht mehr am Missing-Host-Abbruch vorbei.
+- Der Manager-Pair-Token-Endpoint antwortet vom Thinclient aus erfolgreich mit `201`.
+
+**Naechste konkrete Schritte**:
+
+1. Einen kompletten Live-USB-Neustart mit derselben Konfiguration fahren und bestaetigen, dass der Launcher nach dem Netzwerk-Banner stabil bis zum sichtbaren Desktop durchlaeuft.
+2. Wenn dabei noch Pairing-/Launch-Schleifen auftauchen, den tokenbasierten Manager-/Server-Exchange im Runtime-Log nachziehen und den Restblocker isolieren.
+3. Danach den Live-USB-Fix aus dem Repo in die naechsten Artefakte einbauen und dieselbe Reboot-Situation ohne manuelle Hotfixes wiederholen.
+
 ---
 
 ## Stand (2026-05-08, Thinclient WireGuard Restore Without Sudo)

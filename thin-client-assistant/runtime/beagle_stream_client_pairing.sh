@@ -39,7 +39,7 @@ beagle_stream_client_stream_ready() {
 }
 
 ensure_paired() {
-  local bin host port pair_pid paired_ok attempt pair_status target pairing_token pairing_pin
+  local bin host port paired_ok attempt target pairing_token
 
   bin="$(beagle_stream_client_bin)"
   host="$(beagle_stream_client_connect_host)"
@@ -61,38 +61,27 @@ ensure_paired() {
 
   if request_beagle_stream_client_pairing_token_via_manager; then
     pairing_token="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN:-}"
-    pairing_pin="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_PIN:-}"
   else
     pairing_token=""
-    pairing_pin=""
   fi
 
   [[ -n "$pairing_token" ]] || return 1
-  [[ -n "$pairing_pin" ]] || pairing_pin="$pairing_token"
 
-  submit_beagle_stream_server_pairing_token || true
-
-  if command -v timeout >/dev/null 2>&1; then
-    timeout --preserve-status "$(beagle_stream_client_pairing_timeout)" "$bin" pair "$target" --pin "$pairing_pin" >"${BEAGLE_STREAM_CLIENT_PAIR_LOG:-/dev/null}" 2>&1 &
-  else
-    "$bin" pair "$target" --pin "$pairing_pin" >"${BEAGLE_STREAM_CLIENT_PAIR_LOG:-/dev/null}" 2>&1 &
-  fi
-  pair_pid=$!
   paired_ok="0"
-
-  while kill -0 "$pair_pid" >/dev/null 2>&1; do
+  attempt=0
+  while [[ "$attempt" -lt "$(beagle_stream_client_pairing_timeout)" ]]; do
     if exchange_beagle_stream_client_pairing_token_via_manager "$pairing_token"; then
       paired_ok="1"
       break
     fi
+    if submit_beagle_stream_server_pairing_token; then
+      paired_ok="1"
+      break
+    fi
+    attempt=$((attempt + 1))
     sleep 1
   done
 
-  pair_status=0
-  wait "$pair_pid" || pair_status=$?
-
-  # Manager-side exchange is authoritative for Beagle auto-pairing. The local
-  # pair command can time out after exchange already succeeded.
   [[ "$paired_ok" == "1" ]] || return 1
   beagle_stream_client_stream_ready
 }
