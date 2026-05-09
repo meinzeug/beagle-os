@@ -147,7 +147,7 @@ def test_render_spice_vv_emits_http_connect_proxy_when_enabled(monkeypatch) -> N
 
     assert "host=127.0.0.1" in text
     assert "port=46006" in text
-    assert "proxy=http://token-abc@srv1.beagle-os.com:443" in text
+    assert "proxy=http://beagle:token-abc@srv1.beagle-os.com:443" in text
 
 
 def test_authorize_spice_proxy_connect_validates_token_and_target(monkeypatch) -> None:

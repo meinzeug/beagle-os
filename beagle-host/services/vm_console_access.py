@@ -196,9 +196,12 @@ class VmConsoleAccessService:
 
     @staticmethod
     def _http_proxy_url(*, host: str, port: int, token: str) -> str:
+        # Token is placed as the password so spice-gtk sees a non-null password
+        # and can construct a valid Proxy-Authorization: Basic header.
+        # Username is a fixed literal; the server validates only the password/token.
         token_q = quote(str(token or "").strip(), safe="")
         host_q = str(host or "").strip()
-        return f"http://{token_q}@{host_q}:{int(port)}"
+        return f"http://beagle:{token_q}@{host_q}:{int(port)}"
 
     @staticmethod
     def _libvirt_guest_ip(vmid: int, domain_name: str | None = None) -> str | None:

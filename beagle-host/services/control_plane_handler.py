@@ -34,7 +34,13 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
     server_version = f"BeagleControlPlane/{VERSION}"
 
     @staticmethod
-    def _proxy_auth_username(value: str) -> str:
+    def _proxy_auth_token(value: str) -> str:
+        """Extract the token from a Basic Proxy-Authorization header.
+
+        The .vv proxy URL is ``http://beagle:<token>@host:port`` so spice-gtk
+        encodes username="beagle" and password=<token>.  We validate the
+        password field (index 1) as the token.
+        """
         header = str(value or "").strip()
         if not header.lower().startswith("basic "):
             return ""
@@ -45,7 +51,10 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             decoded = b64decode(encoded, validate=True).decode("utf-8", "replace")
         except Exception:
             return ""
-        return decoded.split(":", 1)[0].strip()
+        parts = decoded.split(":", 1)
+        if len(parts) < 2:
+            return ""
+        return parts[1].strip()
 
     @staticmethod
     def _parse_connect_authority(value: str) -> tuple[str, int] | None:
@@ -75,7 +84,7 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.BAD_REQUEST, "invalid connect target")
             return
         target_host, target_port = authority
-        proxy_token = self._proxy_auth_username(self.headers.get("Proxy-Authorization", ""))
+        proxy_token = self._proxy_auth_token(self.headers.get("Proxy-Authorization", ""))
         if not vm_console_access_service().authorize_spice_proxy_connect(
             target_host=target_host,
             target_port=target_port,
