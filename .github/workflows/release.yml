@@ -496,31 +496,18 @@ jobs:
               git rebase origin/main
               git remote set-url origin "https://x-access-token:${RELEASE_SYNC_TOKEN}@github.com/${REPO}.git"
               push_error="$(git push origin "HEAD:refs/heads/main" 2>&1)" || {
-                echo "Direct push to main failed — falling back to PR-based metadata sync: ${push_error}" >&2
-                # main is protected — fall back to a metadata-sync PR so the
-                # release is not blocked by the branch ruleset.
-                SYNC_BRANCH="chore/release-metadata-sync-${VERSION}"
-                # --force overwrites any leftover branch from a previous failed release run.
-                if git push origin "HEAD:refs/heads/${SYNC_BRANCH}" --force; then
-                  pr_url=""
-                  if pr_url="$(gh pr create \
-                      --base main \
-                      --head "${SYNC_BRANCH}" \
-                      --title "release: sync metadata to ${VERSION} [skip release]" \
-                      --body "Automated metadata sync for release v${VERSION}.")"; then
-                    echo "::notice::Direct push to main blocked. Metadata sync PR created: ${pr_url}" >&2
-                    if ! gh pr merge "${pr_url}" --auto --squash --delete-branch; then
-                      echo "::warning::Could not enable auto-merge on ${pr_url} (auto-merge may be disabled in repo settings, or required reviews/checks are pending). Merge the PR manually to keep main in sync." >&2
-                    fi
-                  else
-                    echo "::warning::Could not create metadata-sync PR for ${SYNC_BRANCH} (check token permissions and repository settings). Merge the branch manually to keep main in sync." >&2
-                  fi
-                else
-                  echo "::warning::Could not push release metadata to main or to sync branch ${SYNC_BRANCH}. The release will tag the metadata commit directly. Ensure BEAGLE_RELEASE_SYNC_TOKEN or COPILOT_ASSIGNMENT_TOKEN has write access to the repository to keep main in sync." >&2
-                fi
+                echo "::error::Direct push to main failed while syncing release metadata: ${push_error}" >&2
+                echo "::error::Aborting release to avoid version drift between main and published artifacts." >&2
+                exit 1
               }
-              release_sha="$(git rev-parse HEAD)"
             fi
+            git fetch origin main
+            origin_main_version="$(git show origin/main:VERSION | tr -d ' \n\r')"
+            if [[ "$origin_main_version" != "$VERSION" ]]; then
+              echo "::error::origin/main VERSION=${origin_main_version} does not match release VERSION=${VERSION}. Aborting release to prevent metadata drift." >&2
+              exit 1
+            fi
+            release_sha="$(git rev-parse origin/main)"
           else
             release_sha="$(git rev-list -n 1 "$REF_NAME")"
           fi
@@ -748,7 +735,20 @@ jobs:
               value = str(data.get(key) or '')
               if expected_version not in value:
                   raise SystemExit(f"expected {key} to point at {expected_version} artifacts, got {value!r}")
+          urls = [
+              str(data.get('payload_url') or ''),
+              str(data.get('bootstrap_url') or ''),
+              str(data.get('installer_iso_url') or ''),
+              str(data.get('server_installer_iso_url') or ''),
+              str(data.get('server_installimage_url') or ''),
+              str(data.get('sha256sums_url') or ''),
+          ]
+          Path('/tmp/public-artifact-urls.txt').write_text("\n".join([u for u in urls if u]) + "\n", encoding='utf-8')
           PY
+          while IFS= read -r url; do
+            [[ -n "$url" ]] || continue
+            curl -fsSI "$url" >/dev/null
+          done < /tmp/public-artifact-urls.txt
 
       - name: Checkout public website repository
         uses: actions/checkout@v4

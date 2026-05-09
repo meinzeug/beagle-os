@@ -33,8 +33,20 @@ jobs:
 
       - name: Resolve VERSION
         run: |
-          BEAGLE_RELEASE_VERSION="${{ github.event.inputs.release_version }}" \
-            bash scripts/resolve-release-version.sh --write VERSION
+          set -euo pipefail
+          if [[ -n "${{ github.event.inputs.release_version }}" ]]; then
+            resolved="${{ github.event.inputs.release_version }}"
+          elif [[ "${{ github.ref_type }}" == "tag" && "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            resolved="${{ github.ref_name }}"
+          else
+            latest_tag="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1 || true)"
+            if [[ -n "$latest_tag" ]]; then
+              resolved="$latest_tag"
+            else
+              resolved="$(tr -d ' \n\r' < VERSION)"
+            fi
+          fi
+          BEAGLE_RELEASE_VERSION="$resolved" bash scripts/resolve-release-version.sh --write VERSION
 
       - name: Checkout public website repository
         uses: actions/checkout@v4
