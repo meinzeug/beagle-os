@@ -1,0 +1,6 @@
+#!/bin/sh
+# Prevent raspi-firmware initramfs post-update hook from failing when
+# /boot/firmware is absent (amd64 live-build chroot has no SD card mount).
+# Creating the directory satisfies the existence check in z50-raspi-firmware.
+set -e
+mkdir -p /boot/firmware
