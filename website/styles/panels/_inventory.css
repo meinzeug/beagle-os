@@ -1136,12 +1136,35 @@ body.light-mode .vdp-back-btn:hover {
 .detail-action-menu-panel .btn {
   width: 100%;
   justify-content: flex-start;
+  color: var(--text);
+  text-align: left;
+}
+
+.detail-action-menu-panel .btn.btn-ghost {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.detail-action-menu-panel .btn.btn-ghost:hover {
+  background: rgba(255, 183, 77, 0.12);
+  border-color: rgba(255, 183, 77, 0.35);
 }
 
 body.light-mode .detail-action-menu-panel {
   background: rgba(255, 255, 255, 0.98);
   border-color: rgba(0, 0, 0, 0.1);
   box-shadow: 0 18px 46px rgba(15, 23, 42, 0.14);
+}
+
+body.light-mode .detail-action-menu-panel .btn.btn-ghost {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.14);
+  color: var(--text);
+}
+
+body.light-mode .detail-action-menu-panel .btn.btn-ghost:hover {
+  background: rgba(255, 166, 44, 0.12);
+  border-color: rgba(255, 166, 44, 0.35);
 }
 
 /* ─── Hero ─── */
