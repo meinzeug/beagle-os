@@ -496,9 +496,21 @@ jobs:
               git rebase origin/main
               git remote set-url origin "https://x-access-token:${RELEASE_SYNC_TOKEN}@github.com/${REPO}.git"
               push_error="$(git push origin "HEAD:refs/heads/main" 2>&1)" || {
-                echo "::error::Direct push to main failed while syncing release metadata: ${push_error}" >&2
-                echo "::error::Aborting release to avoid version drift between main and published artifacts." >&2
-                exit 1
+                echo "::warning::Direct push to main failed while syncing release metadata: ${push_error}" >&2
+                if printf '%s' "$push_error" | grep -Eq 'GH013|Cannot update this protected ref'; then
+                  sync_branch="release-metadata-sync-${VERSION//./-}-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-1}"
+                  git push origin "HEAD:refs/heads/${sync_branch}"
+                  pr_url="$(gh pr create \
+                    --repo "$REPO" \
+                    --base main \
+                    --head "$sync_branch" \
+                    --title "release: sync metadata to ${VERSION}" \
+                    --body "Automated release metadata sync for ${VERSION}.")"
+                  gh pr merge "$pr_url" --repo "$REPO" --squash --admin --delete-branch
+                else
+                  echo "::error::Aborting release to avoid version drift between main and published artifacts." >&2
+                  exit 1
+                fi
               }
             fi
             git fetch origin main

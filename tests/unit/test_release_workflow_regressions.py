@@ -18,6 +18,9 @@ def test_release_workflow_syncs_release_metadata_before_persisting() -> None:
     assert 'git push origin "HEAD:refs/heads/main"' in workflow
     assert 'release_sha="$(git rev-parse origin/main)"' in workflow
     assert "Direct push to main failed while syncing release metadata" in workflow
+    assert "GH013|Cannot update this protected ref" in workflow
+    assert "gh pr create" in workflow
+    assert 'gh pr merge "$pr_url" --repo "$REPO" --squash --admin --delete-branch' in workflow
 
 
 def test_package_script_uses_shared_release_version_sync_helper() -> None:
