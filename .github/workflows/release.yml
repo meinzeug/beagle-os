@@ -498,18 +498,26 @@ jobs:
               push_error="$(git push origin "HEAD:refs/heads/main" 2>&1)" || {
                 echo "::warning::Direct push to main failed while syncing release metadata: ${push_error}" >&2
                 if printf '%s' "$push_error" | grep -Eq '(GH013|Cannot update this protected ref)'; then
-                  sync_branch="release-metadata-sync-${VERSION//./-}-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+                  run_id="${GITHUB_RUN_ID:-local-$(date +%s)}"
+                  sync_branch="release-metadata-sync-${VERSION//./-}-${run_id}-${GITHUB_RUN_ATTEMPT:-1}"
                   git push origin "HEAD:refs/heads/${sync_branch}"
-                  pr_url="$(gh pr create \
+                  pr_output="$(gh pr create \
                     --repo "$REPO" \
                     --base main \
                     --head "$sync_branch" \
                     --title "release: sync metadata to ${VERSION}" \
-                    --body "Automated release metadata sync for ${VERSION}.")" || {
-                    echo "::error::Unable to create metadata-sync PR after protected-main push rejection." >&2
+                    --body "Automated release metadata sync for ${VERSION}." 2>&1)" || {
+                    echo "::error::Unable to create metadata-sync PR after protected-main push rejection: ${pr_output}" >&2
                     echo "::error::Aborting release to avoid version drift between main and published artifacts." >&2
                     exit 1
                   }
+                  pr_url="$(printf '%s\n' "$pr_output" | grep -Eo 'https://github.com/[^ ]+/pull/[0-9]+' | head -n 1)"
+                  if [[ -z "$pr_url" ]]; then
+                    echo "::error::Unable to parse metadata-sync PR URL from gh output: ${pr_output}" >&2
+                    echo "::error::Aborting release to avoid version drift between main and published artifacts." >&2
+                    exit 1
+                  fi
+                  # --admin is required here because branch protection enforces PR-only updates to main.
                   merge_error="$(gh pr merge "$pr_url" --repo "$REPO" --squash --admin --delete-branch 2>&1)" || {
                     echo "::error::Failed to merge metadata-sync PR (${pr_url}): ${merge_error}" >&2
                     echo "::error::Aborting release to avoid version drift between main and published artifacts." >&2
