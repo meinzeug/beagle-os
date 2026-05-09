@@ -25,11 +25,61 @@ print(urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment)
 PY
 }
 
+normalize_api_url_for_stream_port() {
+  python3 - "$1" "$2" "$3" <<'PY'
+from urllib.parse import urlsplit, urlunsplit
+import sys
+
+url = (sys.argv[1] or "").strip()
+stream_port = (sys.argv[2] or "").strip()
+connect_host = (sys.argv[3] or "").strip()
+
+if not url:
+  raise SystemExit(1)
+
+parts = urlsplit(url)
+if not parts.scheme or not parts.netloc:
+  print(url)
+  raise SystemExit(0)
+
+try:
+  port = parts.port
+except ValueError:
+  print(url)
+  raise SystemExit(0)
+
+if not stream_port.isdigit() or port is None:
+  print(url)
+  raise SystemExit(0)
+
+# Some runtime profiles mistakenly set the API URL to the stream endpoint
+# (for example http://host:50000). The API lives on HTTPS port +1.
+if str(port) == stream_port and parts.scheme == "http":
+  target_host = connect_host or parts.hostname or ""
+  if not target_host:
+    print(url)
+    raise SystemExit(0)
+  userinfo = ""
+  if "@" in parts.netloc:
+    userinfo, _, _ = parts.netloc.rpartition("@")
+    userinfo = f"{userinfo}@"
+  api_port = port + 1
+  netloc = f"{userinfo}{target_host}:{api_port}"
+  print(urlunsplit(("https", netloc, parts.path, parts.query, parts.fragment)))
+  raise SystemExit(0)
+
+print(url)
+PY
+}
+
 beagle_stream_server_api_url() {
-  local configured fallback_configured host local_host port
+  local configured fallback_configured host local_host port connect_host normalized
   configured="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL:-}" 2>/dev/null || true)"
   if [[ -n "$configured" ]]; then
-    printf '%s\n' "$configured"
+    port="$(beagle_stream_client_port 2>/dev/null || true)"
+    connect_host="$(beagle_stream_client_connect_host 2>/dev/null || true)"
+    normalized="$(normalize_api_url_for_stream_port "$configured" "$port" "$connect_host" 2>/dev/null || printf '%s\n' "$configured")"
+    printf '%s\n' "$normalized"
     return 0
   fi
 
