@@ -404,6 +404,7 @@ updates = {
   "BEAGLE_SPICE_HTTP_PROXY_HOST": sys.argv[2],
   "BEAGLE_SPICE_HTTP_PROXY_PORT": "443",
   "BEAGLE_SPICE_PROXY_BIND_HOST": "127.0.0.1",
+  "BEAGLE_SPICE_KEYMAP": "de-de",
 }
 
 lines: list[str] = []

@@ -119,6 +119,22 @@ class _SpiceTcpProxySession:
 
 
 class VmConsoleAccessService:
+    @staticmethod
+    def _normalize_spice_keymap(value: str) -> str:
+        raw = str(value or "").strip().lower()
+        if not raw:
+            return ""
+        aliases = {
+            "de": "de-de",
+            "de_de": "de-de",
+            "de-de": "de-de",
+            "us": "en-us",
+            "en": "en-us",
+            "en_us": "en-us",
+            "en-us": "en-us",
+        }
+        return aliases.get(raw, raw)
+
     def __init__(
         self,
         *,
@@ -147,12 +163,12 @@ class VmConsoleAccessService:
             os.environ.get("BEAGLE_SPICE_HTTP_PROXY_HOST", self._public_server_name)
         ).strip()
         self._spice_http_proxy_port = _env_int("BEAGLE_SPICE_HTTP_PROXY_PORT", 443)
-        self._spice_keymap = str(
+        self._spice_keymap = self._normalize_spice_keymap(
             os.environ.get(
                 "BEAGLE_SPICE_KEYMAP",
                 os.environ.get("BEAGLE_UBUNTU_DEFAULT_KEYMAP", ""),
             )
-        ).strip().lower()
+        )
 
     def _prune_spice_proxy_sessions(self) -> None:
         with self._spice_proxy_lock:

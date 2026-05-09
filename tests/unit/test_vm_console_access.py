@@ -219,4 +219,4 @@ def test_render_spice_vv_emits_keymap_when_configured(monkeypatch) -> None:
     body, _ = service.render_spice_vv(_Vm())
     text = body.decode("utf-8")
 
-    assert "keymap=de" in text
+    assert "keymap=de-de" in text
