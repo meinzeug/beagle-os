@@ -11,20 +11,23 @@ TEXT_SUFFIXES = {".html", ".css", ".js", ".json", ".php", ".txt"}
 
 
 def main() -> None:
-    if len(sys.argv) != 5:
+    if len(sys.argv) not in (5, 6):
         raise SystemExit(
             f"Usage: {sys.argv[0]} <render-dir> <release-tag> "
-            "<github-release-url> <public-update-base-url>"
+            "<github-release-url> <public-update-base-url> [installimage-tarball]"
         )
 
     root = Path(sys.argv[1])
     if not root.is_dir():
         raise SystemExit(f"render-dir does not exist or is not a directory: {root}")
 
+    installimage_tarball = sys.argv[5] if len(sys.argv) == 6 else "Debian-1301-trixie-amd64-beagle-server.tar.gz"
+
     replacements = {
         "__BEAGLE_RELEASE_TAG__": sys.argv[2],
         "__BEAGLE_GITHUB_RELEASE_URL__": sys.argv[3],
         "__BEAGLE_PUBLIC_UPDATE_BASE_URL__": sys.argv[4],
+        "__BEAGLE_SERVER_INSTALLIMAGE_TARBALL__": installimage_tarball,
     }
 
     for path in root.rglob("*"):

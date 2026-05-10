@@ -43,8 +43,10 @@ trap cleanup EXIT
 
 rsync -a --delete --exclude '.git/' "$SITE_SRC_DIR/" "$render_dir/"
 
+SERVER_INSTALLIMAGE_FILENAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1301-trixie-amd64-beagle-server.tar.gz}"
+
 python3 "$ROOT_DIR/scripts/render-site-templates.py" \
-  "$render_dir" "$RELEASE_TAG" "$GITHUB_RELEASE_URL" "${PUBLIC_UPDATE_BASE_URL%/}"
+  "$render_dir" "$RELEASE_TAG" "$GITHUB_RELEASE_URL" "${PUBLIC_UPDATE_BASE_URL%/}" "$SERVER_INSTALLIMAGE_FILENAME"
 
 rsync -av --delete --exclude 'beagle-updates/' --exclude '.git/' "$render_dir/" "$SITE_TARGET"
 
