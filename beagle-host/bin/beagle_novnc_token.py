@@ -1,7 +1,8 @@
 """Custom websockify token plugin for Beagle noVNC console sessions.
 
 Design:
-  - Tokens are single-use and expire 30 seconds after creation.
+  - Tokens are single-use and expire after BEAGLE_NOVNC_TOKEN_TTL_SECONDS
+    (default 3600 s = 1 h) after creation.
   - The token store is a JSON file at the path passed as --token-source.
   - Format:
       { "<token>": {"host": "...", "port": N, "created_at": <unix_ts>, "used": false}, ... }
@@ -26,7 +27,12 @@ import time
 from pathlib import Path
 from typing import Any
 
-TOKEN_TTL_SECONDS: float = 30.0
+_DEFAULT_TOKEN_TTL: float = 3600.0
+try:
+    _DEFAULT_TOKEN_TTL = float(os.environ.get("BEAGLE_NOVNC_TOKEN_TTL_SECONDS", "3600") or "3600")
+except Exception:
+    pass
+TOKEN_TTL_SECONDS: float = _DEFAULT_TOKEN_TTL
 
 
 class BasePlugin:  # minimal shim so tests can import without websockify installed

@@ -24,8 +24,6 @@ from libvirt_runner import LibvirtRunner as _LibvirtRunner
 
 _LIBVIRT = _LibvirtRunner()
 
-_NOVNC_TOKEN_TTL_SECONDS: float = 30.0
-
 
 def _env_int(name: str, default: int) -> int:
     raw = str(os.environ.get(name, default)).strip()
@@ -36,6 +34,7 @@ def _env_int(name: str, default: int) -> int:
     return value if value > 0 else int(default)
 
 
+_NOVNC_TOKEN_TTL_SECONDS: float = float(_env_int("BEAGLE_NOVNC_TOKEN_TTL_SECONDS", 3600))
 _SPICE_TICKET_TTL_SECONDS: int = _env_int("BEAGLE_SPICE_TICKET_TTL_SECONDS", 180)
 _SPICE_PROXY_TTL_SECONDS: int = _env_int("BEAGLE_SPICE_PROXY_TTL_SECONDS", 180)
 
@@ -403,7 +402,7 @@ class VmConsoleAccessService:
             base_path = "/" + base_path
         base_path = base_path.rstrip("/")
         token_q = quote(token, safe="")
-        path_q = quote(f"beagle-novnc/websockify?token={token_q}", safe="/?=&")
+        path_q = quote(f"/beagle-novnc/websockify?token={token_q}", safe="/?=&")
         return f"https://{resolved_host}{base_path}/vnc.html?autoconnect=1&resize=scale&path={path_q}"
 
     @staticmethod
