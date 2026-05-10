@@ -134,6 +134,8 @@ def test_beaglestream_launcher_restores_wireguard_peer_without_truncating_base64
     assert 'WG_PEER_PUBLIC_KEY=%s' in prepare_text
     assert 'WG_PEER_ALLOWED_IPS=%s' in prepare_text
     assert "print $3; exit" not in launcher_text
+    assert 'beagle-stream-client.wg-routes-fallback' in launcher_text
+    assert 'sudo ip route replace "$route" dev "$iface"' in launcher_text
 
 
 def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -> None:

@@ -111,46 +111,75 @@ wait_for_stream_server_ready() {
 ensure_wg_interface() {
   local iface="wg-beagle"
   local wg_conf="/etc/wireguard/wg-beagle.conf"
+  local allowed_ips endpoint endpoint_host
+  local default_route default_gw default_dev route_count route
 
   sudo test -f "$wg_conf" 2>/dev/null || return 0
   if ip link show "$iface" &>/dev/null; then
-    return 0
-  fi
+    sudo ip link set up dev "$iface" >/dev/null 2>&1 || true
+  else
+    beagle_log_event "beagle-stream-client.wg-interface-up" "iface=${iface} conf=${wg_conf}"
+    sudo systemctl start "wg-quick@${iface}.service" >/dev/null 2>&1 || \
+      sudo wg-quick up "$iface" >/dev/null 2>&1 || true
 
-  beagle_log_event "beagle-stream-client.wg-interface-up" "iface=${iface} conf=${wg_conf}"
-  sudo systemctl start "wg-quick@${iface}.service" >/dev/null 2>&1 || \
-    sudo wg-quick up "$iface" >/dev/null 2>&1 || true
-
-  # Fallback for minimal live images where wg-quick fails due missing resolvconf.
-  if ! ip link show "$iface" &>/dev/null; then
-    local tmp_conf addr mtu
-    tmp_conf="$(mktemp)"
-    if sudo awk '
-      BEGIN{in_iface=0;in_peer=0}
-      /^\[Interface\]/{in_iface=1;in_peer=0;print;next}
-      /^\[Peer\]/{in_peer=1;in_iface=0;print;next}
-      /^\[/{in_iface=0;in_peer=0;print;next}
-      {
-        if (in_iface==1) {
-          if ($0 ~ /^[[:space:]]*(Address|DNS|MTU|Table|PreUp|PostUp|PreDown|PostDown|SaveConfig)[[:space:]]*=/) next
-          print; next
+    # Fallback for minimal live images where wg-quick fails due missing resolvconf.
+    # Recreate enough of wg-quick behavior for this runtime path: interface,
+    # address/mtu, endpoint exception route, and AllowedIPs routes.
+    if ! ip link show "$iface" &>/dev/null; then
+      local tmp_conf addr mtu
+      tmp_conf="$(mktemp)"
+      if sudo awk '
+        BEGIN{in_iface=0;in_peer=0}
+        /^\[Interface\]/{in_iface=1;in_peer=0;print;next}
+        /^\[Peer\]/{in_peer=1;in_iface=0;print;next}
+        /^\[/{in_iface=0;in_peer=0;print;next}
+        {
+          if (in_iface==1) {
+            if ($0 ~ /^[[:space:]]*(Address|DNS|MTU|Table|PreUp|PostUp|PreDown|PostDown|SaveConfig)[[:space:]]*=/) next
+            print; next
+          }
+          print
         }
-        print
-      }
-    ' "$wg_conf" >"$tmp_conf" 2>/dev/null; then
-      sudo ip link delete "$iface" >/dev/null 2>&1 || true
-      if sudo ip link add "$iface" type wireguard >/dev/null 2>&1 && \
-         sudo wg setconf "$iface" "$tmp_conf" >/dev/null 2>&1; then
-        addr="$(sudo awk -F= '/^[[:space:]]*Address[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); split($2, a, ","); print a[1]; exit}' "$wg_conf" 2>/dev/null || true)"
-        mtu="$(sudo awk -F= '/^[[:space:]]*MTU[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); print $2; exit}' "$wg_conf" 2>/dev/null || true)"
-        [[ -n "$addr" ]] && sudo ip address add "$addr" dev "$iface" >/dev/null 2>&1 || true
-        [[ -n "$mtu" ]] || mtu="1420"
-        sudo ip link set mtu "$mtu" up dev "$iface" >/dev/null 2>&1 || true
-        beagle_log_event "beagle-stream-client.wg-interface-fallback" "iface=${iface} mtu=${mtu}"
+      ' "$wg_conf" >"$tmp_conf" 2>/dev/null; then
+        sudo ip link delete "$iface" >/dev/null 2>&1 || true
+        if sudo ip link add "$iface" type wireguard >/dev/null 2>&1 && \
+           sudo wg setconf "$iface" "$tmp_conf" >/dev/null 2>&1; then
+          addr="$(sudo awk -F= '/^[[:space:]]*Address[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); split($2, a, ","); print a[1]; exit}' "$wg_conf" 2>/dev/null || true)"
+          mtu="$(sudo awk -F= '/^[[:space:]]*MTU[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); print $2; exit}' "$wg_conf" 2>/dev/null || true)"
+          [[ -n "$addr" ]] && sudo ip address add "$addr" dev "$iface" >/dev/null 2>&1 || true
+          [[ -n "$mtu" ]] || mtu="1420"
+          sudo ip link set mtu "$mtu" up dev "$iface" >/dev/null 2>&1 || true
+          beagle_log_event "beagle-stream-client.wg-interface-fallback" "iface=${iface} mtu=${mtu}"
+        fi
       fi
+      rm -f "$tmp_conf" >/dev/null 2>&1 || true
     fi
-    rm -f "$tmp_conf" >/dev/null 2>&1 || true
   fi
+
+  allowed_ips="$(sudo awk -F= '/^[[:space:]]*AllowedIPs[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); print $2; exit}' "$wg_conf" 2>/dev/null || true)"
+  endpoint="$(sudo awk -F= '/^[[:space:]]*Endpoint[[:space:]]*=/{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$wg_conf" 2>/dev/null || true)"
+  endpoint_host="${endpoint%%:*}"
+  endpoint_host="${endpoint_host#[}"
+  endpoint_host="${endpoint_host%]}"
+  default_route="$(ip route show default 2>/dev/null | head -n1 || true)"
+  default_gw="$(awk '/default/{for (i=1;i<=NF;i++) if ($i=="via") {print $(i+1); exit}}' <<<"$default_route")"
+  default_dev="$(awk '/default/{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}' <<<"$default_route")"
+  if [[ -n "$endpoint_host" && -n "$default_dev" ]]; then
+    if [[ -n "$default_gw" ]]; then
+      sudo ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev" >/dev/null 2>&1 || true
+    else
+      sudo ip route replace "$endpoint_host" dev "$default_dev" >/dev/null 2>&1 || true
+    fi
+  fi
+
+  route_count=0
+  IFS=',' read -r -a routes <<<"$allowed_ips"
+  for route in "${routes[@]}"; do
+    [[ -n "$route" ]] || continue
+    sudo ip route replace "$route" dev "$iface" >/dev/null 2>&1 || true
+    route_count=$((route_count + 1))
+  done
+  beagle_log_event "beagle-stream-client.wg-routes-fallback" "iface=${iface} routes=${route_count} endpoint=${endpoint_host:-none}"
 
   if ! ip link show "$iface" &>/dev/null; then
     beagle_log_event "beagle-stream-client.wg-interface-missing" "iface=${iface}"
