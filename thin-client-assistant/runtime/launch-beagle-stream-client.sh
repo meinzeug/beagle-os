@@ -449,6 +449,7 @@ main() {
 
   local stream_exit=0 stream_attempt=1 max_attempts retry_delay stream_pid stream_start_line stream_forced_restart
   local app_lookup_port_fallback_used=0
+  local connect_host_fallback_used=0
   max_attempts="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_MAX_RESTARTS:-3}"
   retry_delay="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESTART_DELAY:-3}"
   # Background watchdog: restores wg peer if binary's deactivatePeer() removes it mid-session.
@@ -493,7 +494,7 @@ main() {
     fi
 
     if [[ "$stream_exit" -ne 0 && "$stream_attempt" -lt "$max_attempts" && "$app_lookup_port_fallback_used" -eq 0 ]]; then
-      if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi 'Server certificate mismatch|"applist" request failed|Failed to find application'; then
+      if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi 'Server certificate mismatch|"applist" request failed|Failed to find application|Failed to load application'; then
         if [[ "$port" =~ ^[0-9]+$ ]]; then
           local fallback_port
           fallback_port="$((port + 1))"

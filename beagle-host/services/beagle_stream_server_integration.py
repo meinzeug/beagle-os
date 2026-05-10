@@ -231,9 +231,9 @@ set -euo pipefail
 guest_user={guest_user!r}
 device_name={safe_device_name!r}
 state_dir="/home/{guest_user}/.config/beagle-stream-server"
-state_file="$state_dir/beagle_stream_server_state.json"
-if [[ ! -f "$state_file" && -f "$state_dir/sunshine_state.json" ]]; then
-  state_file="$state_dir/sunshine_state.json"
+state_file="$state_dir/sunshine_state.json"
+if [[ ! -f "$state_file" && -f "$state_dir/beagle_stream_server_state.json" ]]; then
+    state_file="$state_dir/beagle_stream_server_state.json"
 fi
 cert_file="$(mktemp /tmp/beagle-cert-XXXXXX.pem)"
 trap 'rm -f "$cert_file"' EXIT
@@ -305,15 +305,15 @@ sleep 2
         }
 
     def fetch_beagle_stream_server_identity(self, vm: Any, guest_user: str) -> dict[str, Any]:
-        state_file = f"/home/{guest_user}/.config/beagle-stream-server/beagle_stream_server_state.json"
+        state_file = f"/home/{guest_user}/.config/beagle-stream-server/sunshine_state.json"
         cert_file = f"/home/{guest_user}/.config/beagle-stream-server/credentials/cacert.pem"
         conf_file = f"/home/{guest_user}/.config/beagle-stream-server/beagle-stream-server.conf"
         state_script = f"""#!/usr/bin/env bash
 set -euo pipefail
 
 state_file={state_file!r}
-if [[ ! -f "$state_file" && -f "/home/{guest_user}/.config/beagle-stream-server/sunshine_state.json" ]]; then
-  state_file="/home/{guest_user}/.config/beagle-stream-server/sunshine_state.json"
+if [[ ! -f "$state_file" && -f "/home/{guest_user}/.config/beagle-stream-server/beagle_stream_server_state.json" ]]; then
+    state_file="/home/{guest_user}/.config/beagle-stream-server/beagle_stream_server_state.json"
 fi
 if [[ -f "$state_file" ]]; then
   cat "$state_file"
@@ -476,8 +476,16 @@ exit 4
             if guest_ip and api_port:
                 return f"https://{guest_ip}:{int(api_port)}"
         base_url = str(resolved_profile.get("beagle_stream_server_api_url", "") or "")
-        if not base_url and public_stream:
-            base_url = str(public_stream.get("beagle_stream_server_api_url", "") or "")
+        explicit_public_api_url = ""
+        if public_stream:
+            explicit_public_api_url = str(public_stream.get("beagle_stream_server_api_url", "") or "").strip()
+            if not base_url:
+                base_url = explicit_public_api_url
+        # Keep an explicitly configured public API URL as-is. Rewriting it to the
+        # private guest IP breaks pair-exchange on control-plane hosts that cannot
+        # route directly to the guest subnet.
+        if explicit_public_api_url and base_url == explicit_public_api_url:
+            return base_url
         if guest_ip and base_url:
             parsed = urlparse(base_url)
             if parsed.scheme and parsed.port:

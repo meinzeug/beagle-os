@@ -33,7 +33,7 @@ GUEST_IP_OVERRIDE="${GUEST_IP_OVERRIDE:-}"
 BEAGLE_STREAM_SERVER_USER="${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
 BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD:-}"
 BEAGLE_STREAM_SERVER_TOKEN="${BEAGLE_STREAM_SERVER_TOKEN:-}"
-BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-}"
+BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-50000}"
 BEAGLE_STREAM_SERVER_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb"
 BEAGLE_STREAM_SERVER_URL="${BEAGLE_STREAM_SERVER_URL:-$BEAGLE_STREAM_SERVER_DEFAULT_URL}"
 BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR_DEFAULT="/opt/beagle/forks/beagle-stream-server"
@@ -513,7 +513,7 @@ main() {
   }
 
   native_artifact_dir="$(mktemp -d)"
-  trap 'rm -rf "$native_artifact_dir"' EXIT
+  trap '[[ -n "${native_artifact_dir:-}" ]] && rm -rf "${native_artifact_dir}"' EXIT
   native_source_archive="/tmp/beagle-stream-server-src.tar.gz"
   native_deps_archive="/tmp/beagle-stream-server-deps.tar.gz"
   if [[ "$install_mode" == "native" ]]; then
@@ -755,7 +755,13 @@ else
   curl -fsSLo "\$tmpdir/beagle-stream-server.deb" "\$BEAGLE_STREAM_SERVER_URL"
   apt-get install -y "\$tmpdir/beagle-stream-server.deb"
 fi
-write_stream_runtime_status "\$stream_runtime_variant" "\$stream_runtime_package_url"
+install -d -m 0755 /etc/beagle
+cat > /etc/beagle/stream-runtime.env <<RUNTIMEENV
+BEAGLE_STREAM_RUNTIME_VARIANT=\${stream_runtime_variant}
+BEAGLE_STREAM_RUNTIME_PACKAGE_URL=\${stream_runtime_package_url}
+BEAGLE_STREAM_RUNTIME_UPDATED_AT=\$(date -Iseconds)
+RUNTIMEENV
+chmod 0644 /etc/beagle/stream-runtime.env
 BEAGLE_STREAM_SERVER_EXEC="\$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
 if [[ -x /usr/local/bin/sunshine || -n "\$(command -v sunshine 2>/dev/null || true)" ]]; then
 cat > /usr/local/bin/beagle-stream-server <<'BEAGLEWRAP'
@@ -898,7 +904,7 @@ hevc_mode = 0
 av1_mode = 0
 minimum_fps_target = 60
 max_bitrate = 35000
-$( if [[ -n "${BEAGLE_STREAM_SERVER_PORT}" ]]; then printf 'port = %s\n' "${BEAGLE_STREAM_SERVER_PORT}"; fi )
+$( printf 'port = %s\n' "${BEAGLE_STREAM_SERVER_PORT:-50000}" )
 SUNCONF
 cp "/home/\$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" "/home/\$GUEST_USER/.config/beagle-stream-server/sunshine.conf"
 
@@ -987,6 +993,7 @@ Description=Beagle Beagle Stream Server
 After=network-online.target display-manager.service graphical.target sound.target
 Wants=network-online.target
 StartLimitIntervalSec=0
+OnFailure=beagle-stream-server-healthcheck.service
 
 [Service]
 Type=simple
@@ -1011,14 +1018,18 @@ ExecStart=\$BEAGLE_STREAM_SERVER_EXEC
 Restart=always
 RestartSec=3
 TimeoutStartSec=210
-OnFailure=beagle-stream-server-healthcheck.service
 
 [Install]
 WantedBy=graphical.target
 BEAGLE_STREAM_SERVERSVC
 
 install -d -m 0755 /etc/beagle
-write_beagle_stream_server_broker_env
+cat > /etc/beagle/stream-server.env <<BROKERENV
+BEAGLE_CONTROL_PLANE=\$BEAGLE_MANAGER_URL
+BEAGLE_STREAM_TOKEN=\$BEAGLE_STREAM_SERVER_TOKEN
+BEAGLE_VM_ID=\$VMID
+BROKERENV
+chmod 0600 /etc/beagle/stream-server.env
 cat > /etc/beagle/beagle-stream-server-healthcheck.env <<HEALTHENV
 BEAGLE_STREAM_SERVER_USER=\$BEAGLE_STREAM_SERVER_USER
 BEAGLE_STREAM_SERVER_PASSWORD=\$BEAGLE_STREAM_SERVER_PASSWORD
@@ -1128,24 +1139,24 @@ cat > /usr/local/bin/beagle-stream-server-guardian <<'GUARDIAN'
 set -euo pipefail
 
 ENV_FILE="/etc/beagle/beagle-stream-server-healthcheck.env"
-[[ -r "$ENV_FILE" ]] || exit 1
+[[ -r "\$ENV_FILE" ]] || exit 1
 # shellcheck disable=SC1090
-source "$ENV_FILE"
+source "\$ENV_FILE"
 
-BEAGLE_STREAM_SERVER_USER="${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
-BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD:-}"
-BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-50000}"
-BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"
-BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"
+BEAGLE_STREAM_SERVER_USER="\${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
+BEAGLE_STREAM_SERVER_PASSWORD="\${BEAGLE_STREAM_SERVER_PASSWORD:-}"
+BEAGLE_STREAM_SERVER_PORT="\${BEAGLE_STREAM_SERVER_PORT:-50000}"
+BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="\${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"
+BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="\${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"
 
-api_port="$((BEAGLE_STREAM_SERVER_PORT + 1))"
+api_port="\$((BEAGLE_STREAM_SERVER_PORT + 1))"
 consecutive_failures=0
 
 api_ready() {
-  [[ -n "$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
+  [[ -n "\$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
   curl -kfsS --connect-timeout 3 --max-time 5 \
-    --user "${BEAGLE_STREAM_SERVER_USER}:${BEAGLE_STREAM_SERVER_PASSWORD}" \
-    "https://127.0.0.1:${api_port}/api/apps" >/dev/null
+    --user "\${BEAGLE_STREAM_SERVER_USER}:\${BEAGLE_STREAM_SERVER_PASSWORD}" \
+    "https://127.0.0.1:\${api_port}/api/apps" >/dev/null
 }
 
 while :; do
@@ -1154,17 +1165,17 @@ while :; do
   if systemctl is-active --quiet beagle-stream-server.service && api_ready; then
     consecutive_failures=0
   else
-    consecutive_failures=$((consecutive_failures + 1))
+    consecutive_failures=\$((consecutive_failures + 1))
     systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true
 
-    if [[ "$consecutive_failures" -ge "$BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD" ]]; then
-      logger -t beagle-stream-server-guardian "stream offline for ${consecutive_failures} checks; rebooting guest"
+    if [[ "\$consecutive_failures" -ge "\$BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD" ]]; then
+      logger -t beagle-stream-server-guardian "stream offline for \${consecutive_failures} checks; rebooting guest"
       systemctl reboot >/dev/null 2>&1 || /sbin/reboot >/dev/null 2>&1 || true
       sleep 120
     fi
   fi
 
-  sleep "$BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC"
+  sleep "\$BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC"
 done
 GUARDIAN
 chmod 0755 /usr/local/bin/beagle-stream-server-guardian
@@ -1218,7 +1229,7 @@ configure_stream_port_guard() {
     cidr_csv="10.88.0.0/16"
   fi
 
-  default_gateway="\$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
+  default_gateway="\$(ip route show default 2>/dev/null | awk '/default/ {print \$3; exit}')"
   if [[ "\$default_gateway" =~ ^([0-9]{1,3}\\.){3}[0-9]{1,3}$ ]]; then
     default_gateway_cidr="\${default_gateway}/32"
     cidr_csv+=", \${default_gateway_cidr}"
@@ -1278,14 +1289,14 @@ configure_stream_port_guard
 activate_wireguard_stream_endpoint() {
   local wg_conf="/etc/wireguard/wg-beagle.conf"
   local wg_iface="wg-beagle"
-  if [[ -f "$wg_conf" ]]; then
-    echo "[beagle-stream-server] Activating WireGuard interface $wg_iface for stream endpoint..." >&2
-    systemctl enable "wg-quick@${wg_iface}.service" >/dev/null 2>&1 || true
-    systemctl start "wg-quick@${wg_iface}.service" >/dev/null 2>&1 || wg-quick up "$wg_iface" >/dev/null 2>&1 || true
-    if ip link show "$wg_iface" >/dev/null 2>&1; then
-      echo "[beagle-stream-server] WireGuard interface $wg_iface is active" >&2
+  if [[ -f "\$wg_conf" ]]; then
+    echo "[beagle-stream-server] Activating WireGuard interface \$wg_iface for stream endpoint..." >&2
+    systemctl enable "wg-quick@\${wg_iface}.service" >/dev/null 2>&1 || true
+    systemctl start "wg-quick@\${wg_iface}.service" >/dev/null 2>&1 || wg-quick up "\$wg_iface" >/dev/null 2>&1 || true
+    if ip link show "\$wg_iface" >/dev/null 2>&1; then
+      echo "[beagle-stream-server] WireGuard interface \$wg_iface is active" >&2
     else
-      echo "[beagle-stream-server] WARNING: WireGuard interface $wg_iface could not be activated" >&2
+      echo "[beagle-stream-server] WARNING: WireGuard interface \$wg_iface could not be activated" >&2
     fi
   fi
 }

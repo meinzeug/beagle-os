@@ -76,22 +76,46 @@ PY
 	}
 
 beagle_stream_server_apps_json() {
-	local api_url username password
+	local api_url username password host connect_host port api_port candidate
 	local curl_bin
-	local -a curl_args tls_args
+	local -a curl_args tls_args candidates
 
 	api_url="$(selected_beagle_stream_server_api_url)"
 	username="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME:-}"
 	password="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD:-}"
 
-	[[ -n "$api_url" && -n "$username" && -n "$password" ]] || return 1
+	[[ -n "$username" && -n "$password" ]] || return 1
+
+	if [[ -n "$api_url" ]]; then
+		candidates+=("$api_url")
+	fi
+
+	host="$(beagle_stream_client_host 2>/dev/null || true)"
+	connect_host="$(beagle_stream_client_connect_host 2>/dev/null || true)"
+	port="$(beagle_stream_client_port 2>/dev/null || true)"
+	api_port="50001"
+	if [[ "$port" =~ ^[0-9]+$ ]] && [[ "$port" -gt 0 ]]; then
+		api_port="$((port + 1))"
+	fi
+
+	for candidate in "$connect_host" "$host"; do
+		[[ -n "$candidate" ]] || continue
+		candidates+=("https://${candidate}:${api_port}")
+		candidates+=("https://${candidate}:50001")
+	done
 
 	curl_bin="$(beagle_stream_client_curl_bin)"
 	curl_args=("$curl_bin" -fsS --connect-timeout 2 --max-time 5 --user "${username}:${password}")
-	mapfile -t tls_args < <(beagle_curl_tls_args "$api_url" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_CA_CERT:-}")
-	curl_args+=("${tls_args[@]}")
 
-	"${curl_args[@]}" "${api_url%/}/api/apps"
+	for candidate in "${candidates[@]}"; do
+		[[ -n "$candidate" ]] || continue
+		mapfile -t tls_args < <(beagle_curl_tls_args "$candidate" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_CA_CERT:-}")
+		if "${curl_args[@]}" "${tls_args[@]}" "${candidate%/}/api/apps"; then
+			return 0
+		fi
+	done
+
+	return 1
 }
 
 resolve_stream_app_name() {

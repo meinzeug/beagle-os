@@ -58,7 +58,12 @@ beagle_provider_helper_exec() {
   local module_path
   module_path="$(beagle_provider_module_path_for_target)"
   local shell_command
-  shell_command="$(printf '%q ' python3 "$module_path" "$@")"
+  if beagle_provider_target_is_local; then
+    shell_command="$(printf '%q ' python3 "$module_path" "$@")"
+  else
+    local remote_pythonpath="${BEAGLE_PROVIDER_REMOTE_PYTHONPATH:-/opt/beagle}"
+    shell_command="$(printf '%q ' env PYTHONPATH="$remote_pythonpath" python3 "$module_path" "$@")"
+  fi
   beagle_provider_ssh_host "${shell_command% }"
 }
 

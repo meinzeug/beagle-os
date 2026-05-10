@@ -47,7 +47,9 @@ def test_configure_beagle_stream_server_guest_prefers_beaglestream_server_packag
     assert "BeagleStream server package unavailable" not in content
     assert 'stream_runtime_variant="beagle-stream-server"' in content
     assert 'stream_runtime_variant="beagle-stream-server-fallback"' not in content
-    assert 'write_stream_runtime_status "\\$stream_runtime_variant" "\\$stream_runtime_package_url"' in content
+    assert 'cat > /etc/beagle/stream-runtime.env <<RUNTIMEENV' in content
+    assert 'BEAGLE_STREAM_RUNTIME_VARIANT=\\${stream_runtime_variant}' in content
+    assert 'BEAGLE_STREAM_RUNTIME_PACKAGE_URL=\\${stream_runtime_package_url}' in content
     assert 'curl -fsSLo "\\$tmpdir/beagle-stream-server.deb" "\\$BEAGLE_STREAM_SERVER_URL"' in content
 
 
@@ -82,6 +84,9 @@ def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_basel
     assert "av1_mode = 0" in content
     assert "minimum_fps_target = 60" in content
     assert "max_bitrate = 35000" in content
+    # sunshine.conf 'port' == HTTP port; Moonlight/beagle-stream connects here directly
+    assert "BEAGLE_STREAM_SERVER_PORT:-50000}" in content
+    assert "BEAGLE_STREAM_SERVER_PORT=\"${BEAGLE_STREAM_SERVER_PORT:-50000}\"" in content
     assert "BEAGLE_STREAM_SERVER_ALLOWED_CIDRS=\"${BEAGLE_STREAM_SERVER_ALLOWED_CIDRS:-10.88.0.0/16}\"" in content
     assert "beagle-stream-client-video-decoder: software" in content
     assert "pgrep -x sunshine" in content
@@ -95,8 +100,13 @@ def test_configure_beagle_stream_server_guest_installs_uptime_guardian() -> None
     assert 'BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"' in content
     assert 'BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"' in content
     assert "OnFailure=beagle-stream-server-healthcheck.service" in content
+    # OnFailure must be in [Unit], not [Service] — systemd ignores it in [Service]
+    unit_section_pos = content.index("[Unit]", content.index("beagle-stream-server.service"))
+    service_section_pos = content.index("[Service]", unit_section_pos)
+    on_failure_pos = content.index("OnFailure=beagle-stream-server-healthcheck.service", unit_section_pos)
+    assert on_failure_pos < service_section_pos, "OnFailure must appear in [Unit], before [Service]"
     assert "cat > /usr/local/bin/beagle-stream-server-guardian <<'GUARDIAN'" in content
-    assert "stream offline for ${consecutive_failures} checks; rebooting guest" in content
+    assert "stream offline for \\${consecutive_failures} checks; rebooting guest" in content
     assert "cat > /etc/systemd/system/beagle-stream-server-guardian.service <<'GUARDSVC'" in content
     assert "ExecStart=/usr/local/bin/beagle-stream-server-guardian" in content
     assert "systemctl enable --now beagle-stream-server-guardian.service" in content

@@ -70,13 +70,20 @@ ensure_paired() {
   paired_ok="0"
   attempt=0
   while [[ "$attempt" -lt "$(beagle_stream_client_pairing_timeout)" ]]; do
+    # The client certificate can rotate between startup phases on some images.
+    # Re-register before each exchange attempt so manager/host state stays in sync.
+    register_beagle_stream_client_via_manager >/dev/null 2>&1 || true
     if exchange_beagle_stream_client_pairing_token_via_manager "$pairing_token"; then
-      paired_ok="1"
-      break
+      if beagle_stream_client_pair_status_ready || beagle_stream_client_stream_ready; then
+        paired_ok="1"
+        break
+      fi
     fi
     if submit_beagle_stream_server_pairing_token; then
-      paired_ok="1"
-      break
+      if beagle_stream_client_pair_status_ready || beagle_stream_client_stream_ready; then
+        paired_ok="1"
+        break
+      fi
     fi
     attempt=$((attempt + 1))
     sleep 1
@@ -84,15 +91,15 @@ ensure_paired() {
 
   [[ "$paired_ok" == "1" ]] || return 1
 
-  # Manager pair-exchange can succeed before the server list reflects the new
-  # trust state. Avoid hard-failing on this short propagation window.
-  if beagle_stream_client_stream_ready; then
-    return 0
-  fi
-  if beagle_stream_client_pair_status_ready; then
-    return 0
-  fi
-  sleep 2
-  beagle_stream_client_stream_ready >/dev/null 2>&1 || true
-  return 0
+  # Pairing can take a few moments to propagate. Require a real ready signal.
+  attempt=0
+  while [[ "$attempt" -lt 10 ]]; do
+    if beagle_stream_client_stream_ready || beagle_stream_client_pair_status_ready; then
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+
+  return 1
 }
