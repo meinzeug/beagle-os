@@ -40,7 +40,8 @@ seed_beagle_stream_client_host_from_runtime_config() {
 }
 
 beagle_stream_client_host_configured() {
-  local config_path host connect_host port
+  local config_path host connect_host port expected_uniqueid expected_cert_b64
+  local -a args
 
   config_path="$(beagle_stream_client_config_path 2>/dev/null || true)"
   [[ -n "$config_path" && -r "$config_path" ]] || return 1
@@ -48,12 +49,23 @@ beagle_stream_client_host_configured() {
   host="$(beagle_stream_client_host)"
   connect_host="$(beagle_stream_client_connect_host)"
   port="$(beagle_stream_client_port)"
+  expected_uniqueid="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_UNIQUEID:-}"
+  expected_cert_b64="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_CERT_B64:-}"
 
-  python3 "$BEAGLE_STREAM_CLIENT_HOST_REGISTRY_PY" is-configured \
+  args=(python3 "$BEAGLE_STREAM_CLIENT_HOST_REGISTRY_PY" is-configured \
     --config "$config_path" \
     --host "$host" \
     --connect-host "$connect_host" \
-    --port "$port"
+    --port "$port")
+
+  if [[ -n "$expected_uniqueid" ]]; then
+    args+=(--expected-uniqueid "$expected_uniqueid")
+  fi
+  if [[ -n "$expected_cert_b64" ]]; then
+    args+=(--expected-cert-b64 "$expected_cert_b64")
+  fi
+
+  "${args[@]}"
 }
 
 sync_beagle_stream_client_host_from_manager_response() {

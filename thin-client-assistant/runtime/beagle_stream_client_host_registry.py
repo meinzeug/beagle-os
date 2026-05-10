@@ -36,6 +36,18 @@ def _parse_entries(lines: list[str], section_start: int, section_end: int) -> di
     return entries
 
 
+def _decode_qt_bytearray_cert(raw_value: str) -> str:
+    value = (raw_value or "").strip()
+    prefix = "@ByteArray("
+    if value.startswith(prefix) and value.endswith(")"):
+        value = value[len(prefix) : -1]
+    try:
+        value = bytes(value, "utf-8").decode("unicode_escape")
+    except Exception:
+        pass
+    return value
+
+
 def command_seed_response(args: argparse.Namespace) -> int:
     response_path = Path(args.output)
     uniqueid = (args.uniqueid or "").strip()
@@ -68,6 +80,15 @@ def command_is_configured(args: argparse.Namespace) -> int:
     host = (args.host or "").strip()
     connect_host = (args.connect_host or "").strip()
     port = (args.port or "").strip()
+    expected_uniqueid = (args.expected_uniqueid or "").strip()
+    expected_cert_b64 = (args.expected_cert_b64 or "").strip()
+    expected_cert_pem = ""
+
+    if expected_cert_b64:
+        try:
+            expected_cert_pem = base64.b64decode(expected_cert_b64.encode("ascii"), validate=True).decode("utf-8")
+        except Exception:
+            return 1
 
     lines = _load_config_lines(config_path)
     section_start, section_end = _find_hosts_section(lines)
@@ -86,7 +107,14 @@ def command_is_configured(args: argparse.Namespace) -> int:
     for idx in range(1, size + 1):
         uuid_value = entries.get(f"{idx}\\uuid", "").strip()
         cert_value = entries.get(f"{idx}\\srvcert", "").strip()
-        if not uuid_value or "BEGIN CERTIFICATE" not in cert_value:
+        cert_pem = _decode_qt_bytearray_cert(cert_value)
+        if not uuid_value or "BEGIN CERTIFICATE" not in cert_pem:
+            continue
+
+        if expected_uniqueid and uuid_value != expected_uniqueid:
+            continue
+
+        if expected_cert_pem and cert_pem.strip() != expected_cert_pem.strip():
             continue
 
         manual_host = entries.get(f"{idx}\\manualaddress", "").strip()
@@ -241,6 +269,8 @@ def build_parser() -> argparse.ArgumentParser:
     is_configured.add_argument("--host", default="")
     is_configured.add_argument("--connect-host", default="")
     is_configured.add_argument("--port", default="")
+    is_configured.add_argument("--expected-uniqueid", default="")
+    is_configured.add_argument("--expected-cert-b64", default="")
     is_configured.set_defaults(func=command_is_configured)
 
     sync_config = subparsers.add_parser("sync-config")
