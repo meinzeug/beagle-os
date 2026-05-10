@@ -93,6 +93,7 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.ref_type == 'tag' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       needs.detect-artifact-changes.outputs.rebuild_server_release == 'true'
     runs-on: ubuntu-latest
 
@@ -162,6 +163,7 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.ref_type == 'tag' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       needs.detect-artifact-changes.outputs.rebuild_server_release == 'true'
     runs-on: ubuntu-latest
 
@@ -316,6 +318,7 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.ref_type == 'tag' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       needs.detect-artifact-changes.outputs.rebuild_server_release == 'true' ||
       needs.detect-artifact-changes.outputs.rebuild_thin_client == 'true'
     runs-on: ubuntu-latest
