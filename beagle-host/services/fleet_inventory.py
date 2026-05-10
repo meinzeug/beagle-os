@@ -95,6 +95,8 @@ class FleetInventoryService:
                 warnings.append(f"action_queue_unavailable:{getattr(vm, 'vmid', 'unknown')}:{exc}")
             try:
                 provisioning = self._latest_ubuntu_beagle_state_for_vmid(vm.vmid)
+                if isinstance(provisioning, dict):
+                    provisioning = {k: v for k, v in provisioning.items() if k != "token"}
             except Exception as exc:
                 provisioning = None
                 warnings.append(f"provisioning_state_unavailable:{getattr(vm, 'vmid', 'unknown')}:{exc}")
