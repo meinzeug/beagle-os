@@ -7519,3 +7519,35 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
   - `ssh srv1.beagle-os.com` -> `Permission denied (publickey,password)`.
   - `ssh srv2.beagle-os.com` -> `Connection timed out`.
 - Damit bleibt der finale R3-/P0-Livebeweis (Boot + Hash auf echtem zweiten Host) als operativer Rest offen.
+
+## Update (2026-05-10, BEA-27: Auto-Systemupdates installieren wieder tatsaechlich Updates)
+
+**Scope**: srv1 meldete "Systemupdates werden nicht automatisch installiert", obwohl `beagle-system-updates.timer` regelmaessig lief.
+
+**Root Cause**:
+- `scripts/apply-system-updates.sh` nutzte nur `apt-get upgrade --with-new-pkgs`.
+- Auf srv1 ergab das dauerhaft `0 upgraded ... 327 not upgraded` (kept-back Welle), wodurch der Job als erfolgreich markiert wurde, ohne effektive Installation.
+
+**Umsetzung**:
+- `scripts/apply-system-updates.sh`
+  - neue Helper-Funktion `count_not_upgraded_packages()` via `apt-get -s upgrade --with-new-pkgs`.
+  - Stufe 1: weiterhin `apt-get upgrade --with-new-pkgs`.
+  - Stufe 2 (Fallback): wenn danach Pakete verbleiben, automatisches `apt-get full-upgrade` (noninteractive, confdef/confold).
+  - Wenn nach beiden Stufen weiterhin Pakete nicht upgraded sind, markiert das Skript den Lauf explizit als `failed` statt false-positive `ok`.
+- `tests/unit/test_apply_system_updates_regressions.py` (neu)
+  - Regression: Full-upgrade-Fallback muss vorhanden sein.
+  - Regression: Skript darf bei verbleibenden Updates keinen Erfolg melden.
+
+**Verifikation**:
+- Lokal:
+  - `bash -n scripts/apply-system-updates.sh` -> PASS.
+  - `pytest -q tests/unit/test_apply_system_updates_regressions.py` -> `2 passed`.
+- Live auf `srv1` (hot):
+  - gepatchtes Skript nach `/opt/beagle/scripts/apply-system-updates.sh` deployed.
+  - `systemctl start --no-block beagle-system-updates.service` gestartet.
+  - `/var/lib/beagle/system-updates-status.json` zeigt waehrend des Runs den neuen Fallback-Pfad:
+    - `"message": "Verbleibende Updates werden per full-upgrade installiert ..."`.
+
+**Rest-Risiko / Beobachtung**:
+- Lauf war waehrend dieses Runs noch aktiv (`ActiveState=activating`) und im Hintergrund mit `apt-get full-upgrade` beschaeftigt.
+- Auf srv1 besteht eine grosse Pending-Welle inkl. Pakettransitionen; finaler Success/Fail des einzelnen Laufs muss nach Abschluss im Journal bzw. Status-JSON kontrolliert werden.

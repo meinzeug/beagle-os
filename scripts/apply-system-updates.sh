@@ -12,6 +12,15 @@ STATUS_MESSAGE="Systemupdates werden vorbereitet ..."
 ERROR_EXCERPT=""
 OUTPUT_EXCERPT=""
 
+count_not_upgraded_packages() {
+  local count
+  count="$(apt-get -s upgrade --with-new-pkgs 2>/dev/null | awk '/[0-9]+ not upgraded\./ {print $(NF-2); exit}')"
+  if [[ -z "$count" ]]; then
+    count="0"
+  fi
+  printf '%s' "$count"
+}
+
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
     return 0
@@ -86,9 +95,28 @@ STATUS_MESSAGE="Verfuegbare Systemupdates werden installiert ..."
 write_status "running"
 upgrade_output="$(
   DEBIAN_FRONTEND=noninteractive \
-    apt-get upgrade --with-new-pkgs -y -qq -o Dpkg::Options::=--force-confold 2>&1
+    apt-get upgrade --with-new-pkgs -y -qq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold 2>&1
 )"
 OUTPUT_EXCERPT="${upgrade_output: -2000}"
+
+remaining_updates="$(count_not_upgraded_packages)"
+if [[ "$remaining_updates" =~ ^[0-9]+$ ]] && (( remaining_updates > 0 )); then
+  STATUS_MESSAGE="Verbleibende Updates werden per full-upgrade installiert ..."
+  write_status "running"
+  full_upgrade_output="$(
+    DEBIAN_FRONTEND=noninteractive \
+      apt-get full-upgrade -y -qq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold 2>&1
+  )"
+  OUTPUT_EXCERPT="${full_upgrade_output: -2000}"
+fi
+
+remaining_after_upgrade="$(count_not_upgraded_packages)"
+if [[ "$remaining_after_upgrade" =~ ^[0-9]+$ ]] && (( remaining_after_upgrade > 0 )); then
+  STATUS_RESULT="failed"
+  STATUS_MESSAGE="Nicht alle Systemupdates konnten automatisch installiert werden (${remaining_after_upgrade} verbleibend)."
+  ERROR_EXCERPT="APT reports ${remaining_after_upgrade} package(s) still not upgraded after automatic upgrade/full-upgrade."
+  exit 1
+fi
 
 STATUS_RESULT="ok"
 STATUS_MESSAGE="Systemupdates erfolgreich installiert."
