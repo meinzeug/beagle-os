@@ -358,6 +358,10 @@ main() {
       beagle_log_event "beagle-stream-client.cached-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
     fi
 
+    if register_beagle_stream_client_via_manager; then
+      beagle_log_event "beagle-stream-client.register-refresh" "host=${host} port=${port:-default}"
+    fi
+
     if beagle_stream_client_stream_ready; then
       beagle_log_event "beagle-stream-client.ready" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
     else
@@ -375,6 +379,10 @@ main() {
         exit 1
       }
       bootstrap_beagle_stream_client || true
+      if register_beagle_stream_client_via_manager; then
+        beagle_log_event "beagle-stream-client.register-refresh" "mode=hostless host=${host} port=${port:-default}"
+      fi
+
       if beagle_stream_client_stream_ready; then
         beagle_log_event "beagle-stream-client.ready" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
       else
@@ -440,6 +448,7 @@ main() {
   fi
 
   local stream_exit=0 stream_attempt=1 max_attempts retry_delay stream_pid stream_start_line stream_forced_restart
+  local app_lookup_port_fallback_used=0
   max_attempts="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_MAX_RESTARTS:-3}"
   retry_delay="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESTART_DELAY:-3}"
   # Background watchdog: restores wg peer if binary's deactivatePeer() removes it mid-session.
@@ -452,6 +461,7 @@ main() {
   wg_peer_watchdog &
   wg_watchdog_pid=$!
   while :; do
+    build_stream_args args
     if [[ "$stream_attempt" -gt 1 ]]; then
       beagle_log_event "beagle-stream-client.restart" "attempt=${stream_attempt}/${max_attempts} app=${app}"
       printf '=== restart attempt %s/%s %s ===\n' "$stream_attempt" "$max_attempts" "$(date -Iseconds)" >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG"
@@ -481,6 +491,23 @@ main() {
     else
       stream_exit=$?
     fi
+
+    if [[ "$stream_exit" -ne 0 && "$stream_attempt" -lt "$max_attempts" && "$app_lookup_port_fallback_used" -eq 0 ]]; then
+      if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi 'Server certificate mismatch|"applist" request failed|Failed to find application'; then
+        if [[ "$port" =~ ^[0-9]+$ ]]; then
+          local fallback_port
+          fallback_port="$((port + 1))"
+          if [[ "$fallback_port" -gt 0 ]]; then
+            export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT="$fallback_port"
+            port="$fallback_port"
+            retarget_beagle_stream_client_host_from_runtime_config || true
+            beagle_log_event "beagle-stream-client.port-fallback" "from=$((fallback_port - 1)) to=${fallback_port} reason=applist-or-cert-mismatch"
+            app_lookup_port_fallback_used=1
+          fi
+        fi
+      fi
+    fi
+
     if [[ "$stream_exit" -eq 0 || "$stream_attempt" -ge "$max_attempts" ]]; then
       break
     fi

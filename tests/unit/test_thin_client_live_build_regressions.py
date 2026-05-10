@@ -125,6 +125,8 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'mode=hostless host=${host}' in launcher_text
     assert 'ensure_paired || {' in launcher_text
     assert 'beagle_stream_client_stream_ready' in launcher_text
+    assert 'beagle-stream-client.register-refresh' in launcher_text
+    assert 'beagle-stream-client.port-fallback' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
     assert 'beagle_stream_client_stream_ready >/dev/null 2>&1 || true' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN:-' not in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
