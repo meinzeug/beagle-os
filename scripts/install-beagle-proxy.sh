@@ -571,6 +571,7 @@ server {
         alias ${ASSET_ROOT}/dist/;
         index beagle-downloads-index.html;
         add_header Cache-Control "no-store";
+        add_header Access-Control-Allow-Origin "https://beagle-os.com" always;
         autoindex on;
         types {
             application/x-sh sh;
