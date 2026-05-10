@@ -294,14 +294,7 @@ class BackupService:
         else:
             archive = str(Path(target_path) / f"beagle-backup-{scope_type}-{scope_id}-{safe_ts}.tar.gz")
 
-        # Build a manifest of readable paths so restricted secrets do not break
-        # host backups that run under a non-root service user.
-        manifest_result = subprocess.run(
-            ["find", "/etc/beagle", "-xdev", "-readable", "-print0"],
-            capture_output=True,
-            timeout=120,
-        )
-        manifest = manifest_result.stdout or b""
+        manifest = self._build_backup_manifest(scope_type=scope_type, scope_id=scope_id)
         if not manifest:
             raise RuntimeError("no readable backup source entries under /etc/beagle")
 
@@ -325,6 +318,94 @@ class BackupService:
             if not archive_exists or has_fatal_marker:
                 raise RuntimeError(str(stderr or "tar failed").strip()[:500])
         return archive
+
+    @staticmethod
+    def _normalize_domain_name(scope_id: str) -> str:
+        sid = str(scope_id or "").strip()
+        if sid.isdigit():
+            return f"beagle-{sid}"
+        return sid
+
+    def _collect_vm_disk_sources(self, scope_id: str) -> list[str]:
+        """Best effort disk + VM definition discovery for a VM scope backup."""
+        domain = self._normalize_domain_name(scope_id)
+        sources: list[str] = []
+
+        # Typical libvirt VM definition location.
+        xml_path = Path("/etc/libvirt/qemu") / f"{domain}.xml"
+        if xml_path.exists():
+            sources.append(str(xml_path))
+
+        # Discover real attached disk sources via libvirt.
+        try:
+            result = subprocess.run(
+                ["virsh", "--connect", "qemu:///system", "domblklist", domain, "--details"],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            if result.returncode == 0:
+                for line in (result.stdout or "").splitlines():
+                    parts = line.split()
+                    # Expected columns: Type Device Target Source
+                    if len(parts) < 4:
+                        continue
+                    if parts[0].strip().lower() != "file":
+                        continue
+                    if parts[1].strip().lower() != "disk":
+                        continue
+                    source_path = str(parts[3] or "").strip()
+                    if source_path.startswith("/"):
+                        sources.append(source_path)
+        except Exception:
+            # Keep VM backups resilient when virsh is unavailable.
+            pass
+
+        # Fallback candidate for common naming.
+        if str(scope_id or "").isdigit():
+            fallback = Path("/var/lib/libvirt/images") / f"beagle-{scope_id}.qcow2"
+            if fallback.exists():
+                sources.append(str(fallback))
+
+        # Preserve order while deduplicating.
+        seen: set[str] = set()
+        unique_sources: list[str] = []
+        for item in sources:
+            if item and item not in seen:
+                seen.add(item)
+                unique_sources.append(item)
+        return unique_sources
+
+    def _collect_backup_roots(self, scope_type: str, scope_id: str) -> list[str]:
+        roots = ["/etc/beagle"]
+        if str(scope_type or "").strip().lower() == "vm":
+            roots.extend(self._collect_vm_disk_sources(scope_id))
+        return roots
+
+    def _build_backup_manifest(self, *, scope_type: str, scope_id: str) -> bytes:
+        """Build NUL-delimited manifest for tar from readable files/dirs."""
+        manifest_parts: list[bytes] = []
+        for root in self._collect_backup_roots(scope_type, scope_id):
+            path = Path(str(root or "").strip())
+            if not path.exists():
+                continue
+            if path.is_dir():
+                result = subprocess.run(
+                    ["find", str(path), "-xdev", "-readable", "-print0"],
+                    capture_output=True,
+                    timeout=180,
+                )
+                data = result.stdout or b""
+                if data:
+                    manifest_parts.append(data)
+                continue
+            if path.is_file():
+                try:
+                    if path.stat().st_size >= 0:
+                        manifest_parts.append((str(path) + "\0").encode("utf-8"))
+                except Exception:
+                    continue
+        return b"".join(manifest_parts)
 
     @staticmethod
     def _sha256_file(path: str | Path) -> str:

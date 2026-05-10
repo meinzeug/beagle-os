@@ -1,6 +1,6 @@
 # Runbook — Installation
 
-**Status**: Skelett · **Letzte Validierung**: —
+**Status**: Teilvalidiert (R1-Evidence-Collector vorhanden) · **Letzte Validierung**: 2026-05-10 (Collector lokal/SSH-Fehlerpfad)
 
 Ziel: Frischer Beagle-OS-Host (bare metal oder Hetzner Cloud/Dedicated) ist nach
 Abarbeitung dieser Schritte mit allen Default-Diensten erreichbar und passiert
@@ -53,3 +53,36 @@ Bei Fehlschlag siehe [`rollback.md`](rollback.md).
 - Dauer:
 - Beobachtete Probleme:
 - Eingetragen in `checklists/05-release-operations.md`:
+
+## 7. Reproduzierbarer R1-Evidence-Export (Clean-Install)
+
+Nach einem realen Clean-Install auf Zielhost den Nachweis immer ueber das
+Repo-Skript sammeln:
+
+```bash
+scripts/ops/collect-r1-clean-install-evidence.sh <host>
+```
+
+Beispiele:
+
+```bash
+scripts/ops/collect-r1-clean-install-evidence.sh srv1.beagle-os.com
+scripts/ops/collect-r1-clean-install-evidence.sh srv2.beagle-os.com
+```
+
+Fuer einen harten PASS/FAIL-Gate-Check (CI-/Operator-Wrapper) nutzen:
+
+```bash
+scripts/test-r1-clean-install-evidence.sh <host> [expected_version]
+```
+
+Output:
+
+- `docs/runbooks/evidence/r1-clean-install/<timestamp>_<host>.log`
+- `docs/runbooks/evidence/r1-clean-install/<timestamp>_<host>.json`
+
+Abnahmekriterium fuer diesen Schritt:
+
+- `ssh_exit_code=0`
+- `check_beagle_host_ok=true`
+- `remote_version` gesetzt und mit Release-Zielversion konsistent

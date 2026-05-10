@@ -20,6 +20,7 @@
 - [x] Beagle Stream Server Stream-Prep unattended PASS auf VM100 (srv1)
 - [ ] **Frische ISO-Installation auf leerem Host:** Erst-Boot erreicht WebUI ohne manuelle Hotfixes
 - [ ] `scripts/check-beagle-host.sh` gruen nach Clean-Install
+  - Reproduzierbarer Nachweis via `scripts/ops/collect-r1-clean-install-evidence.sh <host>` (Artefakte unter `docs/runbooks/evidence/r1-clean-install/`)
 - [x] Dashboard, Settings, Updates, Downloads, Pools, Policies, IAM, Audit, Virtualization laden ohne `500` — `scripts/test-r1-dashboard-smoke.py` gegen `https://srv1.beagle-os.com/beagle-api` (8 Endpunkte, alle 200, 2026-04-30)
 - [x] VM-Lifecycle aus WebUI + API: create, start, snapshot, reboot, delete — API-Smoke `scripts/test-vm-lifecycle-r1-smoke.py` gegen `https://srv1.beagle-os.com/beagle-api` PASS (create/start/snapshot/reboot/delete, Cleanup inklusive, 2026-04-30)
 - [ ] Autoinstall + Firstboot-Service melden Completion selbststaendig

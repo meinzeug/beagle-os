@@ -1,3 +1,16 @@
+## Update (2026-05-10, BEA-9 Top-Risiken + 2-Wochen-Plan konkretisiert)
+
+**Scope**: Issue BEA-9 (Top-Risiken und 2-Wochen-Umsetzungsplan) in die Refactor-Risikodoku ueberfuehrt.
+
+- `docs/refactor/04-risk-register.md` um einen neuen BEA-9-Block erweitert:
+  - genau 5 priorisierte Massnahmen (P1..P5),
+  - je Massnahme mit Owner-Rolle, erwartetem Ergebnis und messbarem Done-Kriterium,
+  - Prioritaetslogik dokumentiert (Reproduzierbarkeit -> Security -> Drift -> E2E -> Architekturdrift).
+- Fokus fuer die naechsten 2 Wochen ist damit explizit auf die derzeit sichtbaren Top-Risiken ausgerichtet: Build-/Release-Reproduzierbarkeit, Security-/Secret-Drift, Host-Drift, Stream-E2E-Stabilitaet und Contract-Disziplin.
+
+**Verifikation**:
+- Dateidiff geprueft: nur `docs/refactor/04-risk-register.md` und dieser Fortschrittseintrag angepasst.
+
 ## Update (2026-05-09, SPICE .vv ueber 443 CONNECT-Proxy statt Raw-Port)
 
 **Scope**: VM100-SPICE-Connect fuer externe Clients (Desktop/Android) ohne offenen Raw-SPICE-Port stabilisiert.
@@ -7373,3 +7386,136 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 - Validation:
   - `bash -n scripts/lib/artifact_lock.sh scripts/prepare-host-downloads.sh scripts/refresh-host-artifacts.sh`
   - local Python harness over the affected regression assertions => `HARNESS_OK`
+## Update (2026-05-10, BEA-18 Security-Incident: SSH-Key-Rotation-Pfad gehaertet)
+
+**Scope**: Incident-Slice fuer geleakten SSH-Key im Deploy-/Operator-Kontext.
+
+- **Repo-Fix**:
+  - `scripts/publish-public-update-artifacts.sh` und `scripts/deploy-public-website.sh` nutzen fuer rsync jetzt einen explizit gehaerteten SSH-Transport (`RSYNC_RSH`) mit:
+    - dediziertem Keyfile (`BEAGLE_SSH_KEY_FILE`, Default `~/.ssh/id_ed25519`)
+    - gepinntem `known_hosts` (`BEAGLE_SSH_KNOWN_HOSTS_FILE`, Default `~/.ssh/known_hosts`)
+    - `IdentitiesOnly=yes`, `StrictHostKeyChecking=yes`, `BatchMode=yes`
+  - Beide Skripte failen frueh, wenn Key oder `known_hosts` nicht lesbar sind.
+  - `docs/runbooks/incident-response.md` um verbindliche SEV-1-Runbookschritte fuer geleakte SSH-Keys erweitert (Entzug alter Keys, Rollout neuer Keys, CI-Secret-Rotation, negativer/positiver Login-Test als Abschlusskriterium).
+  - Neuer Incident-Operator-Helper `scripts/ops/rotate-compromised-ssh-key.sh` fuer reproduzierbare Remote-Rotation ohne Repo-Secretablage (Key-Blob-Entzug, Neu-Key-Absicherung, Login-Checks); der Remote-Write erfolgt explizit ueber einen aktuell gueltigen Admin-Key (`--auth-priv`), damit die Rotation nicht implizit vom zu ersetzenden Key abhaengt.
+  - Der Helper schreibt optional einen lokalen JSON-Nachweis (`--evidence-out`) fuer Incident-Logs, damit der Alt-/Neu-Key-Beleg ohne Ticket-Secret-Posting archiviert werden kann.
+  - Neuer Wrapper `scripts/ops/run-bea18-rotation.sh` fuehrt die Rotation fuer `srv1` und `srv2` in einem konsistenten Operator-Run aus und schreibt pro Host + Summary Evidence-JSON.
+  - Neuer Evidence-Validator `scripts/ops/verify-bea18-evidence.sh` prueft die erzeugten JSON-Nachweise auf konsistente Incident-/Host-/Statusfelder und Summary-Referenzen.
+  - `docs/refactor/11-security-findings.md` mit S-049 (`Kritisch`, gepatcht) ergaenzt.
+
+- **Verifikation**:
+  - `bash -n scripts/publish-public-update-artifacts.sh scripts/deploy-public-website.sh`
+  - `bash -n scripts/ops/rotate-compromised-ssh-key.sh`
+  - `bash -n scripts/ops/run-bea18-rotation.sh`
+  - `bash -n scripts/ops/verify-bea18-evidence.sh`
+  - `rg -n "StrictHostKeyChecking=yes|UserKnownHostsFile|IdentitiesOnly=yes|RSYNC_RSH" scripts/publish-public-update-artifacts.sh scripts/deploy-public-website.sh`
+
+- **Rest-Risiko / offener Punkt**:
+  - Operative Rotation der realen Infrastruktur-Keys und CI-Secrets muss noch auf Zielsystemen/Secret-Store abgeschlossen und im Incident-Log nachgewiesen werden.
+
+## Update (2026-05-10, BEA-12 R1: VM-Provisioning-Endzustand gegen Callback-Retries gehaertet)
+
+**Scope**: P0-Blockerpfad `WebUI-VM-Provisioning bleibt in installing` im Callback-/Firstboot-Uebergang weiter stabilisiert.
+
+- **Root-Cause (Teilpfad Idempotenz)**:
+  - Wiederholte `complete`-/`prepare-firstboot`-Callbacks konnten denselben Install-Lauf mehrfach anfassen.
+  - Dadurch bestand das Risiko, Finalize-/Restart-Operationen erneut auszufuehren und Zwischenzustaende unnoetig zu verlaengern.
+
+- **Repo-Fix**:
+  - `beagle-host/services/public_ubuntu_install_surface.py`:
+    - `POST /api/v1/public/ubuntu-install/{token}/complete` ist jetzt idempotent, wenn der Lauf bereits `status=completed` und `phase=complete` ist (No-Op statt erneutem Finalize/Restart).
+    - `POST /api/v1/public/ubuntu-install/{token}/prepare-firstboot` ist jetzt idempotent, wenn bereits `installing/firstboot` oder `completed` vorliegt (No-Op statt erneutem Firstboot-Prepare).
+  - Neue Regression:
+    - `tests/unit/test_public_ubuntu_install_surface.py` prueft alle drei Retry-Pfade explizit.
+
+- **Verifikation**:
+  - `python3 -m unittest -v tests.unit.test_public_ubuntu_install_surface` -> `3 tests OK`
+  - `python3 -m unittest -v tests.unit.test_ubuntu_beagle_stale_runtime` -> `2 tests OK`
+  - `python3 -m unittest -v tests.unit.test_vm_api_regressions` -> aktuell nicht ausfuehrbar in diesem Environment (`ModuleNotFoundError: update_feed` im Test-Importpfad).
+
+- **Rest-Risiko / offener Punkt**:
+  - Live-Abnahme auf `srv1`/`srv2` fuer wiederholte reale Callback-Retry-Sequenzen steht noch aus.
+  - Dieser Slice schliesst den Idempotenz-Teilpfad; der komplette D1/R1-Nachweis (`ready` nach End-to-End-Provisioning inkl. Delete/Recreate) bleibt als naechster Live-Schritt offen.
+
+## Update (2026-05-10, BEA-24 R1 Clean-Install: Nachweis-Collector implementiert)
+
+**Scope**: P0/Welle1-Blocker `R1 Clean-Install aus Release-Artefakt reproduzierbar nachweisen`.
+
+- **Repo-Fix**:
+  - Neues Skript [scripts/ops/collect-r1-clean-install-evidence.sh](/home/dennis/beagle-os/scripts/ops/collect-r1-clean-install-evidence.sh):
+    - sammelt per SSH den reproduzierbaren Nachweis fuer Clean-Install-Hosts (`hostname`, UTC-Zeit, `/opt/beagle/VERSION`, `check-beagle-host.sh`).
+    - schreibt standardisierte Artefakte nach `docs/runbooks/evidence/r1-clean-install/<timestamp>_<host>.log|.json`.
+    - liefert maschinenlesbares JSON (`ssh_exit_code`, `check_beagle_host_ok`) fuer Gate-Auswertung.
+  - [docs/runbooks/installation.md](/home/dennis/beagle-os/docs/runbooks/installation.md) um einen verbindlichen Abschnitt "Reproduzierbarer R1-Evidence-Export" erweitert.
+  - [docs/checklists/05-release-operations.md](/home/dennis/beagle-os/docs/checklists/05-release-operations.md) und [docs/lasthope/02-execution-order.md](/home/dennis/beagle-os/docs/lasthope/02-execution-order.md) auf den neuen standardisierten Nachweispfad referenziert.
+
+- **Live-Status in diesem Lauf**:
+  - SSH-Collection gegen `srv1.beagle-os.com` derzeit blockiert (`Permission denied (publickey,password)`).
+  - SSH-Collection gegen `srv2.beagle-os.com` derzeit blockiert (`Connection timed out`).
+  - Beispiel-/Fehlerpfad lokal erzeugt: `docs/runbooks/evidence/r1-clean-install/20260510T011913Z_127.0.0.1.{log,json}`.
+
+- **Verifikation**:
+  - `bash -n scripts/ops/collect-r1-clean-install-evidence.sh`
+  - `scripts/ops/collect-r1-clean-install-evidence.sh 127.0.0.1` (erwarteter SSH-Fehlerpfad, JSON-Export bestaetigt)
+
+- **Rest-Risiko / offener Punkt**:
+  - R1 bleibt operativ offen, bis ein echter Clean-Install-Host mit gueltigem SSH-Zugang den Nachweis `ssh_exit_code=0` + `check_beagle_host_ok=true` liefert.
+
+## Update (2026-05-10, BEA-24 R1 Clean-Install: PASS/FAIL Smoke-Wrapper hinzugefuegt)
+
+**Scope**: R1-Nachweis nicht nur sammeln, sondern automatisiert als Gate bewerten.
+
+- **Repo-Fix**:
+  - Neues Wrapper-Skript [scripts/test-r1-clean-install-evidence.sh](/home/dennis/beagle-os/scripts/test-r1-clean-install-evidence.sh):
+    - ruft den Collector auf und erzwingt Akzeptanz (`ssh_exit_code=0`, `check_beagle_host_ok=true`, `remote_version` vorhanden).
+    - optionaler Versionsabgleich gegen erwartete Release-Version.
+    - liefert klares `PASS`/`FAIL` mit non-zero Exit bei rotem Pflichtcheck.
+  - LastHope-/Runbook-Dokumente auf den Wrapper als kanonischen Nachweis aktualisiert:
+    - [docs/lasthope/01-enterprise-gap-list.md](/home/dennis/beagle-os/docs/lasthope/01-enterprise-gap-list.md)
+    - [docs/lasthope/04-validation-matrix.md](/home/dennis/beagle-os/docs/lasthope/04-validation-matrix.md)
+    - [docs/runbooks/installation.md](/home/dennis/beagle-os/docs/runbooks/installation.md)
+
+- **Verifikation**:
+  - `bash -n scripts/test-r1-clean-install-evidence.sh scripts/ops/collect-r1-clean-install-evidence.sh`
+  - `scripts/test-r1-clean-install-evidence.sh 127.0.0.1 8.0.9` -> `FAIL` (erwarteter SSH-Fehlerpfad; Exit non-zero bestaetigt Gate-Verhalten)
+
+- **Rest-Risiko / offener Punkt**:
+  - Operative Live-Abnahme auf echtem Clean-Install-Host weiterhin offen (aktueller SSH-Zugriff auf `srv1`/`srv2` blockiert).
+## Update (2026-05-10, BEA-26: Cross-Host VM-Disk Backup/Restore Nachweispfad reproduzierbar gemacht)
+
+**Scope**: Der offene P0/Welle-3-Nachweis "Backup/Restore echter VM-Disk auf zweitem/frischem Host" wurde code-first in einen reproduzierbaren Smoke-Pfad gegossen.
+
+**Umsetzung**:
+- `beagle-host/services/backup_service.py`
+  - VM-spezifische Backup-Manifestlogik erweitert:
+    - Bei `scope_type=vm` werden neben `/etc/beagle` auch VM-Disk-/Definition-Pfade in das Tar-Manifest aufgenommen.
+    - Diskquellen werden via `virsh domblklist --details` ermittelt (`file` + `disk` Eintraege), mit Fallback auf typische Diskpfade.
+  - Neue interne Helper:
+    - `_collect_vm_disk_sources()`
+    - `_collect_backup_roots()`
+    - `_build_backup_manifest()`
+  - `run_backup_now()` nutzt damit fuer VM-Backups nicht mehr nur `/etc/beagle`, sondern echte VM-Diskquellen.
+- `scripts/test-vm-disk-backup-restore-cross-host-smoke.sh` (neu)
+  - End-to-end Smoke fuer BEA-26:
+    - Source-VM-Disk finden und hashen,
+    - Backup via `/api/v1/backups/run` (`scope_type=vm`) starten,
+    - `archive_sha256` verifizieren,
+    - Archiv auf Zielhost kopieren,
+    - Restore auf Zielhost extrahieren,
+    - Quell-Disk-Hash vs. restored Disk-Hash vergleichen,
+    - optionaler Bootcheck-Hook auf Zielhost.
+- `tests/unit/test_backup_service.py`
+  - neue Regressionstests fuer VM-Disk-Manifest-/Domblklist-Pfad.
+- `docs/runbooks/backup-restore.md`
+  - reproduzierbaren Cross-Host-Smoke dokumentiert, inkl. offenem Live-Nachweis auf `srv1`/`srv2`.
+
+**Verifikation (lokal)**:
+- `python3 -m unittest tests.unit.test_backup_service.BackupServiceTests.test_build_backup_manifest_includes_vm_disk_and_xml tests.unit.test_backup_service.BackupServiceTests.test_collect_vm_disk_sources_from_virsh_domblklist tests.unit.test_backup_service.BackupServiceTests.test_run_backup_now_success tests.unit.test_backup_service.BackupServiceTests.test_verify_snapshot_matches_archive_sha256 tests.unit.test_backup_service.BackupServiceTests.test_restore_snapshot_extracts_files` -> `OK (5 tests)`.
+- `python3 -m py_compile beagle-host/services/backup_service.py tests/unit/test_backup_service.py` -> PASS.
+- `bash -n scripts/test-vm-disk-backup-restore-cross-host-smoke.sh` -> PASS.
+
+**Blocker / Rest**:
+- Live-Ausfuehrung auf Zielumgebung war in diesem Run nicht moeglich:
+  - `ssh srv1.beagle-os.com` -> `Permission denied (publickey,password)`.
+  - `ssh srv2.beagle-os.com` -> `Connection timed out`.
+- Damit bleibt der finale R3-/P0-Livebeweis (Boot + Hash auf echtem zweiten Host) als operativer Rest offen.

@@ -52,6 +52,20 @@ class PublicUbuntuInstallSurfaceService:
             state = self._load_ubuntu_beagle_state(token)
             if state is None:
                 return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "ubuntu install token not found"})
+            status = str(state.get("status", "")).strip().lower()
+            phase = str(state.get("phase", "")).strip().lower()
+            # Idempotency: callback retries after completion must not trigger
+            # another cleanup/restart cycle.
+            if status == "completed" and phase == "complete":
+                state["updated_at"] = self._utcnow()
+                self._save_ubuntu_beagle_state(token, state)
+                return self._json_response(
+                    HTTPStatus.OK,
+                    {
+                        "ok": True,
+                        **self._envelope(ubuntu_beagle_install=state),
+                    },
+                )
             restart_requested = str(query.get("restart", ["1"])[0]).strip().lower() not in {"0", "false", "no", "off"}
             try:
                 cleanup = self._finalize_ubuntu_beagle_install(state, restart=restart_requested)
@@ -88,6 +102,20 @@ class PublicUbuntuInstallSurfaceService:
             state = self._load_ubuntu_beagle_state(token)
             if state is None:
                 return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "ubuntu install token not found"})
+            status = str(state.get("status", "")).strip().lower()
+            phase = str(state.get("phase", "")).strip().lower()
+            # Idempotency: once firstboot is active or provisioning completed,
+            # repeated prepare callbacks should be a no-op.
+            if (status == "installing" and phase == "firstboot") or status == "completed":
+                state["updated_at"] = self._utcnow()
+                self._save_ubuntu_beagle_state(token, state)
+                return self._json_response(
+                    HTTPStatus.OK,
+                    {
+                        "ok": True,
+                        **self._envelope(ubuntu_beagle_install=state, cleanup=state.get("cleanup")),
+                    },
+                )
             try:
                 cleanup = self._prepare_ubuntu_beagle_firstboot(state)
             except Exception as exc:

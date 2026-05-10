@@ -196,21 +196,25 @@ curl -fsSL https://srv1.beagle-os.com/beagle-downloads/pve-thin-client-live-usb-
 
 # Generate download artifacts
 ./scripts/prepare-host-downloads.sh
-
-pytest tests/unit/test_thin_client_live_build_regressions.py
 ```
 
 ### Testing
 
 ```bash
+# Install local test/typecheck tooling (once)
+python3 -m pip install pytest mypy
+
 # Quick unit tests
-pytest -xvs tests/unit/
+python3 -m pytest -xvs tests/unit/
+
+# Focused baseline verification
+python3 -m pytest -q tests/unit/test_storage_pool_path_regressions.py
 
 # Integration tests (requires VM runtime)
-pytest -xvs tests/integration/
+python3 -m pytest -xvs tests/integration/
 
 # Type checking
-mypy core/ --strict --ignore-missing-imports
+python3 -m mypy core/ --strict --ignore-missing-imports
 ```
 
 ---
@@ -270,15 +274,17 @@ All stable releases are published to **[beagle-os.com/beagle-updates/](https://b
 ### Local Development Build
 
 ```bash
-# One-time setup
-make setup-dev
+# Host setup baseline
+./scripts/setup-beagle-host.sh
+./scripts/check-beagle-host.sh
 
-# Build all artifacts locally
-make build
-make test
+# Build artifacts locally
+./scripts/build-thin-client-installer.sh
+./scripts/build-server-installer.sh
+./scripts/prepare-host-downloads.sh
 
 # Validate before release
-make validate-release
+./scripts/validate-project.sh
 ```
 
 ### CI/CD Release Flow

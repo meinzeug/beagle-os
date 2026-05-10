@@ -19,8 +19,8 @@ muessen. Ein Gate ist erst gruen, wenn der Nachweis reproduzierbar ist.
 
 | Check | Nachweis | Status |
 |---|---|---|
-| Clean-Install aus Release-ISO | Installationsprotokoll + Screenshot/WebUI-Login | offen |
-| Host-Health gruen | `scripts/check-beagle-host.sh` | offen |
+| Clean-Install aus Release-ISO | Installationsprotokoll + Screenshot/WebUI-Login + `scripts/test-r1-clean-install-evidence.sh <host> [expected_version]` | offen |
+| Host-Health gruen | `scripts/check-beagle-host.sh` (im Evidence-Collector enthalten) | offen |
 | VM-Erstellung ueber WebUI | `vm100` oder frische Test-VM | laufend |
 | Firstboot/Callback/Reboot | Provisioning-State + Guest-Journal | offen |
 | Desktop-Login | noVNC oder Stream | offen |
@@ -59,4 +59,3 @@ muessen. Ein Gate ist erst gruen, wenn der Nachweis reproduzierbar ist.
 | WebRTC oder Native Protocol | Feature-Branch + E2E | offen |
 | vGPU/MDEV | echte Lizenz/Hardware | offen |
 | Mobile/Accessibility | Lighthouse + axe + Browser-Matrix | offen |
-

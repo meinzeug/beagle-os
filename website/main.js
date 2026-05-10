@@ -241,6 +241,45 @@ function buildSummaryPanelHtml(vmid, profile) {
   );
 }
 
+function boolLabel(value) {
+  return value ? 'Ja' : 'Nein';
+}
+
+function buildStreamConfigPanelHtml(payload, errorMessage) {
+  if (errorMessage) {
+    return '<div class="banner warn">Stream-Konfiguration nicht verfuegbar: ' + escapeHtml(String(errorMessage || 'unbekannter Fehler')) + '</div>';
+  }
+  const config = payload && payload.config && typeof payload.config === 'object' ? payload.config : null;
+  if (!config) {
+    return '<div class="banner info">Keine Stream-Konfiguration vorhanden.</div>';
+  }
+  const policy = config.policy && typeof config.policy === 'object' ? config.policy : {};
+  const registration = config.registration && typeof config.registration === 'object' ? config.registration : {};
+  const lastEvent = registration.last_event && typeof registration.last_event === 'object' ? registration.last_event : {};
+  const links = config.links && typeof config.links === 'object' ? config.links : {};
+  return (
+    '<div class="detail-section">' +
+    '<h3>Stream Control</h3>' +
+    '<div class="detail-grid">' +
+    fieldBlock('Pool', config.pool_id || 'n/a') +
+    fieldBlock('Node', config.current_node || 'n/a') +
+    fieldBlock('Host', config.stream_host || 'n/a') +
+    fieldBlock('Port', config.port ? String(config.port) : 'n/a') +
+    fieldBlock('Netzwerkmodus', policy.network_mode || 'n/a') +
+    fieldBlock('WireGuard aktiv', boolLabel(Boolean(config.wireguard_active))) +
+    fieldBlock('Verbindung erlaubt', boolLabel(Boolean(config.connection_allowed))) +
+    fieldBlock('Grund', config.connection_reason || 'n/a') +
+    fieldBlock('Policy', policy.name || policy.policy_id || 'n/a') +
+    fieldBlock('USB Redirect', boolLabel(Boolean(policy.usb_redirect))) +
+    fieldBlock('Letztes Event', lastEvent.event_type || 'n/a') +
+    fieldBlock('Event-Zeit', formatDate(lastEvent.recorded_at || '')) +
+    fieldBlock('Register Link', links.register || 'n/a') +
+    fieldBlock('Events Link', links.events || 'n/a') +
+    '</div>' +
+    '</div>'
+  );
+}
+
 function buildCredentialsPanelHtml(credentials) {
   if (!credentials) {
     return '<div class="banner warn">Credentials nicht verfuegbar.</div>';
@@ -529,6 +568,15 @@ function loadDetail(vmid) {
       if (state.selectedVmid !== numericVmid || !stackEl) return;
       const panel = stackEl.querySelector('[data-detail-panel="bundles"]');
       if (panel) panel.innerHTML = '<div class="banner info">Bundles nicht verfuegbar.</div>';
+    }),
+    request('/streams/' + numericVmid + '/config').then((data) => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="config"]');
+      if (panel) panel.innerHTML = buildStreamConfigPanelHtml(data, '');
+    }).catch((err) => {
+      if (state.selectedVmid !== numericVmid || !stackEl) return;
+      const panel = stackEl.querySelector('[data-detail-panel="config"]');
+      if (panel) panel.innerHTML = buildStreamConfigPanelHtml(null, err && err.message ? err.message : 'unbekannt');
     }),
   ]).then(() => undefined);
 }

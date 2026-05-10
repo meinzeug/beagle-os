@@ -1,5 +1,38 @@
 # Security Findings
 
+Stand: 2026-05-10 (ergaenzt: S-049 SSH-Key-Rotation + Deploy-SSH-Haertung)
+
+## S-049 — Security-Incident: geleakter SSH-Key erforderte Rotation und gehaerteten Deploy-Zugriffspfad (PATCHED)
+
+- Status: **gepatcht** (2026-05-10)
+- Risiko: **Kritisch**
+- Betroffene Scopes:
+  - Deploy-/Artifact-Publish-Pfad: `scripts/publish-public-update-artifacts.sh`, `scripts/deploy-public-website.sh`
+  - Incident-Prozess: `docs/runbooks/incident-response.md`
+  - Laufzeitzugriffe auf `srv1`/`srv2` und Public-Webdeploy-Target via SSH
+- Beschreibung:
+  - Ein kompromittierter SSH-Key im Operator-/Deploy-Kontext kann Artefakt- und Website-Publishing sowie Hostzugriff missbrauchen.
+  - Vor dem Patch waren Publish-Skripte bei SSH-Transport nicht auf strikt gepinnte Hostkeys und dedizierte Key-Datei festgelegt; sie verliessen sich auf implizite Nutzer-Defaults.
+- Fix:
+  - Publish-Skripte setzen jetzt explizit einen gehaerteten SSH-Transport via `RSYNC_RSH`:
+    - `-i <keyfile>` (konfigurierbar ueber `BEAGLE_SSH_KEY_FILE`)
+    - `IdentitiesOnly=yes`
+    - `StrictHostKeyChecking=yes`
+    - `UserKnownHostsFile=<known_hosts>` (konfigurierbar ueber `BEAGLE_SSH_KNOWN_HOSTS_FILE`)
+    - `BatchMode=yes`
+  - Beide Skripte failen frueh, wenn Key oder `known_hosts` nicht lesbar sind.
+  - Neuer reproduzierbarer Operator-Helper `scripts/ops/rotate-compromised-ssh-key.sh` entfernt kompromittierte Public-Key-Blobs aus `authorized_keys`/`authorized_keys.d`, stellt den neuen Key sicher und validiert neuen Login (plus optional negative Alt-Key-Pruefung); fuer den Remote-Write wird explizit ein aktuell gueltiger Auth-Key (`--auth-priv`) verwendet.
+  - Der Helper kann zusaetzlich einen lokalen JSON-Nachweis (`--evidence-out`) fuer den Incident-Log erzeugen (Fingerprints, Host, Zeitstempel, Neu-/Alt-Key-Pruefstatus).
+  - Fuer den Zwei-Host-Incident steht `scripts/ops/run-bea18-rotation.sh` zur Verfuegung; das Skript fuehrt `srv1`+`srv2` in einem Run aus und erzeugt pro Host + Summary lokale Evidence-Dateien.
+  - `scripts/ops/verify-bea18-evidence.sh` validiert die erzeugten Evidence-Dateien vor Ticket-Abschluss reproduzierbar (Schema-/Status-/Pfadkonsistenz).
+  - Incident-Runbook erweitert um verbindliche SEV-1-Schritte fuer geleakte SSH-Keys (Entzug, Rollout neuer Keys, CI-Secret-Rotation, negativer/positiver Login-Test als Abschlussbeleg).
+- Verifikation:
+  - Shell-Syntaxcheck fuer beide Skripte erfolgreich (`bash -n`).
+  - `rg`-Pruefung zeigt in den geaenderten Publish-Skripten keine lockeren SSH-Defaults mehr.
+  - Shell-Syntaxcheck fuer den Rotations-Helper erfolgreich (`bash -n scripts/ops/rotate-compromised-ssh-key.sh`).
+- Rest-Risiko / naechster Schritt:
+  - Reale Key-Rotation auf Infrastruktur/CI-Secrets muss operativ auf `srv1`/`srv2` und im CI-Secret-Store abgeschlossen und im Incident-Log belegt werden (nicht im Repo automatisierbar ohne Zugriff auf Secret-Backend).
+
 Stand: 2026-05-09 (ergaenzt: S-048 SPICE-Console nicht mehr als direkter Raw-Port)
 
 ## S-048 — Direkte SPICE-Raw-Port-Auslieferung in `.vv` fuehrte zu externem Timeout und unsauberem Expose-Pfad (PATCHED)

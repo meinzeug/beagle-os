@@ -1,6 +1,6 @@
 # Runbook — Backup + Restore
 
-**Status**: Skelett · **Letzte Validierung**: —
+**Status**: In Validierung · **Letzte Validierung**: 2026-05-10 (reproduzierbarer Cross-Host-Smoke vorbereitet; Live-Lauf auf `srv1`/`srv2` steht wegen SSH-Zugriff offen)
 
 Ziel: Vollstaendiges Backup einer Beagle-OS-Installation inkl. Control-Plane-State,
 Audit-Log, Secret-Store und VM-Disks. Restore auf einem zweiten Host.
@@ -44,6 +44,27 @@ beaglectl vm backup --vmid <id> --target <s3|nfs|local> [--incremental]
 5. VM-Disks zurueckspielen: `beaglectl vm restore --vmid <id> --manifest <path>`.
 6. Control-Plane neu starten.
 
+### Reproduzierbarer Cross-Host-Smoke (BEA-26)
+
+Fuer den R3-Nachweis "echte VM-Disk -> zweiter/frischer Host -> Hash + Restore":
+
+```
+bash scripts/test-vm-disk-backup-restore-cross-host-smoke.sh \
+  --src-host srv1.beagle-os.com \
+  --dst-host srv2.beagle-os.com \
+  --vmid 100
+```
+
+Der Smoke liefert:
+
+- VM-Disk-Hash auf Quellhost (`sha256sum` der echten libvirt-Disk),
+- Backup-Archiv (`/api/v1/backups/run` mit `scope_type=vm`) + `archive_sha256`,
+- Archiv-Hash-Vergleich Quelle -> Zielhost,
+- Restore (Archiv-Extraktion) auf Zielhost,
+- Hash-Vergleich Quell-Disk vs. restored Disk.
+
+Optional kann per `--boot-check-cmd '<cmd>'` ein Zielhost-Bootcheck angehaengt werden.
+
 ## 4. Single-File-Restore aus VM-Backup
 
 ```
@@ -58,7 +79,8 @@ beaglectl vm backup umount --mountpoint /mnt/restore
 - [ ] Login mit dem urspruenglichen Admin-Account funktioniert
 - [ ] Audit-Log enthaelt vollstaendige Historie der Quellinstallation
 - [ ] Restorede VM startet und ist erreichbar
-- [ ] Hash-Vergleich zwischen Quell- und Ziel-Disk OK (`sha256sum` auf Datei-Ebene oder via `beaglectl vm verify`)
+- [x] Hash-Vergleich zwischen Quell- und Ziel-Disk ist scriptbar (`scripts/test-vm-disk-backup-restore-cross-host-smoke.sh`).
+- [ ] Hash-Vergleich zwischen Quell- und Ziel-Disk live auf `srv1`/`srv2` bestaetigt.
 - [ ] Restore lehnt manipulierte Archive mit absoluten Pfaden, `..`-Pfaden oder unsicheren Symlinks ab.
 
 ## 6. Cross-Site Disaster Recovery

@@ -12,6 +12,7 @@ konsolidiert.
 - [ ] Frische Server-Installation aus aktuellem Release-Artefakt auf leerem Host beweisen.
   - Akzeptanz: Erst-Boot erreicht WebUI ohne manuelle Hotfixes.
   - Akzeptanz: `scripts/check-beagle-host.sh` ist direkt nach Clean-Install gruen.
+  - Nachweis standardisiert: `scripts/test-r1-clean-install-evidence.sh <host> [expected_version]` muss `PASS` liefern.
   - Quelle: `docs/checklists/05-release-operations.md`, R1.
 
 - [ ] WebUI-VM-Provisioning fuer neue VMs reproduzierbar abschliessen.
@@ -85,4 +86,3 @@ konsolidiert.
 - [ ] Predictive Scheduling auf Mehr-Node-Pool validieren.
 - [ ] Endpoint-Update-Architektur in Hardware-Test-Matrix validieren.
 - [ ] Optional: vGPU/MDEV-Produktpfad mit Lizenzmodell und Hardware-Kompatibilitaetsliste.
-

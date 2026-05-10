@@ -29,6 +29,7 @@ Ziel: ein einzelner frischer Host kann ohne Entwickler-Hotfix produktiv starten.
 - [ ] Clean-Install auf leerem Host fahren.
 - [ ] Erstes Onboarding und Login im Browser validieren.
 - [ ] `scripts/check-beagle-host.sh` nach Install gruen.
+  - Nachweis standardisiert mit `scripts/ops/collect-r1-clean-install-evidence.sh <host>` und Ablage unter `docs/runbooks/evidence/r1-clean-install/`.
 - [ ] Neue VM ueber WebUI erstellen und Firstboot/Reboot/Desktop abschliessen.
 - [ ] VM loeschen/neu erstellen, ohne stale State.
 

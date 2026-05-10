@@ -1,5 +1,51 @@
 # Next Steps
 
+## Stand (2026-05-10, BEA-26 VM-Disk Backup/Restore Cross-Host smoke vorbereitet)
+
+**Zuletzt erledigt**:
+- VM-Backup-Pfad erweitert: `backup_service.py` nimmt fuer `scope_type=vm` neben `/etc/beagle` auch echte VM-Disk-/Libvirt-Definitionen in den Backup-Manifestpfad auf (domblklist-basiert).
+- Reproduzierbarer End-to-end-Nachweis fuer D3/R3 angelegt: `scripts/test-vm-disk-backup-restore-cross-host-smoke.sh`.
+- Runbook `docs/runbooks/backup-restore.md` um den konkreten BEA-26 Smoke erweitert.
+
+**Naechste konkrete Schritte**:
+
+1. Auf `srv1`/`srv2` den Smoke live fahren:
+   - `bash scripts/test-vm-disk-backup-restore-cross-host-smoke.sh --src-host srv1.beagle-os.com --dst-host srv2.beagle-os.com --vmid 100`
+2. Fuer denselben Lauf optional `--boot-check-cmd` setzen und den Restore-Boot auf Zielhost dokumentieren.
+3. Nach PASS die offenen Haken in `docs/lasthope/01-enterprise-gap-list.md`, `docs/lasthope/02-execution-order.md`, `docs/checklists/01-platform.md`, `docs/checklists/05-release-operations.md` und `docs/lasthope/04-validation-matrix.md` auf gruen ziehen.
+
+---
+
+## Stand (2026-05-10, BEA-18 Security-Incident: SSH-Key-Rotation + Zugriffspfad haerten)
+
+**Zuletzt erledigt**:
+- Publish-/Deploy-Skripte nutzen jetzt erzwungenes SSH-Key-/Hostkey-Pinning fuer rsync (`RSYNC_RSH` mit `StrictHostKeyChecking=yes`, `UserKnownHostsFile`, `IdentitiesOnly=yes`, `BatchMode=yes`).
+- Reproduzierbarer Rotations-Helper fuer den Incident liegt im Repo: `scripts/ops/rotate-compromised-ssh-key.sh` (Blob-basierte Key-Entfernung + Login-Checks ohne Secret-Ablage).
+- Incident-Runbook um verbindlichen SEV-1-Slice fuer geleakte SSH-Keys erweitert.
+- Security-Finding S-049 (`Kritisch`, gepatcht) dokumentiert.
+
+**Naechste konkrete Schritte**:
+
+1. Auf `srv1` und `srv2` den kompromittierten Key aus allen `authorized_keys*` entfernen und neuen dedizierten Key mit minimalem Scope ausrollen.
+2. CI-Secrets (`BEAGLE_PUBLIC_DEPLOY_SSH_KEY`, `BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS`) ersetzen, alten Key beim Provider revoken und einen Release-/Website-Deploy erfolgreich mit neuem Key laufen lassen.
+3. Incident-Abschlussbeleg erzeugen: negativer Login mit altem Key, positiver Login mit neuem Key, Zeitstempel + Referenz im Incident-Log und `docs/refactor/11-security-findings.md`.
+
+---
+
+## Stand (2026-05-10, BEA-12 Callback-Idempotenz abgeschlossen)
+
+**Zuletzt erledigt**:
+- Provisioning-Callback-Retry-Pfad gehaertet: `complete` und `prepare-firstboot` sind bei bereits erreichten Zielzustaenden idempotent und fuehren keine erneuten Finalize-/Restart-Operationen mehr aus.
+- Regressionen fuer diese Retry-Pfade sind als Unit-Tests im Repo verankert.
+
+**Naechste konkrete Schritte**:
+
+1. Auf `srv1` einen echten Provisioning-Lauf mit absichtlich wiederholtem `complete`- und `prepare-firstboot`-Callback fahren und bestaetigen, dass der Lauf stabil in `completed/ready` endet.
+2. Direkt danach Delete/Recreate derselben VMID ausfuehren und pruefen, dass kein alter `installing`-/Firstboot-Zustand wieder auftaucht.
+3. Den Live-Nachweis in `docs/lasthope/01-enterprise-gap-list.md`, `docs/lasthope/02-execution-order.md` und `docs/refactor/05-progress.md` als D1/R1-Teilabnahme aktualisieren.
+
+---
+
 ## Stand (2026-05-08, Thinclient Reconnect Wait Target Fix)
 
 **Zuletzt erledigt**:
@@ -1616,3 +1662,10 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 1. Den neuen Lock-Skip-Pfad auf `srv1` live bestaetigen: ein zweiter `beagle-artifacts-refresh.service`-Start waehrend laufendem Build darf nicht mehr mit `failed`/`143` enden.
 2. Nach dem automatischen Repo-Update verifizieren, dass `/opt/beagle/dist/beagle-downloads-status.json` auf `8.0.9` springt und die VM-Update-Karte nicht mehr auf `8.0.8` stehenbleibt.
 3. Danach `vm100` mit `10 vCPU`, `56 GiB` RAM und `5 TB` Disk auf dem grossen `local`-Pool (`/var/lib/beagle/libvirt/images`) neu erstellen und den Firstboot-/Stream-Pfad abnehmen.
+
+## Naechster Schritt (2026-05-10, BEA-24 R1 Clean-Install Evidence)
+
+1. SSH-Zugang fuer `srv1.beagle-os.com` reparieren (Owner: Dennis/Operations), so dass `scripts/test-r1-clean-install-evidence.sh srv1.beagle-os.com $(cat VERSION)` `PASS` liefert.
+2. Ersten echten Clean-Install-Nachweis sammeln und Artefakte unter `docs/runbooks/evidence/r1-clean-install/` ablegen.
+3. Falls `srv2` wieder erreichbar ist, denselben Wrapper auf `srv2` wiederholen, um Reproduzierbarkeit auf zweitem Host zu belegen.
+4. Danach R1-Checkboxen in `docs/checklists/05-release-operations.md` und `docs/lasthope/02-execution-order.md` mit Datum/Nachweisstand aktualisieren.

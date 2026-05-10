@@ -25,8 +25,17 @@ Beagle-OS-Installation.
 1. **Containment**: betroffene Hosts vom Netz nehmen (oder API-Zugriff sperren via nftables).
 2. **Forensik**: vollstaendigen Audit-Log-Export + State-Snapshot sichern, **bevor** etwas geaendert wird.
 3. **Eradication**: kompromittierte Credentials rotieren (`beaglectl secret rotate --all`).
-4. **Recovery**: nach [`backup-restore.md`](backup-restore.md) auf sauberen Stand zuruecksetzen.
-5. **Post-Mortem**: dokumentieren in `docs/refactor/11-security-findings.md` mit Status `INCIDENT`.
+4. **SSH-Key-Incident (Pflicht bei geleaktem SSH-Key)**:
+   - betroffenen Public Key sofort aus allen `authorized_keys`/`authorized_keys.d`-Dateien auf `srv1` und `srv2` entfernen.
+   - neuen dedizierten Incident-Key erzeugen und nur mit minimalem Scope ausrollen (kein Shared-Key zwischen Operatoren).
+   - betroffene `known_hosts`-Eintraege auf Operator-Seite aktualisieren und Host-Key-Pinning aktiv validieren.
+   - CI/Deploy-Secrets ersetzen (`BEAGLE_PUBLIC_DEPLOY_SSH_KEY`, `BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS`) und alte Keys im Provider revoken.
+   - reproduzierbarer Remote-Rotationslauf (ohne Secret-Commit): `scripts/ops/rotate-compromised-ssh-key.sh --host <host> --remote-user <user> --auth-priv <aktuell-gueltiger-admin.key> --old-pub <old.pub> --new-pub <new.pub> --new-priv <new.key> [--old-priv <old.key>] [--evidence-out /tmp/bea18-rotation-<host>.json]`.
+   - beide produktiven Hosts in einem Lauf rotieren: `scripts/ops/run-bea18-rotation.sh --remote-user <user> --auth-priv <aktuell-gueltiger-admin.key> --old-pub <old.pub> --new-pub <new.pub> --new-priv <new.key> [--old-priv <old.key>] [--out-dir <lokaler-nicht-versionierter-pfad>]`.
+   - Evidence lokal verifizieren: `scripts/ops/verify-bea18-evidence.sh --srv1 <srv1-evidence.json> --srv2 <srv2-evidence.json> --summary <summary.json>`.
+   - Abschlussbeleg: negativer Login-Test mit altem Key, positiver Login-Test mit neuem Key, Audit-Eintrag mit Zeitstempel.
+5. **Recovery**: nach [`backup-restore.md`](backup-restore.md) auf sauberen Stand zuruecksetzen.
+6. **Post-Mortem**: dokumentieren in `docs/refactor/11-security-findings.md` mit Status `INCIDENT`.
 
 ## 4. SEV-1 Komplettausfall — Vorgehen
 

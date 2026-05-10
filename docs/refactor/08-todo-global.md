@@ -7,6 +7,7 @@
 - [x] Release-Versionierungslogik weiter haerten: zentralen Release-Metadaten-Sync (`VERSION`, Extension, Kiosk, WebUI-Cache-Buster) einfuehren und `release.yml` so fixen, dass Versionsspruenge wirklich nach `main` committed werden statt nur im Workflow-Workspace.
 - [x] Plasma-Cyberpunk-Wallpaper im Ubuntu-Firstboot robust machen: Asset via cloud-init `write_files` nach `/var/lib/beagle/seed/` schreiben und den Firstboot nicht mehr von zufaellig exponierten `/var/lib/cloud/*`-Seed-Dateien abhaengig machen.
 - [x] Stale VM-Runtime-Artefakte bei Delete/Recreate derselben VMID bereinigen, damit `vm100`-artige Recreates keine alten Endpoint-/Update-/Provisioning-Zustaende mitziehen.
+- [x] Provisioning-Callback-Idempotenz fuer `complete` und `prepare-firstboot` haerten, damit Retry-Callbacks keine erneuten Finalize-/Restart-Loops ausloesen (2026-05-10, BEA-12).
 
 - [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen. Live-USB-Reboot-Hotfix fuer Broker-Host-Fallback vor dem finalen Abnahmelauf mitziehen.
 
@@ -497,3 +498,5 @@
 - [x] Artifact-Refresh-Doppellaeufe haerten: parallele `prepare-host-downloads`-/Timer-Starts behandeln einen belegten Lock jetzt als benignen Skip statt als roten Fehler.
 - [x] Nach dem naechsten Main-Push bestaetigen, dass GitHub einen neuen Patch-Tag oberhalb `v8.0.0` erzeugt und beagle-os.com diese Version live anzeigt — GitHub `Latest` = `v8.0.9`, `beagle-os.com/beagle-updates/beagle-downloads-status.json` meldet `version=8.0.9` (2026-05-02).
 - [ ] Live-validieren, dass frisch provisionierte Ubuntu-Beagle-VMs standardmäßig mit `Beagle OS Cyberpunk` (KDE Plasma) hochkommen und dass `KDE Plasma Classic` über die WebUI/API reproduzierbar auswählbar bleibt.
+- [ ] BEA-18 Security-Incident operativ abschliessen: kompromittierten SSH-Key auf `srv1`/`srv2` entziehen, neuen dedizierten Key ausrollen, CI-Secrets (`BEAGLE_PUBLIC_DEPLOY_SSH_KEY`, `BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS`) rotieren und negativer/positiver Login-Test als Abschlussbeleg dokumentieren.
+- [ ] BEA-24 R1 Clean-Install live schliessen: nach frischem Release-Install den standardisierten Nachweis mit `scripts/test-r1-clean-install-evidence.sh <host> [expected_version]` auf PASS bringen und Evidence in `docs/runbooks/evidence/r1-clean-install/` ablegen.

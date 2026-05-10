@@ -83,6 +83,85 @@ class BackupServiceTests(unittest.TestCase):
             self.assertTrue(str(result["job"].get("archive", "")).endswith("ok.tar.gz"))
             self.assertRegex(str(result["job"].get("archive_sha256", "")), r"^[0-9a-f]{64}$")
 
+    def test_build_backup_manifest_includes_vm_disk_and_xml(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = BackupService(
+                state_file=Path(tmp) / "backup-state.json",
+                utcnow=lambda: "2026-05-10T12:00:00Z",
+            )
+            fake_cfg_dir = Path(tmp) / "etc-beagle"
+            fake_cfg_dir.mkdir()
+            fake_xml = Path(tmp) / "beagle-101.xml"
+            fake_xml.write_text("<domain/>", encoding="utf-8")
+            fake_disk = Path(tmp) / "beagle-101.qcow2"
+            fake_disk.write_bytes(b"\0" * 1024)
+            fake_cfg = fake_cfg_dir / "beagle-config.json"
+            fake_cfg.write_text("{}", encoding="utf-8")
+
+            import unittest.mock as mock
+
+            def _fake_run(command, **kwargs):
+                if command[:1] == ["virsh"]:
+                    class _R:
+                        returncode = 0
+                        stdout = (
+                            "Type       Device     Target     Source\n"
+                            "------------------------------------------------\n"
+                            f"file       disk       vda        {fake_disk}\n"
+                        )
+                        stderr = ""
+                    return _R()
+                if command[:2] == ["find", str(fake_cfg_dir)]:
+                    class _R:
+                        stdout = (str(fake_cfg) + "\0").encode("utf-8")
+                        returncode = 0
+                        stderr = b""
+                    return _R()
+                raise AssertionError(f"unexpected command: {command!r}")
+
+            with mock.patch.object(
+                service,
+                "_collect_backup_roots",
+                return_value=[str(fake_cfg_dir), str(fake_xml), str(fake_disk)],
+            ), \
+                    mock.patch("backup_service.subprocess.run", side_effect=_fake_run):
+                manifest = service._build_backup_manifest(scope_type="vm", scope_id="101")
+
+            decoded = manifest.decode("utf-8", errors="replace")
+            self.assertIn(str(fake_cfg), decoded)
+            self.assertIn(str(fake_xml), decoded)
+            self.assertIn(str(fake_disk), decoded)
+
+    def test_collect_vm_disk_sources_from_virsh_domblklist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = BackupService(
+                state_file=Path(tmp) / "backup-state.json",
+                utcnow=lambda: "2026-05-10T12:00:00Z",
+            )
+            disk_a = str(Path(tmp) / "disk-a.qcow2")
+            disk_b = str(Path(tmp) / "disk-b.qcow2")
+
+            import unittest.mock as mock
+
+            mock_completed = mock.Mock()
+            mock_completed.returncode = 0
+            mock_completed.stdout = (
+                "Type       Device     Target     Source\n"
+                "------------------------------------------------\n"
+                f"file       disk       vda        {disk_a}\n"
+                "file       cdrom      hdc        /tmp/installer.iso\n"
+                f"file       disk       vdb        {disk_b}\n"
+            )
+            mock_completed.stderr = ""
+
+            with mock.patch("backup_service.subprocess.run", return_value=mock_completed), \
+                    mock.patch("backup_service.Path.exists", return_value=False):
+                paths = service._collect_vm_disk_sources("101")
+
+            self.assertIn(disk_a, paths)
+            self.assertIn(disk_b, paths)
+            self.assertFalse(any(path.endswith(".iso") for path in paths))
+
     def test_scheduler_triggers_enabled_due_policy(self):
         with tempfile.TemporaryDirectory() as tmp:
             service = BackupService(

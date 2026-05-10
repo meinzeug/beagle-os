@@ -42,6 +42,7 @@ class RuntimeCleanupTests(unittest.TestCase):
                 path.write_text("{}", encoding="utf-8")
 
             (tokens_dir / "old-100.json").write_text(json.dumps({"vmid": 100}), encoding="utf-8")
+            (tokens_dir / "old-100.json.lock").write_text("", encoding="utf-8")
             (tokens_dir / "old-101.json").write_text(json.dumps({"vmid": 101}), encoding="utf-8")
 
             removed = cleanup_vm_runtime_artifacts(
@@ -59,6 +60,7 @@ class RuntimeCleanupTests(unittest.TestCase):
             for path in targets:
                 self.assertFalse(path.exists(), path)
             self.assertFalse((tokens_dir / "old-100.json").exists())
+            self.assertFalse((tokens_dir / "old-100.json.lock").exists())
             self.assertTrue((tokens_dir / "old-101.json").exists())
 
 

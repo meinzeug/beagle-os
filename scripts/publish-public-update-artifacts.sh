@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
 REMOTE_TARGET="${BEAGLE_PUBLIC_UPDATE_TARGET:-}"
 PUBLIC_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
+SSH_KEY_FILE="${BEAGLE_SSH_KEY_FILE:-$HOME/.ssh/id_ed25519}"
+SSH_KNOWN_HOSTS_FILE="${BEAGLE_SSH_KNOWN_HOSTS_FILE:-$HOME/.ssh/known_hosts}"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 STATUS_JSON="$DIST_DIR/beagle-downloads-status.json"
 SERVER_INSTALLIMAGE_FILENAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
@@ -186,6 +188,15 @@ require_file "$DIST_DIR/kiosk-release-hash.txt"
   echo "Set BEAGLE_PUBLIC_UPDATE_TARGET to an SSH rsync target." >&2
   exit 1
 }
+[[ -r "$SSH_KEY_FILE" ]] || {
+  echo "SSH key not readable: $SSH_KEY_FILE" >&2
+  exit 1
+}
+[[ -r "$SSH_KNOWN_HOSTS_FILE" ]] || {
+  echo "SSH known_hosts not readable: $SSH_KNOWN_HOSTS_FILE" >&2
+  exit 1
+}
+export RSYNC_RSH="ssh -i $SSH_KEY_FILE -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$SSH_KNOWN_HOSTS_FILE -o BatchMode=yes"
 write_public_status_json
 prepare_publish_stage
 

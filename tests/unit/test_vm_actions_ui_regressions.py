@@ -88,3 +88,16 @@ def test_vm_detail_surfaces_stream_runtime_variant_and_fallback_state() -> None:
     assert "fieldBlock('Stream-Runtime', streamRuntimeVariantLabel(profile))" in main
     assert "fieldBlock('Stream-Paket', profile.stream_runtime && profile.stream_runtime.package_url ? profile.stream_runtime.package_url : 'n/a')" in main
     assert "Diese VM laeuft noch im Beagle Stream Server-Fallback." in main
+
+
+def test_vm_detail_surfaces_stream_control_panel_from_backend_config_endpoint() -> None:
+    main = _read(MAIN_JS)
+
+    assert "function buildStreamConfigPanelHtml(payload, errorMessage)" in main
+    assert "fieldBlock('Netzwerkmodus', policy.network_mode || 'n/a')" in main
+    assert "fieldBlock('WireGuard aktiv', boolLabel(Boolean(config.wireguard_active)))" in main
+    assert "fieldBlock('Verbindung erlaubt', boolLabel(Boolean(config.connection_allowed)))" in main
+    assert "fieldBlock('Letztes Event', lastEvent.event_type || 'n/a')" in main
+    assert "request('/streams/' + numericVmid + '/config')" in main
+    assert "buildStreamConfigPanelHtml(data, '')" in main
+    assert "buildStreamConfigPanelHtml(null, err && err.message ? err.message : 'unbekannt')" in main
