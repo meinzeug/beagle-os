@@ -60,7 +60,11 @@ cleanup_mounts() {
   local idx
   for (( idx=${#CHROOT_MOUNTS[@]}-1; idx>=0; idx-- )); do
     if mountpoint -q "${CHROOT_MOUNTS[$idx]}"; then
-      umount "${CHROOT_MOUNTS[$idx]}" || true
+      umount "${CHROOT_MOUNTS[$idx]}" || umount -l "${CHROOT_MOUNTS[$idx]}" || true
+      if mountpoint -q "${CHROOT_MOUNTS[$idx]}"; then
+        echo "Failed to unmount ${CHROOT_MOUNTS[$idx]}" >&2
+        return 1
+      fi
     fi
   done
   CHROOT_MOUNTS=()
@@ -249,15 +253,24 @@ sanitize_rootfs() {
 
 create_tarball() {
   mkdir -p "$DIST_DIR"
+  if mountpoint -q "$ROOTFS_DIR/sys" || mountpoint -q "$ROOTFS_DIR/proc" || mountpoint -q "$ROOTFS_DIR/dev" || mountpoint -q "$ROOTFS_DIR/run"; then
+    echo "Refusing to package installimage while pseudo-filesystems are still mounted" >&2
+    return 1
+  fi
   (
     cd "$ROOTFS_DIR"
     tar \
       --xattrs \
       --acls \
       --numeric-owner \
+      --warning=no-file-changed \
+      --exclude='./dev' \
       --exclude='./dev/*' \
+      --exclude='./proc' \
       --exclude='./proc/*' \
+      --exclude='./sys' \
       --exclude='./sys/*' \
+      --exclude='./run' \
       --exclude='./run/*' \
       --exclude='./tmp/*' \
       --exclude='./var/tmp/*' \
