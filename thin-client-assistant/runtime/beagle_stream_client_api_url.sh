@@ -77,7 +77,11 @@ beagle_stream_server_api_url() {
   configured="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL:-}" 2>/dev/null || true)"
   if [[ -n "$configured" ]]; then
     port="$(beagle_stream_client_port 2>/dev/null || true)"
-    connect_host="$(beagle_stream_client_connect_host 2>/dev/null || true)"
+    # Avoid recursion: beagle_stream_client_connect_host() calls this function.
+    connect_host="$(render_template "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST:-}" 2>/dev/null || true)"
+    if [[ -z "$connect_host" ]]; then
+      connect_host="$(beagle_stream_client_host 2>/dev/null || true)"
+    fi
     normalized="$(normalize_api_url_for_stream_port "$configured" "$port" "$connect_host" 2>/dev/null || printf '%s\n' "$configured")"
     printf '%s\n' "$normalized"
     return 0

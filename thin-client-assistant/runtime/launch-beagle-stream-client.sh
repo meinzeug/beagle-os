@@ -121,6 +121,37 @@ ensure_wg_interface() {
   sudo systemctl start "wg-quick@${iface}.service" >/dev/null 2>&1 || \
     sudo wg-quick up "$iface" >/dev/null 2>&1 || true
 
+  # Fallback for minimal live images where wg-quick fails due missing resolvconf.
+  if ! ip link show "$iface" &>/dev/null; then
+    local tmp_conf addr mtu
+    tmp_conf="$(mktemp)"
+    if sudo awk '
+      BEGIN{in_iface=0;in_peer=0}
+      /^\[Interface\]/{in_iface=1;in_peer=0;print;next}
+      /^\[Peer\]/{in_peer=1;in_iface=0;print;next}
+      /^\[/{in_iface=0;in_peer=0;print;next}
+      {
+        if (in_iface==1) {
+          if ($0 ~ /^[[:space:]]*(Address|DNS|MTU|Table|PreUp|PostUp|PreDown|PostDown|SaveConfig)[[:space:]]*=/) next
+          print; next
+        }
+        print
+      }
+    ' "$wg_conf" >"$tmp_conf" 2>/dev/null; then
+      sudo ip link delete "$iface" >/dev/null 2>&1 || true
+      if sudo ip link add "$iface" type wireguard >/dev/null 2>&1 && \
+         sudo wg setconf "$iface" "$tmp_conf" >/dev/null 2>&1; then
+        addr="$(sudo awk -F= '/^[[:space:]]*Address[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); split($2, a, ","); print a[1]; exit}' "$wg_conf" 2>/dev/null || true)"
+        mtu="$(sudo awk -F= '/^[[:space:]]*MTU[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); print $2; exit}' "$wg_conf" 2>/dev/null || true)"
+        [[ -n "$addr" ]] && sudo ip address add "$addr" dev "$iface" >/dev/null 2>&1 || true
+        [[ -n "$mtu" ]] || mtu="1420"
+        sudo ip link set mtu "$mtu" up dev "$iface" >/dev/null 2>&1 || true
+        beagle_log_event "beagle-stream-client.wg-interface-fallback" "iface=${iface} mtu=${mtu}"
+      fi
+    fi
+    rm -f "$tmp_conf" >/dev/null 2>&1 || true
+  fi
+
   if ! ip link show "$iface" &>/dev/null; then
     beagle_log_event "beagle-stream-client.wg-interface-missing" "iface=${iface}"
   fi
@@ -230,16 +261,22 @@ main() {
   fi
 
   if [[ "$hostless_beagle_stream" != "1" ]]; then
-    session_response_file="$(mktemp)"
-    if fetch_beagle_stream_client_current_session_via_manager "$session_response_file"; then
-      if retarget_beagle_stream_client_host_from_session_broker_response "$session_response_file"; then
-        host="$(beagle_stream_client_host)"
-        connect_host="$(beagle_stream_client_connect_host)"
-        port="$(beagle_stream_client_port)"
-        beagle_log_event "beagle-stream-client.session-broker" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} current_node=${PVE_THIN_CLIENT_SESSION_CURRENT_NODE:-unknown}"
+    # In direct mode the endpoint is operator-controlled and must not be overwritten
+    # by manager session broker responses that may prefer public routing.
+    if beagle_stream_broker_connection; then
+      session_response_file="$(mktemp)"
+      if fetch_beagle_stream_client_current_session_via_manager "$session_response_file"; then
+        if retarget_beagle_stream_client_host_from_session_broker_response "$session_response_file"; then
+          host="$(beagle_stream_client_host)"
+          connect_host="$(beagle_stream_client_connect_host)"
+          port="$(beagle_stream_client_port)"
+          beagle_log_event "beagle-stream-client.session-broker" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} current_node=${PVE_THIN_CLIENT_SESSION_CURRENT_NODE:-unknown}"
+        fi
       fi
+      rm -f "$session_response_file"
+    else
+      beagle_log_event "beagle-stream-client.session-broker" "mode=direct-skip host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
     fi
-    rm -f "$session_response_file"
   elif beagle_stream_broker_connection; then
     session_response_file="$(mktemp)"
     if fetch_beagle_stream_client_current_session_via_manager "$session_response_file"; then
