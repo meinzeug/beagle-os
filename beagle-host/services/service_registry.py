@@ -2516,7 +2516,7 @@ def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: d
 
 
 def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], pairing_token: str) -> dict[str, Any]:
-    payload = pairing_service().consume_token(pairing_token)
+    payload = pairing_service().validate_token(pairing_token)
     if not isinstance(payload, dict):
         return {"ok": False, "error": "invalid or expired pairing token"}
 
@@ -2533,27 +2533,59 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
         return {"ok": False, "error": "pairing token missing token"}
     device_name = str(payload.get("device_name", "") or "").strip() or f"beagle-vm{vm.vmid}-client"
 
-    status, _, body = proxy_beagle_stream_server_request(
-        vm,
-        request_path="/api/pair-token",
-        query="",
-        method="POST",
-        body=json.dumps(
-            {"token": submitted_token, "access_token": submitted_token, "name": device_name},
-            separators=(",", ":"),
-            ensure_ascii=True,
-        ).encode("utf-8"),
-        request_headers={"Content-Type": "application/json", "Accept": "application/json"},
-    )
-    if int(status) >= 400:
-        return {"ok": False, "error": f"beagle-stream-server token exchange failed with HTTP {int(status)}"}
+    attempts = max(1, int(os.environ.get("BEAGLE_PAIR_EXCHANGE_ATTEMPTS", "8") or 8))
+    retry_delay_seconds = max(0.1, float(os.environ.get("BEAGLE_PAIR_EXCHANGE_RETRY_DELAY_SECONDS", "0.6") or 0.6))
+    last_error = "beagle-stream-server token exchange failed"
+    exchange_ok = False
 
-    try:
-        response_payload = json.loads((body or b"{}").decode("utf-8", errors="replace"))
-    except json.JSONDecodeError:
-        response_payload = {}
-    if not bool((response_payload or {}).get("status")):
-        return {"ok": False, "error": "beagle-stream-server token exchange rejected"}
+    for attempt in range(1, attempts + 1):
+        try:
+            status, _, body = proxy_beagle_stream_server_request(
+                vm,
+                request_path="/api/pair-token",
+                query="",
+                method="POST",
+                body=json.dumps(
+                    {"token": submitted_token, "access_token": submitted_token, "name": device_name},
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                ).encode("utf-8"),
+                request_headers={"Content-Type": "application/json", "Accept": "application/json"},
+            )
+        except Exception as exc:
+            last_error = str(exc) or "beagle-stream-server token exchange failed"
+            if attempt < attempts:
+                time.sleep(retry_delay_seconds)
+                continue
+            return {"ok": False, "error": f"beagle-stream-server token exchange failed: {last_error}"}
+
+        if int(status) >= 400:
+            last_error = f"beagle-stream-server token exchange failed with HTTP {int(status)}"
+            if attempt < attempts:
+                time.sleep(retry_delay_seconds)
+                continue
+            return {"ok": False, "error": last_error}
+
+        try:
+            response_payload = json.loads((body or b"{}").decode("utf-8", errors="replace"))
+        except json.JSONDecodeError:
+            response_payload = {}
+        if bool((response_payload or {}).get("status")):
+            exchange_ok = True
+            break
+
+        last_error = "beagle-stream-server token exchange rejected"
+        if attempt < attempts:
+            time.sleep(retry_delay_seconds)
+            continue
+
+    if not exchange_ok:
+        return {"ok": False, "error": last_error}
+
+    # Consume only after successful downstream pairing to avoid burning tokens
+    # on transient transport/readiness failures.
+    if not isinstance(pairing_service().consume_token(submitted_token), dict):
+        return {"ok": False, "error": "invalid or expired pairing token"}
     return {"ok": True}
 
 

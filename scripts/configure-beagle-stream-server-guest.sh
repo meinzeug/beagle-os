@@ -1204,6 +1204,24 @@ for _ in {1..60}; do
   sleep 1
 done
 configure_stream_port_guard
+
+# Activate WireGuard interface for VPN access from thinclient
+activate_wireguard_stream_endpoint() {
+  local wg_conf="/etc/wireguard/wg-beagle.conf"
+  local wg_iface="wg-beagle"
+  if [[ -f "$wg_conf" ]]; then
+    echo "[beagle-stream-server] Activating WireGuard interface $wg_iface for stream endpoint..." >&2
+    systemctl enable "wg-quick@${wg_iface}.service" >/dev/null 2>&1 || true
+    systemctl start "wg-quick@${wg_iface}.service" >/dev/null 2>&1 || wg-quick up "$wg_iface" >/dev/null 2>&1 || true
+    if ip link show "$wg_iface" >/dev/null 2>&1; then
+      echo "[beagle-stream-server] WireGuard interface $wg_iface is active" >&2
+    else
+      echo "[beagle-stream-server] WARNING: WireGuard interface $wg_iface could not be activated" >&2
+    fi
+  fi
+}
+activate_wireguard_stream_endpoint
+
 systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true
 systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
 /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1 || true
