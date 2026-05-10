@@ -1318,3 +1318,20 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - Am Anfang von `reconcile-public-streams.sh` wird geprüft, ob der `ip nat PREROUTING`-Chain DNAT-Regeln enthält — falls ja, wird er vollständig geleert (`iptables -t nat -F PREROUTING`).
   - Die `inet beagle_stream` nftables-Tabelle ist einzige Autorität für Public-Stream-DNAT.
   - Live auf srv1 bereinigt; Commit `1c29856`.
+
+## S-039 — Provisioning-Token im authentifizierten VM-List-API-Response exponiert (PATCHED)
+
+- Status: **gepatcht** (2026-05-10)
+- Risiko: **Mittel** (authenticated callers only, aber principle of least privilege verletzt)
+- Betroffene Datei: `beagle-host/services/fleet_inventory.py`
+- Beschreibung:
+  - `GET /api/v1/vms/` gab das rohe Provisioning-State-Dict zurück, inklusive `token`-Feld.
+  - Provisioning-Tokens sind Einmal-Secrets für den VM-Installationsrückruf (firstboot-Callback).
+  - Sie wurden von jedem authentifizierten Caller mit `vm:read`-Berechtigung abgerufen.
+  - `public_http_surface.py` (unauthentifizierter Pfad) hatte bereits `provisioning.pop("token", None)`, aber `fleet_inventory.py` (authentifizierter Pfad) nicht.
+- Fix:
+  - `fleet_inventory.py`: Token-Key wird beim Serialisieren des Provisioning-Dicts per Dict-Comprehension ausgeschlossen.
+  - Konsistent mit bestehender Redaktion in `public_http_surface.py`.
+- Verifikation:
+  - `curl /api/v1/vms/` → `"token" in provisioning` = False ✓
+  - Commit `6d57d8d`, live auf srv1 deployed.
