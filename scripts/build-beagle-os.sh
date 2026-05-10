@@ -12,7 +12,7 @@ PROFILE_DIR="${BEAGLE_OS_PROFILE_DIR:-$ROOT_DIR/beagle-os}"
 PACKAGE_LIST_FILE="$PROFILE_DIR/packages/base.list"
 OVERLAY_DIR="$PROFILE_DIR/overlay"
 
-DEBIAN_RELEASE="${BEAGLE_OS_RELEASE:-bookworm}"
+DEBIAN_RELEASE="${BEAGLE_OS_RELEASE:-trixie}"
 DEBIAN_ARCH="${BEAGLE_OS_ARCH:-amd64}"
 DEBIAN_MIRROR="${BEAGLE_OS_MIRROR:-https://deb.debian.org/debian}"
 HOSTNAME_VALUE="${BEAGLE_OS_HOSTNAME:-beagle-os}"
@@ -51,7 +51,7 @@ Usage:
   ./scripts/build-beagle-os.sh [options]
 
 Options:
-  --release <name>            Debian release (default: bookworm)
+  --release <name>            Debian release (default: trixie)
   --arch <arch>               Architecture (default: amd64)
   --mirror <url>              Debian mirror URL
   --kernel-version <ver>      Linux kernel version (default: 6.12.22)

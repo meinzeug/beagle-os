@@ -7,7 +7,7 @@ This document describes how to deploy Beagle OS Server on Hetzner dedicated serv
 ## Artifacts
 
 **Version**: 6.6.9  
-**Tarball**: `Debian-1201-bookworm-amd64-beagle-server.tar.gz`  
+**Tarball**: `Debian-1301-trixie-amd64-beagle-server.tar.gz`  
 **SHA256**: `3d0a0623585265e9d690f9bcf7d9a1c7baa0aa0f85cbfa0544ef967f2fb7c34d`  
 **Size**: 512 MB  
 **Source**: `/home/dennis/beagle-os/dist/` (local repo)  
@@ -58,7 +58,7 @@ Execute in Rescue environment:
 export ARCH=amd64
 export HOSTNAME=beagle-server
 export FORCE_GRUB_INSTALL=1
-export IMAGE_PATH=https://beagle-os.com/beagle-updates/Debian-1201-bookworm-amd64-beagle-server.tar.gz
+export IMAGE_PATH=https://beagle-os.com/beagle-updates/Debian-1301-trixie-amd64-beagle-server.tar.gz
 
 curl -fsSL https://stable.example.com/custom/installimage | bash
 ```
@@ -69,7 +69,7 @@ Or alternatively:
 wget https://stable.example.com/custom/installimage -O /tmp/installimage
 chmod +x /tmp/installimage
 
-IMAGE_PATH=https://beagle-os.com/beagle-updates/Debian-1201-bookworm-amd64-beagle-server.tar.gz \
+IMAGE_PATH=https://beagle-os.com/beagle-updates/Debian-1301-trixie-amd64-beagle-server.tar.gz \
 HOSTNAME=beagle-server \
 ARCH=amd64 \
 /tmp/installimage

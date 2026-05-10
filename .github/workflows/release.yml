@@ -113,7 +113,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist/installimage
-          TARBALL_NAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
+          TARBALL_NAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1301-trixie-amd64-beagle-server.tar.gz}"
           gh release download "v${{ steps.version.outputs.version }}" \
             --pattern "$TARBALL_NAME" \
             --dir dist/installimage

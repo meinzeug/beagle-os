@@ -9,7 +9,7 @@ SSH_KEY_FILE="${BEAGLE_SSH_KEY_FILE:-$HOME/.ssh/id_ed25519}"
 SSH_KNOWN_HOSTS_FILE="${BEAGLE_SSH_KNOWN_HOSTS_FILE:-$HOME/.ssh/known_hosts}"
 VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 STATUS_JSON="$DIST_DIR/beagle-downloads-status.json"
-SERVER_INSTALLIMAGE_FILENAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
+SERVER_INSTALLIMAGE_FILENAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1301-trixie-amd64-beagle-server.tar.gz}"
 PUBLISH_STAGE_DIR="${PUBLISH_STAGE_DIR:-$DIST_DIR/public-update-stage}"
 
 require_file() {

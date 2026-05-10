@@ -28,7 +28,7 @@ lb config noauto \
   --mode debian \
   --architectures "$SERVER_INSTALLER_ARCH" \
   --initsystem systemd \
-  --distribution bookworm \
+  --distribution trixie \
   --binary-images iso \
   --debian-installer false \
   --apt-recommends false \

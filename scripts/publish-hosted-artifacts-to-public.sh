@@ -7,7 +7,7 @@ REMOTE_SSH_TARGET="${BEAGLE_PUBLIC_SSH_TARGET:-}"
 REMOTE_DIR="${BEAGLE_PUBLIC_UPDATE_DIR:-/var/www/vhosts/beagle-os.com/httpdocs/beagle-updates}"
 HOSTED_BASE_URL="${BEAGLE_HOSTED_DOWNLOADS_BASE_URL:-}"
 PUBLIC_BASE_URL="${BEAGLE_PUBLIC_UPDATE_BASE_URL:-https://beagle-os.com/beagle-updates}"
-SERVER_INSTALLIMAGE_FILENAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1201-bookworm-amd64-beagle-server.tar.gz}"
+SERVER_INSTALLIMAGE_FILENAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1301-trixie-amd64-beagle-server.tar.gz}"
 
 [[ -n "$REMOTE_SSH_TARGET" ]] || {
   echo "Set BEAGLE_PUBLIC_SSH_TARGET to the public artifact host." >&2
