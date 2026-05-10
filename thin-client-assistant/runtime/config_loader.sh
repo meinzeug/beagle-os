@@ -60,6 +60,8 @@ load_runtime_config() {
   source_runtime_env_file "$CONFIG_FILE" "config"
   source_runtime_env_file "$NETWORK_ENV_FILE" "network" || true
   source_runtime_env_file "$CREDENTIALS_FILE" "credentials" || true
+  # Load runtime overrides for beagle-stream-client (e.g., direct host/port configuration)
+  source_runtime_env_file "/etc/beagle/beagle-stream-client.env" "beagle-stream-client-override" || true
 
   apply_runtime_mode_overrides
 }
