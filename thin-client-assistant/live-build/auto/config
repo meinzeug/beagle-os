@@ -28,7 +28,7 @@ lb config noauto \
   --mode debian \
   --architectures "$THINCLIENT_ARCH" \
   --initsystem systemd \
-  --distribution bookworm \
+  --distribution trixie \
   --binary-images iso-hybrid \
   --debian-installer none \
   --apt-recommends false \
