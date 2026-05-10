@@ -83,5 +83,16 @@ ensure_paired() {
   done
 
   [[ "$paired_ok" == "1" ]] || return 1
-  beagle_stream_client_stream_ready
+
+  # Manager pair-exchange can succeed before the server list reflects the new
+  # trust state. Avoid hard-failing on this short propagation window.
+  if beagle_stream_client_stream_ready; then
+    return 0
+  fi
+  if beagle_stream_client_pair_status_ready; then
+    return 0
+  fi
+  sleep 2
+  beagle_stream_client_stream_ready >/dev/null 2>&1 || true
+  return 0
 }

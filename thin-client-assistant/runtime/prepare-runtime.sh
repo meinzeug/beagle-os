@@ -92,6 +92,27 @@ ensure_wireguard_runtime_capabilities() {
   fi
 }
 
+ensure_wireguard_runtime_guard() {
+  local guard_script guard_log guard_unit systemctl_bin
+  guard_script="${BEAGLE_WG_RUNTIME_GUARD_SH:-$SCRIPT_DIR/wireguard_runtime_guard.sh}"
+  guard_log="${BEAGLE_WG_RUNTIME_GUARD_LOG:-/var/log/beagle-wg-runtime-guard.log}"
+  guard_unit="${BEAGLE_WG_RUNTIME_GUARD_UNIT:-beagle-wg-runtime-guard.service}"
+  systemctl_bin="${BEAGLE_SYSTEMCTL_BIN:-systemctl}"
+
+  [[ -r "$guard_script" ]] || return 0
+
+  if command -v "$systemctl_bin" >/dev/null 2>&1 && "$systemctl_bin" list-unit-files "$guard_unit" >/dev/null 2>&1; then
+    "$systemctl_bin" enable "$guard_unit" >/dev/null 2>&1 || true
+    "$systemctl_bin" restart --no-block "$guard_unit" >/dev/null 2>&1 || true
+    beagle_log_event "prepare-runtime.wg-guard" "status=service script=${guard_script} unit=${guard_unit}"
+    return 0
+  fi
+
+  nohup bash "$guard_script" >>"$guard_log" 2>&1 &
+  disown || true
+  beagle_log_event "prepare-runtime.wg-guard" "status=fallback script=${guard_script}"
+}
+
 wireguard_peer_restore_state_file() {
   printf '%s\n' "${BEAGLE_WG_PEER_RESTORE_STATE_FILE:-/run/beagle/wg-beagle-peer.env}"
 }
@@ -186,6 +207,7 @@ plymouth_status "Connecting device to Beagle Manager..."
 enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"
 enroll_wireguard_if_needed || beagle_log_event "prepare-runtime.wireguard-error" "wireguard enrollment failed"
 write_wireguard_peer_restore_state || beagle_log_event "prepare-runtime.wg-peer-restore-state-error" "write failed"
+ensure_wireguard_runtime_guard || beagle_log_event "prepare-runtime.wg-guard-error" "wireguard guard start failed"
 adjust_secret_permissions
 if [[ "$prepare_runtime_reentry" -eq 0 ]]; then
   ensure_runtime_ssh_host_keys

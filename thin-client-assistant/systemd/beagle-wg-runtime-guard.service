@@ -1,0 +1,13 @@
+[Unit]
+Description=Beagle Thin Client WireGuard Runtime Guard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /usr/local/lib/pve-thin-client/runtime/wireguard_runtime_guard.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

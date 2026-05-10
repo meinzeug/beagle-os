@@ -11,11 +11,13 @@ PREPARE_RUNTIME = ROOT / "thin-client-assistant" / "runtime" / "prepare-runtime.
 RUNTIME_DEBUG_REPORT = ROOT / "thin-client-assistant" / "runtime" / "runtime_debug_report.sh"
 SYSTEMD_BOOTSTRAP = ROOT / "thin-client-assistant" / "runtime" / "runtime_systemd_bootstrap.sh"
 WIREGUARD_ENROLLMENT = ROOT / "thin-client-assistant" / "runtime" / "enrollment_wireguard.sh"
+WIREGUARD_RUNTIME_GUARD = ROOT / "thin-client-assistant" / "runtime" / "wireguard_runtime_guard.sh"
 BEAGLE_STREAM_CLIENT_RUNTIME_EXEC = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_runtime_exec.sh"
 LAUNCH_BEAGLE_STREAM_CLIENT = ROOT / "thin-client-assistant" / "runtime" / "launch-beagle-stream-client.sh"
 LAUNCH_SESSION = ROOT / "thin-client-assistant" / "runtime" / "launch-session.sh"
 BUILD_THIN_CLIENT = ROOT / "scripts" / "build-thin-client-installer.sh"
 BUILD_BEAGLE_OS = ROOT / "scripts" / "build-beagle-os.sh"
+INSTALL_THINCLIENT = ROOT / "thin-client-assistant" / "installer" / "install.sh"
 LIVE_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "008-install-beagle-stream-client.hook.chroot"
 CREATE_THINCLIENT_USER_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "005-create-thinclient-user.hook.chroot"
 BEAGLE_STREAM_CLIENT_TARGETING = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_targeting.sh"
@@ -84,6 +86,23 @@ def test_wireguard_enrollment_script_is_executable_for_prepare_runtime() -> None
     assert mode & stat.S_IXUSR
 
 
+def test_prepare_runtime_starts_wireguard_runtime_guard() -> None:
+    prepare_text = PREPARE_RUNTIME.read_text(encoding="utf-8")
+    guard_text = WIREGUARD_RUNTIME_GUARD.read_text(encoding="utf-8")
+    build_thin_text = BUILD_THIN_CLIENT.read_text(encoding="utf-8")
+    build_os_text = BUILD_BEAGLE_OS.read_text(encoding="utf-8")
+    installer_text = INSTALL_THINCLIENT.read_text(encoding="utf-8")
+
+    assert 'ensure_wireguard_runtime_guard()' in prepare_text
+    assert 'ensure_wireguard_runtime_guard || beagle_log_event "prepare-runtime.wg-guard-error"' in prepare_text
+    assert 'beagle-wg-runtime-guard.service' in prepare_text
+    assert 'phase=wg-runtime-guard' in guard_text
+    assert 'ip route replace 0.0.0.0/1 dev "$WG_IFACE"' in guard_text
+    assert 'beagle-wg-runtime-guard.service' in build_thin_text
+    assert 'beagle-wg-runtime-guard.service' in build_os_text
+    assert 'beagle-wg-runtime-guard.service' in installer_text
+
+
 def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() -> None:
     runtime_text = BEAGLE_STREAM_CLIENT_RUNTIME_EXEC.read_text(encoding="utf-8")
     launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
@@ -107,6 +126,7 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'ensure_paired || {' in launcher_text
     assert 'beagle_stream_client_stream_ready' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
+    assert 'beagle_stream_client_stream_ready >/dev/null 2>&1 || true' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN:-' not in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
     assert '/api/pair-token' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
     assert '/api/pin' not in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")

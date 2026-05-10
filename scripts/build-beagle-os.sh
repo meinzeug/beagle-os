@@ -401,6 +401,7 @@ install_thin_client_runtime() {
   install -m 0755 "$ROOT_DIR/thin-client-assistant/installer/write-config.sh" "$install_root/installer/write-config.sh"
   install -m 0644 "$ROOT_DIR/thin-client-assistant/systemd/beagle-thin-client-prepare.service" "$ROOTFS_DIR/etc/systemd/system/beagle-thin-client-prepare.service"
   install -m 0644 "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-prepare.service" "$ROOTFS_DIR/etc/systemd/system/pve-thin-client-prepare.service"
+  install -m 0644 "$ROOT_DIR/thin-client-assistant/systemd/beagle-wg-runtime-guard.service" "$ROOTFS_DIR/etc/systemd/system/beagle-wg-runtime-guard.service"
 }
 
 seed_endpoint_profile() {
@@ -513,6 +514,7 @@ enable_rootfs_services() {
   chroot_run_rootfs "systemctl enable beagle-endpoint-dispatch.timer"
   chroot_run_rootfs "systemctl enable beagle-endpoint-report.timer"
   chroot_run_rootfs "systemctl enable beagle-usb-tunnel.service >/dev/null 2>&1 || true"
+  chroot_run_rootfs "systemctl enable beagle-wg-runtime-guard.service >/dev/null 2>&1 || true"
   chroot_run_rootfs "systemctl enable beagle-thin-client-prepare.service"
   chroot_run_rootfs "systemctl enable beagle-autologin.service"
   chroot_run_rootfs "systemctl enable beagle-kiosk.service"

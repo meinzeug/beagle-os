@@ -173,6 +173,7 @@ install_runtime_assets() {
   copy_file "$ROOT_DIR/installer/write-config.sh" "$INSTALL_ROOT/write-config.sh"
   copy_readonly "$ROOT_DIR/systemd/beagle-thin-client-prepare.service" "$SYSTEMD_DIR/beagle-thin-client-prepare.service"
   copy_readonly "$ROOT_DIR/systemd/pve-thin-client-prepare.service" "$SYSTEMD_DIR/pve-thin-client-prepare.service"
+  copy_readonly "$ROOT_DIR/systemd/beagle-wg-runtime-guard.service" "$SYSTEMD_DIR/beagle-wg-runtime-guard.service"
   copy_readonly "$ROOT_DIR/templates/pve-thin-client.desktop" "$AUTOSTART_DIR/pve-thin-client.desktop"
   install -d -m 0755 "$BIN_DIR"
   ln -sf "$INSTALL_ROOT/launch-session.sh" "$BIN_DIR/pve-thin-client-launch"
@@ -248,6 +249,7 @@ enable_services() {
   else
     systemctl enable pve-thin-client-prepare.service >/dev/null
   fi
+  systemctl enable beagle-wg-runtime-guard.service >/dev/null 2>&1 || true
 }
 
 print_summary() {
