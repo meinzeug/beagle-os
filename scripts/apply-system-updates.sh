@@ -95,7 +95,7 @@ STATUS_MESSAGE="Verfuegbare Systemupdates werden installiert ..."
 write_status "running"
 upgrade_output="$(
   DEBIAN_FRONTEND=noninteractive \
-    apt-get upgrade --with-new-pkgs -y -qq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold 2>&1
+    apt-get upgrade --with-new-pkgs -y -qq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold 2>&1 || true
 )"
 OUTPUT_EXCERPT="${upgrade_output: -2000}"
 
@@ -105,7 +105,7 @@ if [[ "$remaining_updates" =~ ^[0-9]+$ ]] && (( remaining_updates > 0 )); then
   write_status "running"
   full_upgrade_output="$(
     DEBIAN_FRONTEND=noninteractive \
-      apt-get full-upgrade -y -qq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold 2>&1
+      apt-get full-upgrade -y -qq -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold 2>&1 || true
   )"
   OUTPUT_EXCERPT="${full_upgrade_output: -2000}"
 fi
@@ -115,6 +115,7 @@ if [[ "$remaining_after_upgrade" =~ ^[0-9]+$ ]] && (( remaining_after_upgrade > 
   STATUS_RESULT="failed"
   STATUS_MESSAGE="Nicht alle Systemupdates konnten automatisch installiert werden (${remaining_after_upgrade} verbleibend)."
   ERROR_EXCERPT="APT reports ${remaining_after_upgrade} package(s) still not upgraded after automatic upgrade/full-upgrade."
+  OUTPUT_EXCERPT="${upgrade_output: -1000}"
   exit 1
 fi
 
