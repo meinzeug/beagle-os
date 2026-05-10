@@ -351,6 +351,14 @@ run_in_chroot apt-get install -y \
 # a stage2 menu and never reaches the kernel.
 run_in_chroot update-grub 2>/dev/null || true
 
+# Generate en_US.UTF-8 locale so apt/perl don't emit locale warnings during
+# the first-boot Beagle install. The installimage artifact ships without a
+# generated locale; Hetzner rescue systems export LANG=de_DE.UTF-8 which
+# causes perl/apt noise because de_DE.UTF-8 is not generated either.
+run_in_chroot bash -c "sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen 2>/dev/null || echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen"
+run_in_chroot locale-gen en_US.UTF-8
+run_in_chroot bash -c "echo 'LANG=en_US.UTF-8' > /etc/default/locale"
+
 configure_base_system
 bundle_source_tree
 install_bootstrap_files
