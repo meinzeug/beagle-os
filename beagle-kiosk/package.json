@@ -14,10 +14,12 @@
   },
   "buildHeader": "Beagle OS Gaming Kiosk - MIT Licensed",
   "dependencies": {
-    "electron-store": "^10.1.0"
+    "electron-store": "^10.1.0",
+    "fast-uri": "^3.1.2",
+    "ip-address": "^10.2.0"
   },
   "devDependencies": {
-    "electron": "^37.2.0",
+    "electron": "^42.0.1",
     "electron-builder": "^26.0.12"
   }
 }
