@@ -509,7 +509,7 @@ jobs:
                     --title "release: sync metadata to ${VERSION}" \
                     --body "Automated metadata sync required before publishing release ${VERSION}." \
                   )"
-                  echo "::warning::Direct push to main failed due branch protection. Created metadata sync PR: ${pr_url}"
+                  echo "::warning::Direct push to main failed due to branch protection. Created metadata sync PR: ${pr_url}"
                   echo "::warning::Skipping GitHub Release creation to avoid version drift. Merge the PR and rerun the release workflow."
                   release_blocked="true"
                 else
