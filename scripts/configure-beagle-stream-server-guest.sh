@@ -42,8 +42,10 @@ BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR="${BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR:-${
 BEAGLE_STREAM_SERVER_INSTALL_MODE="${BEAGLE_STREAM_SERVER_INSTALL_MODE:-}"
 BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED="${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED:-wan}"
 BEAGLE_STREAM_SERVER_ALLOWED_CIDRS="${BEAGLE_STREAM_SERVER_ALLOWED_CIDRS:-10.88.0.0/16}"
-BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC:-45}"
-BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC:-90}"
+BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC:-15}"
+BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC:-20}"
+BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"
+BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"
 PUBLIC_STREAM_HOST_RAW="${PUBLIC_STREAM_HOST:-}"
 UPDATE_METADATA="${UPDATE_METADATA:-1}"
 VM_REBOOT="${VM_REBOOT:-1}"
@@ -560,6 +562,8 @@ BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED='${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI
 BEAGLE_STREAM_SERVER_ALLOWED_CIDRS='${BEAGLE_STREAM_SERVER_ALLOWED_CIDRS}'
 BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC='${BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC}'
 BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC='${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC}'
+BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC='${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC}'
+BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD='${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD}'
 
 configure_system_locale() {
   local locale="\${IDENTITY_LOCALE:-de_DE.UTF-8}"
@@ -1007,6 +1011,7 @@ ExecStart=\$BEAGLE_STREAM_SERVER_EXEC
 Restart=always
 RestartSec=3
 TimeoutStartSec=210
+OnFailure=beagle-stream-server-healthcheck.service
 
 [Install]
 WantedBy=graphical.target
@@ -1020,6 +1025,8 @@ BEAGLE_STREAM_SERVER_PASSWORD=\$BEAGLE_STREAM_SERVER_PASSWORD
 BEAGLE_STREAM_SERVER_PORT=\$BEAGLE_STREAM_SERVER_PORT
 GUEST_USER=\$GUEST_USER
 GUEST_UID=\$GUEST_UID
+BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC=\$BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC
+BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD=\$BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD
 HEALTHENV
 chmod 0600 /etc/beagle/beagle-stream-server-healthcheck.env
 
@@ -1115,6 +1122,68 @@ Unit=beagle-stream-server-healthcheck.service
 [Install]
 WantedBy=timers.target
 HEALTHTIMER
+
+cat > /usr/local/bin/beagle-stream-server-guardian <<'GUARDIAN'
+#!/usr/bin/env bash
+set -euo pipefail
+
+ENV_FILE="/etc/beagle/beagle-stream-server-healthcheck.env"
+[[ -r "$ENV_FILE" ]] || exit 1
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+
+BEAGLE_STREAM_SERVER_USER="${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
+BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD:-}"
+BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-50000}"
+BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"
+BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"
+
+api_port="$((BEAGLE_STREAM_SERVER_PORT + 1))"
+consecutive_failures=0
+
+api_ready() {
+  [[ -n "$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
+  curl -kfsS --connect-timeout 3 --max-time 5 \
+    --user "${BEAGLE_STREAM_SERVER_USER}:${BEAGLE_STREAM_SERVER_PASSWORD}" \
+    "https://127.0.0.1:${api_port}/api/apps" >/dev/null
+}
+
+while :; do
+  /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1 || true
+
+  if systemctl is-active --quiet beagle-stream-server.service && api_ready; then
+    consecutive_failures=0
+  else
+    consecutive_failures=$((consecutive_failures + 1))
+    systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true
+
+    if [[ "$consecutive_failures" -ge "$BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD" ]]; then
+      logger -t beagle-stream-server-guardian "stream offline for ${consecutive_failures} checks; rebooting guest"
+      systemctl reboot >/dev/null 2>&1 || /sbin/reboot >/dev/null 2>&1 || true
+      sleep 120
+    fi
+  fi
+
+  sleep "$BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC"
+done
+GUARDIAN
+chmod 0755 /usr/local/bin/beagle-stream-server-guardian
+
+cat > /etc/systemd/system/beagle-stream-server-guardian.service <<'GUARDSVC'
+[Unit]
+Description=Beagle Stream Server Uptime Guardian
+After=network-online.target beagle-stream-server.service
+Wants=network-online.target beagle-stream-server.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/beagle-stream-server-guardian
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+GUARDSVC
 
 configure_stream_port_guard() {
   local stream_port="\${BEAGLE_STREAM_SERVER_PORT:-50000}"
@@ -1224,6 +1293,7 @@ activate_wireguard_stream_endpoint
 
 systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true
 systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
+systemctl enable --now beagle-stream-server-guardian.service >/dev/null 2>&1 || true
 /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1 || true
 EOF
 )"

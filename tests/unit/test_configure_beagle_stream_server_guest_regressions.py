@@ -85,3 +85,18 @@ def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_basel
     assert "BEAGLE_STREAM_SERVER_ALLOWED_CIDRS=\"${BEAGLE_STREAM_SERVER_ALLOWED_CIDRS:-10.88.0.0/16}\"" in content
     assert "beagle-stream-client-video-decoder: software" in content
     assert "pgrep -x sunshine" in content
+
+
+def test_configure_beagle_stream_server_guest_installs_uptime_guardian() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC:-15}"' in content
+    assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC:-20}"' in content
+    assert 'BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"' in content
+    assert 'BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"' in content
+    assert "OnFailure=beagle-stream-server-healthcheck.service" in content
+    assert "cat > /usr/local/bin/beagle-stream-server-guardian <<'GUARDIAN'" in content
+    assert "stream offline for ${consecutive_failures} checks; rebooting guest" in content
+    assert "cat > /etc/systemd/system/beagle-stream-server-guardian.service <<'GUARDSVC'" in content
+    assert "ExecStart=/usr/local/bin/beagle-stream-server-guardian" in content
+    assert "systemctl enable --now beagle-stream-server-guardian.service" in content
