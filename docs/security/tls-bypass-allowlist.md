@@ -15,6 +15,7 @@ Neue Eintraege benoetigen Code-Review-Genehmigung.
 | 8 | `scripts/test-stream-persistence-reboot-smoke.sh` | ~133 | Post-Reboot-Stream-Probe gegen lokalen Beagle Stream Server-Endpoint mit self-signed TLS. | Cleanup: auf interne CA oder gepinntes Zertifikat umstellen. |
 | 9 | `scripts/ops/reset-srv1-admin-password.sh` | ~72 | Lokales Admin-Reset-Skript gegen die lokale Control-Plane auf `https://localhost`. | Cleanup: nur fuer Wartung auf dem Zielhost; mittelfristig durch signierte lokale CA absichern. |
 | 10 | `scripts/test-streaming-quality-smoke.py` | ~234 | Guest-exec Loopback-Smoke gegen Beagle Stream Server auf `127.0.0.1` mit self-signed TLS. | Cleanup: sobald Beagle Stream Server intern signiert ist, `--insecure` entfernen. |
+| 11 | `scripts/configure-beagle-stream-server-guest.sh` | ~1074, ~1146 | Guard/Health-Checks gegen lokalen Beagle Stream Server API-Loopback auf `127.0.0.1` mit self-signed TLS. | Cleanup: sobald der Guest-API-Pfad auf interne CA oder Pubkey-Pinning migriert ist, `-k` entfernen. |
 
 ## Hinweis zur CI-Pruefung
 
