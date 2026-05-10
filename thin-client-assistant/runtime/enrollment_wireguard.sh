@@ -360,5 +360,18 @@ ip link set mtu "${WG_MTU}" up dev "${WG_IFACE}"
 apply_dns_settings "${DNS}"
 apply_wireguard_routes "${ALLOWED_IPS}"
 
+# Some minimal/live environments flap wg-beagle shortly after creation.
+# Reassert the runtime config for a short window so the interface settles.
+for _attempt in $(seq 1 5); do
+    if ip link show "${WG_IFACE}" 2>/dev/null | grep -q "UP"; then
+        sleep 1
+        continue
+    fi
+    ip link set up dev "${WG_IFACE}" 2>/dev/null || true
+    apply_wireguard_peer_config
+    apply_wireguard_routes "${ALLOWED_IPS}"
+    sleep 1
+done
+
 echo "[wg-enroll] WireGuard interface ${WG_IFACE} is up. Client IP: ${CLIENT_IP}"
 echo "[wg-enroll] Mesh enrollment complete. All subsequent streams will run through the secure tunnel."
