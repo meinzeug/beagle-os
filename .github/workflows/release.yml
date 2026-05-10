@@ -457,6 +457,8 @@ jobs:
     name: Create GitHub Release
     needs: [detect-artifact-changes, assemble-release-package, sbom]
     runs-on: ubuntu-latest
+    outputs:
+      release_blocked: ${{ steps.persist_version.outputs.release_blocked }}
 
     steps:
       - uses: actions/checkout@v4
@@ -487,6 +489,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           release_sha="${{ github.sha }}"
+          release_blocked="false"
           if [[ "$REF_TYPE" != "tag" ]]; then
             repo_version="$(git show HEAD:VERSION 2>/dev/null | tr -d ' \n\r' || true)"
             if [[ "$repo_version" != "$VERSION" ]] || ! git diff --quiet -- VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html; then
@@ -496,36 +499,61 @@ jobs:
               git rebase origin/main
               git remote set-url origin "https://x-access-token:${RELEASE_SYNC_TOKEN}@github.com/${REPO}.git"
               push_error="$(git push origin "HEAD:refs/heads/main" 2>&1)" || {
-                echo "::error::Direct push to main failed while syncing release metadata: ${push_error}" >&2
-                echo "::error::Aborting release to avoid version drift between main and published artifacts." >&2
-                exit 1
+                if grep -q "Cannot update this protected ref" <<<"$push_error"; then
+                  sync_branch="release-sync-${VERSION//./-}-${GITHUB_RUN_ID}"
+                  git push origin "HEAD:refs/heads/${sync_branch}"
+                  pr_url="$(gh pr create \
+                    --repo "$REPO" \
+                    --base main \
+                    --head "$sync_branch" \
+                    --title "release: sync metadata to ${VERSION}" \
+                    --body "Automated metadata sync required before publishing release ${VERSION}." \
+                  )"
+                  echo "::warning::Direct push to main failed due branch protection. Created metadata sync PR: ${pr_url}"
+                  echo "::warning::Skipping GitHub Release creation to avoid version drift. Merge the PR and rerun the release workflow."
+                  release_blocked="true"
+                else
+                  echo "::error::Direct push to main failed while syncing release metadata: ${push_error}" >&2
+                  echo "::error::Aborting release to avoid version drift between main and published artifacts." >&2
+                  exit 1
+                fi
               }
             fi
-            git fetch origin main
-            origin_main_version="$(git show origin/main:VERSION | tr -d ' \n\r')"
-            if [[ "$origin_main_version" != "$VERSION" ]]; then
-              echo "::error::origin/main VERSION=${origin_main_version} does not match release VERSION=${VERSION}. Aborting release to prevent metadata drift." >&2
-              exit 1
+            if [[ "$release_blocked" != "true" ]]; then
+              git fetch origin main
+              origin_main_version="$(git show origin/main:VERSION | tr -d ' \n\r')"
+              if [[ "$origin_main_version" != "$VERSION" ]]; then
+                echo "::error::origin/main VERSION=${origin_main_version} does not match release VERSION=${VERSION}. Aborting release to prevent metadata drift." >&2
+                exit 1
+              fi
+              release_sha="$(git rev-parse origin/main)"
             fi
-            release_sha="$(git rev-parse origin/main)"
           else
             release_sha="$(git rev-list -n 1 "$REF_NAME")"
           fi
           echo "release_sha=${release_sha}" >> "$GITHUB_OUTPUT"
+          echo "release_blocked=${release_blocked}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip release while metadata sync PR is pending
+        if: ${{ steps.persist_version.outputs.release_blocked == 'true' }}
+        run: echo "Metadata sync PR created. Merge it and rerun this workflow to publish the release."
 
       - name: Download release package artifacts
+        if: ${{ steps.persist_version.outputs.release_blocked != 'true' }}
         uses: actions/download-artifact@v4
         with:
           name: release-package-dist
           path: dist/
 
       - name: Download SBOM artifacts
+        if: ${{ steps.persist_version.outputs.release_blocked != 'true' }}
         uses: actions/download-artifact@v4
         with:
           name: release-sbom
           path: dist/sbom/
 
       - name: Generate SHA256SUMS
+        if: ${{ steps.persist_version.outputs.release_blocked != 'true' }}
         run: |
           find dist -maxdepth 1 -type f ! -name 'SHA256SUMS*' ! -name 'RELEASE_ASSETS.md' | sort | xargs sha256sum > dist/SHA256SUMS
           if compgen -G "dist/sbom/*.json" > /dev/null; then
@@ -534,6 +562,7 @@ jobs:
           cat dist/SHA256SUMS
 
       - name: Import GPG key (optional)
+        if: ${{ steps.persist_version.outputs.release_blocked != 'true' }}
         env:
           BEAGLE_RELEASE_GPG_KEY: ${{ secrets.BEAGLE_RELEASE_GPG_KEY }}
         run: |
@@ -545,10 +574,12 @@ jobs:
           fi
 
       - name: Sign SHA256SUMS with Cosign (keyless / sigstore)
+        if: ${{ steps.persist_version.outputs.release_blocked != 'true' }}
         uses: sigstore/cosign-installer@v3
         continue-on-error: true
 
       - name: Cosign sign
+        if: ${{ steps.persist_version.outputs.release_blocked != 'true' }}
         continue-on-error: true
         run: |
           # Keyless signing — requires id-token: write permission
@@ -563,6 +594,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
+        if: ${{ steps.persist_version.outputs.release_blocked != 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -679,7 +711,7 @@ jobs:
 
   deploy-public-artifacts:
     name: Deploy public artifacts to beagle-os.com
-    if: (github.ref_type == 'tag' || github.ref == 'refs/heads/main') && (github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]'))
+    if: (github.ref_type == 'tag' || github.ref == 'refs/heads/main') && (github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]')) && needs.create-release.outputs.release_blocked != 'true'
     needs: [detect-artifact-changes, create-release]
     runs-on: ubuntu-latest
 
