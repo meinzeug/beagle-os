@@ -290,16 +290,19 @@ validate_and_repair_payload_assets() {
 
   [[ "$has_assets" -eq 1 ]] && return 0
 
-  # Payload is missing live assets; try to rebuild from ISO
+  # Payload is missing live assets; try to rebuild from ISO.
+  # Not fatal: the rest of the install flow will attempt to download the ISO via
+  # hydrate_packaged_artifacts_from_public_release and then repair the payload on
+  # the next call to recover_packaged_artifacts_from_existing_builds.
   [[ -f "$iso" ]] || {
     echo "WARNING: Payload tarball missing live assets and no ISO available for recovery" >&2
     echo "This will cause live-usb installations to fail. Please rebuild the thin-client installer." >&2
-    return 1
+    return 0
   }
 
   command -v xorriso >/dev/null 2>&1 || {
     echo "WARNING: Cannot extract live assets from $iso — xorriso not found" >&2
-    return 1
+    return 0
   }
 
   echo "Repairing payload tarball: extracting live assets from ISO..."
