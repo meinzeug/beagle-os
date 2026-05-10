@@ -960,3 +960,114 @@ th {
         font-size: 1rem;
     }
 }
+
+/* ── Build Status Widget ────────────────────────────────────────── */
+.build-status-ticker {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 20px 24px;
+}
+.build-status-ticker--loading,
+.build-status-ticker--error {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+}
+.build-status-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.build-status-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--orange);
+}
+.build-status-updated {
+    margin-left: auto;
+    font-size: 0.78rem;
+    color: var(--muted);
+}
+.build-status-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.build-status-dot--live {
+    background: var(--success);
+    box-shadow: 0 0 0 3px rgba(40, 208, 125, 0.25);
+    animation: pulse-green 2s ease-in-out infinite;
+}
+.build-status-dot--loading {
+    background: var(--muted);
+    animation: pulse-muted 1.4s ease-in-out infinite;
+}
+.build-status-dot--err {
+    background: #f44;
+}
+@keyframes pulse-green {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(40, 208, 125, 0.25); }
+    50%       { box-shadow: 0 0 0 6px rgba(40, 208, 125, 0.08); }
+}
+@keyframes pulse-muted {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+}
+.build-status-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+}
+.build-stat {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.875rem;
+}
+.build-stat-key {
+    min-width: 160px;
+    color: var(--muted);
+    flex-shrink: 0;
+}
+.build-stat-val {
+    color: var(--ink);
+}
+.build-stat-mono {
+    font-family: "Consolas", "Menlo", "Courier New", monospace;
+    font-size: 0.82rem;
+    color: var(--muted-strong);
+}
+.build-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.build-badge--ok {
+    background: rgba(40, 208, 125, 0.15);
+    color: var(--success);
+    border: 1px solid rgba(40, 208, 125, 0.3);
+}
+.build-badge--warn {
+    background: rgba(255, 180, 0, 0.12);
+    color: #ffb400;
+    border: 1px solid rgba(255, 180, 0, 0.3);
+}
+@media (max-width: 600px) {
+    .build-stat { flex-direction: column; gap: 2px; }
+    .build-stat-key { min-width: unset; }
+    .build-status-updated { font-size: 0.72rem; }
+}

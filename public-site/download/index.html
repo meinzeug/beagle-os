@@ -8,6 +8,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/css/main.css">
     <script defer src="/assets/js/lang.js"></script>
+    <script defer src="/assets/js/build-status.js"></script>
 </head>
 <body>
     <header class="site-header">
@@ -44,6 +45,16 @@
                         <a class="btn btn-outline" href="/docs/architecture/" data-en="Architecture" data-de="Architektur">Architecture</a>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <section class="section section-alt">
+            <div class="container">
+                <div class="section-header">
+                    <h2 data-en="Live build status" data-de="Live Build-Status">Live build status</h2>
+                    <p data-en="Current release artifacts on your Beagle server — refreshed every minute." data-de="Aktuelle Release-Artefakte auf deinem Beagle-Server – jede Minute aktualisiert.">Current release artifacts on your Beagle server — refreshed every minute.</p>
+                </div>
+                <div id="beagle-build-status"></div>
             </div>
         </section>
 
