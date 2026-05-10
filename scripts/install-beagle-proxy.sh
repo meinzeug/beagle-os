@@ -799,4 +799,28 @@ beagle-manager ALL=(root) NOPASSWD: /usr/sbin/nginx -t, /bin/systemctl reload ng
 SUDOERS
 chmod 0440 /etc/sudoers.d/beagle-nginx-reload
 
+# Install a certbot deploy hook so that LE certificates are automatically
+# copied into the beagle TLS directory and nginx is reloaded on renewal.
+install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy
+cat > /etc/letsencrypt/renewal-hooks/deploy/beagle-tls.sh <<HOOK
+#!/bin/bash
+# Managed by install-beagle-proxy.sh — do not edit by hand.
+set -euo pipefail
+DOMAIN="${SERVER_NAME}"
+LE_LIVE="/etc/letsencrypt/live/\${DOMAIN}"
+BEAGLE_TLS_DIR="${CERT_FILE%/*}"
+if [[ ! -f "\${LE_LIVE}/fullchain.pem" ]]; then
+  echo "certbot deploy hook: no LE cert found at \${LE_LIVE}, skipping" >&2
+  exit 0
+fi
+cp "\${LE_LIVE}/fullchain.pem" "${CERT_FILE}"
+cp "\${LE_LIVE}/privkey.pem" "${KEY_FILE}"
+chown ${BEAGLE_CONTROL_USER}:${BEAGLE_CONTROL_USER} "${CERT_FILE}" "${KEY_FILE}"
+chmod 644 "${CERT_FILE}"
+chmod 600 "${KEY_FILE}"
+systemctl reload nginx
+echo "[\$(date -Iseconds)] LE cert deployed to ${CERT_FILE}" >> /var/log/beagle-tls-deploy.log
+HOOK
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/beagle-tls.sh
+
 log "Configured host-local HTTPS downloads on ${DOWNLOADS_BASE_URL%/}/"
