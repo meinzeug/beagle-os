@@ -20,7 +20,7 @@ from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 PROVIDERS_DIR = ROOT_DIR / "beagle-host" / "providers"
-for helper_dir in (PROVIDERS_DIR,):
+for helper_dir in (ROOT_DIR, PROVIDERS_DIR):
     helper_path = str(helper_dir)
     if helper_path not in sys.path:
         sys.path.insert(0, helper_path)
