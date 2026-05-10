@@ -36,6 +36,10 @@ BEAGLE_STREAM_SERVER_TOKEN="${BEAGLE_STREAM_SERVER_TOKEN:-}"
 BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-}"
 BEAGLE_STREAM_SERVER_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb"
 BEAGLE_STREAM_SERVER_URL="${BEAGLE_STREAM_SERVER_URL:-$BEAGLE_STREAM_SERVER_DEFAULT_URL}"
+BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR_DEFAULT="/opt/beagle/forks/beagle-stream-server"
+BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR="${BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR:-$BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR_DEFAULT}"
+BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR="${BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR:-${BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR%/}/build-beagle/_deps}"
+BEAGLE_STREAM_SERVER_INSTALL_MODE="${BEAGLE_STREAM_SERVER_INSTALL_MODE:-}"
 BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED="${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED:-wan}"
 BEAGLE_STREAM_SERVER_ALLOWED_CIDRS="${BEAGLE_STREAM_SERVER_ALLOWED_CIDRS:-10.88.0.0/16}"
 BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC:-45}"
@@ -101,6 +105,20 @@ BEAGLE_STREAM_RUNTIME_PACKAGE_URL=${package_url}
 BEAGLE_STREAM_RUNTIME_UPDATED_AT=$(date -Iseconds)
 EOF
   chmod 0644 "$STREAM_RUNTIME_STATUS_FILE"
+}
+
+resolve_beagle_stream_server_install_mode() {
+  if [[ -n "$BEAGLE_STREAM_SERVER_INSTALL_MODE" ]]; then
+    printf '%s\n' "$BEAGLE_STREAM_SERVER_INSTALL_MODE"
+    return 0
+  fi
+
+  if [[ -d "$BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR" && -d "$BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR/boost-src" ]]; then
+    printf '%s\n' "native"
+    return 0
+  fi
+
+  printf '%s\n' "package"
 }
 
 write_beagle_stream_server_broker_env() {
@@ -220,6 +238,62 @@ parse_args() {
 qm_guest_exec_sync() {
   local command="$1"
   beagle_provider_guest_exec_sync_bash "$VMID" "$command"
+}
+
+guest_copy_file() {
+  local local_path="$1"
+  local remote_path="$2"
+  local remote_dir=""
+  local guest_ip=""
+  local file_b64=""
+  local chunk=""
+  local chunk_size=3000
+
+  [[ -f "$local_path" ]] || {
+    echo "guest_copy_file: local file missing: $local_path" >&2
+    return 1
+  }
+
+  remote_dir="$(dirname "$remote_path")"
+  guest_ip="$GUEST_IP_OVERRIDE"
+  if [[ -z "$guest_ip" ]]; then
+    guest_ip="$(detect_guest_ip | tail -n1 | tr -d '\r' || true)"
+  fi
+
+  if [[ -n "$GUEST_PASSWORD" && -n "$guest_ip" ]] && command -v sshpass >/dev/null 2>&1; then
+    local ssh_target="${GUEST_USER}@${guest_ip}"
+    printf '%s\n' "$GUEST_PASSWORD" | SSHPASS="$GUEST_PASSWORD" sshpass -e ssh \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o PreferredAuthentications=password \
+      -o PubkeyAuthentication=no \
+      -o ConnectTimeout=10 \
+      "$ssh_target" "sudo -S -p '' mkdir -p '$remote_dir' && sudo -S -p '' rm -f '$remote_path'" >/dev/null
+    SSHPASS="$GUEST_PASSWORD" sshpass -e scp \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o PreferredAuthentications=password \
+      -o PubkeyAuthentication=no \
+      -o ConnectTimeout=10 \
+      "$local_path" "${ssh_target}:${remote_path}.tmp" >/dev/null
+    printf '%s\n' "$GUEST_PASSWORD" | SSHPASS="$GUEST_PASSWORD" sshpass -e ssh \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o PreferredAuthentications=password \
+      -o PubkeyAuthentication=no \
+      -o ConnectTimeout=10 \
+      "$ssh_target" "sudo -S -p '' install -m 0644 '${remote_path}.tmp' '$remote_path' && rm -f '${remote_path}.tmp'" >/dev/null
+    return 0
+  fi
+
+  file_b64="$(base64 -w0 "$local_path")"
+  qm_guest_exec_sync "mkdir -p '$remote_dir' && rm -f '${remote_path}.b64' '$remote_path' && touch '${remote_path}.b64' && chmod 600 '${remote_path}.b64'" >/dev/null
+  while [[ -n "$file_b64" ]]; do
+    chunk="${file_b64:0:$chunk_size}"
+    file_b64="${file_b64:$chunk_size}"
+    qm_guest_exec_sync "printf '%s' '$chunk' >> '${remote_path}.b64'" >/dev/null
+  done
+  qm_guest_exec_sync "base64 -d '${remote_path}.b64' > '$remote_path' && chmod 0644 '$remote_path' && rm -f '${remote_path}.b64'" >/dev/null
 }
 
 guest_exec_script() {
@@ -414,13 +488,14 @@ PY
 }
 
 main() {
-  local guest_script guest_ip
+  local guest_script guest_ip install_mode native_artifact_dir native_source_archive native_deps_archive
 
   require_tool ssh
   require_tool python3
   require_tool base64
 
   parse_args "$@"
+  install_mode="$(resolve_beagle_stream_server_install_mode)"
 
   [[ -n "$VMID" ]] || {
     echo "--vmid is required" >&2
@@ -434,6 +509,29 @@ main() {
     echo "--beagle-stream-server-token is required" >&2
     exit 1
   }
+
+  native_artifact_dir="$(mktemp -d)"
+  trap 'rm -rf "$native_artifact_dir"' EXIT
+  native_source_archive="/tmp/beagle-stream-server-src.tar.gz"
+  native_deps_archive="/tmp/beagle-stream-server-deps.tar.gz"
+  if [[ "$install_mode" == "native" ]]; then
+    [[ -d "$BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR" ]] || {
+      echo "native install mode requested but source dir missing: $BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR" >&2
+      exit 1
+    }
+    [[ -d "$BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR/boost-src" ]] || {
+      echo "native install mode requested but deps cache missing: $BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR" >&2
+      exit 1
+    }
+    tar -C "$(dirname "$BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR")" \
+      --exclude='beagle-stream-server/.git' \
+      --exclude='beagle-stream-server/build*' \
+      -czf "$native_artifact_dir/beagle-stream-server-src.tar.gz" \
+      "$(basename "$BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR")"
+    tar -C "$BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR" \
+      -czf "$native_artifact_dir/beagle-stream-server-deps.tar.gz" \
+      boost-src boost-build json-src json-build ffmpeg ffmpeg-latest
+  fi
 
   guest_script="$(cat <<EOF
 #!/usr/bin/env bash
@@ -455,7 +553,9 @@ BEAGLE_STREAM_SERVER_PASSWORD='${BEAGLE_STREAM_SERVER_PASSWORD}'
 BEAGLE_STREAM_SERVER_TOKEN='${BEAGLE_STREAM_SERVER_TOKEN}'
 BEAGLE_STREAM_SERVER_PORT='${BEAGLE_STREAM_SERVER_PORT}'
 BEAGLE_STREAM_SERVER_URL='${BEAGLE_STREAM_SERVER_URL}'
-BEAGLE_STREAM_SERVER_URL='${BEAGLE_STREAM_SERVER_URL}'
+BEAGLE_STREAM_SERVER_INSTALL_MODE='${install_mode}'
+BEAGLE_STREAM_SERVER_NATIVE_SOURCE_ARCHIVE='${native_source_archive}'
+BEAGLE_STREAM_SERVER_NATIVE_DEPS_ARCHIVE='${native_deps_archive}'
 BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED='${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}'
 BEAGLE_STREAM_SERVER_ALLOWED_CIDRS='${BEAGLE_STREAM_SERVER_ALLOWED_CIDRS}'
 BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC='${BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC}'
@@ -598,7 +698,24 @@ apt-get install -y \
   wireplumber \
   pulseaudio-utils \
   xdg-utils \
-  usbutils
+  usbutils \
+  build-essential \
+  cmake \
+  ninja-build \
+  pkg-config \
+  git \
+  python3-jinja2 \
+  python3-setuptools \
+  libcap-dev \
+  libdrm-dev \
+  libevdev-dev \
+  libminiupnpc-dev \
+  libnotify-dev \
+  libpipewire-0.3-dev \
+  libva-dev \
+  libwayland-dev \
+  wayland-protocols \
+  libx11-dev
 if [[ -n "\$DESKTOP_PACKAGES" ]]; then
   apt-get install -y \$DESKTOP_PACKAGES
 fi
@@ -610,8 +727,30 @@ tmpdir=\$(mktemp -d)
 trap 'rm -rf "\$tmpdir"' EXIT
 stream_runtime_package_url="\$BEAGLE_STREAM_SERVER_URL"
 stream_runtime_variant="beagle-stream-server"
-curl -fsSLo "\$tmpdir/beagle-stream-server.deb" "\$BEAGLE_STREAM_SERVER_URL"
-apt-get install -y "\$tmpdir/beagle-stream-server.deb"
+if [[ "\${BEAGLE_STREAM_SERVER_INSTALL_MODE:-package}" == "native" ]]; then
+  stream_runtime_variant="beagle-stream-server-native"
+  stream_runtime_package_url="native:\$BEAGLE_STREAM_SERVER_NATIVE_SOURCE_ARCHIVE"
+  install -d -m 0755 /opt/beagle-build/src /opt/beagle-build/cache
+  rm -rf /opt/beagle-build/src/beagle-stream-server /opt/beagle-build/build-beagle-stream-server
+  mkdir -p /opt/beagle-build/src/beagle-stream-server /opt/beagle-build/build-beagle-stream-server/_deps
+  tar -xzf "\$BEAGLE_STREAM_SERVER_NATIVE_SOURCE_ARCHIVE" -C /opt/beagle-build/src/beagle-stream-server --strip-components=1
+  tar -xzf "\$BEAGLE_STREAM_SERVER_NATIVE_DEPS_ARCHIVE" -C /opt/beagle-build/build-beagle-stream-server/_deps
+  cd /opt/beagle-build/build-beagle-stream-server
+  cmake -GNinja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBEAGLE_INTEGRATION=ON \
+    -DBUILD_DOCS=OFF \
+    -DBUILD_TESTS=OFF \
+    -DSUNSHINE_ENABLE_TRAY=OFF \
+    -DSUNSHINE_ENABLE_CUDA=OFF \
+    -DFFMPEG_PREPARED_BINARIES=/opt/beagle-build/build-beagle-stream-server/_deps/ffmpeg \
+    /opt/beagle-build/src/beagle-stream-server
+  ninja -j"\$(nproc)" sunshine
+  install -m 0755 sunshine /usr/local/bin/sunshine
+else
+  curl -fsSLo "\$tmpdir/beagle-stream-server.deb" "\$BEAGLE_STREAM_SERVER_URL"
+  apt-get install -y "\$tmpdir/beagle-stream-server.deb"
+fi
 write_stream_runtime_status "\$stream_runtime_variant" "\$stream_runtime_package_url"
 BEAGLE_STREAM_SERVER_EXEC="\$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
 if [[ -x /usr/local/bin/sunshine || -n "\$(command -v sunshine 2>/dev/null || true)" ]]; then
@@ -1070,6 +1209,11 @@ systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 ||
 /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1 || true
 EOF
 )"
+
+  if [[ "$install_mode" == "native" ]]; then
+    guest_copy_file "$native_artifact_dir/beagle-stream-server-src.tar.gz" "$native_source_archive"
+    guest_copy_file "$native_artifact_dir/beagle-stream-server-deps.tar.gz" "$native_deps_archive"
+  fi
 
   guest_exec_script "$guest_script"
   guest_ip="$GUEST_IP_OVERRIDE"

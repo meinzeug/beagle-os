@@ -113,6 +113,11 @@ table inet beagle_guard {
     type filter hook output priority -20;
     policy accept;
   }
+
+  chain postrouting {
+    type nat hook postrouting priority srcnat; policy accept;
+    ip saddr 192.168.123.0/24 oifname != { "virbr10", "virbr0" } masquerade
+  }
 }
 EOF
   systemctl enable nftables >/dev/null 2>&1 || true

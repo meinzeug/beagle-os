@@ -67,6 +67,23 @@ detect_vm_bridges() {
   fi
 }
 
+detect_wan_iface() {
+  local configured="${BEAGLE_WAN_IFACE:-}"
+  if [[ -n "$configured" ]]; then
+    printf '%s\n' "$configured"
+    return 0
+  fi
+  if command -v ip >/dev/null 2>&1; then
+    ip -4 route show default 2>/dev/null | awk '/^default/{print $5; exit}'
+  fi
+}
+
+detect_vm_bridge_subnets() {
+  if command -v ip >/dev/null 2>&1; then
+    ip -4 addr show 2>/dev/null | awk '/inet .*virbr[0-9]+/{print $2}' | sort -u
+  fi
+}
+
 detect_public_ipv4() {
   local configured="${BEAGLE_PUBLIC_STREAM_GUARD_ADDR:-${BEAGLE_PUBLIC_IPV4:-}}"
   if [[ -n "$configured" ]]; then
@@ -156,6 +173,12 @@ write_nft_rules() {
   local wg_port=""
   local public_stream_guard_enabled="${BEAGLE_PUBLIC_STREAM_GUARD_ENABLED:-1}"
   local public_stream_addr=""
+  local wan_iface=""
+  local vm_subnets=()
+
+  wan_iface="$(detect_wan_iface)"
+  wan_iface="${wan_iface:-enp35s0}"
+  mapfile -t vm_subnets < <(detect_vm_bridge_subnets | sed '/^$/d' | sort -u)
 
   mapfile -t bridges < <(detect_vm_bridges | sed '/^$/d' | sort -u)
   if [[ "${#bridges[@]}" -eq 0 ]]; then
@@ -260,6 +283,20 @@ EOF
 
   chain output {
     type filter hook output priority -20; policy accept;
+  }
+
+  chain postrouting {
+    type nat hook postrouting priority srcnat; policy accept;
+EOF
+    local subnet
+    local _subnets=("${vm_subnets[@]:-}")
+    if [[ "${#_subnets[@]}" -eq 0 || -z "${_subnets[0]:-}" ]]; then
+      _subnets=("192.168.123.0/24")
+    fi
+    for subnet in "${_subnets[@]}"; do
+      printf '    ip saddr %s oifname "%s" masquerade\n' "$subnet" "$wan_iface"
+    done
+    cat <<EOF
   }
 }
 EOF
