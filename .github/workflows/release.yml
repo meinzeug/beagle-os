@@ -478,10 +478,9 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: python3 scripts/sync-release-version.py "$VERSION"
 
-      - name: Persist VERSION in release commit before tagging
+      - name: Persist VERSION locally before tagging
         id: persist_version
         env:
-          GH_TOKEN: ${{ secrets.BEAGLE_RELEASE_SYNC_TOKEN || secrets.COPILOT_ASSIGNMENT_TOKEN || github.token }}
           VERSION: ${{ steps.version.outputs.version }}
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
@@ -494,6 +493,11 @@ jobs:
             if [[ "$repo_version" != "$VERSION" ]] || ! git diff --quiet -- VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html; then
               git add VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html
               git commit -m "release: sync metadata to ${VERSION} [skip release] [skip ci]"
+            fi
+            current_version="$(git show HEAD:VERSION | tr -d ' \n\r')"
+            if [[ "$current_version" != "$VERSION" ]]; then
+              echo "::error::HEAD metadata does not match release VERSION=${VERSION} after sync. Aborting release." >&2
+              exit 1
             fi
             release_sha="$(git rev-parse HEAD)"
           else
