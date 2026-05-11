@@ -181,6 +181,30 @@ class VmSecretBootstrapService:
         # authorized_keys and auth_root are managed by the installer (root:beagle-manager 0710 /
         # beagle-manager 0600). Only the per-VM snippet is owned here.
         os.chmod(snippet_path, 0o600)
+        # Ensure the authorized_keys file is group-readable by the tunnel user so
+        # that OpenSSH privsep (which drops privileges to the target user) can read
+        # it.  We also mirror the managed content into the tunnel user's ~/.ssh so
+        # that the standard fallback path in the sshd AuthorizedKeysFile directive
+        # always works.
+        try:
+            tunnel_pw = self._lookup_user(self._usb_tunnel_user)
+            tunnel_uid = tunnel_pw.pw_uid
+            tunnel_gid = tunnel_pw.pw_gid
+            tunnel_home = Path(tunnel_pw.pw_dir)
+            # Primary path: set group to tunnel user, mode 0640 so privsep child can read.
+            os.chown(authorized_keys, -1, tunnel_gid)
+            os.chmod(authorized_keys, 0o640)
+            # Mirror path: ~/.ssh/authorized_keys owned by tunnel user.
+            ssh_dir = tunnel_home / ".ssh"
+            ssh_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            os.chown(ssh_dir, tunnel_uid, tunnel_gid)
+            ssh_auth = ssh_dir / "authorized_keys"
+            new_content = authorized_keys.read_text(encoding="utf-8")
+            ssh_auth.write_text(new_content, encoding="utf-8")
+            os.chown(ssh_auth, tunnel_uid, tunnel_gid)
+            os.chmod(ssh_auth, 0o600)
+        except (KeyError, OSError):
+            pass
 
     def ensure_vm_beagle_stream_server_pinned_pubkey(self, vm: Any, secret: dict[str, Any]) -> dict[str, Any]:
         if str(secret.get("beagle_stream_server_pinned_pubkey", "") or "").strip():
