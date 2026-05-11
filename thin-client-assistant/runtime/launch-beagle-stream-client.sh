@@ -6,6 +6,9 @@ exec 9>"$BEAGLE_STREAM_CLIENT_LOCK_FILE"
 flock -n 9 || exit 0
 
 SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)}"
+if [[ "$SCRIPT_DIR" == /var/local/* ]]; then
+  SCRIPT_DIR="/usr/local/${SCRIPT_DIR#/var/local/}"
+fi
 BEAGLE_STREAM_CLIENT_TARGETING_SH="${BEAGLE_STREAM_CLIENT_TARGETING_SH:-$SCRIPT_DIR/beagle_stream_client_targeting.sh}"
 BEAGLE_STREAM_CLIENT_PAIRING_SH="${BEAGLE_STREAM_CLIENT_PAIRING_SH:-$SCRIPT_DIR/beagle_stream_client_pairing.sh}"
 BEAGLE_STREAM_CLIENT_RUNTIME_EXEC_SH="${BEAGLE_STREAM_CLIENT_RUNTIME_EXEC_SH:-$SCRIPT_DIR/beagle_stream_client_runtime_exec.sh}"

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
 SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)}"
+if [[ "$SCRIPT_DIR" == /var/local/* ]]; then
+  SCRIPT_DIR="/usr/local/${SCRIPT_DIR#/var/local/}"
+fi
 COMMON_SH="${COMMON_SH:-$SCRIPT_DIR/common.sh}"
 RUNTIME_ENDPOINT_ENROLLMENT_SH="${RUNTIME_ENDPOINT_ENROLLMENT_SH:-$SCRIPT_DIR/runtime_endpoint_enrollment.sh}"
 

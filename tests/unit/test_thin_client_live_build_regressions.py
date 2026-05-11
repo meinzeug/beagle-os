@@ -26,6 +26,10 @@ BEAGLE_STREAM_CLIENT_API_URL = ROOT / "thin-client-assistant" / "runtime" / "bea
 RUNTIME_USER_SETUP = ROOT / "thin-client-assistant" / "runtime" / "runtime_user_setup.sh"
 RUNTIME_NETWORK_BACKEND = ROOT / "thin-client-assistant" / "runtime" / "runtime_network_backend.sh"
 RUNTIME_SSH_SERVICE_CONFIG = ROOT / "thin-client-assistant" / "runtime" / "runtime_ssh_service_config.sh"
+COMMON_SH = ROOT / "thin-client-assistant" / "runtime" / "common.sh"
+DEVICE_LOCK_SCREEN = ROOT / "thin-client-assistant" / "runtime" / "device_lock_screen.sh"
+DEVICE_STATE_ENFORCEMENT = ROOT / "thin-client-assistant" / "runtime" / "device_state_enforcement.sh"
+DEVICE_SYNC = ROOT / "thin-client-assistant" / "runtime" / "device_sync.sh"
 
 
 def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None:
@@ -56,6 +60,24 @@ def test_prepare_runtime_does_not_block_enrollment_on_getty_bootstrap_failure() 
     assert 'prepare_runtime_reentry=1' in prepare_text
     assert 'prepare-runtime.reentry' in prepare_text
     assert 'if [[ "$prepare_runtime_reentry" -eq 0 ]]; then' in prepare_text
+
+
+def test_runtime_scripts_normalize_live_boot_var_local_overlay_paths() -> None:
+    runtime_scripts = [
+        COMMON_SH,
+        DEVICE_LOCK_SCREEN,
+        DEVICE_STATE_ENFORCEMENT,
+        DEVICE_SYNC,
+        LAUNCH_BEAGLE_STREAM_CLIENT,
+    ]
+
+    for runtime_script in runtime_scripts:
+        runtime_text = runtime_script.read_text(encoding="utf-8")
+        assert '== /var/local/*' in runtime_text
+        assert '"/usr/local/${' in runtime_text
+
+    common_text = COMMON_SH.read_text(encoding="utf-8")
+    assert 'export RUNTIME_SCRIPT_DIR' in common_text
 
 
 def test_prepare_runtime_persists_redacted_live_usb_debug_reports() -> None:

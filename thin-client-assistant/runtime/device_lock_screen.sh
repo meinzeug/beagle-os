@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
 SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)}"
+if [[ "$SCRIPT_DIR" == /var/local/* ]]; then
+  SCRIPT_DIR="/usr/local/${SCRIPT_DIR#/var/local/}"
+fi
 COMMON_SH="${COMMON_SH:-$SCRIPT_DIR/common.sh}"
 DEVICE_STATE_ENFORCEMENT_SH="${DEVICE_STATE_ENFORCEMENT_SH:-$SCRIPT_DIR/device_state_enforcement.sh}"
 

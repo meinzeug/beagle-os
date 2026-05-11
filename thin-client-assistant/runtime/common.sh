@@ -8,15 +8,11 @@ BEAGLE_STATE_DIR_DEFAULT="/var/lib/beagle-os"
 PRESET_STATE_DIR_DEFAULT="/run/beagle-os/preset-state"
 BEAGLE_TRACE_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/runtime-trace.log"
 BEAGLE_LAST_MARKER_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/last-marker.env"
-# Debian 13 Trixie live-boot overlayfs fix: hardcode install path and reject
-# /var/local/ paths which indicate the overlayfs lower-layer path resolution bug
-# where bash's `pwd` after `cd` or realpath through overlay returns /var/local/
-# instead of /usr/local/.  RUNTIME_SCRIPT_DIR may still be overridden via env
-# for development, but /var/local/ overrides are silently corrected.
-if [[ "${RUNTIME_SCRIPT_DIR:-}" == /var/local/* ]]; then
-  RUNTIME_SCRIPT_DIR="/usr/local/lib/pve-thin-client/runtime"
-fi
 RUNTIME_SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)}"
+if [[ "$RUNTIME_SCRIPT_DIR" == /var/local/* ]]; then
+  RUNTIME_SCRIPT_DIR="/usr/local/${RUNTIME_SCRIPT_DIR#/var/local/}"
+fi
+export RUNTIME_SCRIPT_DIR
 MODE_OVERRIDES_PY="${MODE_OVERRIDES_PY:-$RUNTIME_SCRIPT_DIR/mode_overrides.py}"
 CONFIG_DISCOVERY_PY="${CONFIG_DISCOVERY_PY:-$RUNTIME_SCRIPT_DIR/config_discovery.py}"
 CONFIG_LOADER_SH="${CONFIG_LOADER_SH:-$RUNTIME_SCRIPT_DIR/config_loader.sh}"
