@@ -703,6 +703,8 @@ apt-get install -y \
   pulseaudio-utils \
   xdg-utils \
   usbutils \
+  usbip-utils \
+  linux-tools-generic \
   build-essential \
   cmake \
   ninja-build \
@@ -1357,6 +1359,37 @@ USBSVC_EOF
 systemctl daemon-reload >/dev/null 2>&1 || true
 systemctl enable --now beagle-usb-attach.service >/dev/null 2>&1 || true
 echo "[beagle] USB/IP auto-attach service enabled"
+
+# ── usbipd (USB/IP daemon): export TC-side devices to VM ─────────────────────
+# usbipd must run on the TC side (handled by beagle-usb-tunnel service).
+# On the VM side we need the vhci-hcd kernel module loaded at boot so
+# usbip attach works without manual modprobe.
+if ! grep -qF 'vhci-hcd' /etc/modules 2>/dev/null; then
+  echo 'vhci-hcd' >> /etc/modules
+fi
+modprobe vhci-hcd 2>/dev/null || true
+# Install a simple usbipd.service if usbipd binary is present but no unit exists
+if [[ -x /usr/bin/usbipd ]] && ! systemctl cat usbipd.service >/dev/null 2>&1; then
+  cat > /etc/systemd/system/usbipd.service << 'USBIPDUNIT_EOF'
+[Unit]
+Description=USB/IP Daemon (kernel-side export server)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/usbipd
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+USBIPDUNIT_EOF
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl enable --now usbipd.service >/dev/null 2>&1 || true
+  echo "[beagle] usbipd.service installed and enabled"
+else
+  systemctl enable --now usbipd.service >/dev/null 2>&1 || true
+fi
 
 # ── Camera stream receive: TC webcam via ffmpeg + v4l2loopback ────────────────
 # UVC webcams forwarded via USB/IP fail with isoc transfer errors.  Instead the
