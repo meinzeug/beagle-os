@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Hardcode install path to guard against the Debian Trixie live-boot overlayfs
-# quirk where pwd resolves through the squashfs lower layer returning /var/local/
-# instead of /usr/local/.  Allow env override for development.
-SCRIPT_DIR="${BEAGLE_RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
+# Debian 13 Trixie live-boot overlayfs fix: copy runtime scripts to /run (tmpfs)
+# before sourcing so bash reads from tmpfs, not squashfs-via-overlayfs which can
+# fail with I/O errors on some kernel/squashfs combinations.
+_rt_orig="${BEAGLE_RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
+_rt_run="/run/pve-thin-client/runtime"
+if [[ ! -f "${_rt_run}/common.sh" ]]; then
+  mkdir -p "$_rt_run" 2>/dev/null || true
+  cp -a "${_rt_orig}/." "$_rt_run/" 2>/dev/null || true
+fi
+[[ -f "${_rt_run}/common.sh" ]] && _rt_orig="$_rt_run"
+SCRIPT_DIR="$_rt_orig"
+export RUNTIME_SCRIPT_DIR="$_rt_orig"
+unset _rt_orig _rt_run
 STATUS_WRITER_PY="$SCRIPT_DIR/status_writer.py"
 SESSION_LAUNCHER_SH="${SESSION_LAUNCHER_SH:-$SCRIPT_DIR/session_launcher.sh}"
 DEVICE_STATE_ENFORCEMENT_SH="${DEVICE_STATE_ENFORCEMENT_SH:-$SCRIPT_DIR/device_state_enforcement.sh}"
