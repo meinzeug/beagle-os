@@ -1,0 +1,45 @@
+#!/bin/sh
+# Reduce squashfs size by removing unnecessary files from the chroot.
+# Runs inside the chroot during live-build before squashfs packing.
+set -e
+
+# Remove apt package cache (not needed at runtime)
+apt-get clean
+rm -rf /var/cache/apt/archives/*.deb
+rm -rf /var/cache/apt/archives/partial/*.deb
+rm -f /var/cache/apt/*.bin
+
+# Remove apt lists (will be regenerated on first apt update after install)
+rm -rf /var/lib/apt/lists/*
+
+# Remove documentation and manpages
+rm -rf /usr/share/doc/*
+rm -rf /usr/share/man/*
+rm -rf /usr/share/info/*
+rm -rf /usr/share/groff
+rm -rf /usr/share/linda
+
+# Remove all locales except en_US and de
+find /usr/share/locale -mindepth 1 -maxdepth 1 -type d \
+  ! -name 'en' ! -name 'en_US' ! -name 'de' ! -name 'de_DE' \
+  -exec rm -rf {} + 2>/dev/null || true
+find /usr/lib/locale -mindepth 1 -maxdepth 1 -type d \
+  ! -name 'en_US*' ! -name 'de_DE*' ! -name 'C*' \
+  -exec rm -rf {} + 2>/dev/null || true
+
+# Remove debug symbols and static libraries
+find /usr/lib /usr/lib/x86_64-linux-gnu -name '*.a' -delete 2>/dev/null || true
+find /usr/lib /usr/lib/debug -name '*.dbg' -delete 2>/dev/null || true
+rm -rf /usr/lib/debug 2>/dev/null || true
+
+# Remove pip/python caches
+find /usr -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+find /usr -name '*.pyc' -delete 2>/dev/null || true
+find /usr -name '*.pyo' -delete 2>/dev/null || true
+
+# Remove leftover dpkg temp files
+rm -f /var/cache/debconf/*-old
+rm -f /var/lib/dpkg/*-old
+rm -rf /var/tmp/*
+
+echo "Chroot bloat cleanup complete."

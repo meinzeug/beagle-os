@@ -1335,3 +1335,23 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
 - Verifikation:
   - `curl /api/v1/vms/` → `"token" in provisioning` = False ✓
   - Commit `6d57d8d`, live auf srv1 deployed.
+
+## S-040 — Interne Security-Findings im öffentlich downloadbaren USB-Payload enthalten (PATCHED)
+
+- Status: **gepatcht** (2026-05-11)
+- Risiko: **Mittel** (interne Security-Dokumentation öffentlich zugänglich)
+- Betroffene Datei: `scripts/package.sh`
+- Beschreibung:
+  - Das Payload-Archiv `pve-thin-client-usb-payload-latest.tar.gz` (öffentlich auf srv1 unter `/beagle-downloads/` erreichbar) enthielt das komplette `docs/`-Verzeichnis des Repos.
+  - Darin enthalten: `docs/refactor/11-security-findings.md` (90 KB, alle Security-Findings S-001..S-039), `docs/refactor/05-progress.md` (595 KB), `docs/refactor/06-next-steps.md` (130 KB), `docs/refactor/07-decisions.md` (55 KB).
+  - Diese Dokumente enthalten interne Architekturdetails, bekannte Schwachstellen und Betriebsinformationen, die für Angreifer verwertbar sind.
+  - Entdeckt durch Analyse: `tar -tvzf pve-thin-client-usb-payload-latest.tar.gz | sort -k3 -rn`.
+- Fix:
+  - `scripts/package.sh`: `-C "$ROOT_DIR" docs`-Zeile aus dem USB-Payload-Tar-Aufruf entfernt.
+  - Das `docs/`-Verzeichnis ist weiterhin im vollständigen `beagle-os-latest.tar.gz`-Release-Tarball enthalten (separater Tar-Aufruf), das nur für Entwickler/Admins bestimmt ist.
+- Zusatzmaßnahme:
+  - `thin-client-assistant/live-build/config/hooks/live/098-cleanup-chroot-bloat.hook.chroot` hinzugefügt: entfernt apt-Cache, locale-Bloat, docs/man, debug-Symbole aus dem Live-Chroot vor squashfs-Kompression.
+  - Erwartete squashfs-Reduktion: ~500–800 MB (von 2,5 GB auf ~1,5–1,7 GB).
+- Verifikation ausstehend:
+  - Nächster Build auf srv1 muss bestätigen, dass `docs/` nicht mehr im Payload-Tar enthalten ist.
+  - squashfs-Größe nach Cleanup-Hook prüfen.

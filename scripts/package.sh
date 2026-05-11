@@ -292,7 +292,6 @@ rsync -a --delete \
   cd /
   tar -czf "$DIST_DIR/$USB_PAYLOAD_NAME" \
     -C "$ROOT_DIR" thin-client-assistant \
-    -C "$ROOT_DIR" docs \
     -C "$ROOT_DIR" scripts \
     -C "$ROOT_DIR" README.md \
     -C "$ROOT_DIR" LICENSE \
