@@ -99,6 +99,7 @@ import {
 } from './ui/audit.js';
 import {
   configureVirtualization,
+  loadVmConfig,
   renderVirtualizationInspector,
   renderVirtualizationOverview,
   renderVirtualizationPanel
@@ -512,8 +513,11 @@ function loadDetail(vmid) {
       '<div class="detail-panel" data-detail-panel="config"><div class="banner info">Konfiguration wird geladen...</div></div>' +
       '<div class="detail-panel" data-detail-panel="bundles"><div class="banner info">Wird geladen...</div></div>';
     const hashState = parseAppHash();
-    const activeDetailPanel = hashState.detail || state.activeDetailPanel || 'summary';
+    const activeDetailPanel = hashState.detail || (hashState.vmid ? 'config' : state.activeDetailPanel) || 'summary';
     setActiveDetailPanel(activeDetailPanel);
+    if (activeDetailPanel === 'config') {
+      loadVmConfig(numericVmid);
+    }
     if (activeDetailPanel === 'metrics') {
       // Auto-refresh re-renders the stack; restart metrics rendering/stream for
       // the fresh metrics panel DOM so the tab does not appear empty.
@@ -598,6 +602,8 @@ function bootstrapHashState() {
   }
   if (hashState.detail) {
     state.activeDetailPanel = hashState.detail;
+  } else if (hashState.vmid) {
+    state.activeDetailPanel = 'config';
   } else if (storedDetail) {
     state.activeDetailPanel = storedDetail;
   }
@@ -890,6 +896,9 @@ export function bootstrapApp() {
     }
     if (hashState.detail && hashState.detail !== state.activeDetailPanel) {
       setActiveDetailPanel(hashState.detail);
+      if (hashState.detail === 'config' && state.selectedVmid) {
+        loadVmConfig(state.selectedVmid);
+      }
     }
     // Handle vmid in hash (e.g. back/forward navigation)
     if (hashState.vmid && /^\d+$/.test(hashState.vmid)) {
