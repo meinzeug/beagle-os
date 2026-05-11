@@ -499,7 +499,7 @@ jobs:
               git fetch origin main
               if ! git rebase origin/main; then
                 if ! git rebase --abort; then
-                  echo "::warning::Failed to abort conflicted rebase cleanly; continuing with VERSION drift check." >&2
+                  echo "::warning::Failed to abort rebase conflict cleanly; continuing with VERSION drift check." >&2
                 fi
                 echo "::warning::Rebase onto origin/main failed while syncing release metadata." >&2
                 echo "::warning::Will verify origin/main VERSION matches release VERSION in the next step; if it mismatches, the release will be aborted." >&2
