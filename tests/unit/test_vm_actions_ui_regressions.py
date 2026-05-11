@@ -110,4 +110,10 @@ def test_vm_config_editor_surfaces_guided_control_ui() -> None:
     assert "class=\"vm-control-card vm-control-card-toggle\"" in editor
     assert "syncControlSurface(form, event.target)" in editor
     assert "updateGuidePanel(form, key)" in editor
+    assert "Enterprise Change Console" in editor
+    assert "data-vm-config-filter" in editor
+    assert "data-vm-show-changed" in editor
+    assert "data-vm-change-count" in editor
+    assert "refreshEnterpriseConsole(form)" in editor
+    assert "FIELD_VALIDATIONS" in editor
     assert "VM Konfiguration" in editor

@@ -58,6 +58,26 @@
 .vm-config-editor [data-vm-config-status] { margin-top: 12px; }
 .vm-config-editor .check-label { min-height: 38px; align-items: center; }
 .vm-config-item[hidden] { display: none !important; }
+.vm-enterprise-console { border-color: color-mix(in srgb, var(--green) 28%, var(--border)); background: linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 90%, var(--green) 4%), color-mix(in srgb, var(--bg-elevated) 86%, black 5%)); }
+.vm-enterprise-console-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.vm-enterprise-console-head h3 { margin: 0 0 4px; }
+.vm-enterprise-console-head .muted { margin: 0; font-size: 0.78rem; color: var(--text-muted); }
+.vm-enterprise-impact { display: flex; gap: 8px; flex-wrap: wrap; }
+.vm-enterprise-impact span { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg-elevated) 86%, transparent); color: var(--text-secondary); font-size: 0.72rem; font-weight: 700; }
+.vm-enterprise-impact [data-vm-enterprise-risk="high"] { border-color: color-mix(in srgb, var(--red) 50%, var(--border)); color: color-mix(in srgb, var(--red) 74%, white); }
+.vm-enterprise-impact [data-vm-enterprise-risk="medium"] { border-color: color-mix(in srgb, var(--orange) 52%, var(--border)); color: color-mix(in srgb, var(--orange) 72%, white); }
+.vm-enterprise-impact [data-vm-enterprise-risk="low"] { border-color: color-mix(in srgb, var(--green) 52%, var(--border)); color: color-mix(in srgb, var(--green) 72%, white); }
+.vm-enterprise-impact [data-vm-enterprise-restart="hard"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 20%, transparent); }
+.vm-enterprise-impact [data-vm-enterprise-restart="pending"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--orange) 22%, transparent); }
+.vm-enterprise-impact [data-vm-enterprise-restart="soft"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 20%, transparent); }
+.vm-enterprise-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 10px; }
+.vm-enterprise-toolbar > label { display: flex; flex-direction: column; gap: 5px; font-size: 0.74rem; color: var(--text-muted); }
+.vm-enterprise-toolbar .check-label { min-height: 0; align-self: center; display: inline-flex; gap: 6px; }
+.vm-enterprise-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.vm-enterprise-summary > div { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg-elevated) 86%, transparent); display: flex; flex-direction: column; gap: 2px; }
+.vm-enterprise-summary strong { font-family: var(--font-mono); font-size: 1rem; color: var(--text); }
+.vm-enterprise-summary span { font-size: 0.72rem; color: var(--text-muted); }
+.vm-enterprise-change-list { margin: 0; font-size: 0.78rem; color: var(--text-secondary); padding: 8px 10px; border-radius: 8px; border: 1px dashed color-mix(in srgb, var(--accent) 24%, var(--border)); background: color-mix(in srgb, var(--bg-elevated) 80%, transparent); }
 .vm-mode-switcher { border-color: color-mix(in srgb, var(--accent) 26%, var(--border)); background: color-mix(in srgb, var(--bg-card) 90%, var(--accent) 4%); }
 .vm-mode-switcher-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .vm-mode-switcher-head h3 { margin: 0; }
@@ -69,6 +89,8 @@
 .vm-config-editor .field { min-height: 96px; padding: 12px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--border) 78%, var(--accent) 14%); background: linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 84%, white 4%), color-mix(in srgb, var(--bg-elevated) 88%, black 5%)); box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent), 0 8px 18px rgba(0, 0, 0, 0.10); }
 .vm-config-editor .field input, .vm-config-editor .field textarea { border-color: color-mix(in srgb, var(--accent) 24%, var(--border)); background: color-mix(in srgb, var(--bg-elevated) 82%, black 6%); box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.12); }
 .vm-config-editor .field input:focus, .vm-config-editor .field textarea:focus { border-color: color-mix(in srgb, var(--accent) 72%, var(--green)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent), inset 0 0 18px color-mix(in srgb, var(--accent) 8%, transparent); }
+.vm-config-editor .field .vm-input-invalid,
+.vm-config-editor .vm-control-card .vm-input-invalid { border-color: color-mix(in srgb, var(--red) 58%, var(--border)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 16%, transparent), inset 0 0 12px color-mix(in srgb, var(--red) 12%, transparent); }
 .vm-control-card { position: relative; min-height: 122px; padding: 13px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--border) 70%, var(--accent) 18%); background: linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 82%, white 5%), color-mix(in srgb, var(--bg-elevated) 86%, black 6%)); box-shadow: inset 0 1px 0 color-mix(in srgb, white 12%, transparent), 0 10px 24px rgba(0, 0, 0, 0.16); overflow: hidden; }
 .vm-control-card::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34%, color-mix(in srgb, var(--green) 10%, transparent) 72%, transparent); opacity: 0.75; }
 .vm-control-card::after { content: ""; position: absolute; left: 13px; right: 13px; top: 0; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, white 42%, var(--accent)), transparent); opacity: 0.65; }
@@ -129,6 +151,9 @@
 .vm-config-help-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px 18px; border-top: 1px solid var(--border); }
 
 @media (max-width: 720px) {
+	.vm-enterprise-console-head { flex-direction: column; }
+	.vm-enterprise-toolbar { grid-template-columns: 1fr; }
+	.vm-enterprise-summary { grid-template-columns: 1fr; }
 	.vm-config-help-modal { align-items: stretch; padding: 10px; }
 	.vm-config-help-dialog { max-height: calc(100vh - 20px); }
 	.vm-config-help-body { grid-template-columns: 1fr; }
