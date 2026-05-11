@@ -21,6 +21,8 @@ permissions:
   actions: write
   # Required for creating the metadata-sync PR when main is protected
   pull-requests: write
+  # Required to push tags that reference commits containing workflow file changes
+  workflows: write
 
 concurrency:
   group: release
@@ -502,12 +504,12 @@ jobs:
                   echo "::warning::Failed to abort rebase conflict cleanly; continuing with VERSION drift check." >&2
                 fi
                 echo "::warning::Rebase onto origin/main failed while syncing release metadata." >&2
-                echo "::warning::Will verify origin/main VERSION matches release VERSION in the next step; if it mismatches, the release will be aborted." >&2
+                echo "::warning::Will verify origin/main VERSION matches release VERSION before continuing." >&2
               fi
               git remote set-url origin "https://x-access-token:${RELEASE_SYNC_TOKEN}@github.com/${REPO}.git"
               push_error="$(git push origin "HEAD:refs/heads/main" 2>&1)" || {
                 echo "::warning::Direct push to main failed while syncing release metadata: ${push_error}" >&2
-                echo "::warning::Will verify origin/main VERSION matches release VERSION in the next step; if it mismatches, the release will be aborted." >&2
+                echo "::warning::Will verify origin/main VERSION matches release VERSION before continuing." >&2
               }
             fi
             git fetch origin main

@@ -484,16 +484,10 @@ exit 4
             explicit_public_api_url = str(public_stream.get("beagle_stream_server_api_url", "") or "").strip()
             if not base_url:
                 base_url = explicit_public_api_url
-        # When the base URL is the public URL but the guest IP is known, prefer
-        # the internal path (guest_ip:port) so the control plane can reach Sunshine
-        # directly without hairpin NAT. Fallback to public URL only when guest_ip
-        # is unavailable (e.g. VM not running or on a different host).
-        if explicit_public_api_url and base_url == explicit_public_api_url:
-            if guest_ip:
-                parsed = urlparse(explicit_public_api_url)
-                if parsed.scheme and parsed.port:
-                    return urlunparse(parsed._replace(netloc=f"{guest_ip}:{parsed.port}"))
-            return base_url
+        # When public_stream.beagle_stream_server_api_url is explicitly declared,
+        # return it as-is — it is the authoritative URL for this VM's stream server.
+        if explicit_public_api_url:
+            return explicit_public_api_url
         if guest_ip and base_url:
             parsed = urlparse(base_url)
             if parsed.scheme and parsed.port:
