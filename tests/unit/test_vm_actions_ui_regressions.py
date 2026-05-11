@@ -96,6 +96,11 @@ def test_vm_config_editor_surfaces_guided_control_ui() -> None:
 
     assert "Beagle Info View" in editor
     assert "Beagle Guide Layer" in editor
+    assert "beagle.vmConfigEditor.mode" in editor
+    assert "data-vm-mode=\"simple\"" in editor
+    assert "data-vm-mode=\"pro\"" in editor
+    assert "data-vm-config-item" in editor
+    assert "Einfach zeigt nur die wichtigsten Einstellungen" in editor
     assert "data-vm-config-range" in editor
     assert "class=\"vm-control-card vm-control-card-range\"" in editor
     assert "class=\"vm-control-card vm-control-card-toggle\"" in editor

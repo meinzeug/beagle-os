@@ -57,6 +57,14 @@
 .vm-config-editor .section-head .muted { margin: 0; font-size: 0.78rem; }
 .vm-config-editor [data-vm-config-status] { margin-top: 12px; }
 .vm-config-editor .check-label { min-height: 38px; align-items: center; }
+.vm-config-item[hidden] { display: none !important; }
+.vm-mode-switcher { border-color: color-mix(in srgb, var(--accent) 26%, var(--border)); background: color-mix(in srgb, var(--bg-card) 90%, var(--accent) 4%); }
+.vm-mode-switcher-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.vm-mode-switcher-head h3 { margin: 0; }
+.vm-mode-switcher .muted { margin: 0; font-size: 0.78rem; color: var(--text-muted); }
+.vm-mode-switcher-buttons { display: inline-grid; grid-template-columns: repeat(2, minmax(86px, 1fr)); padding: 2px; border-radius: 8px; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg-elevated) 86%, black 6%); }
+.vm-mode-switcher-buttons button { min-height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); font-size: 0.74rem; font-weight: 800; }
+.vm-mode-switcher-buttons button.is-active { color: var(--text); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 44%, transparent), color-mix(in srgb, var(--green) 32%, transparent)); box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent), 0 6px 14px rgba(0, 0, 0, 0.16); }
 .vm-config-editor .provision-grid { align-items: stretch; }
 .vm-config-editor .field { min-height: 96px; padding: 12px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--border) 78%, var(--accent) 14%); background: linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 84%, white 4%), color-mix(in srgb, var(--bg-elevated) 88%, black 5%)); box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent), 0 8px 18px rgba(0, 0, 0, 0.10); }
 .vm-config-editor .field input, .vm-config-editor .field textarea { border-color: color-mix(in srgb, var(--accent) 24%, var(--border)); background: color-mix(in srgb, var(--bg-elevated) 82%, black 6%); box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.12); }

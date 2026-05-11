@@ -106,6 +106,14 @@ const CONTROL_LIMITS = {
   cpuunits: { min: 1, max: 10000, step: 100, unit: 'weight' }
 };
 
+const SIMPLE_FIELDS = new Set([
+  'name', 'description', 'tags',
+  'cores', 'memory', 'cpu',
+  'bootdisk', 'onboot', 'agent',
+  'vga', 'audio0',
+  'ciuser', 'ipconfig0', 'nameserver'
+]);
+
 const FIELD_HELP = {
   name: help('Name', 'Der Anzeigename der VM. Er hilft dir, die Maschine in Listen, Logs und Backups eindeutig wiederzufinden.', 'Aendere ihn frei, solange er eindeutig und gut lesbar bleibt.', ['win11-gaming', 'office-terminal-01']),
   description: help('Beschreibung', 'Freitext fuer Zweck, Besitzer, Besonderheiten oder Wartungshinweise.', 'Hier kannst du notieren, warum es diese VM gibt und worauf man achten muss.', ['Gaming VM fuer Wohnzimmer', 'Nicht loeschen, Buchhaltung']),
@@ -336,6 +344,21 @@ function renderGuidePanel() {
     '</aside>';
 }
 
+function renderModeSwitcher(mode) {
+  const simpleActive = mode !== 'pro';
+  return '' +
+    '<section class="detail-section vm-mode-switcher">' +
+    '  <div class="vm-mode-switcher-head">' +
+    '    <h3>Bedienmodus</h3>' +
+    '    <div class="vm-mode-switcher-buttons" role="tablist" aria-label="VM Konfigurationsmodus">' +
+    '      <button type="button" data-vm-mode="simple" aria-pressed="' + (simpleActive ? 'true' : 'false') + '" class="' + (simpleActive ? 'is-active' : '') + '">Einfach</button>' +
+    '      <button type="button" data-vm-mode="pro" aria-pressed="' + (!simpleActive ? 'true' : 'false') + '" class="' + (!simpleActive ? 'is-active' : '') + '">Profi</button>' +
+    '    </div>' +
+    '  </div>' +
+    '  <p class="muted">Einfach zeigt nur die wichtigsten Einstellungen. Profi blendet alle Optionen ein.</p>' +
+    '</section>';
+}
+
 function renderInterfaces(interfaces) {
   if (!Array.isArray(interfaces) || !interfaces.length) {
     return '';
@@ -357,16 +380,26 @@ export class VmConfigEditor {
     this.config = Object.assign({}, config || {});
     this.interfaces = Array.isArray(interfaces) ? interfaces : [];
     this.onStatus = typeof onStatus === 'function' ? onStatus : function noop() {};
+    this.mode = 'simple';
+    try {
+      const savedMode = String(localStorage.getItem('beagle.vmConfigEditor.mode') || '').trim().toLowerCase();
+      if (savedMode === 'pro' || savedMode === 'simple') {
+        this.mode = savedMode;
+      }
+    } catch (error) {
+      void error;
+    }
   }
 
   render() {
     let html = '<form class="vm-config-editor" data-vm-config-editor data-vmid="' + escapeHtml(String(this.vmid)) + '">';
     html += '<section class="detail-section"><div class="section-head"><div><h3>VM Konfiguration</h3><p class="muted">Beagle-native KVM/libvirt API, Proxmox-nahe Optionsabdeckung.</p></div><button type="submit" class="primary">Speichern</button></div><div class="banner banner-info" data-vm-config-status hidden></div></section>';
+    html += renderModeSwitcher(this.mode);
     html += renderGuidePanel();
     EDITOR_SECTIONS.forEach((section) => {
       html += '<section class="detail-section"><h3>' + escapeHtml(section.title) + '</h3><div class="provision-grid">';
       section.fields.forEach((field) => {
-        html += renderInput(field, this.config);
+        html += '<div class="vm-config-item" data-vm-config-item="' + escapeHtml(field.key) + '" data-vm-simple="' + (SIMPLE_FIELDS.has(field.key) ? '1' : '0') + '">' + renderInput(field, this.config) + '</div>';
       });
       html += '</div></section>';
     });
@@ -375,7 +408,7 @@ export class VmConfigEditor {
     if (extraKeys.length) {
       html += '<section class="detail-section"><h3>Weitere Optionen</h3><div class="provision-grid">';
       extraKeys.forEach((key) => {
-        html += '<label class="field">' + renderFieldCaption({ key, label: key }) + '<input class="mono" data-vm-config-field="' + escapeHtml(key) + '" value="' + escapeHtml(normalize(this.config[key])) + '"></label>';
+        html += '<div class="vm-config-item" data-vm-config-item="' + escapeHtml(key) + '" data-vm-simple="0"><label class="field">' + renderFieldCaption({ key, label: key }) + '<input class="mono" data-vm-config-field="' + escapeHtml(key) + '" value="' + escapeHtml(normalize(this.config[key])) + '"></label></div>';
       });
       html += '</div></section>';
     }
@@ -395,6 +428,12 @@ export class VmConfigEditor {
       this.save(form);
     });
     form.addEventListener('click', (event) => {
+      const modeButton = event.target && event.target.closest ? event.target.closest('[data-vm-mode]') : null;
+      if (modeButton) {
+        event.preventDefault();
+        this.setMode(form, String(modeButton.getAttribute('data-vm-mode') || 'simple'));
+        return;
+      }
       const helpButton = event.target && event.target.closest ? event.target.closest('[data-vm-config-help]') : null;
       if (helpButton) {
         event.preventDefault();
@@ -429,6 +468,32 @@ export class VmConfigEditor {
       if (event.key === 'Escape') {
         this.closeHelp(form);
       }
+    });
+    this.applyMode(form);
+  }
+
+  setMode(form, mode) {
+    const next = mode === 'pro' ? 'pro' : 'simple';
+    this.mode = next;
+    try {
+      localStorage.setItem('beagle.vmConfigEditor.mode', next);
+    } catch (error) {
+      void error;
+    }
+    this.applyMode(form);
+  }
+
+  applyMode(form) {
+    const simple = this.mode !== 'pro';
+    form.setAttribute('data-vm-mode', simple ? 'simple' : 'pro');
+    form.querySelectorAll('[data-vm-mode]').forEach((button) => {
+      const selected = String(button.getAttribute('data-vm-mode') || '') === (simple ? 'simple' : 'pro');
+      button.classList.toggle('is-active', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    form.querySelectorAll('[data-vm-config-item]').forEach((item) => {
+      const keep = !simple || String(item.getAttribute('data-vm-simple') || '0') === '1';
+      item.hidden = !keep;
     });
   }
 
