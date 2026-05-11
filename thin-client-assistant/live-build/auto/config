@@ -21,7 +21,12 @@ BOOTLOADER_VALUE="grub"
 
 if lb config --help 2>/dev/null | grep -q -- '--bootloaders'; then
   BOOTLOADER_FLAG="--bootloaders"
-  BOOTLOADER_VALUE="grub-pc,grub-efi-amd64"
+  # live-build uses 'grub-efi' (not 'grub-efi-amd64') for EFI support
+  if lb config --help 2>/dev/null | grep -q 'grub-efi-amd64'; then
+    BOOTLOADER_VALUE="grub-pc,grub-efi-amd64"
+  else
+    BOOTLOADER_VALUE="grub-pc,grub-efi"
+  fi
 fi
 
 lb config noauto \
