@@ -8,6 +8,7 @@ ACTIONS_JS = ROOT / "website" / "ui" / "actions.js"
 INVENTORY_JS = ROOT / "website" / "ui" / "inventory.js"
 MAIN_JS = ROOT / "website" / "main.js"
 VM_CONFIG_EDITOR_JS = ROOT / "website" / "ui" / "vm_config_editor.js"
+PROVISIONING_JS = ROOT / "website" / "ui" / "provisioning.js"
 
 
 def _read(path: Path) -> str:
@@ -116,4 +117,21 @@ def test_vm_config_editor_surfaces_guided_control_ui() -> None:
     assert "data-vm-change-count" in editor
     assert "refreshEnterpriseConsole(form)" in editor
     assert "FIELD_VALIDATIONS" in editor
+    assert "Workload Profile Deck" in editor
+    assert "ENTERPRISE_PROFILES" in editor
+    assert "data-vm-profile-key" in editor
+    assert "applyProfile(form, String(profileButton.getAttribute('data-vm-profile-key') || ''))" in editor
     assert "VM Konfiguration" in editor
+
+
+def test_provisioning_supports_one_click_quick_intents() -> None:
+    provisioning = _read(PROVISIONING_JS)
+
+    assert "One-Click Provisioning" in provisioning
+    assert "Thinclient VM mieten" in provisioning
+    assert "Dedicated Server mieten" in provisioning
+    assert "runProvisionQuickIntent(intentKey, idPrefix, autoCreate)" in provisioning
+    assert "data-provision-quick-intent" in provisioning
+    assert "data-provision-quick-create=\"1\"" in provisioning
+    assert "ensureQuickIntentDeck(idPrefix)" in provisioning
+    assert "randomPassword(20)" in provisioning

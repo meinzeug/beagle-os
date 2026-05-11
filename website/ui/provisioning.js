@@ -24,8 +24,154 @@ const provisionProgressState = {
   stepIndex: -1
 };
 
+const QUICK_INTENTS = {
+  thinclient: {
+    label: 'Thinclient VM mieten',
+    summary: 'Schneller Endpoint mit stabilem Desktop-Profil fuer Session-Betrieb.',
+    defaults: {
+      namePrefix: 'thinclient',
+      memory: 4096,
+      cores: 2,
+      disk: 64,
+      guestUser: 'beagle',
+      extraPackages: 'qemu-guest-agent,spice-vdagent',
+      desktopHints: ['thinclient', 'endpoint', 'kiosk', 'desktop']
+    }
+  },
+  dedicated: {
+    label: 'Dedicated Server mieten',
+    summary: 'Hohe Ressourcen fuer exklusive Workloads mit Server-Profil.',
+    defaults: {
+      namePrefix: 'dedicated',
+      memory: 32768,
+      cores: 12,
+      disk: 240,
+      guestUser: 'ops',
+      extraPackages: 'qemu-guest-agent,htop,curl',
+      desktopHints: ['server', 'headless', 'kde']
+    }
+  }
+};
+
 export function configureProvisioning(nextHooks) {
   Object.assign(provisioningHooks, nextHooks || {});
+}
+
+function randomPassword(length) {
+  const size = Math.max(16, Number(length || 20));
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*+-_=';
+  let output = '';
+  if (typeof crypto !== 'undefined' && crypto && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint32Array(size);
+    crypto.getRandomValues(bytes);
+    for (let index = 0; index < size; index += 1) {
+      output += alphabet[bytes[index] % alphabet.length];
+    }
+    return output;
+  }
+  for (let index = 0; index < size; index += 1) {
+    output += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return output;
+}
+
+function isModalPrefix(idPrefix) {
+  return String(idPrefix || '') === 'prov-modal-';
+}
+
+function formIdForPrefix(idPrefix) {
+  return isModalPrefix(idPrefix) ? 'provision-modal-grid' : 'provision-grid';
+}
+
+function setInputValue(id, value) {
+  const node = qs(id);
+  if (node) {
+    node.value = String(value == null ? '' : value);
+  }
+}
+
+function chooseSelectOption(select, hints) {
+  if (!select || !Array.isArray(hints) || !hints.length) {
+    return false;
+  }
+  const options = Array.from(select.options || []);
+  const match = options.find((option) => {
+    const text = (String(option.value || '') + ' ' + String(option.textContent || '')).toLowerCase();
+    return hints.some((hint) => text.includes(String(hint || '').toLowerCase()));
+  });
+  if (!match) {
+    return false;
+  }
+  select.value = match.value;
+  return true;
+}
+
+function nextName(idPrefix, namePrefix) {
+  const vmid = String(qs(idPrefix + 'vmid') ? qs(idPrefix + 'vmid').value : '').trim();
+  const suffix = vmid || String(Date.now()).slice(-5);
+  return String(namePrefix || 'beagle') + '-' + suffix;
+}
+
+function renderQuickIntentDeck(idPrefix) {
+  return '' +
+    '<section class="provision-quick-deck" data-provision-quick-deck="' + escapeHtml(idPrefix) + '">' +
+    '  <div class="provision-quick-head">' +
+    '    <div><strong>One-Click Provisioning</strong><p>Wie Staubsauger bedienen: Profil antippen, VM wird sofort erstellt.</p></div>' +
+    '    <span class="provision-quick-badge">No Wizard</span>' +
+    '  </div>' +
+    '  <div class="provision-quick-actions">' +
+    '    <button type="button" class="button primary" data-provision-quick-intent="thinclient" data-provision-prefix="' + escapeHtml(idPrefix) + '" data-provision-quick-create="1">Thinclient VM mieten</button>' +
+    '    <button type="button" class="button primary" data-provision-quick-intent="dedicated" data-provision-prefix="' + escapeHtml(idPrefix) + '" data-provision-quick-create="1">Dedicated Server mieten</button>' +
+    '  </div>' +
+    '  <p class="muted provision-quick-note" data-provision-quick-note="' + escapeHtml(idPrefix) + '">Auto setzt Name, Ressourcen, Profil und ein starkes Gast-Passwort.</p>' +
+    '</section>';
+}
+
+function ensureQuickIntentDeck(idPrefix) {
+  const form = qs(formIdForPrefix(idPrefix));
+  if (!form || !form.parentNode) {
+    return;
+  }
+  const selector = '[data-provision-quick-deck="' + CSS.escape(idPrefix) + '"]';
+  if (form.parentNode.querySelector(selector)) {
+    return;
+  }
+  form.insertAdjacentHTML('beforebegin', renderQuickIntentDeck(idPrefix));
+}
+
+function applyQuickIntent(idPrefix, intentKey) {
+  const intent = QUICK_INTENTS[intentKey];
+  if (!intent || !intent.defaults) {
+    return false;
+  }
+  const defaults = intent.defaults;
+  const desktopSelect = qs(idPrefix + 'desktop');
+  const guestPassword = randomPassword(20);
+  setInputValue(idPrefix + 'name', nextName(idPrefix, defaults.namePrefix));
+  setInputValue(idPrefix + 'memory', defaults.memory);
+  setInputValue(idPrefix + 'cores', defaults.cores);
+  setInputValue(idPrefix + 'disk', defaults.disk);
+  setInputValue(idPrefix + 'guest-user', defaults.guestUser || 'beagle');
+  setInputValue(idPrefix + 'guest-password', guestPassword);
+  setInputValue(idPrefix + 'extra-packages', defaults.extraPackages || '');
+  chooseSelectOption(desktopSelect, defaults.desktopHints || []);
+  const note = document.querySelector('[data-provision-quick-note="' + CSS.escape(idPrefix) + '"]');
+  if (note) {
+    note.textContent = (intent.label || intentKey) + ': Defaults gesetzt. Passwort wurde sicher generiert.';
+  }
+  provisioningHooks.setBanner((intent.label || intentKey) + ': One-Click Defaults vorbereitet.', 'info');
+  return true;
+}
+
+export function runProvisionQuickIntent(intentKey, idPrefix, autoCreate) {
+  const prefix = String(idPrefix || 'prov-');
+  if (!applyQuickIntent(prefix, intentKey)) {
+    provisioningHooks.setBanner('One-Click Profil nicht gefunden.', 'warn');
+    return;
+  }
+  if (Boolean(autoCreate)) {
+    createProvisionedVmWithPrefix(prefix);
+  }
 }
 
 export function loadProvisioningCatalog(idPrefix) {
@@ -84,6 +230,7 @@ export function loadProvisioningCatalog(idPrefix) {
   if (qs(idPrefix + 'extra-packages')) {
     qs(idPrefix + 'extra-packages').value = '';
   }
+  ensureQuickIntentDeck(idPrefix);
 }
 
 export function renderProvisioningWorkspace() {
