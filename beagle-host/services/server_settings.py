@@ -80,6 +80,7 @@ _BEAGLE_TLS_CERT_PATH = _BEAGLE_TLS_DIR / "beagle-proxy.crt"
 _BEAGLE_TLS_KEY_PATH = _BEAGLE_TLS_DIR / "beagle-proxy.key"
 _NGINX_PID_CANDIDATES = [Path("/run/nginx.pid"), Path("/var/run/nginx.pid")]
 _ARTIFACT_WATCHDOG_STATUS_FILE = Path("/var/lib/beagle/artifact-watchdog-status.json")
+_ARTIFACT_BUILD_HISTORY_FILE = Path("/var/lib/beagle/artifact-build-history.json")
 _ARTIFACT_WATCHDOG_RULE_FILE = Path("/etc/polkit-1/rules.d/49-beagle-artifacts-watchdog.rules")
 _REPO_AUTO_UPDATE_STATUS_FILE = Path("/var/lib/beagle/repo-auto-update-status.json")
 _REPO_AUTO_UPDATE_FORCE_FILE = Path("/var/lib/beagle/repo-auto-update-force")
@@ -910,6 +911,24 @@ class ServerSettingsService:
         preflight = self._artifact_preflight(dist_dir=dist_dir, running_refresh=running_refresh)
         publish_gate = self._artifact_publish_gate(dist_dir=dist_dir, version=version)
         watchdog = self.get_artifact_watchdog(status_json=status_json, refresh_status=refresh_status)
+        repo_auto_update = self.get_repo_auto_update()
+        build_history = self._artifact_build_history()
+        context = self._artifact_context(
+            dist_dir=dist_dir,
+            version=version,
+            status_json=status_json,
+            refresh_status=refresh_status,
+            artifacts=artifacts,
+            missing=missing,
+            publish_gate=publish_gate,
+            repo_auto_update=repo_auto_update,
+            build_history=build_history,
+        )
+        live_events = self._artifact_live_events(
+            refresh_status=refresh_status,
+            build_activity=build_activity,
+            repo_auto_update=repo_auto_update,
+        )
         status_url = str(status_json.get("status_url") or "").strip()
         downloads_path = str(status_json.get("downloads_path") or "/beagle-downloads").strip() or "/beagle-downloads"
         if not downloads_path.startswith("/"):
@@ -937,6 +956,10 @@ class ServerSettingsService:
             "running_refresh": running_refresh,
             "primary_status": primary_status,
             "build_activity": build_activity,
+            "context": context,
+            "live_events": live_events,
+            "build_history": build_history,
+            "repo_auto_update": repo_auto_update,
             "preflight": preflight,
             "publish_gate": publish_gate,
             "watchdog": watchdog,
@@ -951,6 +974,175 @@ class ServerSettingsService:
                 "beagle-artifacts-watchdog.timer": _run_cmd(["systemctl", "is-active", "beagle-artifacts-watchdog.timer"], fallback="unknown") or "unknown",
             },
         }
+
+    def _artifact_context(
+        self,
+        *,
+        dist_dir: Path,
+        version: str,
+        status_json: dict[str, Any],
+        refresh_status: dict[str, Any],
+        artifacts: list[dict[str, Any]],
+        missing: list[str],
+        publish_gate: dict[str, Any],
+        repo_auto_update: dict[str, Any],
+        build_history: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        config = repo_auto_update.get("config") if isinstance(repo_auto_update.get("config"), dict) else {}
+        repo_status = repo_auto_update.get("status") if isinstance(repo_auto_update.get("status"), dict) else {}
+        repo_url = str(config.get("repo_url") or repo_status.get("repo_url") or _DEFAULT_REPO_AUTO_UPDATE_URL).strip()
+        branch = str(config.get("branch") or repo_status.get("branch") or _DEFAULT_REPO_AUTO_UPDATE_BRANCH).strip()
+        current_commit = str(repo_status.get("current_commit") or "").strip()
+        remote_commit = str(repo_status.get("remote_commit") or "").strip()
+        installed_commit_file = self._install_dir / ".beagle-installed-commit"
+        if not current_commit and installed_commit_file.is_file():
+            try:
+                current_commit = installed_commit_file.read_text(encoding="utf-8").strip()
+            except OSError:
+                current_commit = ""
+        if not current_commit:
+            current_commit = _run_cmd(["git", "rev-parse", "HEAD"], cwd=self._install_dir, fallback="") or ""
+
+        github_repository = self._github_repository_from_url(repo_url)
+        github_base = f"https://github.com/{github_repository}" if github_repository else ""
+        github_commit = current_commit or remote_commit
+        artifact_count = len(artifacts)
+        present_artifacts = [item for item in artifacts if item.get("exists")]
+        total_size = sum(int(item.get("size_bytes") or 0) for item in present_artifacts)
+        version_value = str(version or status_json.get("version") or repo_status.get("installed_version") or "").strip()
+        workflow_url = str(refresh_status.get("workflow_url") or status_json.get("workflow_url") or "").strip()
+        workflow_run_id = str(refresh_status.get("workflow_run_id") or status_json.get("workflow_run_id") or "").strip()
+        if not workflow_url and github_base and workflow_run_id:
+            workflow_url = f"{github_base}/actions/runs/{workflow_run_id}"
+
+        return {
+            "repo": {
+                "url": repo_url,
+                "github_repository": github_repository,
+                "branch": branch,
+                "installed_version": str(repo_status.get("installed_version") or version_value or ""),
+                "remote_version": str(repo_status.get("remote_version") or ""),
+                "current_commit": current_commit,
+                "remote_commit": remote_commit,
+                "state": str(repo_status.get("state") or "unknown"),
+                "message": str(repo_status.get("message") or ""),
+                "checked_at": str(repo_status.get("checked_at") or ""),
+                "update_available": bool(repo_status.get("update_available", False)),
+            },
+            "github": {
+                "repository": github_repository,
+                "branch_url": f"{github_base}/tree/{branch}" if github_base and branch else "",
+                "commit_url": f"{github_base}/commit/{github_commit}" if github_base and github_commit else "",
+                "actions_url": f"{github_base}/actions" if github_base else "",
+                "workflow_run_id": workflow_run_id,
+                "workflow_url": workflow_url,
+                "release_url": f"{github_base}/releases/tag/v{version_value.lstrip('v')}" if github_base and version_value else "",
+            },
+            "downloads": {
+                "dist_dir": str(dist_dir),
+                "version": version_value,
+                "artifact_count": artifact_count,
+                "present_count": len(present_artifacts),
+                "missing_count": len(missing),
+                "total_size_bytes": total_size,
+                "public_ready": bool(publish_gate.get("public_ready")),
+                "missing_latest_count": len(publish_gate.get("missing_latest") or []),
+                "missing_versioned_count": len(publish_gate.get("missing_versioned") or []),
+            },
+            "history": {
+                "entries": len(build_history),
+                "last_commits": [str(item.get("build_commit") or "")[:12] for item in build_history[-8:] if item.get("build_commit")],
+            },
+        }
+
+    def _artifact_build_history(self) -> list[dict[str, Any]]:
+        try:
+            loaded = json.loads(_ARTIFACT_BUILD_HISTORY_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        if not isinstance(loaded, list):
+            return []
+        return [item for item in loaded[-40:] if isinstance(item, dict)]
+
+    @staticmethod
+    def _github_repository_from_url(repo_url: str) -> str:
+        value = str(repo_url or "").strip()
+        if not value:
+            return ""
+        patterns = (
+            r"^https://github\.com/([^/]+/[^/.]+)(?:\.git)?/?$",
+            r"^git@github\.com:([^/]+/[^/.]+)(?:\.git)?$",
+        )
+        for pattern in patterns:
+            match = re.match(pattern, value)
+            if match:
+                return match.group(1)
+        return ""
+
+    def _artifact_live_events(
+        self,
+        *,
+        refresh_status: dict[str, Any],
+        build_activity: dict[str, Any],
+        repo_auto_update: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        events: list[dict[str, Any]] = []
+
+        def add(source: str, message: str, *, ts: str = "", tone: str = "info") -> None:
+            clean = re.sub(r"\s+", " ", str(message or "")).strip()
+            if not clean:
+                return
+            events.append({
+                "source": source,
+                "message": clean[:320],
+                "ts": str(ts or ""),
+                "tone": tone,
+            })
+
+        add(
+            "status",
+            str(refresh_status.get("message") or refresh_status.get("step") or refresh_status.get("status") or ""),
+            ts=str(refresh_status.get("updated_at") or refresh_status.get("started_at") or ""),
+            tone="warn" if str(refresh_status.get("status") or "").lower() == "failed" else "info",
+        )
+        repo_status = repo_auto_update.get("status") if isinstance(repo_auto_update.get("status"), dict) else {}
+        add(
+            "github",
+            str(repo_status.get("message") or repo_status.get("state") or ""),
+            ts=str(repo_status.get("checked_at") or ""),
+            tone="warn" if str(repo_status.get("state") or "").lower() == "error" else "info",
+        )
+        active_processes = build_activity.get("active_processes") if isinstance(build_activity.get("active_processes"), list) else []
+        for process_info in active_processes[:6]:
+            command = str((process_info or {}).get("command") or "")
+            pid = str((process_info or {}).get("pid") or "")
+            elapsed = str((process_info or {}).get("elapsed_seconds") or "")
+            add("process", f"PID {pid} seit {elapsed}s: {command}", tone="process")
+
+        journal = _run_cmd(
+            [
+                "journalctl",
+                "-u", "beagle-artifacts-refresh.service",
+                "-u", "beagle-artifacts-watchdog.service",
+                "-n", "18",
+                "--no-pager",
+                "-o", "short-iso",
+            ],
+            fallback="",
+            timeout=4,
+        ) or ""
+        for line in journal.splitlines()[-18:]:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            parts = stripped.split(None, 3)
+            ts = " ".join(parts[:2]) if len(parts) >= 2 else ""
+            message = parts[3] if len(parts) >= 4 else stripped
+            if any(secret_word in message.lower() for secret_word in ("password", "token", "secret", "authorization")):
+                message = "[sensible Journal-Zeile ausgeblendet]"
+            add("journal", message, ts=ts, tone="log")
+
+        return events[-30:]
 
     def _artifact_primary_status(
         self,
@@ -1713,9 +1905,10 @@ def _run_cmd(
     check: bool = False,
     fallback: str | None = None,
     timeout: int = 30,
+    cwd: Path | None = None,
 ) -> str | None:
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=str(cwd) if cwd else None)
         if check and r.returncode != 0:
             return None if fallback is None else fallback
         return r.stdout.strip() if r.stdout else (fallback or "")

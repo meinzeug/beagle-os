@@ -7,7 +7,9 @@ HOST_ENV_FILE="${PVE_DCV_HOST_ENV_FILE:-$CONFIG_DIR/host.env}"
 PROXY_ENV_FILE="${PVE_DCV_PROXY_ENV_FILE:-$CONFIG_DIR/beagle-proxy.env}"
 STATUS_DIR="${PVE_DCV_STATUS_DIR:-/var/lib/beagle}"
 REFRESH_STATUS_FILE="$STATUS_DIR/refresh.status.json"
+REFRESH_HISTORY_FILE="$STATUS_DIR/artifact-build-history.json"
 DOWNLOAD_STATUS_FILE="$ROOT_DIR/dist/beagle-downloads-status.json"
+COMMIT_FILE="$ROOT_DIR/.beagle-installed-commit"
 BEAGLE_HOST_PROVIDER="${BEAGLE_HOST_PROVIDER:-beagle}"
 REFRESH_STATUS_GROUP="${BEAGLE_CONTROL_USER:-beagle-manager}"
 
@@ -24,46 +26,52 @@ STATUS_HEARTBEAT_PID=""
 
 write_status_payload() {
   local status="$1"
-  local end_ts duration version
+  local end_ts duration version build_commit
 
   end_ts="$(date +%s)"
   duration="$(( end_ts - START_TS ))"
   version="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION" 2>/dev/null || echo unknown)"
+  build_commit="$(tr -d ' \n\r' < "$COMMIT_FILE" 2>/dev/null || git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || true)"
 
   install -d -m 0755 "$STATUS_DIR"
-  python3 - "$REFRESH_STATUS_FILE" "$status" "$version" "$START_TS" "$end_ts" "$duration" "$CURRENT_STEP" "$CURRENT_PROGRESS" "$CURRENT_MESSAGE" "$ERROR_EXCERPT" "$CURRENT_DETAIL" "$CURRENT_HINT" "$CURRENT_ACTIVE_PROCESSES" <<'PY'
+  python3 - "$REFRESH_STATUS_FILE" "$REFRESH_HISTORY_FILE" "$status" "$version" "$build_commit" "$START_TS" "$end_ts" "$duration" "$CURRENT_STEP" "$CURRENT_PROGRESS" "$CURRENT_MESSAGE" "$ERROR_EXCERPT" "$CURRENT_DETAIL" "$CURRENT_HINT" "$CURRENT_ACTIVE_PROCESSES" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 path = Path(sys.argv[1])
-status = sys.argv[2]
-version = sys.argv[3]
-started = int(sys.argv[4])
-ended = int(sys.argv[5])
-duration = int(sys.argv[6])
-step = sys.argv[7]
-progress = int(sys.argv[8])
-message = sys.argv[9]
-error_excerpt = sys.argv[10]
-detail = sys.argv[11]
-hint = sys.argv[12]
-active_processes_raw = sys.argv[13]
+history_path = Path(sys.argv[2])
+status = sys.argv[3]
+version = sys.argv[4]
+build_commit = sys.argv[5]
+started = int(sys.argv[6])
+ended = int(sys.argv[7])
+duration = int(sys.argv[8])
+step = sys.argv[9]
+progress = int(sys.argv[10])
+message = sys.argv[11]
+error_excerpt = sys.argv[12]
+detail = sys.argv[13]
+hint = sys.argv[14]
+active_processes_raw = sys.argv[15]
+started_at = datetime.fromtimestamp(started, timezone.utc).isoformat()
+updated_at = datetime.fromtimestamp(ended, timezone.utc).isoformat()
 
 payload = {
     "status": status,
     "version": version,
+    "build_commit": build_commit,
     "step": step,
     "progress": progress,
     "message": message,
     "last_result": status,
-    "started_at": datetime.fromtimestamp(started, timezone.utc).isoformat(),
-    "updated_at": datetime.fromtimestamp(ended, timezone.utc).isoformat(),
+    "started_at": started_at,
+    "updated_at": updated_at,
     "duration_seconds": duration,
 }
 if status in {"ok", "failed"}:
-    payload["finished_at"] = datetime.fromtimestamp(ended, timezone.utc).isoformat()
+    payload["finished_at"] = updated_at
 if error_excerpt:
     payload["error_excerpt"] = error_excerpt
 if detail or hint or active_processes_raw:
@@ -80,11 +88,39 @@ if detail or hint or active_processes_raw:
         ][:12],
     }
 path.write_text(json.dumps(payload, indent=2) + "\n")
+
+try:
+  history = json.loads(history_path.read_text(encoding="utf-8")) if history_path.is_file() else []
+except (OSError, json.JSONDecodeError):
+  history = []
+if not isinstance(history, list):
+  history = []
+entry = {
+  "status": status,
+  "version": version,
+  "build_commit": build_commit,
+  "step": step,
+  "progress": progress,
+  "message": message,
+  "started_at": started_at,
+  "updated_at": updated_at,
+  "finished_at": payload.get("finished_at", ""),
+}
+previous = history[-1] if history else {}
+if not previous or any(previous.get(key) != entry.get(key) for key in ("status", "build_commit", "step", "message")):
+  history.append(entry)
+else:
+  previous.update(entry)
+history_path.write_text(json.dumps(history[-120:], indent=2) + "\n", encoding="utf-8")
 PY
   if getent group "$REFRESH_STATUS_GROUP" >/dev/null 2>&1; then
     chgrp "$REFRESH_STATUS_GROUP" "$REFRESH_STATUS_FILE" || true
   fi
   chmod 0640 "$REFRESH_STATUS_FILE" || true
+  if getent group "$REFRESH_STATUS_GROUP" >/dev/null 2>&1; then
+    chgrp "$REFRESH_STATUS_GROUP" "$REFRESH_HISTORY_FILE" || true
+  fi
+  chmod 0640 "$REFRESH_HISTORY_FILE" || true
 }
 
 write_refresh_status() {

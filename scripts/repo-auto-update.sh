@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETTINGS_FILE="${BEAGLE_SETTINGS_FILE:-${BEAGLE_MANAGER_DATA_DIR:-/var/lib/beagle/beagle-manager}/server-settings.json}"
 STATUS_DIR="${BEAGLE_STATUS_DIR:-/var/lib/beagle}"
 STATUS_FILE="$STATUS_DIR/repo-auto-update-status.json"
+REFRESH_STATUS_FILE="$STATUS_DIR/refresh.status.json"
 FORCE_FILE="$STATUS_DIR/repo-auto-update-force"
 CACHE_DIR="${BEAGLE_REPO_AUTO_UPDATE_CACHE_DIR:-$STATUS_DIR/repo-auto-update-cache}"
 WORKTREE_DIR="$CACHE_DIR/repo"
@@ -29,7 +30,7 @@ ensure_root() {
 ensure_root "$@"
 install -d -m 0755 "$STATUS_DIR" "$CACHE_DIR"
 
-python3 - "$SETTINGS_FILE" "$STATUS_FILE" "$FORCE_FILE" "$WORKTREE_DIR" "$STAGING_DIR" "$INSTALL_DIR" "$COMMIT_FILE" "$DEFAULT_REPO_URL" "$DEFAULT_BRANCH" "$DEFAULT_INTERVAL_MINUTES" <<'PY'
+python3 - "$SETTINGS_FILE" "$STATUS_FILE" "$FORCE_FILE" "$WORKTREE_DIR" "$STAGING_DIR" "$INSTALL_DIR" "$COMMIT_FILE" "$REFRESH_STATUS_FILE" "$DEFAULT_REPO_URL" "$DEFAULT_BRANCH" "$DEFAULT_INTERVAL_MINUTES" <<'PY'
 from __future__ import annotations
 
 import json
@@ -47,9 +48,10 @@ worktree_dir = Path(sys.argv[4])
 staging_dir = Path(sys.argv[5])
 install_dir = Path(sys.argv[6])
 commit_file = Path(sys.argv[7])
-default_repo_url = sys.argv[8]
-default_branch = sys.argv[9]
-default_interval = int(sys.argv[10])
+refresh_status_file = Path(sys.argv[8])
+default_repo_url = sys.argv[9]
+default_branch = sys.argv[10]
+default_interval = int(sys.argv[11])
 
 
 def utcnow() -> datetime:
@@ -166,6 +168,13 @@ def read_version_file(path: Path) -> str:
         return path.read_text(encoding="utf-8").strip()
     except OSError:
         return ""
+
+
+def read_running_build_commit(path: Path) -> str:
+    data = load_json(path)
+    if str(data.get("status") or "").strip().lower() not in {"queued", "running"}:
+        return ""
+    return str(data.get("build_commit") or "").strip()
 
 
 settings = load_json(settings_path)
@@ -378,10 +387,22 @@ if install is None or install.returncode != 0:
     write_status(payload)
     raise SystemExit(1)
 
-refresh_started_async = run(
-    ["systemctl", "--no-block", "start", "beagle-artifacts-refresh.service"],
-    timeout=60,
-)
+refresh_active = run(["systemctl", "is-active", "beagle-artifacts-refresh.service"], timeout=30)
+running_build_commit = read_running_build_commit(refresh_status_file)
+refresh_command = ["systemctl", "--no-block", "start", "beagle-artifacts-refresh.service"]
+refresh_action = "start"
+if refresh_active.returncode == 0 and running_build_commit and not same_commit(running_build_commit, remote_commit):
+    refresh_action = "restart"
+    stop_refresh = run(["systemctl", "stop", "beagle-artifacts-refresh.service"], timeout=90)
+    run(["systemctl", "reset-failed", "beagle-artifacts-refresh.service"], timeout=30)
+    if stop_refresh.returncode != 0:
+        payload["state"] = "error"
+        payload["reaction"] = "artifact_refresh_restart_failed"
+        payload["message"] = (stop_refresh.stderr or stop_refresh.stdout or "artifact refresh stop failed before restart").strip()[-400:]
+        write_status(payload)
+        raise SystemExit(1)
+
+refresh_started_async = run(refresh_command, timeout=60)
 if refresh_started_async.returncode != 0:
     refresh = run([str(install_dir / "scripts/refresh-host-artifacts.sh")], cwd=install_dir, timeout=7200)
     if refresh.returncode != 0:
@@ -393,8 +414,8 @@ if refresh_started_async.returncode != 0:
     payload["reaction"] = "updated_with_inline_artifact_refresh"
     payload["message"] = "Repo-Update erfolgreich eingespielt. Artefakte wurden direkt aktualisiert."
 else:
-    payload["reaction"] = "updated_artifact_refresh_started"
-    payload["message"] = "Repo-Update erfolgreich eingespielt. Artefakt-Build laeuft separat weiter."
+    payload["reaction"] = "updated_artifact_refresh_restarted" if refresh_action == "restart" else "updated_artifact_refresh_started"
+    payload["message"] = "Repo-Update erfolgreich eingespielt. Laufender Artefakt-Build wurde fuer den neuen Commit neu gestartet." if refresh_action == "restart" else "Repo-Update erfolgreich eingespielt. Artefakt-Build laeuft separat weiter."
 
 payload["state"] = "healthy"
 payload["current_commit"] = remote_commit

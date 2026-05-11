@@ -174,6 +174,64 @@
             <div class="info-item"><span class="info-label">Fehlend</span><span class="info-value" id="artifact-modal-missing">—</span></div>
           </aside>
         </div>
+        <section class="artifact-build-context-grid" aria-label="Build-Kontext">
+          <div class="artifact-build-context-card">
+            <span class="info-label">GitHub</span>
+            <strong id="artifact-modal-github-repo">—</strong>
+            <span id="artifact-modal-github-branch">—</span>
+            <a id="artifact-modal-github-link" href="#" target="_blank" rel="noopener" aria-disabled="true">Repository oeffnen</a>
+          </div>
+          <div class="artifact-build-context-card">
+            <span class="info-label">Commit</span>
+            <strong id="artifact-modal-current-commit">—</strong>
+            <span id="artifact-modal-remote-commit">—</span>
+            <a id="artifact-modal-commit-link" href="#" target="_blank" rel="noopener" aria-disabled="true">Commit oeffnen</a>
+          </div>
+          <div class="artifact-build-context-card">
+            <span class="info-label">Repo-Update</span>
+            <strong id="artifact-modal-repo-state">—</strong>
+            <span id="artifact-modal-repo-message">—</span>
+          </div>
+          <div class="artifact-build-context-card">
+            <span class="info-label">Downloads</span>
+            <strong id="artifact-modal-download-summary">—</strong>
+            <span id="artifact-modal-download-size">—</span>
+          </div>
+          <div class="artifact-build-context-card">
+            <span class="info-label">Version</span>
+            <strong id="artifact-modal-version">—</strong>
+            <span id="artifact-modal-public-gate">—</span>
+          </div>
+          <div class="artifact-build-context-card">
+            <span class="info-label">Workflow</span>
+            <strong id="artifact-modal-workflow">—</strong>
+            <a id="artifact-modal-workflow-link" href="#" target="_blank" rel="noopener" aria-disabled="true">Actions oeffnen</a>
+          </div>
+        </section>
+        <section class="artifact-live-detail" aria-label="Server-Live-Details">
+          <div class="artifact-live-detail-head">
+            <div>
+              <span class="info-label">Server Live-Details</span>
+              <strong>Was gerade passiert</strong>
+            </div>
+            <span id="artifact-modal-live-count">0 Events</span>
+          </div>
+          <div class="artifact-live-event-list" id="artifact-modal-live-events">
+            <div class="artifact-live-event is-muted"><span>—</span><strong>Warte auf SSE-Daten.</strong></div>
+          </div>
+        </section>
+        <section class="artifact-live-detail" aria-label="Build-Historie">
+          <div class="artifact-live-detail-head">
+            <div>
+              <span class="info-label">Build-Historie</span>
+              <strong>Letzte Commit-Builds</strong>
+            </div>
+            <span id="artifact-modal-history-count">0 Eintraege</span>
+          </div>
+          <div class="artifact-live-event-list" id="artifact-modal-build-history">
+            <div class="artifact-live-event is-muted"><span>—</span><strong>Noch keine Build-Historie.</strong></div>
+          </div>
+        </section>
         <div class="table-wrap compact artifact-build-process-table">
           <table class="vm-table compact-table">
             <thead><tr><th>PID</th><th>Laufzeit</th><th>CPU</th><th>RAM</th><th>Kommando</th></tr></thead>

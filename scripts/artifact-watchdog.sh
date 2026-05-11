@@ -6,6 +6,7 @@ SETTINGS_FILE="${BEAGLE_SETTINGS_FILE:-${BEAGLE_MANAGER_DATA_DIR:-/var/lib/beagl
 STATUS_DIR="${BEAGLE_STATUS_DIR:-/var/lib/beagle}"
 STATUS_FILE="$STATUS_DIR/artifact-watchdog-status.json"
 REFRESH_STATUS_FILE="$STATUS_DIR/refresh.status.json"
+REPO_STATUS_FILE="$STATUS_DIR/repo-auto-update-status.json"
 DIST_DIR="${BEAGLE_DIST_DIR:-$ROOT_DIR/dist}"
 REFRESH_SERVICE_NAME="${BEAGLE_ARTIFACT_REFRESH_SERVICE:-beagle-artifacts-refresh.service}"
 
@@ -23,7 +24,7 @@ ensure_root() {
 ensure_root "$@"
 install -d -m 0755 "$STATUS_DIR"
 
-python3 - "$SETTINGS_FILE" "$STATUS_FILE" "$REFRESH_STATUS_FILE" "$DIST_DIR" "$REFRESH_SERVICE_NAME" <<'PY'
+python3 - "$SETTINGS_FILE" "$STATUS_FILE" "$REFRESH_STATUS_FILE" "$REPO_STATUS_FILE" "$DIST_DIR" "$REFRESH_SERVICE_NAME" <<'PY'
 import json
 import subprocess
 import sys
@@ -33,8 +34,9 @@ from pathlib import Path
 settings_path = Path(sys.argv[1])
 status_path = Path(sys.argv[2])
 refresh_status_path = Path(sys.argv[3])
-dist_dir = Path(sys.argv[4])
-refresh_service_name = sys.argv[5]
+repo_status_path = Path(sys.argv[4])
+dist_dir = Path(sys.argv[5])
+refresh_service_name = sys.argv[6]
 
 required = [
     "beagle-downloads-status.json",
@@ -61,11 +63,20 @@ def load_json(path: Path) -> dict:
         return {}
     return data if isinstance(data, dict) else {}
 
+
+def same_commit(left: str, right: str) -> bool:
+    left = str(left or "").strip()
+    right = str(right or "").strip()
+    if not left or not right:
+        return False
+    return left == right or (len(left) >= 7 and right.startswith(left)) or (len(right) >= 7 and left.startswith(right))
+
 settings = load_json(settings_path)
 enabled = bool(settings.get("artifact_watchdog_enabled", True))
 max_age_hours = int(settings.get("artifact_watchdog_max_age_hours", 6) or 6)
 auto_repair = bool(settings.get("artifact_watchdog_auto_repair", True))
 refresh_status = load_json(refresh_status_path)
+repo_status = load_json(repo_status_path)
 status_json = load_json(dist_dir / "beagle-downloads-status.json")
 
 now = datetime.now(timezone.utc)
@@ -120,12 +131,35 @@ if candidate_times:
 
 refresh_state = str(refresh_status.get("status") or "").strip().lower()
 refresh_running = refresh_state in {"queued", "running"}
+running_build_commit = str(refresh_status.get("build_commit") or "").strip()
+target_commit = str(repo_status.get("remote_commit") or repo_status.get("current_commit") or "").strip()
+repo_state = str(repo_status.get("state") or "").strip().lower()
+stale_running_build = refresh_running and running_build_commit and target_commit and not same_commit(running_build_commit, target_commit) and repo_state != "updating"
 reaction = "none"
 state = "disabled"
 message = "Watchdog ist deaktiviert."
 
 if enabled:
-    if refresh_running:
+    if stale_running_build:
+        findings.append(f"stale_running_build:{running_build_commit[:12]}:{target_commit[:12]}")
+        state = "drift"
+        message = "Laufender Artefakt-Build nutzt nicht mehr den neuesten Commit."
+        if auto_repair:
+            stop = subprocess.run(["systemctl", "stop", refresh_service_name], capture_output=True, text=True, timeout=90)
+            reset = subprocess.run(["systemctl", "reset-failed", refresh_service_name], capture_output=True, text=True, timeout=30)
+            start = subprocess.run(["systemctl", "--no-block", "start", refresh_service_name], capture_output=True, text=True, timeout=30)
+            if stop.returncode == 0 and start.returncode == 0:
+                state = "repairing"
+                reaction = "restarted_refresh_for_new_commit"
+                message = "Alter Artefakt-Build wurde wegen neuerem Commit gestoppt und neu gestartet."
+            else:
+                reaction = "restart_refresh_failed"
+                message = "Staler Artefakt-Build erkannt, Neustart ist fehlgeschlagen."
+                findings.append("restart_error:" + ((stop.stderr or reset.stderr or start.stderr or stop.stdout or start.stdout).strip()[:200]))
+        else:
+            reaction = "notify_only"
+            message = "Staler Artefakt-Build erkannt, Auto-Repair ist deaktiviert."
+    elif refresh_running:
         state = "repairing"
         reaction = "refresh_already_running"
         message = "Artifact-Refresh laeuft bereits."
@@ -165,6 +199,8 @@ payload = {
     "findings": findings,
     "artifact_age_seconds": artifact_age_seconds,
     "refresh_status": refresh_state or "unknown",
+    "running_build_commit": running_build_commit,
+    "target_commit": target_commit,
     "version": version,
     "public_ready": not missing_latest and not missing_versioned,
 }

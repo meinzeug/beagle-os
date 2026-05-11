@@ -3,7 +3,7 @@
 .modal-dialog, .auth-dialog, .provision-dialog { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 26px; width: min(560px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; box-shadow: var(--shadow); }
 .provision-dialog { width: min(800px, 100%); }
 .provision-progress-dialog { width: min(760px, 100%); }
-.artifact-build-dialog { width: min(980px, 100%); }
+.artifact-build-dialog { width: min(1180px, 100%); }
 .modal-dialog-head, .auth-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .modal-dialog-head h2, .auth-dialog-head h2 { font-size: 1.4rem; font-weight: 700; margin: 4px 0 6px 0; }
 .modal-dialog-head p, .auth-dialog-head p { color: var(--text-muted); font-size: 0.86rem; }
@@ -17,6 +17,24 @@
 .artifact-build-process-table code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .artifact-build-modal.is-running #artifact-modal-state { color: var(--ok); }
 .artifact-build-modal .settings-build-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.artifact-build-context-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.artifact-build-context-card { display: grid; gap: 5px; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
+.artifact-build-context-card strong, .artifact-build-context-card span, .artifact-build-context-card a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artifact-build-context-card strong { font-size: 0.88rem; color: var(--text); }
+.artifact-build-context-card span, .artifact-build-context-card a { font-size: 0.76rem; color: var(--text-muted); }
+.artifact-build-context-card a[aria-disabled="true"] { pointer-events: none; color: var(--text-faint); }
+.artifact-live-detail { display: grid; gap: 10px; margin-top: 16px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
+.artifact-live-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.artifact-live-detail-head strong { display: block; font-size: 0.94rem; margin-top: 2px; }
+.artifact-live-detail-head > span { color: var(--text-muted); font-size: 0.76rem; white-space: nowrap; }
+.artifact-live-event-list { display: grid; gap: 6px; max-height: 260px; overflow: auto; }
+.artifact-live-event { display: grid; gap: 3px; padding: 8px 10px; border-left: 3px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-card); }
+.artifact-live-event span { color: var(--text-muted); font-size: 0.70rem; font-family: var(--font-mono); }
+.artifact-live-event strong { color: var(--text-secondary); font-size: 0.78rem; font-family: var(--font-mono); font-weight: 600; overflow-wrap: anywhere; }
+.artifact-live-event.is-warn { border-left-color: var(--danger); }
+.artifact-live-event.is-process { border-left-color: var(--cyan); }
+.artifact-live-event.is-log { border-left-color: var(--amber); }
+.artifact-live-event.is-muted { border-left-color: var(--text-faint); }
 .auth-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
 .auth-methods { margin-bottom: 18px; border: 1px solid var(--border); background: var(--bg-elevated); border-radius: 12px; padding: 12px; }
 .auth-methods-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-faint); margin-bottom: 10px; }
@@ -58,10 +76,12 @@ body.modal-open, body.mobile-menu-open { overflow: hidden; }
 .auth-modal[hidden] { display: none; }
 @media (max-width: 820px) {
 	.artifact-build-modal-grid { grid-template-columns: 1fr; }
+	.artifact-build-context-grid { grid-template-columns: 1fr 1fr; }
 	.artifact-build-modal-actions { grid-template-columns: 1fr 1fr; }
 	.artifact-build-modal .settings-build-meta { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
 	.modal { padding: 12px; }
+	.artifact-build-context-grid { grid-template-columns: 1fr; }
 	.artifact-build-modal-actions { grid-template-columns: 1fr; }
 }

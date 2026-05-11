@@ -247,6 +247,8 @@ textarea {
 .settings-update-metric,
 .settings-update-live,
 .settings-build-activity,
+.artifact-build-context-card,
+.artifact-live-detail,
 .auth-methods,
 .auth-method-item {
   background: var(--bg-elevated);

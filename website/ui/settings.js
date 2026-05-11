@@ -10,6 +10,9 @@ let webhookRows = [];
 let artifactRefreshPollTimer = 0;
 let artifactBuildModalOpen = false;
 let latestArtifactStatus = null;
+let latestRepoUpdateStatus = null;
+let artifactProgressKey = '';
+let artifactProgressValue = 0;
 let updateStatusEventSource = null;
 let updateStatusReconnectTimer = 0;
 let updateStatusStreamActive = false;
@@ -52,6 +55,41 @@ function setButtonBusy(id, busy) {
   }
 }
 
+function setOptionalLink(id, href) {
+  const node = qs(id);
+  if (!node) {
+    return;
+  }
+  const target = String(href || '').trim();
+  if (!target) {
+    node.setAttribute('href', '#');
+    node.setAttribute('aria-disabled', 'true');
+    return;
+  }
+  node.setAttribute('href', target);
+  node.removeAttribute('aria-disabled');
+}
+
+function stableArtifactProgress(payload, rawProgress) {
+  const refreshStatus = payload && payload.refresh_status ? payload.refresh_status : {};
+  const running = Boolean(payload && payload.running_refresh);
+  const buildKey = String(refreshStatus.started_at || refreshStatus.status_id || refreshStatus.updated_at || 'idle');
+  const numeric = Number(rawProgress);
+  const next = Number.isFinite(numeric) ? Math.max(0, Math.min(100, Math.round(numeric))) : 0;
+  if (!running) {
+    artifactProgressKey = buildKey;
+    artifactProgressValue = next;
+    return next;
+  }
+  if (buildKey !== artifactProgressKey) {
+    artifactProgressKey = buildKey;
+    artifactProgressValue = next;
+    return next;
+  }
+  artifactProgressValue = Math.max(artifactProgressValue, next);
+  return artifactProgressValue;
+}
+
 function renderArtifactBuildModal(data) {
   if (!artifactBuildModalOpen) {
     return;
@@ -60,12 +98,20 @@ function renderArtifactBuildModal(data) {
   const refreshStatus = payload.refresh_status || {};
   const buildActivity = payload.build_activity || refreshStatus.build_activity || {};
   const primaryStatus = payload.primary_status || {};
+  const context = payload.context || {};
+  const repoContext = context.repo || {};
+  const githubContext = context.github || {};
+  const downloadsContext = context.downloads || {};
+  const repoAutoUpdate = payload.repo_auto_update || latestRepoUpdateStatus || {};
+  const repoStatus = repoAutoUpdate.status || repoContext || {};
   const services = payload.services || {};
   const missing = Array.isArray(payload.missing) ? payload.missing : [];
   const activeProcesses = Array.isArray(buildActivity.active_processes) ? buildActivity.active_processes : [];
+  const liveEvents = Array.isArray(payload.live_events) ? payload.live_events : [];
+  const buildHistory = Array.isArray(payload.build_history) ? payload.build_history : [];
   const running = Boolean(payload.running_refresh);
   const visibleProgress = buildActivity.progress != null ? Number(buildActivity.progress) : Number(refreshStatus.progress);
-  const progress = Number.isFinite(visibleProgress) ? Math.max(0, Math.min(100, Math.round(visibleProgress))) : 0;
+  const progress = stableArtifactProgress(payload, visibleProgress);
 
   text('artifact-modal-state', running ? 'LIVE BUILD' : String(primaryStatus.label || refreshStatus.last_result || 'wartet'));
   text('artifact-modal-phase', String(buildActivity.label || refreshStatus.step || primaryStatus.label || 'Noch kein Build aktiv'));
@@ -78,6 +124,22 @@ function renderArtifactBuildModal(data) {
   text('artifact-modal-timer', String(services['beagle-artifacts-refresh.timer'] || 'unknown'));
   text('artifact-modal-updated', formatDate(refreshStatus.updated_at || refreshStatus.finished_at || refreshStatus.started_at || ''));
   text('artifact-modal-missing', missing.length ? missing.join(', ') : 'keine');
+  text('artifact-modal-github-repo', String(githubContext.repository || repoContext.github_repository || '—'));
+  text('artifact-modal-github-branch', 'Branch: ' + String(repoContext.branch || (repoAutoUpdate.config && repoAutoUpdate.config.branch) || '—'));
+  text('artifact-modal-current-commit', shortCommit(repoContext.current_commit || repoStatus.current_commit));
+  text('artifact-modal-remote-commit', 'Remote: ' + shortCommit(repoContext.remote_commit || repoStatus.remote_commit));
+  text('artifact-modal-repo-state', String(repoContext.state || repoStatus.state || 'unknown'));
+  text('artifact-modal-repo-message', String(repoContext.message || repoStatus.message || 'Noch kein Repo-Status.'));
+  text('artifact-modal-download-summary', String(downloadsContext.present_count ?? artifactsPresentCount(payload)) + ' / ' + String(downloadsContext.artifact_count ?? artifactsTotalCount(payload)) + ' vorhanden');
+  text('artifact-modal-download-size', formatBytesCompact(downloadsContext.total_size_bytes || 0));
+  text('artifact-modal-version', String(downloadsContext.version || payload.version || repoStatus.installed_version || '—'));
+  text('artifact-modal-public-gate', downloadsContext.public_ready ? 'Public-Gate bereit' : 'Public-Gate wartet');
+  text('artifact-modal-workflow', String(githubContext.workflow_run_id ? ('Run #' + githubContext.workflow_run_id) : 'GitHub Actions'));
+  setOptionalLink('artifact-modal-github-link', githubContext.branch_url || githubContext.actions_url || repoContext.url);
+  setOptionalLink('artifact-modal-commit-link', githubContext.commit_url);
+  setOptionalLink('artifact-modal-workflow-link', githubContext.workflow_url || githubContext.actions_url);
+  renderArtifactLiveEvents(liveEvents);
+  renderArtifactBuildHistory(buildHistory);
 
   const modal = qs('artifact-build-modal');
   if (modal) {
@@ -103,6 +165,69 @@ function renderArtifactBuildModal(data) {
       }).join('');
     }
   }
+}
+
+function renderArtifactBuildHistory(history) {
+  const body = qs('artifact-modal-build-history');
+  const count = qs('artifact-modal-history-count');
+  const rows = Array.isArray(history) ? history : [];
+  if (count) {
+    count.textContent = String(rows.length) + (rows.length === 1 ? ' Eintrag' : ' Eintraege');
+  }
+  if (!body) {
+    return;
+  }
+  if (!rows.length) {
+    body.innerHTML = '<div class="artifact-live-event is-muted"><span>—</span><strong>Noch keine Build-Historie.</strong></div>';
+    return;
+  }
+  body.innerHTML = rows.slice(-20).reverse().map((item) => {
+    const status = String(item.status || 'unknown');
+    const commit = shortCommit(item.build_commit || '');
+    const step = String(item.step || '—');
+    const ts = String(item.updated_at || item.started_at || '—');
+    const progress = Number(item.progress);
+    const progressText = Number.isFinite(progress) ? ' · ' + String(Math.round(progress)) + '%' : '';
+    return '<div class="artifact-live-event is-' + escapeHtml(status === 'failed' ? 'warn' : 'log') + '">' +
+      '<span>' + escapeHtml(ts) + ' · ' + escapeHtml(status) + progressText + '</span>' +
+      '<strong>' + escapeHtml(commit + ' · ' + step + ' · ' + String(item.message || '')) + '</strong>' +
+      '</div>';
+  }).join('');
+}
+
+function renderArtifactLiveEvents(events) {
+  const body = qs('artifact-modal-live-events');
+  const count = qs('artifact-modal-live-count');
+  const rows = Array.isArray(events) ? events : [];
+  if (count) {
+    count.textContent = String(rows.length) + (rows.length === 1 ? ' Event' : ' Events');
+  }
+  if (!body) {
+    return;
+  }
+  if (!rows.length) {
+    body.innerHTML = '<div class="artifact-live-event is-muted"><span>—</span><strong>Noch keine Serverdetails verfuegbar.</strong></div>';
+    return;
+  }
+  body.innerHTML = rows.slice(-30).reverse().map((item) => {
+    const source = String(item.source || 'server');
+    const tone = String(item.tone || 'info');
+    const ts = String(item.ts || 'live');
+    const message = String(item.message || '');
+    return '<div class="artifact-live-event is-' + escapeHtml(tone) + '">' +
+      '<span>' + escapeHtml(ts) + ' · ' + escapeHtml(source) + '</span>' +
+      '<strong>' + escapeHtml(message) + '</strong>' +
+      '</div>';
+  }).join('');
+}
+
+function artifactsTotalCount(payload) {
+  return Array.isArray(payload && payload.artifacts) ? payload.artifacts.length : 0;
+}
+
+function artifactsPresentCount(payload) {
+  const rows = Array.isArray(payload && payload.artifacts) ? payload.artifacts : [];
+  return rows.filter((item) => item && item.exists).length;
 }
 
 function openArtifactBuildModal() {
@@ -247,6 +372,7 @@ function renderUpdateStreamPayload(payload) {
     return;
   }
   if (payload.repo_auto_update) {
+    latestRepoUpdateStatus = payload.repo_auto_update;
     renderRepoUpdateStatus(payload.repo_auto_update);
   }
   if (payload.artifacts) {

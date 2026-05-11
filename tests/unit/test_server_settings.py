@@ -165,8 +165,37 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertEqual(result["services"]["beagle-artifacts-refresh.service"], "active")
         self.assertIn("preflight", result)
         self.assertIn("publish_gate", result)
+        self.assertIn("context", result)
+        self.assertIn("live_events", result)
+        self.assertEqual(result["context"]["repo"]["branch"], "main")
+        self.assertEqual(result["context"]["github"]["repository"], "meinzeug/beagle-os")
+        self.assertIn("actions", result["context"]["github"]["actions_url"])
         self.assertEqual(result["publish_gate"]["missing_latest"].count("pve-thin-client-usb-installer-latest.sh"), 1)
         self.assertEqual(result["links"]["downloads_index"], "/beagle-downloads/beagle-downloads-index.html")
+
+    def test_get_artifacts_reports_live_journal_events(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            install_dir = Path(tmpdir) / "beagle"
+            dist = install_dir / "dist"
+            dist.mkdir(parents=True)
+            (install_dir / "VERSION").write_text("6.7.0-test\n", encoding="utf-8")
+            service = ServerSettingsService(data_dir=Path(tmpdir) / "data", install_dir=install_dir)
+
+            def fake_run_cmd(cmd, *args, **kwargs):
+                if cmd and cmd[0] == "journalctl":
+                    return "2026-05-11T20:26:00+00:00 srv1 beagle[1]: Pakete werden installiert\n"
+                if cmd[:2] == ["systemctl", "is-active"] and cmd[2] == "beagle-artifacts-refresh.service":
+                    return "active"
+                if cmd[:2] == ["systemctl", "is-active"]:
+                    return "inactive"
+                return ""
+
+            with mock.patch.object(MODULE, "_run_cmd", side_effect=fake_run_cmd), \
+                 mock.patch.object(MODULE, "_which", side_effect=lambda tool: f"/usr/bin/{tool}"):
+                result = service.get_artifacts()
+
+        messages = [event["message"] for event in result["live_events"]]
+        self.assertTrue(any("Pakete werden installiert" in message for message in messages))
 
     def test_get_artifacts_treats_activating_refresh_as_running(self):
         with tempfile.TemporaryDirectory() as tmpdir:
