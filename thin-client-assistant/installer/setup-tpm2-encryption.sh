@@ -24,7 +24,7 @@ PASSPHRASE="${PASSPHRASE:-}"
 VERBOSE=false
 
 # Defaults from env
-SCRIPT_DIR="${PVE_THIN_CLIENT_INSTALLER_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/installer}"
+SCRIPT_DIR="${PVE_THIN_CLIENT_INSTALLER_SCRIPT_DIR:-$(dirname "${BASH_SOURCE[0]}")}"
 if [[ -f "$SCRIPT_DIR/env-defaults.sh" ]]; then
   source "$SCRIPT_DIR/env-defaults.sh"
 fi

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="${PVE_THIN_CLIENT_ROOT_DIR:-/usr/local/lib/pve-thin-client}"
-SCRIPT_DIR="${PVE_THIN_CLIENT_INSTALLER_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/installer}"
+SCRIPT_DIR="${PVE_THIN_CLIENT_INSTALLER_SCRIPT_DIR:-$(dirname "${BASH_SOURCE[0]}")}" 
+ROOT_DIR="${PVE_THIN_CLIENT_ROOT_DIR:-$(dirname "$SCRIPT_DIR")}"
 source "$SCRIPT_DIR/env-defaults.sh"
 CONFIG_DIR="/etc/pve-thin-client"
 CONFIG_FILE="$CONFIG_DIR/thinclient.conf"
