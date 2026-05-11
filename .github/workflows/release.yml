@@ -497,10 +497,10 @@ jobs:
               git add VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html
               git commit -m "release: sync metadata to ${VERSION} [skip release] [skip ci]"
               git fetch origin main
-              git rebase origin/main
+              git rebase -X theirs origin/main
               git remote set-url origin "https://x-access-token:${RELEASE_SYNC_TOKEN}@github.com/${REPO}.git"
               push_error="$(git push origin "HEAD:refs/heads/main" 2>&1)" || {
-                echo "::warning::Direct push to main failed (likely branch protection): ${push_error}" >&2
+                echo "::warning::Direct push to main failed while syncing release metadata: ${push_error}" >&2
                 echo "::warning::Will verify origin/main VERSION matches release VERSION before continuing." >&2
               }
             fi
