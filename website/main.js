@@ -134,6 +134,7 @@ import {
 } from './ui/live.js';
 import { request } from './ui/api.js';
 import { startVmMetrics } from './ui/vm_metrics.js';
+import { initScifiHud } from './ui/scifi_hud.js';
 import {
   actionButton,
   escapeHtml,
@@ -807,6 +808,7 @@ export function bootstrapApp() {
   bindClusterEvents();
   bindSessionsEvents();
   bindSettingsEvents();
+  initScifiHud();
   renderActivityLog();
   renderInventory();
   renderEndpointsOverview();
