@@ -41,8 +41,8 @@ def test_repo_auto_update_marks_repo_healthy_before_artifact_refresh_finishes() 
     script = SCRIPT.read_text(encoding="utf-8")
 
     assert '["systemctl", "--no-block", "start", "beagle-artifacts-refresh.service"]' in script
-    assert 'payload["reaction"] = "updated_artifact_refresh_started"' in script
-    assert 'payload["message"] = "Repo-Update erfolgreich eingespielt. Artefakt-Build laeuft separat weiter."' in script
+    assert 'payload["reaction"] = "updated_artifact_refresh_restarted" if refresh_action == "restart" else "updated_artifact_refresh_started"' in script
+    assert 'payload["message"] = "Repo-Update erfolgreich eingespielt. Laufender Artefakt-Build wurde fuer den neuen Commit neu gestartet." if refresh_action == "restart" else "Repo-Update erfolgreich eingespielt. Artefakt-Build laeuft separat weiter."' in script
 
 
 def test_repo_auto_update_tracks_installed_and_remote_versions() -> None:
@@ -77,4 +77,3 @@ def test_host_check_validates_d1_installimage_bootstrap_completion() -> None:
     assert "installimage bootstrap done marker missing" in script
     assert "installimage bootstrap service failed" in script
     assert "BEAGLE_INSTALLIMAGE_BOOTSTRAP_DONE_FILE" in script
-
