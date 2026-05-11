@@ -1,0 +1,17 @@
+[Unit]
+Description=Beagle Camera Stream (webcam via ffmpeg TCP → VM)
+Documentation=https://beagle-os.com
+After=network-online.target beagle-usb-tunnel.service
+Wants=network-online.target
+# Camera stream runs alongside the USB tunnel; the tunnel reverse-forwards this port.
+BindsTo=beagle-usb-tunnel.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/lib/pve-thin-client/runtime/beagle-camera-stream
+Restart=always
+RestartSec=5s
+# Environment can be overridden in thinclient.conf (sourced by the script itself)
+
+[Install]
+WantedBy=multi-user.target

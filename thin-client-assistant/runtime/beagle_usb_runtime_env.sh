@@ -42,6 +42,12 @@ usb_auto_bind() {
   printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_USB_AUTO_BIND:-1}"
 }
 
+camera_stream_port() {
+  # TCP port on which beagle-camera-stream listens on the TC (forwarded via SSH
+  # reverse tunnel so VMs can connect to usb_attach_host:camera_stream_port).
+  printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_CAMERA_STREAM_PORT:-8091}"
+}
+
 require_enabled() {
   [[ "$(usb_enabled)" == "1" ]] || {
     echo "usb disabled" >&2

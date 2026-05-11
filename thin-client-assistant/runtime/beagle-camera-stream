@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# beagle-camera-stream — Capture the TC webcam and serve as MJPEG-over-TCP.
+#
+# The SSH reverse tunnel in beagle-usb-tunnel.service exposes this stream on
+# usb_attach_host:CAMERA_STREAM_PORT (default 192.168.123.1:8091) so that VM
+# guests can receive it via beagle-camera-receive without USB/IP isochronous
+# transfer issues (UVC webcams use isoc URBs which are unreliable over TCP).
+#
+# Configuration (via /etc/pve-thin-client/thinclient.conf):
+#   PVE_THIN_CLIENT_BEAGLE_CAMERA_STREAM_PORT  — TCP listen port (default: 8091)
+#   PVE_THIN_CLIENT_BEAGLE_CAMERA_DEVICE       — V4L2 device  (default: /dev/video0)
+#   PVE_THIN_CLIENT_BEAGLE_CAMERA_SIZE         — WxH          (default: 640x480)
+#   PVE_THIN_CLIENT_BEAGLE_CAMERA_FPS          — framerate    (default: 15)
+#   PVE_THIN_CLIENT_BEAGLE_CAMERA_QUALITY      — MJPEG q:v    (default: 5, 1=best)
+
+set -uo pipefail
+
+CONF_FILE="${PVE_THIN_CLIENT_CONF:-/etc/pve-thin-client/thinclient.conf}"
+[[ -r "$CONF_FILE" ]] && source "$CONF_FILE"
+
+STREAM_PORT="${PVE_THIN_CLIENT_BEAGLE_CAMERA_STREAM_PORT:-8091}"
+CAMERA_DEV="${PVE_THIN_CLIENT_BEAGLE_CAMERA_DEVICE:-/dev/video0}"
+CAMERA_SIZE="${PVE_THIN_CLIENT_BEAGLE_CAMERA_SIZE:-640x480}"
+CAMERA_FPS="${PVE_THIN_CLIENT_BEAGLE_CAMERA_FPS:-15}"
+CAMERA_QUALITY="${PVE_THIN_CLIENT_BEAGLE_CAMERA_QUALITY:-5}"
+POLL_INTERVAL=3
+
+while true; do
+  # Wait for the video device to appear
+  if [[ ! -e "$CAMERA_DEV" ]]; then
+    sleep "$POLL_INTERVAL"
+    continue
+  fi
+
+  echo "beagle-camera-stream: streaming $CAMERA_DEV (${CAMERA_SIZE}@${CAMERA_FPS}fps) on TCP port $STREAM_PORT"
+
+  # Stream camera as MJPEG-in-MPEG-TS over TCP (listen for one connection, then restart).
+  # Using mpegts container so ffmpeg on the VM side can seek/parse the stream reliably.
+  ffmpeg \
+    -nostdin \
+    -loglevel error \
+    -f v4l2 \
+    -framerate "$CAMERA_FPS" \
+    -video_size "$CAMERA_SIZE" \
+    -i "$CAMERA_DEV" \
+    -vcodec mjpeg \
+    -q:v "$CAMERA_QUALITY" \
+    -f mpegts \
+    -listen 1 \
+    "tcp://0.0.0.0:${STREAM_PORT}" 2>&1 || true
+
+  # Short pause before accepting the next connection or retrying device open
+  sleep "$POLL_INTERVAL"
+done

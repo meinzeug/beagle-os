@@ -1,0 +1,17 @@
+[Unit]
+Description=Beagle Camera Receive (TC webcam → v4l2loopback virtual device)
+Documentation=https://beagle-os.com
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/beagle/camera-receive.env
+ExecStart=/usr/local/bin/beagle-camera-receive
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

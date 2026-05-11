@@ -49,15 +49,19 @@ _is_eligible_for_autobind() {
   case "$class" in
     09|e0) return 1 ;;  # Hub, Wireless/BT: always skip
     03)    return 1 ;;  # Pure HID (keyboard, mouse): skip
-    00)
+    0e)    return 1 ;;  # UVC Video: skip — forwarded via beagle-camera-stream
+    00|ef)
       # Class 00 = look at interface classes
+      # Class EF (IAD composite, e.g. UVC cameras with bDeviceClass=0xEF) also
+      # requires interface inspection; skip if only video interfaces found.
       has_useful=0
       for iface_class_file in "$devpath"/${busid}:*/bInterfaceClass; do
         [[ -f "$iface_class_file" ]] || continue
         iface_class="$(tr '[:upper:]' '[:lower:]' < "$iface_class_file" 2>/dev/null | tr -d '[:space:]')"
-        # Audio(01), Storage(08), Video(0e), Printer(07), Imaging(06), Vendor(ff)
+        # Audio(01), Storage(08), Printer(07), Imaging(06), CDC(0a/0b), Vendor(ff)
+        # Video(0e) intentionally excluded: use beagle-camera-stream instead of USB/IP
         case "$iface_class" in
-          01|06|07|08|0a|0b|0e|ff) has_useful=1 ;;
+          01|06|07|08|0a|0b|ff) has_useful=1 ;;
         esac
       done
       [[ "$has_useful" == "1" ]] || return 1

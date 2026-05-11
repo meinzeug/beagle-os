@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# beagle-camera-receive — Receive TC webcam stream and expose as virtual V4L2 device.
+#
+# Connects to the MJPEG-over-TCP stream served by beagle-camera-stream on the
+# Thin Client (forwarded via SSH reverse tunnel to usb_attach_host:8091) and
+# feeds it into a v4l2loopback virtual device so browsers can use /dev/videoN
+# as a regular webcam — without USB/IP isochronous transfer failures.
+#
+# Configuration (via /etc/beagle/camera-receive.env):
+#   BEAGLE_CAMERA_STREAM_HOST   — stream host     (default: 192.168.123.1)
+#   BEAGLE_CAMERA_STREAM_PORT   — TCP port        (default: 8091)
+#   BEAGLE_CAMERA_LOOPBACK_DEV  — v4l2loopback nr (default: 10)
+#   BEAGLE_CAMERA_SIZE          — WxH             (default: 640x480)
+#   BEAGLE_CAMERA_FPS           — framerate       (default: 15)
+#   BEAGLE_CAMERA_GROUP         — owner group     (default: video)
+
+set -uo pipefail
+
+ENV_FILE="/etc/beagle/camera-receive.env"
+[[ -r "$ENV_FILE" ]] && source "$ENV_FILE"
+
+STREAM_HOST="${BEAGLE_CAMERA_STREAM_HOST:-192.168.123.1}"
+STREAM_PORT="${BEAGLE_CAMERA_STREAM_PORT:-8091}"
+LOOPBACK_NR="${BEAGLE_CAMERA_LOOPBACK_DEV:-10}"
+CAMERA_W="${BEAGLE_CAMERA_WIDTH:-640}"
+CAMERA_H="${BEAGLE_CAMERA_HEIGHT:-480}"
+CAMERA_FPS="${BEAGLE_CAMERA_FPS:-15}"
+CAMERA_GROUP="${BEAGLE_CAMERA_GROUP:-video}"
+POLL_INTERVAL=5
+LOOPBACK_DEV="/dev/video${LOOPBACK_NR}"
+
+# ── Load v4l2loopback ─────────────────────────────────────────────────────────
+setup_loopback() {
+  if ! lsmod | grep -q v4l2loopback; then
+    modprobe v4l2loopback \
+      devices=1 \
+      video_nr="$LOOPBACK_NR" \
+      card_label="Beagle Camera" \
+      exclusive_caps=1 2>/dev/null || {
+        echo "beagle-camera-receive: WARNING: v4l2loopback module not available" >&2
+        return 1
+      }
+    sleep 1
+  fi
+  # Ensure the video group can access the device
+  if [[ -e "$LOOPBACK_DEV" ]]; then
+    chown root:"$CAMERA_GROUP" "$LOOPBACK_DEV" 2>/dev/null || true
+    chmod 660 "$LOOPBACK_DEV" 2>/dev/null || true
+  fi
+  # Add the beagle desktop user to the video group so the browser can open the device
+  if id beagle &>/dev/null; then
+    usermod -aG "$CAMERA_GROUP" beagle 2>/dev/null || true
+  fi
+  return 0
+}
+
+setup_loopback || true
+
+echo "beagle-camera-receive: ${STREAM_HOST}:${STREAM_PORT} → ${LOOPBACK_DEV} (${CAMERA_W}x${CAMERA_H}@${CAMERA_FPS}fps)"
+
+# ── Receive loop ──────────────────────────────────────────────────────────────
+# Retry automatically: if the TC stream drops or is not yet up, wait and retry.
+while true; do
+  if [[ ! -e "$LOOPBACK_DEV" ]]; then
+    setup_loopback || { sleep "$POLL_INTERVAL"; continue; }
+  fi
+
+  ffmpeg \
+    -nostdin \
+    -loglevel error \
+    -i "tcp://${STREAM_HOST}:${STREAM_PORT}" \
+    -vf "scale=${CAMERA_W}:${CAMERA_H},format=yuv420p" \
+    -f v4l2 \
+    -pix_fmt yuv420p \
+    "$LOOPBACK_DEV" 2>/dev/null || true
+
+  sleep "$POLL_INTERVAL"
+done

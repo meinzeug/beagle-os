@@ -251,7 +251,7 @@ EOF
     iifname { $bridge_set } udp dport { 53, 67 } accept
     iifname { $bridge_set } tcp dport 53 accept
     iifname { $bridge_set } tcp dport { 9088, 9089 } accept
-    iifname { $bridge_set } ip saddr 192.168.123.0/24 tcp dport 43100 ct state new accept
+    iifname { $bridge_set } ip saddr 192.168.123.0/24 tcp dport { 43100, 8091 } ct state new accept
 EOF
     if [[ -n "$ipv4_peer_set" ]]; then
       printf '    ip saddr { %s } tcp dport { 9088, 9089 } accept\n' "$ipv4_peer_set"

@@ -96,5 +96,6 @@ run_usb_tunnel_daemon() {
     -o UserKnownHostsFile="$(usb_known_hosts_file)" \
     -i "$(usb_key_file)" \
     -R "$(usb_attach_host):$(usb_port):127.0.0.1:3240" \
+    -R "$(usb_attach_host):$(camera_stream_port):127.0.0.1:$(camera_stream_port)" \
     "$(usb_user)@$(usb_host)"
 }

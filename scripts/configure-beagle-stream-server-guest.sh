@@ -1357,6 +1357,75 @@ USBSVC_EOF
 systemctl daemon-reload >/dev/null 2>&1 || true
 systemctl enable --now beagle-usb-attach.service >/dev/null 2>&1 || true
 echo "[beagle] USB/IP auto-attach service enabled"
+
+# ── Camera stream receive: TC webcam via ffmpeg + v4l2loopback ────────────────
+# UVC webcams forwarded via USB/IP fail with isoc transfer errors.  Instead the
+# TC streams the camera via ffmpeg (TCP:8091) and the VM receives it through a
+# v4l2loopback virtual device so browsers see a normal /dev/video10 camera.
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+  ffmpeg v4l2loopback-dkms 2>/dev/null || true
+
+# Ensure beagle desktop user is in the video group
+usermod -aG video beagle 2>/dev/null || true
+
+cat > /usr/local/bin/beagle-camera-receive << 'CAMRECV_EOF'
+#!/usr/bin/env bash
+set -uo pipefail
+ENV_FILE="/etc/beagle/camera-receive.env"
+[[ -r "\$ENV_FILE" ]] && source "\$ENV_FILE"
+STREAM_HOST="\${BEAGLE_CAMERA_STREAM_HOST:-192.168.123.1}"
+STREAM_PORT="\${BEAGLE_CAMERA_STREAM_PORT:-8091}"
+LOOPBACK_NR="\${BEAGLE_CAMERA_LOOPBACK_DEV:-10}"
+CAMERA_W="\${BEAGLE_CAMERA_WIDTH:-640}"
+CAMERA_H="\${BEAGLE_CAMERA_HEIGHT:-480}"
+CAMERA_FPS="\${BEAGLE_CAMERA_FPS:-15}"
+CAMERA_GROUP="\${BEAGLE_CAMERA_GROUP:-video}"
+POLL_INTERVAL=5
+LOOPBACK_DEV="/dev/video\${LOOPBACK_NR}"
+setup_loopback() {
+  if ! lsmod | grep -q v4l2loopback; then
+    modprobe v4l2loopback devices=1 video_nr="\$LOOPBACK_NR" card_label="Beagle Camera" exclusive_caps=1 2>/dev/null || return 1
+    sleep 1
+  fi
+  [[ -e "\$LOOPBACK_DEV" ]] && chown root:"\$CAMERA_GROUP" "\$LOOPBACK_DEV" && chmod 660 "\$LOOPBACK_DEV" || true
+  id beagle &>/dev/null && usermod -aG "\$CAMERA_GROUP" beagle 2>/dev/null || true
+  return 0
+}
+setup_loopback || true
+echo "beagle-camera-receive: \${STREAM_HOST}:\${STREAM_PORT} → \${LOOPBACK_DEV}"
+while true; do
+  [[ ! -e "\$LOOPBACK_DEV" ]] && { setup_loopback || true; sleep "\$POLL_INTERVAL"; continue; }
+  ffmpeg -nostdin -loglevel error \
+    -i "tcp://\${STREAM_HOST}:\${STREAM_PORT}" \
+    -vf "scale=\${CAMERA_W}:\${CAMERA_H},format=yuv420p" \
+    -f v4l2 -pix_fmt yuv420p "\$LOOPBACK_DEV" 2>/dev/null || true
+  sleep "\$POLL_INTERVAL"
+done
+CAMRECV_EOF
+chmod 0755 /usr/local/bin/beagle-camera-receive
+
+cat > /etc/systemd/system/beagle-camera-receive.service << 'CAMSVCC_EOF'
+[Unit]
+Description=Beagle Camera Receive (TC webcam via v4l2loopback)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/beagle/camera-receive.env
+ExecStart=/usr/local/bin/beagle-camera-receive
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+CAMSVCC_EOF
+
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable --now beagle-camera-receive.service >/dev/null 2>&1 || true
+echo "[beagle] Camera receive service enabled (v4l2loopback /dev/video10)"
 EOF
 )"
 

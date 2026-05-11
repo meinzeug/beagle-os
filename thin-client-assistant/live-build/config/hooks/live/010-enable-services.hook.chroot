@@ -24,3 +24,4 @@ ensure_wantedby_symlink /etc/systemd/system/pve-thin-client-installer-menu-seria
 ensure_wantedby_symlink /etc/systemd/system/beagle-kiosk.service beagle-kiosk.target
 systemctl enable getty@tty1.service
 systemctl enable ssh.service
+enable_if_present beagle-camera-stream.service
