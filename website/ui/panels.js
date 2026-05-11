@@ -237,7 +237,8 @@ export function requestConfirm(opts) {
   });
 }
 
-export function setActivePanel(panelName) {
+export function setActivePanel(panelName, options) {
+  const opts = options || {};
   const next = panelMeta[panelName] ? panelName : 'overview';
   if (next !== state.activePanel) {
     closeTransientModalsForNavigation();
@@ -259,10 +260,11 @@ export function setActivePanel(panelName) {
   if (next === 'inventory') {
     const detailPage = document.getElementById('vm-detail-page');
     const listSection = document.getElementById('inventory-section');
-    // Always reset to list view when navigating to inventory via sidebar
-    state.selectedVmid = null;
-    if (listSection) { listSection.hidden = false; listSection.classList.add('panel-section-active'); }
-    if (detailPage)  { detailPage.hidden = true;   detailPage.classList.remove('panel-section-active'); }
+    if (!opts.preserveInventorySelection) {
+      state.selectedVmid = null;
+      if (listSection) { listSection.hidden = false; listSection.classList.add('panel-section-active'); }
+      if (detailPage)  { detailPage.hidden = true;   detailPage.classList.remove('panel-section-active'); }
+    }
   }
   const meta = panelMeta[next] || panelMeta.overview;
   text('panel-eyebrow', meta.eyebrow);

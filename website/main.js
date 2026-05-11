@@ -868,7 +868,7 @@ export function bootstrapApp() {
   renderIam();
   renderAudit();
   bootstrapHashState();
-  setActivePanel(state.activePanel);
+  setActivePanel(state.activePanel, { preserveInventorySelection: Boolean(state.selectedVmid) });
   setActiveDetailPanel(state.activeDetailPanel);
   setAuthMode(Boolean(state.token));
   updateSessionChrome();
@@ -892,7 +892,7 @@ export function bootstrapApp() {
   window.addEventListener('hashchange', () => {
     const hashState = parseAppHash();
     if (hashState.panel && hashState.panel !== state.activePanel) {
-      setActivePanel(hashState.panel);
+      setActivePanel(hashState.panel, { preserveInventorySelection: Boolean(hashState.vmid) });
     }
     if (hashState.detail && hashState.detail !== state.activeDetailPanel) {
       setActiveDetailPanel(hashState.detail);
