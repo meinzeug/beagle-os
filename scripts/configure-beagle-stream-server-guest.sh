@@ -1156,9 +1156,7 @@ consecutive_failures=0
 
 api_ready() {
   [[ -n "\$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
-  curl -kfsS --connect-timeout 3 --max-time 5 \
-    --user "\${BEAGLE_STREAM_SERVER_USER}:\${BEAGLE_STREAM_SERVER_PASSWORD}" \
-    "https://127.0.0.1:\${api_port}/api/apps" >/dev/null
+  curl -kfsS --connect-timeout 3 --max-time 5 --user "\${BEAGLE_STREAM_SERVER_USER}:\${BEAGLE_STREAM_SERVER_PASSWORD}" "https://127.0.0.1:\${api_port}/api/apps" >/dev/null # tls-bypass-allowlist: loopback health check against local Beagle Stream Server self-signed API
 }
 
 while :; do
