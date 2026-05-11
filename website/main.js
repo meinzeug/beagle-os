@@ -614,6 +614,9 @@ function applyLiveSnapshot(snapshot) {
   if (Array.isArray(snapshot.vms)) {
     state.inventory = snapshot.vms;
   }
+  if (snapshot.health && typeof snapshot.health === 'object') {
+    state.healthPayload = snapshot.health;
+  }
   if (Array.isArray(snapshot.endpoints)) {
     state.endpointReports = snapshot.endpoints;
   }
@@ -652,6 +655,7 @@ function applyLiveSnapshot(snapshot) {
   }
 
   // Render from fresh SSE state without full dashboard reload requests.
+  statCardFromHealth(state.healthPayload || snapshot.health || {}, state.virtualizationOverview);
   renderInventory();
   renderEndpointsOverview();
   renderVirtualizationOverview();

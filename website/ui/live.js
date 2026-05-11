@@ -32,6 +32,7 @@ function scheduleReconnect() {
 }
 
 function onTickEvent() {
+  state.liveLastTickAt = Date.now();
   if (!state.token || document.hidden) {
     return;
   }
@@ -46,6 +47,7 @@ function onSnapshotEvent(evt) {
   }
   try {
     const payload = JSON.parse(evt.data);
+    state.liveLastSnapshotAt = Date.now();
     liveHooks.applyLiveSnapshot(payload);
   } catch (error) {
     void error;

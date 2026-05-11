@@ -158,6 +158,21 @@ function setModalState(modal, open) {
   }
 }
 
+function closeTransientModalsForNavigation() {
+  window.dispatchEvent(new CustomEvent('beagle:before-panel-change'));
+  document.querySelectorAll('.modal').forEach((modal) => {
+    if (modal.classList.contains('auth-modal')) {
+      return;
+    }
+    if (typeof modal.close === 'function' && modal.open) {
+      modal.close();
+    }
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+  });
+  document.body.classList.remove('modal-open');
+}
+
 export function requestConfirm(opts) {
   const options = opts || {};
   return new Promise((resolve) => {
@@ -224,6 +239,9 @@ export function requestConfirm(opts) {
 
 export function setActivePanel(panelName) {
   const next = panelMeta[panelName] ? panelName : 'overview';
+  if (next !== state.activePanel) {
+    closeTransientModalsForNavigation();
+  }
   state.activePanel = next;
   try {
     localStorage.setItem('beagle.ui.activePanel', next);

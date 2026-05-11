@@ -140,6 +140,14 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             "settings:write",
         )
         self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/settings/artifacts/stop"),
+            "settings:write",
+        )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/settings/artifacts/restart"),
+            "settings:write",
+        )
+        self.assertEqual(
             AuthzPolicyService.required_permission("PUT", "/api/v1/settings/artifacts/watchdog"),
             "settings:write",
         )

@@ -170,6 +170,7 @@ export const state = {
   selectedAuthUser: '',
   selectedAuthRole: '',
   virtualizationOverview: null,
+  healthPayload: null,
   clusterStatus: null,
   haStatus: null,
   installChecks: null,
@@ -192,6 +193,8 @@ export const state = {
   detailCache: Object.create(null),
   autoRefresh: true,
   liveFeedConnected: false,
+  liveLastSnapshotAt: 0,
+  liveLastTickAt: 0,
   authFailCount: 0,
   authLockUntil: 0
 };

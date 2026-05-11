@@ -1186,6 +1186,53 @@ class ServerSettingsService:
             return {"ok": False, "error": f"artifact refresh start failed: {r.stderr.strip()[:300]}"}
         return {"ok": True, "artifacts": self.get_artifacts()}
 
+    def stop_artifact_refresh(self) -> dict[str, Any]:
+        self._write_refresh_status({
+            "status": "stopping",
+            "step": "systemd-stop",
+            "progress": 0,
+            "message": "Artifact-Build wird gestoppt ...",
+            "last_result": "stopping",
+        })
+        try:
+            stop_result = _run_systemctl_privileged(["stop", "beagle-artifacts-refresh.service"], timeout=60)
+            reset_result = _run_systemctl_privileged(["reset-failed", "beagle-artifacts-refresh.service"], timeout=30)
+        except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired) as exc:
+            self._write_refresh_status({
+                "status": "failed",
+                "step": "systemd-stop",
+                "progress": 0,
+                "message": "Artifact-Build konnte nicht gestoppt werden.",
+                "last_result": "stop-failed",
+                "error_excerpt": str(exc)[:400],
+            })
+            return {"ok": False, "error": f"artifact refresh stop failed: {str(exc)[:300]}"}
+        if stop_result.returncode != 0:
+            excerpt = (stop_result.stderr or stop_result.stdout or "").strip()[:400]
+            self._write_refresh_status({
+                "status": "failed",
+                "step": "systemd-stop",
+                "progress": 0,
+                "message": "Artifact-Build konnte nicht gestoppt werden.",
+                "last_result": "stop-failed",
+                "error_excerpt": excerpt,
+            })
+            return {"ok": False, "error": f"artifact refresh stop failed: {excerpt[:300]}"}
+        self._write_refresh_status({
+            "status": "stopped",
+            "step": "stopped",
+            "progress": 0,
+            "message": "Artifact-Build wurde gestoppt.",
+            "last_result": "stopped" if reset_result.returncode == 0 else "stopped-reset-failed",
+        })
+        return {"ok": True, "artifacts": self.get_artifacts()}
+
+    def restart_artifact_refresh(self) -> dict[str, Any]:
+        stopped = self.stop_artifact_refresh()
+        if not stopped.get("ok"):
+            return stopped
+        return self.start_artifact_refresh()
+
     def get_artifact_watchdog(self, *, status_json: dict[str, Any] | None = None, refresh_status: dict[str, Any] | None = None) -> dict[str, Any]:
         settings = self._load_settings()
         config = {
@@ -1611,6 +1658,14 @@ class ServerSettingsService:
             return {"kind": "json", "status": status, "payload": result}
         if path == "/api/v1/settings/artifacts/refresh":
             result = self.start_artifact_refresh()
+            status = HTTPStatus.ACCEPTED if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
+            return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/artifacts/stop":
+            result = self.stop_artifact_refresh()
+            status = HTTPStatus.ACCEPTED if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
+            return {"kind": "json", "status": status, "payload": result}
+        if path == "/api/v1/settings/artifacts/restart":
+            result = self.restart_artifact_refresh()
             status = HTTPStatus.ACCEPTED if result.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
             return {"kind": "json", "status": status, "payload": result}
         if path == "/api/v1/settings/artifacts/watchdog/check":

@@ -97,7 +97,7 @@ export function startDashboardPoll() {
       activityHooks.loadAuditReport();
       return;
     }
-    activityHooks.loadDashboard();
+    activityHooks.loadDashboard({ silent: true });
   }, 30000);
 }
 

@@ -769,8 +769,7 @@ class HandlerMixin:
             self._write_sse_event("snapshot", self._build_live_snapshot(principal))
 
             # Keep stream bounded so EventSource reconnects and refreshes auth state.
-            # Every 20s also push a data snapshot for UI state reconciliation.
-            for i in range(0, 180):
+            for _ in range(0, 180):
                 time.sleep(5)
                 self._write_sse_event(
                     "tick",
@@ -780,8 +779,7 @@ class HandlerMixin:
                         "manager_status": "online",
                     },
                 )
-                if i % 4 == 3:
-                    self._write_sse_event("snapshot", self._build_live_snapshot(principal))
+                self._write_sse_event("snapshot", self._build_live_snapshot(principal))
         except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
             return
 

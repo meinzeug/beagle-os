@@ -233,6 +233,35 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertEqual(payload["step"], "systemd")
         self.assertIn("Interactive authentication required", payload["error_excerpt"])
 
+    def test_stop_artifact_refresh_stops_and_resets_systemd_service(self):
+        service = self.make_service()
+        proc = mock.Mock()
+        proc.returncode = 0
+        proc.stderr = ""
+        calls = []
+
+        def fake_systemctl(args, *args_pos, **kwargs):
+            calls.append(args)
+            return proc
+
+        with mock.patch.object(MODULE, "_run_systemctl_privileged", side_effect=fake_systemctl), \
+             mock.patch.object(service, "get_artifacts", return_value={"running_refresh": False}):
+            result = service.stop_artifact_refresh()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(calls, [["stop", "beagle-artifacts-refresh.service"], ["reset-failed", "beagle-artifacts-refresh.service"]])
+
+    def test_restart_artifact_refresh_stops_then_starts_service(self):
+        service = self.make_service()
+
+        with mock.patch.object(service, "stop_artifact_refresh", return_value={"ok": True}) as stop, \
+             mock.patch.object(service, "start_artifact_refresh", return_value={"ok": True, "artifacts": {"running_refresh": True}}) as start:
+            result = service.restart_artifact_refresh()
+
+        self.assertTrue(result["ok"])
+        stop.assert_called_once()
+        start.assert_called_once()
+
     def test_route_get_artifacts_returns_ok_wrapper(self):
         service = self.make_service()
 
@@ -266,6 +295,23 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         assert response is not None
         self.assertEqual(int(response["status"]), 500)
         self.assertFalse(response["payload"]["ok"])
+
+    def test_route_post_artifact_stop_and_restart_return_accepted(self):
+        service = self.make_service()
+
+        with mock.patch.object(service, "stop_artifact_refresh", return_value={"ok": True, "artifacts": {"running_refresh": False}}):
+            stop_response = service.route_post("/api/v1/settings/artifacts/stop", {})
+        with mock.patch.object(service, "restart_artifact_refresh", return_value={"ok": True, "artifacts": {"running_refresh": True}}):
+            restart_response = service.route_post("/api/v1/settings/artifacts/restart", {})
+
+        self.assertIsNotNone(stop_response)
+        self.assertIsNotNone(restart_response)
+        assert stop_response is not None
+        assert restart_response is not None
+        self.assertEqual(int(stop_response["status"]), 202)
+        self.assertEqual(int(restart_response["status"]), 202)
+        self.assertTrue(stop_response["payload"]["ok"])
+        self.assertTrue(restart_response["payload"]["ok"])
 
     def test_enable_auto_maintenance_enables_repo_and_watchdog_and_triggers_checks(self):
         service = self.make_service()

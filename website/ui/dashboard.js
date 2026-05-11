@@ -83,6 +83,7 @@ export function statCardFromHealth(payload, overview) {
 
 export function loadDashboard(options) {
   const opts = options || {};
+  const silent = Boolean(opts.silent || opts.background);
   if (dashboardLoadInFlight && !opts.force) {
     return dashboardLoadInFlight;
   }
@@ -95,7 +96,9 @@ export function loadDashboard(options) {
     dashboardHooks.setBanner('Nicht angemeldet.', 'warn');
     return Promise.resolve();
   }
-  dashboardHooks.setBanner('Lade Beagle Manager...', 'info');
+  if (!silent) {
+    dashboardHooks.setBanner('Lade Beagle Manager...', 'info');
+  }
   dashboardLoadInFlight = request('/auth/me').then((me) => {
     const permissions = currentUserPermissions(me && typeof me === 'object' ? me.user : null);
     const shouldLoadIam = state.activePanel === 'iam';
@@ -149,6 +152,7 @@ export function loadDashboard(options) {
       const failedRequests = results.filter((result) => result.status !== 'fulfilled').length;
 
       state.user = me.user || null;
+      state.healthPayload = health;
       state.inventory = vms.vms || [];
       state.endpointReports = endpoints.endpoints || [];
       state.policies = policies.policies || [];
@@ -180,6 +184,9 @@ export function loadDashboard(options) {
       dashboardHooks.renderEnergyDashboard();
       dashboardHooks.renderProvisioningWorkspace();
       dashboardHooks.updateFleetHealthAlert();
+      if (silent) {
+        return null;
+      }
       if (failedRequests > 0) {
         dashboardHooks.setBanner('Verbunden. ' + String(failedRequests) + ' API-Aufrufe momentan nicht verfuegbar.', 'warn');
       } else {
@@ -202,7 +209,7 @@ export function loadDashboard(options) {
     dashboardHooks.recordAuthFailure();
     text('stat-manager', 'Error');
     text('stat-manager-meta', error.message);
-    if (state.token) {
+    if (state.token && !silent) {
       dashboardHooks.setBanner('Teilweise Ladefehler: ' + error.message + ' (Session bleibt aktiv).', 'warn');
     }
   }).finally(() => {

@@ -134,6 +134,55 @@
       </div>
     </div>
 
+    <div class="modal artifact-build-modal" id="artifact-build-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog artifact-build-dialog" role="dialog" aria-modal="true" aria-labelledby="artifact-build-modal-title">
+        <div class="modal-dialog-head artifact-build-modal-head">
+          <div>
+            <span class="eyebrow" id="artifact-modal-state">LIVE BUILD</span>
+            <h2 id="artifact-build-modal-title">Artefakt-Build</h2>
+            <p id="artifact-modal-detail">Der Serverstatus wird live geladen.</p>
+          </div>
+          <button class="icon-button" id="artifact-modal-close" type="button" aria-label="Schliessen">×</button>
+        </div>
+        <div class="artifact-build-modal-grid">
+          <section class="artifact-build-modal-main">
+            <div class="settings-build-activity is-running">
+              <div class="settings-build-activity-head">
+                <span>Aktuelle Phase</span>
+                <strong id="artifact-modal-phase">wartet</strong>
+              </div>
+              <div class="settings-build-bar" aria-hidden="true"><span id="artifact-modal-progress-bar"></span></div>
+              <p id="artifact-modal-hint">SSE aktualisiert diesen Dialog live.</p>
+              <div class="settings-build-meta">
+                <span>Fortschritt: <strong id="artifact-modal-progress">—</strong></span>
+                <span>Laufzeit: <strong id="artifact-modal-elapsed">—</strong></span>
+                <span>Prozesse: <strong id="artifact-modal-process-count">0</strong></span>
+              </div>
+            </div>
+            <div class="artifact-build-modal-actions">
+              <button class="button ghost" id="artifact-modal-status-refresh" type="button">Status neu laden</button>
+              <button class="button primary" id="artifact-modal-start" type="button">Build starten</button>
+              <button class="button danger" id="artifact-modal-stop" type="button">Aktuellen Build stoppen</button>
+              <button class="button primary" id="artifact-modal-restart" type="button">Sauber neu starten</button>
+              <button class="button ghost" id="artifact-modal-watchdog" type="button">Watchdog pruefen</button>
+            </div>
+          </section>
+          <aside class="artifact-build-modal-side">
+            <div class="info-item"><span class="info-label">Service</span><span class="info-value" id="artifact-modal-service">—</span></div>
+            <div class="info-item"><span class="info-label">Timer</span><span class="info-value" id="artifact-modal-timer">—</span></div>
+            <div class="info-item"><span class="info-label">Aktualisiert</span><span class="info-value" id="artifact-modal-updated">—</span></div>
+            <div class="info-item"><span class="info-label">Fehlend</span><span class="info-value" id="artifact-modal-missing">—</span></div>
+          </aside>
+        </div>
+        <div class="table-wrap compact artifact-build-process-table">
+          <table class="vm-table compact-table">
+            <thead><tr><th>PID</th><th>Laufzeit</th><th>CPU</th><th>RAM</th><th>Kommando</th></tr></thead>
+            <tbody id="artifact-modal-process-body"><tr><td colspan="5" class="empty-cell">Noch keine Prozessdaten.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- VM Provisioning modal -->
     <div class="modal" id="provision-modal" aria-hidden="true" hidden>
       <div class="modal-dialog provision-dialog" role="dialog" aria-modal="true" aria-labelledby="provision-modal-title">

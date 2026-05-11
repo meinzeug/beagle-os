@@ -97,6 +97,8 @@ def _artifact_payload(*, status: str, progress: int, message: str, public_ready:
 def run(args: argparse.Namespace) -> int:
     artifact_get_count = {"value": 0}
     artifact_post_count = {"value": 0}
+    artifact_stop_count = {"value": 0}
+    artifact_restart_count = {"value": 0}
     updates_get_count = {"value": 0}
 
     running_payload = _artifact_payload(
@@ -157,6 +159,30 @@ def run(args: argparse.Namespace) -> int:
                 )
                 return
 
+            if url.endswith("/beagle-api/api/v1/settings/artifacts/stop") and method == "POST":
+                artifact_stop_count["value"] += 1
+                stopped_payload = _artifact_payload(
+                    status="stopped",
+                    progress=0,
+                    message="Artifact-Build wurde gestoppt.",
+                    public_ready=False,
+                )
+                route.fulfill(
+                    status=202,
+                    content_type="application/json",
+                    body=json.dumps({"ok": True, "artifacts": stopped_payload}),
+                )
+                return
+
+            if url.endswith("/beagle-api/api/v1/settings/artifacts/restart") and method == "POST":
+                artifact_restart_count["value"] += 1
+                route.fulfill(
+                    status=202,
+                    content_type="application/json",
+                    body=json.dumps({"ok": True, "artifacts": running_payload}),
+                )
+                return
+
             route.continue_()
 
         page.route("**/*", handle_route)
@@ -183,10 +209,20 @@ def run(args: argparse.Namespace) -> int:
             timeout=args.timeout_ms,
         )
 
-        page.once("dialog", lambda dialog: dialog.accept())
         page.click("#artifacts-refresh-start")
+        page.wait_for_selector("#artifact-build-modal:not([hidden])", timeout=args.timeout_ms)
+        page.wait_for_function(
+            """() => {
+              const phase = document.getElementById('artifact-modal-phase');
+              return phase && phase.textContent.length > 0;
+            }""",
+            timeout=args.timeout_ms,
+        )
+        page.click("#artifact-modal-stop")
         page.wait_for_timeout(200)
-        page.click("#settings-artifacts-refresh")
+        page.click("#artifact-modal-restart")
+        page.wait_for_timeout(200)
+        page.click("#artifact-modal-status-refresh")
         page.wait_for_function(
             """() => {
               const gate = document.getElementById('artifact-gate-message');
@@ -203,6 +239,8 @@ def run(args: argparse.Namespace) -> int:
         assert updates_get_count["value"] >= 1, "settings/updates was not loaded"
         assert artifact_get_count["value"] >= 3, "artifact status should be fetched for running, failed and success states"
         assert artifact_post_count["value"] == 1, "artifact refresh POST should be triggered once"
+        assert artifact_stop_count["value"] == 1, "artifact stop POST should be triggered once"
+        assert artifact_restart_count["value"] == 1, "artifact restart POST should be triggered once"
 
         browser.close()
 

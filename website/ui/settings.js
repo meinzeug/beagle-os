@@ -8,6 +8,8 @@ const settingsHooks = {
 
 let webhookRows = [];
 let artifactRefreshPollTimer = 0;
+let artifactBuildModalOpen = false;
+let latestArtifactStatus = null;
 let updateStatusEventSource = null;
 let updateStatusReconnectTimer = 0;
 let updateStatusStreamActive = false;
@@ -42,6 +44,95 @@ function setArtifactLink(id, href) {
   node.setAttribute('href', target);
   node.removeAttribute('aria-disabled');
 }
+
+function setButtonBusy(id, busy) {
+  const node = qs(id);
+  if (node) {
+    node.disabled = Boolean(busy);
+  }
+}
+
+function renderArtifactBuildModal(data) {
+  if (!artifactBuildModalOpen) {
+    return;
+  }
+  const payload = data || latestArtifactStatus || {};
+  const refreshStatus = payload.refresh_status || {};
+  const buildActivity = payload.build_activity || refreshStatus.build_activity || {};
+  const primaryStatus = payload.primary_status || {};
+  const services = payload.services || {};
+  const missing = Array.isArray(payload.missing) ? payload.missing : [];
+  const activeProcesses = Array.isArray(buildActivity.active_processes) ? buildActivity.active_processes : [];
+  const running = Boolean(payload.running_refresh);
+  const visibleProgress = buildActivity.progress != null ? Number(buildActivity.progress) : Number(refreshStatus.progress);
+  const progress = Number.isFinite(visibleProgress) ? Math.max(0, Math.min(100, Math.round(visibleProgress))) : 0;
+
+  text('artifact-modal-state', running ? 'LIVE BUILD' : String(primaryStatus.label || refreshStatus.last_result || 'wartet'));
+  text('artifact-modal-phase', String(buildActivity.label || refreshStatus.step || primaryStatus.label || 'Noch kein Build aktiv'));
+  text('artifact-modal-detail', String(buildActivity.detail || refreshStatus.message || primaryStatus.message || 'Der Server wartet auf den naechsten Artefakt-Build.'));
+  text('artifact-modal-hint', String(buildActivity.hint || 'SSE aktualisiert diesen Dialog, sobald sich Service, Prozess oder Status aendern.'));
+  text('artifact-modal-progress', progress ? String(progress) + '%' : '—');
+  text('artifact-modal-elapsed', formatDurationCompact(buildActivity.elapsed_seconds != null ? buildActivity.elapsed_seconds : refreshStatus.duration_seconds));
+  text('artifact-modal-process-count', String(activeProcesses.length));
+  text('artifact-modal-service', String(services['beagle-artifacts-refresh.service'] || 'unknown'));
+  text('artifact-modal-timer', String(services['beagle-artifacts-refresh.timer'] || 'unknown'));
+  text('artifact-modal-updated', formatDate(refreshStatus.updated_at || refreshStatus.finished_at || refreshStatus.started_at || ''));
+  text('artifact-modal-missing', missing.length ? missing.join(', ') : 'keine');
+
+  const modal = qs('artifact-build-modal');
+  if (modal) {
+    modal.classList.toggle('is-running', running);
+  }
+  const bar = qs('artifact-modal-progress-bar');
+  if (bar) {
+    bar.style.width = String(progress) + '%';
+  }
+  const body = qs('artifact-modal-process-body');
+  if (body) {
+    if (!activeProcesses.length) {
+      body.innerHTML = '<tr><td colspan="5" class="empty-cell">Keine passenden Build-Prozesse sichtbar.</td></tr>';
+    } else {
+      body.innerHTML = activeProcesses.map((processInfo) => {
+        return '<tr>' +
+          '<td>' + escapeHtml(String(processInfo.pid || '')) + '</td>' +
+          '<td>' + escapeHtml(formatDurationCompact(processInfo.elapsed_seconds)) + '</td>' +
+          '<td>' + escapeHtml(String(processInfo.cpu_percent || '—')) + '</td>' +
+          '<td>' + escapeHtml(String(processInfo.mem_percent || '—')) + '</td>' +
+          '<td><code>' + escapeHtml(String(processInfo.command || '')) + '</code></td>' +
+          '</tr>';
+      }).join('');
+    }
+  }
+}
+
+function openArtifactBuildModal() {
+  const modal = qs('artifact-build-modal');
+  if (!modal) {
+    return;
+  }
+  artifactBuildModalOpen = true;
+  modal.hidden = false;
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('modal-open');
+  renderArtifactBuildModal(latestArtifactStatus || {});
+  startUpdateStatusStream();
+  loadArtifactStatus({ silent: true });
+}
+
+function closeArtifactBuildModal() {
+  const modal = qs('artifact-build-modal');
+  if (!modal) {
+    return;
+  }
+  artifactBuildModalOpen = false;
+  modal.hidden = true;
+  modal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('modal-open');
+}
+
+window.addEventListener('beagle:before-panel-change', () => {
+  artifactBuildModalOpen = false;
+});
 
 function shortCommit(value) {
   const textValue = String(value || '').trim();
@@ -750,6 +841,7 @@ function formatProductVersion(value) {
 }
 
 function renderArtifactStatus(data) {
+  latestArtifactStatus = data || {};
   const artifacts = Array.isArray(data && data.artifacts) ? data.artifacts : [];
   const missing = Array.isArray(data && data.missing) ? data.missing : [];
   const refreshStatus = data && data.refresh_status ? data.refresh_status : {};
@@ -927,6 +1019,8 @@ function renderArtifactStatus(data) {
     stopArtifactRefreshPolling();
   }
 
+  renderArtifactBuildModal(data);
+
   const tbody = qs('artifact-body');
   if (!tbody) {
     return;
@@ -964,9 +1058,9 @@ export function loadArtifactStatus(options) {
 }
 
 export function refreshArtifacts() {
-  if (!window.confirm('Host-Artefakte jetzt neu bauen/refreshen? Dieser Vorgang kann lange laufen.')) {
-    return;
-  }
+  openArtifactBuildModal();
+  setButtonBusy('artifact-modal-start', true);
+  setButtonBusy('artifacts-refresh-start', true);
   settingsHooks.setBanner('Artifact-Refresh wird gestartet...', 'info');
   return request('/settings/artifacts/refresh', {
     method: 'POST',
@@ -982,6 +1076,55 @@ export function refreshArtifacts() {
     }
   }).catch((error) => {
     settingsHooks.setBanner('Artifact-Refresh Fehler: ' + error.message, 'warn');
+  }).finally(() => {
+    setButtonBusy('artifact-modal-start', false);
+    setButtonBusy('artifacts-refresh-start', false);
+  });
+}
+
+export function stopArtifactBuild() {
+  openArtifactBuildModal();
+  setButtonBusy('artifact-modal-stop', true);
+  settingsHooks.setBanner('Artifact-Build wird gestoppt...', 'info');
+  return request('/settings/artifacts/stop', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+    __timeoutMs: 90000
+  }).then((data) => {
+    if (data.ok) {
+      renderArtifactStatus(data.artifacts || {});
+      settingsHooks.setBanner('Artifact-Build wurde gestoppt. Das Modal bleibt offen.', 'info');
+    } else {
+      settingsHooks.setBanner('Artifact-Build stoppen fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+    }
+  }).catch((error) => {
+    settingsHooks.setBanner('Artifact-Build Stop-Fehler: ' + error.message, 'warn');
+  }).finally(() => {
+    setButtonBusy('artifact-modal-stop', false);
+  });
+}
+
+export function restartArtifactBuild() {
+  openArtifactBuildModal();
+  setButtonBusy('artifact-modal-restart', true);
+  settingsHooks.setBanner('Artifact-Build wird sauber neu gestartet...', 'info');
+  return request('/settings/artifacts/restart', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+    __timeoutMs: 120000
+  }).then((data) => {
+    if (data.ok) {
+      renderArtifactStatus(data.artifacts || {});
+      settingsHooks.setBanner('Artifact-Build wurde neu gestartet. Fortschritt kommt live per SSE.', 'info');
+    } else {
+      settingsHooks.setBanner('Artifact-Build Restart fehlgeschlagen: ' + escapeHtml(data.error || 'Unbekannt'), 'warn');
+    }
+  }).catch((error) => {
+    settingsHooks.setBanner('Artifact-Build Restart-Fehler: ' + error.message, 'warn');
+  }).finally(() => {
+    setButtonBusy('artifact-modal-restart', false);
   });
 }
 
@@ -1767,6 +1910,30 @@ export function bindSettingsEvents() {
   }
   if (qs('artifacts-refresh-start')) {
     qs('artifacts-refresh-start').addEventListener('click', refreshArtifacts);
+  }
+  if (qs('artifact-modal-close')) {
+    qs('artifact-modal-close').addEventListener('click', closeArtifactBuildModal);
+  }
+  if (qs('artifact-modal-status-refresh')) {
+    qs('artifact-modal-status-refresh').addEventListener('click', () => {
+      openArtifactBuildModal();
+      loadArtifactStatus({ silent: false });
+    });
+  }
+  if (qs('artifact-modal-start')) {
+    qs('artifact-modal-start').addEventListener('click', refreshArtifacts);
+  }
+  if (qs('artifact-modal-stop')) {
+    qs('artifact-modal-stop').addEventListener('click', stopArtifactBuild);
+  }
+  if (qs('artifact-modal-restart')) {
+    qs('artifact-modal-restart').addEventListener('click', restartArtifactBuild);
+  }
+  if (qs('artifact-modal-watchdog')) {
+    qs('artifact-modal-watchdog').addEventListener('click', () => {
+      openArtifactBuildModal();
+      runArtifactWatchdog();
+    });
   }
   if (qs('artifact-watchdog-save')) {
     qs('artifact-watchdog-save').addEventListener('click', saveArtifactWatchdog);

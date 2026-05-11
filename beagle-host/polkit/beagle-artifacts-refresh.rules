@@ -1,4 +1,4 @@
-// Managed by Beagle OS. Allows the beagle-manager service user to start the
+// Managed by Beagle OS. Allows the beagle-manager service user to control the
 // artifact refresh unit without interactive authentication.
 polkit.addRule(function(action, subject) {
   if (action.id !== "org.freedesktop.systemd1.manage-units") {
@@ -9,7 +9,7 @@ polkit.addRule(function(action, subject) {
   }
   var unit = action.lookup("unit");
   var verb = action.lookup("verb");
-  if (unit === "beagle-artifacts-refresh.service" && verb === "start") {
+  if (unit === "beagle-artifacts-refresh.service" && (verb === "start" || verb === "stop" || verb === "reset-failed")) {
     return polkit.Result.YES;
   }
   return polkit.Result.NOT_HANDLED;
