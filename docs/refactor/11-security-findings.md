@@ -1,6 +1,27 @@
 # Security Findings
 
-Stand: 2026-05-10 (ergaenzt: S-049 SSH-Key-Rotation + Deploy-SSH-Haertung)
+Stand: 2026-05-11 (ergaenzt: S-050 BeagleStream-Pairing-Fehler durch falsche interne API-URL)
+
+## S-050 — Manager nutzte oeffentliche IP fuer interne Sunshine-API-Calls; Hairpin-NAT nicht vorhanden (PATCHED)
+
+- Status: **gepatcht** (2026-05-11)
+- Risiko: **Hoch** (Pairing dauerhaft gebrochen, Stream nicht nutzbar; Fallback auf direkten TC→Sunshine-Aufruf mit ggf. falschen Credentials)
+- Betroffene Dateien:
+  - `beagle-host/services/beagle_stream_server_integration.py` (`internal_beagle_stream_server_api_url`)
+  - `thin-client-assistant/runtime/beagle_stream_client_pairing.sh` (`ensure_paired`, `beagle_stream_client_pair_status`)
+- Beschreibung:
+  - `internal_beagle_stream_server_api_url()` im Manager gab bei VMs mit gesetzter `public_stream.beagle_stream_server_api_url` (z.B. `https://46.4.96.80:50001`) die oeffentliche URL zurueck — auch fuer interne Calls des Control Plane Hosts.
+  - Da srv1 keinen Hairpin-NAT fuer Port 50001 hat, schlugen alle `proxy_beagle_stream_server_request`-Calls (pair-exchange, set-password etc.) mit Timeout fehl.
+  - Der TC fiel daraufhin auf direkten `submit_beagle_stream_server_pairing_token`-Aufruf zurueck, der Sunshine mit HTTP Basic Auth kontaktiert. Dieser Call schlug mit 401 fehl (Credentials-Mismatch oder fehlende Synchronisation).
+  - `beagle_stream_client_pair_status()` nutzte HTTP `/serverinfo` (Port 50000), das in beagle-stream-server-Builds 404 zurueckgibt → `pair_status_ready` immer false.
+  - `ensure_paired()` behandelte Exchange-Erfolg nicht als ausreichend; verlangte zusaetzlich `pair_status_ready || stream_ready`, beide scheiterten → Pairing-Timeout.
+- Fix:
+  - `internal_beagle_stream_server_api_url`: Wenn `guest_ip` bekannt (via `virsh domifaddr`) und public URL gesetzt, wird die interne URL (`https://{guest_ip}:{port}`) bevorzugt. Fallback auf public URL nur wenn kein `guest_ip`.
+  - `beagle_stream_client_pair_status`: Prueft zuerst HTTPS `/api/apps` (mit Credentials); faellt auf `/serverinfo` nur zurueck wenn API-URL unbekannt.
+  - `ensure_paired`: Nach erfolgreichem Manager-Exchange (HTTP 200) wird Pairing als abgeschlossen gewertet. Sekund?rvalidierungen (`pair_status_ready`, `stream_ready`) werden best-effort ausgefuehrt, blockieren aber nicht mehr.
+- Verifikation:
+  - Manueller Test: POST pair-exchange via srv1 → `{"ok":true,"paired":true}` ✓
+  - Live-Test TC (192.168.178.29) → in progress
 
 ## S-049 — Security-Incident: geleakter SSH-Key erforderte Rotation und gehaerteten Deploy-Zugriffspfad (PATCHED)
 
@@ -1336,22 +1357,18 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - `curl /api/v1/vms/` → `"token" in provisioning` = False ✓
   - Commit `6d57d8d`, live auf srv1 deployed.
 
-## S-040 — Interne Security-Findings im öffentlich downloadbaren USB-Payload enthalten (PATCHED)
+## S-040 — Interne Security-Findings im öffentlich downloadbaren Release-Tarball enthalten (PATCHED)
 
 - Status: **gepatcht** (2026-05-11)
 - Risiko: **Mittel** (interne Security-Dokumentation öffentlich zugänglich)
 - Betroffene Datei: `scripts/package.sh`
 - Beschreibung:
-  - Das Payload-Archiv `pve-thin-client-usb-payload-latest.tar.gz` (öffentlich auf srv1 unter `/beagle-downloads/` erreichbar) enthielt das komplette `docs/`-Verzeichnis des Repos.
-  - Darin enthalten: `docs/refactor/11-security-findings.md` (90 KB, alle Security-Findings S-001..S-039), `docs/refactor/05-progress.md` (595 KB), `docs/refactor/06-next-steps.md` (130 KB), `docs/refactor/07-decisions.md` (55 KB).
-  - Diese Dokumente enthalten interne Architekturdetails, bekannte Schwachstellen und Betriebsinformationen, die für Angreifer verwertbar sind.
-  - Entdeckt durch Analyse: `tar -tvzf pve-thin-client-usb-payload-latest.tar.gz | sort -k3 -rn`.
+  - Das Source-Release-Archiv `beagle-os-latest.tar.gz` (öffentlich downloadbar) enthielt das komplette `docs/`-Verzeichnis inklusive interner Unterverzeichnisse.
+  - Betroffen: `docs/refactor/` (enthält `11-security-findings.md` mit allen S-001..S-039-Findings, Architekturdetails, Betriebsinformationen) und `docs/lasthope/` (Diamond-Plan, Enterprise-Gap-Liste, Execution-Order, Validation-Matrix).
+  - Das USB-Payload-Archiv `pve-thin-client-usb-payload-latest.tar.gz` enthält dagegen kein `docs/`-Verzeichnis (war nie enthalten).
+  - Entdeckt durch Inspektion: `tar -tvzf beagle-os-latest.tar.gz | grep 'docs/refactor/11'`.
 - Fix:
-  - `scripts/package.sh`: `-C "$ROOT_DIR" docs`-Zeile aus dem USB-Payload-Tar-Aufruf entfernt.
-  - Das `docs/`-Verzeichnis ist weiterhin im vollständigen `beagle-os-latest.tar.gz`-Release-Tarball enthalten (separater Tar-Aufruf), das nur für Entwickler/Admins bestimmt ist.
-- Zusatzmaßnahme:
-  - `thin-client-assistant/live-build/config/hooks/live/098-cleanup-chroot-bloat.hook.chroot` hinzugefügt: entfernt apt-Cache, locale-Bloat, docs/man, debug-Symbole aus dem Live-Chroot vor squashfs-Kompression.
-  - Erwartete squashfs-Reduktion: ~500–800 MB (von 2,5 GB auf ~1,5–1,7 GB).
+  - `scripts/package.sh`: Im `beagle-os-v*.tar.gz`-Tar-Aufruf `--exclude='docs/refactor' --exclude='docs/lasthope'` hinzugefügt.
+  - `docs/architecture/`, `docs/checklists/`, `docs/api/`, `docs/contributing.md` bleiben im Tarball (öffentlich relevante Dokumentation).
 - Verifikation ausstehend:
-  - Nächster Build auf srv1 muss bestätigen, dass `docs/` nicht mehr im Payload-Tar enthalten ist.
-  - squashfs-Größe nach Cleanup-Hook prüfen.
+  - Nächster Package-Build muss bestätigen: `tar -tvzf beagle-os-latest.tar.gz | grep 'docs/refactor'` → keine Treffer.

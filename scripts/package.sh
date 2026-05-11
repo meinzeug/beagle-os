@@ -263,6 +263,8 @@ PY
 (
   cd "$ROOT_DIR"
   tar -czf "$DIST_DIR/$TARBALL_NAME" \
+    --exclude='docs/refactor' \
+    --exclude='docs/lasthope' \
     beagle-kiosk \
     beagle-host \
     beagle-os \
