@@ -31,6 +31,7 @@ def test_release_workflow_reuses_single_resolved_version_across_jobs() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
     assert "release_version: ${{ steps.version.outputs.version }}" in workflow
+    assert "workflows: write" not in workflow
     assert "fetch-depth: 0" in workflow
     assert "BEAGLE_RELEASE_VERSION=\"${{ github.event.inputs.release_version }}\"" in workflow
     assert workflow.count("BEAGLE_RELEASE_VERSION=\"${{ needs.detect-artifact-changes.outputs.release_version }}\"") >= 6

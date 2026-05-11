@@ -21,8 +21,6 @@ permissions:
   actions: write
   # Required for creating the metadata-sync PR when main is protected
   pull-requests: write
-  # Required to push tags that reference commits containing workflow file changes
-  workflows: write
 
 concurrency:
   group: release
