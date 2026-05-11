@@ -21,6 +21,18 @@ def test_release_workflow_syncs_release_metadata_before_persisting() -> None:
     assert "Will verify origin/main VERSION matches release VERSION before continuing." in workflow
 
 
+def test_release_workflow_auto_resolves_version_file_rebase_conflicts() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    # When rebase fails with conflicts only in version-metadata files we own,
+    # the workflow should accept our version (--theirs in rebase context) and continue.
+    assert "git checkout --theirs" in workflow
+    assert "git rebase --continue" in workflow
+    assert "_conflict_files=" in workflow
+    assert "_extra_conflicts=" in workflow
+    assert "_version_files_re=" in workflow
+
+
 def test_package_script_uses_shared_release_version_sync_helper() -> None:
     script = (ROOT / "scripts" / "package.sh").read_text(encoding="utf-8")
 

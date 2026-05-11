@@ -498,11 +498,26 @@ jobs:
               git commit -m "release: sync metadata to ${VERSION} [skip release] [skip ci]"
               git fetch origin main
               if ! git rebase origin/main; then
-                if ! git rebase --abort; then
-                  echo "::warning::Failed to abort rebase conflict cleanly; continuing with VERSION drift check." >&2
+                _version_files_re='^(VERSION|extension/manifest\.json|beagle-kiosk/package\.json|beagle-kiosk/package-lock\.json|website/index\.html)$'
+                _conflict_files="$(git diff --name-only --diff-filter=U 2>/dev/null | grep -vE '^\s*$' || true)"
+                _extra_conflicts="$(printf '%s\n' "$_conflict_files" | grep -vE "$_version_files_re" || true)"
+                if [[ -n "$_conflict_files" && -z "$_extra_conflicts" ]]; then
+                  while IFS= read -r _cf; do
+                    git checkout --theirs "$_cf"
+                    git add "$_cf"
+                  done < <(printf '%s\n' "$_conflict_files")
+                  if ! GIT_EDITOR=true git rebase --continue; then
+                    git rebase --abort 2>/dev/null || true
+                    echo "::warning::Rebase onto origin/main failed while syncing release metadata." >&2
+                    echo "::warning::Will verify origin/main VERSION matches release VERSION before continuing." >&2
+                  fi
+                else
+                  if ! git rebase --abort; then
+                    echo "::warning::Failed to abort rebase conflict cleanly; continuing with VERSION drift check." >&2
+                  fi
+                  echo "::warning::Rebase onto origin/main failed while syncing release metadata." >&2
+                  echo "::warning::Will verify origin/main VERSION matches release VERSION before continuing." >&2
                 fi
-                echo "::warning::Rebase onto origin/main failed while syncing release metadata." >&2
-                echo "::warning::Will verify origin/main VERSION matches release VERSION before continuing." >&2
               fi
               git remote set-url origin "https://x-access-token:${RELEASE_SYNC_TOKEN}@github.com/${REPO}.git"
               push_error="$(git push origin "HEAD:refs/heads/main" 2>&1)" || {
