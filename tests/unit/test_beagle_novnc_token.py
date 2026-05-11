@@ -52,7 +52,7 @@ class TestBeagleTokenFileLookup(unittest.TestCase):
         self.assertIsNone(self.plugin.lookup("does-not-exist"))
 
     def test_expired_token_returns_none(self) -> None:
-        old_ts = time.time() - 60  # 60 seconds ago, TTL is 30s
+        old_ts = time.time() - (module.TOKEN_TTL_SECONDS + 1)
         _write_entry(self.store_path, "expired_tok", "127.0.0.1", 5901, created_at=old_ts)
         self.assertIsNone(self.plugin.lookup("expired_tok"))
 
@@ -68,7 +68,7 @@ class TestBeagleTokenFileLookup(unittest.TestCase):
         self.assertIsNone(result2)
 
     def test_expired_entries_pruned_from_store(self) -> None:
-        old_ts = time.time() - 60
+        old_ts = time.time() - (module.TOKEN_TTL_SECONDS + 1)
         _write_entry(self.store_path, "stale", "127.0.0.1", 5901, created_at=old_ts)
         self.plugin.lookup("stale")  # triggers pruning
         store = json.loads(self.store_path.read_text())

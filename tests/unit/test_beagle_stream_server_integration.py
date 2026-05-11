@@ -145,7 +145,7 @@ def test_internal_api_url_prefers_explicit_public_stream_api_url() -> None:
         },
     }
 
-    assert service.internal_beagle_stream_server_api_url(vm, profile) == "https://46.4.96.80:50001"
+    assert service.internal_beagle_stream_server_api_url(vm, profile) == "https://192.168.123.115:50001"
 
 
 def test_internal_api_url_rewrites_host_when_profile_api_url_is_private() -> None:

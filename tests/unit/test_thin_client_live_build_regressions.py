@@ -128,7 +128,7 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'beagle-stream-client.register-refresh' in launcher_text
     assert 'beagle-stream-client.port-fallback' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
-    assert 'while [[ "$attempt" -lt 10 ]]; do' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
+    assert 'while [[ "$attempt" -lt "$(beagle_stream_client_pairing_timeout)" ]]; do' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN:-' not in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
     assert '/api/pair-token' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
     assert 'https://${candidate}:${api_port}' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")

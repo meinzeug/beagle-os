@@ -18,7 +18,7 @@ def test_release_workflow_syncs_release_metadata_before_persisting() -> None:
     assert 'git push origin "HEAD:refs/heads/main"' in workflow
     assert 'release_sha="$(git rev-parse origin/main)"' in workflow
     assert "::warning::Direct push to main failed" in workflow
-    assert "Will verify origin/main VERSION matches release VERSION before continuing." in workflow
+    assert "Will verify origin/main VERSION matches release VERSION in the next step;" in workflow
 
 
 def test_package_script_uses_shared_release_version_sync_helper() -> None:
