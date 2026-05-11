@@ -114,6 +114,54 @@ const SIMPLE_FIELDS = new Set([
   'ciuser', 'ipconfig0', 'nameserver'
 ]);
 
+const FIELD_PRESETS = {
+  name: [{ label: 'Gaming', value: 'gaming-vm' }, { label: 'Office', value: 'office-vm' }, { label: 'Kiosk', value: 'kiosk-vm' }],
+  description: [{ label: 'Prod', value: 'Produktive VM - Aenderungen nur mit Freigabe.' }, { label: 'Test', value: 'Testsystem - frei anpassbar.' }],
+  tags: [{ label: '+gaming', value: 'gaming', mode: 'append' }, { label: '+prod', value: 'prod', mode: 'append' }, { label: '+desktop', value: 'desktop', mode: 'append' }],
+  ostype: [{ label: 'Linux', value: 'l26' }, { label: 'Windows 11', value: 'win11' }, { label: 'Windows 10', value: 'win10' }],
+  protection: [{ label: 'Schuetzen', value: 'true' }, { label: 'Freigeben', value: 'false' }],
+  template: [{ label: 'Template', value: 'true' }, { label: 'Normale VM', value: 'false' }],
+  sockets: [{ label: '1 Socket', value: '1' }, { label: '2 Sockets', value: '2' }],
+  cores: [{ label: '2 Cores', value: '2' }, { label: '4 Cores', value: '4' }, { label: '8 Cores', value: '8' }],
+  vcpus: [{ label: 'Auto', value: '0' }, { label: '4 vCPU', value: '4' }, { label: '8 vCPU', value: '8' }],
+  cpu: [{ label: 'host', value: 'host' }, { label: 'x86-64-v2', value: 'x86-64-v2-AES' }],
+  memory: [{ label: '4 GB', value: '4096' }, { label: '8 GB', value: '8192' }, { label: '16 GB', value: '16384' }],
+  balloon: [{ label: 'Aus', value: '0' }, { label: '2 GB', value: '2048' }, { label: '4 GB', value: '4096' }],
+  cpuunits: [{ label: 'Standard', value: '1000' }, { label: 'Priorisiert', value: '2000' }],
+  cpulimit: [{ label: 'Kein Limit', value: '' }, { label: '2 Cores', value: '2' }, { label: '4 Cores', value: '4' }],
+  numa: [{ label: 'Aus', value: 'false' }, { label: 'An', value: 'true' }],
+  affinity: [{ label: 'Auto', value: '' }, { label: '0-3', value: '0-3' }, { label: '4-7', value: '4-7' }],
+  bios: [{ label: 'OVMF (UEFI)', value: 'ovmf' }, { label: 'SeaBIOS', value: 'seabios' }],
+  machine: [{ label: 'q35', value: 'q35' }, { label: 'i440fx', value: 'pc-i440fx' }],
+  boot: [{ label: 'Disk zuerst', value: 'order=scsi0;ide2' }, { label: 'ISO zuerst', value: 'order=ide2;scsi0' }],
+  bootdisk: [{ label: 'scsi0', value: 'scsi0' }, { label: 'virtio0', value: 'virtio0' }],
+  scsihw: [{ label: 'VirtIO SCSI', value: 'virtio-scsi-single' }, { label: 'LSI', value: 'lsi' }],
+  agent: [{ label: 'An', value: '1' }, { label: 'Aus', value: '0' }],
+  onboot: [{ label: 'Autostart An', value: 'true' }, { label: 'Autostart Aus', value: 'false' }],
+  startup: [{ label: 'Sofort', value: 'order=1' }, { label: 'Verzoegert', value: 'order=2,up=30' }],
+  tablet: [{ label: 'An', value: 'true' }, { label: 'Aus', value: 'false' }],
+  acpi: [{ label: 'An', value: 'true' }, { label: 'Aus', value: 'false' }],
+  kvm: [{ label: 'An', value: 'true' }, { label: 'Aus', value: 'false' }],
+  vga: [{ label: 'virtio', value: 'virtio' }, { label: 'qxl', value: 'qxl' }, { label: 'std', value: 'std' }],
+  audio0: [{ label: 'SPICE Audio', value: 'device=ich9-intel-hda,driver=spice' }, { label: 'Audio Aus', value: '' }],
+  keyboard: [{ label: 'de', value: 'de' }, { label: 'en-us', value: 'en-us' }],
+  spice_enhancements: [{ label: 'Performance', value: 'videostreaming=all' }, { label: 'Clipboard', value: 'foldersharing=1' }],
+  ciuser: [{ label: 'beagle', value: 'beagle' }, { label: 'ubuntu', value: 'ubuntu' }],
+  sshkeys: [{ label: 'Platzhalter', value: 'ssh-ed25519 AAAA... user@device' }],
+  ipconfig0: [{ label: 'DHCP', value: 'ip=dhcp' }, { label: 'Static LAN', value: 'ip=192.168.1.50/24,gw=192.168.1.1' }],
+  ipconfig1: [{ label: 'DHCP', value: 'ip=dhcp' }, { label: 'leer', value: '' }],
+  nameserver: [{ label: 'Cloudflare', value: '1.1.1.1' }, { label: 'Google', value: '8.8.8.8' }, { label: 'Router', value: '192.168.1.1' }],
+  searchdomain: [{ label: 'beagle.local', value: 'beagle.local' }, { label: 'leer', value: '' }],
+  citype: [{ label: 'nocloud', value: 'nocloud' }, { label: 'configdrive2', value: 'configdrive2' }],
+  ciupgrade: [{ label: 'Upgrade An', value: 'true' }, { label: 'Upgrade Aus', value: 'false' }],
+  hotplug: [{ label: 'Disk+Netz+USB', value: 'disk,network,usb' }, { label: 'Nur Netz', value: 'network' }],
+  watchdog: [{ label: 'Reset Watchdog', value: 'model=i6300esb,action=reset' }, { label: 'Aus', value: '' }],
+  rng0: [{ label: 'urandom', value: 'source=/dev/urandom' }, { label: 'Aus', value: '' }],
+  hookscript: [{ label: 'Standard Hook', value: 'local:snippets/vm-hook.sh' }, { label: 'Aus', value: '' }],
+  args: [{ label: 'Host CPU Hint', value: '-cpu host' }, { label: 'Aus', value: '' }],
+  vmgenid: [{ label: 'Auto', value: 'auto' }]
+};
+
 const FIELD_HELP = {
   name: help('Name', 'Der Anzeigename der VM. Er hilft dir, die Maschine in Listen, Logs und Backups eindeutig wiederzufinden.', 'Aendere ihn frei, solange er eindeutig und gut lesbar bleibt.', ['win11-gaming', 'office-terminal-01']),
   description: help('Beschreibung', 'Freitext fuer Zweck, Besitzer, Besonderheiten oder Wartungshinweise.', 'Hier kannst du notieren, warum es diese VM gibt und worauf man achten muss.', ['Gaming VM fuer Wohnzimmer', 'Nicht loeschen, Buchhaltung']),
@@ -249,6 +297,17 @@ function renderFieldCaption(field) {
   return '<span class="vm-config-field-caption"><span>' + escapeHtml(label) + '</span>' + renderHelpButton(field) + '</span>';
 }
 
+function renderPresetRail(field) {
+  const presets = FIELD_PRESETS[String(field.key || '').trim()] || [];
+  if (!presets.length) {
+    return '';
+  }
+  return '<div class="vm-control-presets">' + presets.map((preset) => {
+    const mode = String(preset.mode || 'set');
+    return '<button type="button" data-vm-preset-key="' + escapeHtml(String(field.key || '')) + '" data-vm-preset-value="' + escapeHtml(String(preset.value || '')) + '" data-vm-preset-mode="' + escapeHtml(mode) + '">' + escapeHtml(String(preset.label || preset.value || 'Preset')) + '</button>';
+  }).join('') + '</div>';
+}
+
 function controlLimits(field, value) {
   const base = CONTROL_LIMITS[field.key] || {};
   const numeric = Number(value || 0);
@@ -270,6 +329,7 @@ function renderNumberControl(field, config) {
     '  <div class="vm-control-head">' + renderFieldCaption(field) + '<output data-vm-config-output="' + escapeHtml(field.key) + '">' + escapeHtml(displayValue) + '</output></div>' +
     '  <input class="vm-control-range" type="range" data-vm-config-range="' + escapeHtml(field.key) + '" min="' + escapeHtml(String(limits.min)) + '" max="' + escapeHtml(String(limits.max)) + '" step="' + escapeHtml(String(limits.step)) + '" value="' + escapeHtml(rangeValue) + '">' +
     '  <div class="vm-control-foot"><span>' + escapeHtml(String(limits.min)) + '</span><label><input class="vm-control-number" type="number" data-vm-config-field="' + escapeHtml(field.key) + '" min="' + escapeHtml(String(limits.min)) + '" max="' + escapeHtml(String(limits.max)) + '" step="' + escapeHtml(String(limits.step)) + '" value="' + escapeHtml(rawValue) + '">' + unit + '</label><span>' + escapeHtml(String(limits.max)) + '</span></div>' +
+    renderPresetRail(field) +
     '</div>';
 }
 
@@ -282,6 +342,7 @@ function renderToggleControl(field, config) {
     '    <input type="checkbox" data-vm-config-field="' + escapeHtml(field.key) + '"' + (value ? ' checked' : '') + '>' +
     '    <span><i></i></span>' +
     '  </label>' +
+    renderPresetRail(field) +
     '</div>';
 }
 
@@ -295,10 +356,10 @@ function renderInput(field, config) {
     return renderToggleControl(field, config);
   }
   if (field.type === 'textarea') {
-    return '<label class="field">' + renderFieldCaption(field) + '<textarea rows="3"' + common + '>' + escapeHtml(value) + '</textarea></label>';
+    return '<label class="field">' + renderFieldCaption(field) + '<textarea rows="3"' + common + '>' + escapeHtml(value) + '</textarea>' + renderPresetRail(field) + '</label>';
   }
   const min = field.min == null ? '' : ' min="' + escapeHtml(String(field.min)) + '"';
-  return '<label class="field">' + renderFieldCaption(field) + '<input type="' + escapeHtml(field.type || 'text') + '"' + min + common + ' value="' + escapeHtml(value) + '"></label>';
+  return '<label class="field">' + renderFieldCaption(field) + '<input type="' + escapeHtml(field.type || 'text') + '"' + min + common + ' value="' + escapeHtml(value) + '">' + renderPresetRail(field) + '</label>';
 }
 
 function renderHardwareEditor(config) {
@@ -434,6 +495,12 @@ export class VmConfigEditor {
         this.setMode(form, String(modeButton.getAttribute('data-vm-mode') || 'simple'));
         return;
       }
+      const presetButton = event.target && event.target.closest ? event.target.closest('[data-vm-preset-key]') : null;
+      if (presetButton) {
+        event.preventDefault();
+        this.applyPreset(form, presetButton);
+        return;
+      }
       const helpButton = event.target && event.target.closest ? event.target.closest('[data-vm-config-help]') : null;
       if (helpButton) {
         event.preventDefault();
@@ -470,6 +537,35 @@ export class VmConfigEditor {
       }
     });
     this.applyMode(form);
+  }
+
+  applyPreset(form, button) {
+    const key = String(button.getAttribute('data-vm-preset-key') || '').trim();
+    const value = String(button.getAttribute('data-vm-preset-value') || '');
+    const mode = String(button.getAttribute('data-vm-preset-mode') || 'set').trim().toLowerCase();
+    if (!key) {
+      return;
+    }
+    const control = form.querySelector('[data-vm-config-field="' + CSS.escape(key) + '"]');
+    if (!control) {
+      return;
+    }
+    if (BOOLEAN_FIELDS.has(key)) {
+      control.checked = ['1', 'true', 'yes', 'on', 'ja'].includes(value.toLowerCase());
+      this.syncControlSurface(form, control);
+      return;
+    }
+    if (mode === 'append') {
+      const current = String(control.value || '').trim();
+      if (!current) {
+        control.value = value;
+      } else if (!current.split(',').map((token) => token.trim()).includes(value)) {
+        control.value = current + ',' + value;
+      }
+    } else {
+      control.value = value;
+    }
+    this.syncControlSurface(form, control);
   }
 
   setMode(form, mode) {

@@ -83,6 +83,9 @@
 .vm-control-foot { display: grid; grid-template-columns: auto minmax(112px, 1fr) auto; align-items: center; gap: 8px; color: var(--text-muted); font-size: 0.72rem; }
 .vm-control-foot label { justify-self: center; display: flex; align-items: center; gap: 6px; max-width: 170px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: color-mix(in srgb, var(--bg-card) 75%, transparent); }
 .vm-control-number { width: 86px; min-width: 0; border: 0; background: transparent; color: var(--text); font-family: var(--font-mono); font-weight: 800; text-align: right; }
+.vm-control-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.vm-control-presets button { min-height: 24px; padding: 0 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border)); background: color-mix(in srgb, var(--bg-elevated) 84%, var(--accent) 8%); color: var(--text-secondary); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; }
+.vm-control-presets button:hover, .vm-control-presets button:focus-visible { color: var(--text); border-color: color-mix(in srgb, var(--accent) 56%, var(--green)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
 .vm-control-card-toggle { min-height: 112px; display: flex; flex-direction: column; justify-content: space-between; }
 .vm-toggle-state { padding: 5px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border)); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text); font-size: 0.72rem; font-weight: 800; }
 .vm-control-switch { align-self: stretch; display: block; cursor: pointer; }

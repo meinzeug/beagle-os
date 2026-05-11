@@ -101,6 +101,10 @@ def test_vm_config_editor_surfaces_guided_control_ui() -> None:
     assert "data-vm-mode=\"pro\"" in editor
     assert "data-vm-config-item" in editor
     assert "Einfach zeigt nur die wichtigsten Einstellungen" in editor
+    assert "FIELD_PRESETS" in editor
+    assert "data-vm-preset-key" in editor
+    assert "applyPreset(form, presetButton)" in editor
+    assert "mode === 'append'" in editor
     assert "data-vm-config-range" in editor
     assert "class=\"vm-control-card vm-control-card-range\"" in editor
     assert "class=\"vm-control-card vm-control-card-toggle\"" in editor
