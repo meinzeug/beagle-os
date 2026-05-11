@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Hardcode install path to guard against the Debian Trixie live-boot overlayfs
+# quirk where pwd resolves through the squashfs lower layer returning /var/local/
+# instead of /usr/local/.  Allow env override for development.
+SCRIPT_DIR="${BEAGLE_RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 STATUS_WRITER_PY="$SCRIPT_DIR/status_writer.py"
 SESSION_LAUNCHER_SH="${SESSION_LAUNCHER_SH:-$SCRIPT_DIR/session_launcher.sh}"
 DEVICE_STATE_ENFORCEMENT_SH="${DEVICE_STATE_ENFORCEMENT_SH:-$SCRIPT_DIR/device_state_enforcement.sh}"

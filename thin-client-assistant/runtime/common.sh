@@ -8,7 +8,11 @@ BEAGLE_STATE_DIR_DEFAULT="/var/lib/beagle-os"
 PRESET_STATE_DIR_DEFAULT="/run/beagle-os/preset-state"
 BEAGLE_TRACE_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/runtime-trace.log"
 BEAGLE_LAST_MARKER_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/last-marker.env"
-RUNTIME_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Use hardcoded install path to avoid a Debian Trixie live-boot overlayfs quirk
+# where bash's `pwd` after `cd` can resolve through the overlay lower-layer and
+# return /var/local/lib/... instead of /usr/local/lib/... for files in the
+# squashfs read-only layer.  RUNTIME_SCRIPT_DIR may still be overridden via env.
+RUNTIME_SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 MODE_OVERRIDES_PY="${MODE_OVERRIDES_PY:-$RUNTIME_SCRIPT_DIR/mode_overrides.py}"
 CONFIG_DISCOVERY_PY="${CONFIG_DISCOVERY_PY:-$RUNTIME_SCRIPT_DIR/config_discovery.py}"
 CONFIG_LOADER_SH="${CONFIG_LOADER_SH:-$RUNTIME_SCRIPT_DIR/config_loader.sh}"

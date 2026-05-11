@@ -3,7 +3,10 @@ set -euo pipefail
 
 STATUS_DIR="${STATUS_DIR:-/var/lib/pve-thin-client}"
 STATUS_FILE="$STATUS_DIR/runtime.status"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Hardcode install path to guard against the Debian Trixie live-boot overlayfs
+# quirk where pwd resolves through the squashfs lower layer returning /var/local/
+# instead of /usr/local/.  Allow env override for development.
+SCRIPT_DIR="${BEAGLE_RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 STATUS_WRITER_PY="$SCRIPT_DIR/status_writer.py"
 APPLY_ENROLLMENT_CONFIG_PY="$SCRIPT_DIR/apply_enrollment_config.py"
 RUNTIME_CONFIG_PERSISTENCE_SH="${RUNTIME_CONFIG_PERSISTENCE_SH:-$SCRIPT_DIR/runtime_config_persistence.sh}"
