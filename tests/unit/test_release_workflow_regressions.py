@@ -17,7 +17,8 @@ def test_release_workflow_syncs_release_metadata_before_persisting() -> None:
     assert "BEAGLE_RELEASE_SYNC_TOKEN || secrets.COPILOT_ASSIGNMENT_TOKEN || github.token" in workflow
     assert 'git push origin "HEAD:refs/heads/main"' in workflow
     assert 'release_sha="$(git rev-parse origin/main)"' in workflow
-    assert "Direct push to main failed while syncing release metadata" in workflow
+    assert "::warning::Direct push to main failed" in workflow
+    assert "Will verify origin/main VERSION matches release VERSION before continuing." in workflow
 
 
 def test_package_script_uses_shared_release_version_sync_helper() -> None:
