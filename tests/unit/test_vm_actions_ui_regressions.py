@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ACTIONS_JS = ROOT / "website" / "ui" / "actions.js"
 INVENTORY_JS = ROOT / "website" / "ui" / "inventory.js"
 MAIN_JS = ROOT / "website" / "main.js"
+VM_CONFIG_EDITOR_JS = ROOT / "website" / "ui" / "vm_config_editor.js"
 
 
 def _read(path: Path) -> str:
@@ -90,14 +91,14 @@ def test_vm_detail_surfaces_stream_runtime_variant_and_fallback_state() -> None:
     assert "Diese VM laeuft noch im Beagle Stream Server-Fallback." in main
 
 
-def test_vm_detail_surfaces_stream_control_panel_from_backend_config_endpoint() -> None:
-    main = _read(MAIN_JS)
+def test_vm_config_editor_surfaces_guided_control_ui() -> None:
+    editor = _read(VM_CONFIG_EDITOR_JS)
 
-    assert "function buildStreamConfigPanelHtml(payload, errorMessage)" in main
-    assert "fieldBlock('Netzwerkmodus', policy.network_mode || 'n/a')" in main
-    assert "fieldBlock('WireGuard aktiv', boolLabel(Boolean(config.wireguard_active)))" in main
-    assert "fieldBlock('Verbindung erlaubt', boolLabel(Boolean(config.connection_allowed)))" in main
-    assert "fieldBlock('Letztes Event', lastEvent.event_type || 'n/a')" in main
-    assert "request('/streams/' + numericVmid + '/config')" in main
-    assert "buildStreamConfigPanelHtml(data, '')" in main
-    assert "buildStreamConfigPanelHtml(null, err && err.message ? err.message : 'unbekannt')" in main
+    assert "Beagle Info View" in editor
+    assert "Beagle Guide Layer" in editor
+    assert "data-vm-config-range" in editor
+    assert "class=\"vm-control-card vm-control-card-range\"" in editor
+    assert "class=\"vm-control-card vm-control-card-toggle\"" in editor
+    assert "syncControlSurface(form, event.target)" in editor
+    assert "updateGuidePanel(form, key)" in editor
+    assert "VM Konfiguration" in editor

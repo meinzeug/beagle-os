@@ -41,8 +41,19 @@ def test_repo_auto_update_marks_repo_healthy_before_artifact_refresh_finishes() 
     script = SCRIPT.read_text(encoding="utf-8")
 
     assert '["systemctl", "--no-block", "start", "beagle-artifacts-refresh.service"]' in script
-    assert 'payload["reaction"] = "updated_artifact_refresh_started"' in script
-    assert 'payload["message"] = "Repo-Update erfolgreich eingespielt. Artefakt-Build laeuft separat weiter."' in script
+    assert 'payload["reaction"] = "updated_artifact_refresh_restarted" if refresh_action == "restart" else "updated_artifact_refresh_started"' in script
+    assert 'payload["message"] = "Repo-Update erfolgreich eingespielt. Laufender Artefakt-Build wurde fuer den neuen Commit neu gestartet." if refresh_action == "restart" else "Repo-Update erfolgreich eingespielt. Artefakt-Build laeuft separat weiter."' in script
+
+
+def test_repo_auto_update_restarts_stale_artifact_refresh_for_new_commit() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'running_build_commit = read_running_build_commit(refresh_status_file)' in script
+    assert 'if refresh_active.returncode == 0 and running_build_commit and not same_commit(running_build_commit, remote_commit):' in script
+    assert 'refresh_action = "restart"' in script
+    assert '["systemctl", "stop", "beagle-artifacts-refresh.service"]' in script
+    assert 'payload["reaction"] = "artifact_refresh_restart_failed"' in script
+    assert 'payload["reaction"] = "updated_artifact_refresh_restarted" if refresh_action == "restart" else "updated_artifact_refresh_started"' in script
 
 
 def test_repo_auto_update_tracks_installed_and_remote_versions() -> None:
