@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 BEAGLE_USB_RUNTIME_USBIPD_SH="${BEAGLE_USB_RUNTIME_USBIPD_SH:-$SCRIPT_DIR/beagle_usb_runtime_usbipd.sh}"
 # shellcheck disable=SC1090
 source "$BEAGLE_USB_RUNTIME_USBIPD_SH"

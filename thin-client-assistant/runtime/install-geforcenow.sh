@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 GEFORCENOW_DESKTOP_INTEGRATION_SH="${GEFORCENOW_DESKTOP_INTEGRATION_SH:-$SCRIPT_DIR/geforcenow_desktop_integration.sh}"
 GEFORCENOW_FLATPAK_SH="${GEFORCENOW_FLATPAK_SH:-$SCRIPT_DIR/geforcenow_flatpak.sh}"
 # shellcheck disable=SC1091

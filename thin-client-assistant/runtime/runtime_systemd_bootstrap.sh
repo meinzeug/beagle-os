@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 RUNTIME_SYSTEMD_UNITS_SH="${RUNTIME_SYSTEMD_UNITS_SH:-$SCRIPT_DIR/runtime_systemd_units.sh}"
 # shellcheck disable=SC1090
 source "$RUNTIME_SYSTEMD_UNITS_SH"

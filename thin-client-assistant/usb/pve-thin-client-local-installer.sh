@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SCRIPT_DIR="${PVE_THIN_CLIENT_USB_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/usb}"
+ROOT_DIR="${PVE_THIN_CLIENT_ROOT_DIR:-/usr/local/lib/pve-thin-client}"
 PRESET_SUMMARY_HELPER="$SCRIPT_DIR/preset_summary.py"
 USB_MANIFEST_HELPER="$SCRIPT_DIR/usb_manifest.py"
 LIVE_MEDIUM_HELPERS="$SCRIPT_DIR/live_medium_helpers.sh"

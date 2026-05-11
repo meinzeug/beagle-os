@@ -7,9 +7,9 @@ generate_config_dir_from_preset() {
 
   [[ -f "$preset_file" ]] || return 1
 
-  installer_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../installer" && pwd)"
+  installer_dir="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}/../installer"
   installer_script="$installer_dir/write-config.sh"
-  runtime_helper="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/generate_config_from_preset.py"
+  runtime_helper="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}/generate_config_from_preset.py"
   [[ -x "$installer_script" ]] || return 1
   [[ -f "$runtime_helper" ]] || return 1
 

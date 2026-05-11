@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 STREAM_MANAGEMENT_ACTIVITY_SH="${STREAM_MANAGEMENT_ACTIVITY_SH:-$SCRIPT_DIR/stream_management_activity.sh}"
 # shellcheck disable=SC1090
 source "$STREAM_MANAGEMENT_ACTIVITY_SH"

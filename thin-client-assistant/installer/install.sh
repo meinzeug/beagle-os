@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${PVE_THIN_CLIENT_INSTALLER_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/installer}"
 source "$SCRIPT_DIR/env-defaults.sh"
 CONFIG_DIR="/etc/pve-thin-client"
 CONFIG_FILE="$CONFIG_DIR/thinclient.conf"

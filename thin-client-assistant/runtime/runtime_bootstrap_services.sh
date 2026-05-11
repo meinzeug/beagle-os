@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 RUNTIME_SYSTEMD_BOOTSTRAP_SH="${RUNTIME_SYSTEMD_BOOTSTRAP_SH:-$SCRIPT_DIR/runtime_systemd_bootstrap.sh}"
 RUNTIME_SSH_HOST_KEYS_SH="${RUNTIME_SSH_HOST_KEYS_SH:-$SCRIPT_DIR/runtime_ssh_host_keys.sh}"
 RUNTIME_SSH_SERVICE_CONFIG_SH="${RUNTIME_SSH_SERVICE_CONFIG_SH:-$SCRIPT_DIR/runtime_ssh_service_config.sh}"

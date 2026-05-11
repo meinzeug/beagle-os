@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 BEAGLE_STREAM_CLIENT_REACHABILITY_SH="${BEAGLE_STREAM_CLIENT_REACHABILITY_SH:-$SCRIPT_DIR/beagle_stream_client_reachability.sh}"
 BEAGLE_STREAM_CLIENT_CONNECT_HOST_SH="${BEAGLE_STREAM_CLIENT_CONNECT_HOST_SH:-$SCRIPT_DIR/beagle_stream_client_connect_host.sh}"
 # shellcheck disable=SC1090

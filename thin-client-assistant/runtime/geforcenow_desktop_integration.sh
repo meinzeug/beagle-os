@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 GEFORCENOW_XDG_OPEN_INTEGRATION_SH="${GEFORCENOW_XDG_OPEN_INTEGRATION_SH:-$SCRIPT_DIR/geforcenow_xdg_open_integration.sh}"
 # shellcheck disable=SC1090
 source "$GEFORCENOW_XDG_OPEN_INTEGRATION_SH"

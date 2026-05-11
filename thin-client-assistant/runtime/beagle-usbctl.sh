@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 BEAGLE_USB_RUNTIME_STATE_SH="${BEAGLE_USB_RUNTIME_STATE_SH:-$SCRIPT_DIR/beagle_usb_runtime_state.sh}"
 BEAGLE_USB_RUNTIME_ACTIONS_SH="${BEAGLE_USB_RUNTIME_ACTIONS_SH:-$SCRIPT_DIR/beagle_usb_runtime_actions.sh}"
 # shellcheck disable=SC1091

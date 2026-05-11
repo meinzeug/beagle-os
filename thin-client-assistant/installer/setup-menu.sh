@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${PVE_THIN_CLIENT_INSTALLER_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/installer}"
 source "$SCRIPT_DIR/../../scripts/lib/trace-guard.sh"
 beagle_trace_guard_disable_xtrace_if_sensitive
 source "$SCRIPT_DIR/env-defaults.sh"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 BEAGLE_USB_RUNTIME_ENV_SH="${BEAGLE_USB_RUNTIME_ENV_SH:-$SCRIPT_DIR/beagle_usb_runtime_env.sh}"
 BEAGLE_USB_RUNTIME_PAYLOADS_SH="${BEAGLE_USB_RUNTIME_PAYLOADS_SH:-$SCRIPT_DIR/beagle_usb_runtime_payloads.sh}"
 # shellcheck disable=SC1090

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 RUNTIME_BEAGLE_STATE_SH="${RUNTIME_BEAGLE_STATE_SH:-$SCRIPT_DIR/runtime_beagle_state.sh}"
 # shellcheck disable=SC1090
 source "$RUNTIME_BEAGLE_STATE_SH"

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${PVE_THIN_CLIENT_USB_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/usb}"
 SCRIPT_BASENAME="$(basename "${BASH_SOURCE[0]}")"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="${PVE_THIN_CLIENT_REPO_ROOT:-/usr/local/lib}"
 USB_MANIFEST_HELPER_RELATIVE="thin-client-assistant/usb/usb_manifest.py"
 USB_WRITER_SOURCES_HELPER_RELATIVE="thin-client-assistant/usb/usb_writer_sources.sh"
 USB_WRITER_BOOTSTRAP_HELPER_RELATIVE="thin-client-assistant/usb/usb_writer_bootstrap.sh"

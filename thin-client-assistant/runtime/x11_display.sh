@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 X11_DISPLAY_SELECTION_SH="${X11_DISPLAY_SELECTION_SH:-$SCRIPT_DIR/x11_display_selection.sh}"
 # shellcheck disable=SC1090
 source "$X11_DISPLAY_SELECTION_SH"

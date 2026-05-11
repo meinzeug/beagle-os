@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 for trace_guard_candidate in \
   "$SCRIPT_DIR/../../scripts/lib/trace-guard.sh" \
   "/usr/local/lib/scripts/lib/trace-guard.sh" \

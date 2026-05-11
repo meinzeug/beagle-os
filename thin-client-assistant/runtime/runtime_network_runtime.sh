@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 RUNTIME_NETWORK_WAIT_SH="${RUNTIME_NETWORK_WAIT_SH:-$SCRIPT_DIR/runtime_network_wait.sh}"
 RUNTIME_NETWORK_IDENTITY_SH="${RUNTIME_NETWORK_IDENTITY_SH:-$SCRIPT_DIR/runtime_network_identity.sh}"
 # shellcheck disable=SC1090

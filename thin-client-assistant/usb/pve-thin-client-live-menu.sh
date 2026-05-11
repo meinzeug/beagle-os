@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SCRIPT_DIR="${PVE_THIN_CLIENT_USB_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/usb}"
+ROOT_DIR="${PVE_THIN_CLIENT_ROOT_DIR:-/usr/local/lib/pve-thin-client}"
 INSTALLER="${PVE_THIN_CLIENT_INSTALLER_BIN:-$SCRIPT_DIR/pve-thin-client-local-installer.sh}"
 BEAGLE_API_HELPER="${PVE_THIN_CLIENT_BEAGLE_API_HELPER:-$SCRIPT_DIR/pve-thin-client-beagle-api.py}"
 LIVE_MEDIUM_HELPERS="$SCRIPT_DIR/live_medium_helpers.sh"
