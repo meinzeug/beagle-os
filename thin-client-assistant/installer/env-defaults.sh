@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-INSTALLER_DEFAULTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALLER_DEFAULTS_DIR="${PVE_THIN_CLIENT_INSTALLER_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/installer}"
 INSTALLER_ENV_DEFAULTS_JSON="${INSTALLER_ENV_DEFAULTS_JSON:-$INSTALLER_DEFAULTS_DIR/env-defaults.json}"
 
 apply_installer_env_defaults() {

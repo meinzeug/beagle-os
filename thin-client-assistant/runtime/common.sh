@@ -63,7 +63,7 @@ apply_runtime_mode_overrides() {
 find_config_dir() {
   local installer_dir installer_script runtime_user preset_state_dir
   [[ -r "$CONFIG_DISCOVERY_PY" ]] || return 1
-  installer_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../installer" && pwd)"
+  installer_dir="${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}/../installer"
   installer_script="$installer_dir/write-config.sh"
   runtime_user="${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}"
   preset_state_dir="${PRESET_STATE_DIR:-$PRESET_STATE_DIR_DEFAULT}"
