@@ -375,14 +375,16 @@ write_usb() {
     --no-perms \
     --exclude 'live-build' \
     "$REPO_ROOT/thin-client-assistant/" "$mount_dir/pve-dcv-integration/thin-client-assistant/"
-  rsync -rlt \
-    --no-owner \
-    --no-group \
-    --no-perms \
-    "$REPO_ROOT/docs/" "$mount_dir/pve-dcv-integration/docs/"
-  install -m 0644 "$REPO_ROOT/README.md" "$mount_dir/pve-dcv-integration/README.md"
-  install -m 0644 "$REPO_ROOT/LICENSE" "$mount_dir/pve-dcv-integration/LICENSE"
-  install -m 0644 "$REPO_ROOT/CHANGELOG.md" "$mount_dir/pve-dcv-integration/CHANGELOG.md"
+  if [[ -d "$REPO_ROOT/docs" ]]; then
+    rsync -rlt \
+      --no-owner \
+      --no-group \
+      --no-perms \
+      "$REPO_ROOT/docs/" "$mount_dir/pve-dcv-integration/docs/"
+  fi
+  [[ -f "$REPO_ROOT/README.md" ]] && install -m 0644 "$REPO_ROOT/README.md" "$mount_dir/pve-dcv-integration/README.md"
+  [[ -f "$REPO_ROOT/LICENSE" ]] && install -m 0644 "$REPO_ROOT/LICENSE" "$mount_dir/pve-dcv-integration/LICENSE"
+  [[ -f "$REPO_ROOT/CHANGELOG.md" ]] && install -m 0644 "$REPO_ROOT/CHANGELOG.md" "$mount_dir/pve-dcv-integration/CHANGELOG.md"
   if [[ "$USB_WRITER_VARIANT" == "installer" ]]; then
     install -m 0755 "$REPO_ROOT/thin-client-assistant/usb/start-installer-menu.sh" "$mount_dir/start-installer-menu.sh"
   fi
