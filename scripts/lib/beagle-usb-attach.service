@@ -1,0 +1,17 @@
+[Unit]
+Description=Beagle USB/IP Auto-Attach (thin-client device forwarding)
+Documentation=https://beagle-os.com/docs
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/beagle/usb-attach.env
+ExecStart=/usr/local/bin/beagle-usb-attach
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

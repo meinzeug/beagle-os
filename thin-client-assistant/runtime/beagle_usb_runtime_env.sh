@@ -36,6 +36,12 @@ pgrep_bin() {
   printf '%s\n' "${BEAGLE_PGREP_BIN:-pgrep}"
 }
 
+usb_auto_bind() {
+  # Auto-bind=1: forward all eligible USB devices automatically.
+  # Set PVE_THIN_CLIENT_BEAGLE_USB_AUTO_BIND=0 to disable.
+  printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_USB_AUTO_BIND:-1}"
+}
+
 require_enabled() {
   [[ "$(usb_enabled)" == "1" ]] || {
     echo "usb disabled" >&2

@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# beagle-usb-attach — auto-attach USB/IP devices exported by a Beagle thin client.
+#
+# Runs as a systemd service on the VM guest.  Loads the vhci-hcd kernel module,
+# polls the thin-client USB tunnel endpoint and attaches any device not yet
+# attached.  Runs in a loop so hot-plug events on the TC side are picked up
+# within POLL_INTERVAL seconds.
+#
+# Configuration (via /etc/beagle/usb-attach.env):
+#   BEAGLE_USB_ATTACH_HOST   — IP/hostname of the tunnel endpoint (default: 192.168.123.1)
+#   BEAGLE_USB_ATTACH_PORT   — TCP port forwarded by the SSH reverse tunnel   (default: 43100)
+#   BEAGLE_USB_ATTACH_POLL   — poll interval in seconds                        (default: 5)
+
+set -uo pipefail
+
+USB_ATTACH_HOST="${BEAGLE_USB_ATTACH_HOST:-192.168.123.1}"
+USB_ATTACH_PORT="${BEAGLE_USB_ATTACH_PORT:-43100}"
+POLL_INTERVAL="${BEAGLE_USB_ATTACH_POLL:-5}"
+
+ENV_FILE="/etc/beagle/usb-attach.env"
+[[ -r "$ENV_FILE" ]] && source "$ENV_FILE"
+
+# ── kernel module ─────────────────────────────────────────────────────────────
+load_vhci() {
+  modprobe vhci-hcd 2>/dev/null || true
+}
+
+# ── already attached? ─────────────────────────────────────────────────────────
+# usbip port lists currently attached ports with lines like:
+#   Port 00: <Port in Use> at Full Speed(12Mbps)
+#            unknown vendor : unknown product (1bcf:0215)
+#        1-2.1.3 used by port 0
+# We match the busid string anywhere in the output.
+already_attached() {
+  local busid="$1"
+  usbip port 2>/dev/null | grep -qF "$busid"
+}
+
+# ── attach all available devices ──────────────────────────────────────────────
+attach_all() {
+  local remote_out busid
+
+  # usbip list output lines with busids look like:
+  #        1-2.1.2: SC420 USB Microphone : ...
+  # Note: --tcp-port is a global option, must come before the subcommand.
+  remote_out="$(usbip --tcp-port "$USB_ATTACH_PORT" list -r "$USB_ATTACH_HOST" 2>/dev/null)" || return 0
+
+  while IFS= read -r line; do
+    # Match lines starting with whitespace + busid + colon
+    [[ "$line" =~ ^[[:space:]]+([0-9]+-[0-9]+(\.[0-9]+)*): ]] || continue
+    busid="${BASH_REMATCH[1]}"
+    already_attached "$busid" && continue
+    if usbip --tcp-port "$USB_ATTACH_PORT" attach -r "$USB_ATTACH_HOST" -b "$busid" 2>/dev/null; then
+      echo "beagle-usb-attach: attached $busid from ${USB_ATTACH_HOST}:${USB_ATTACH_PORT}"
+    fi
+  done <<< "$remote_out"
+}
+
+# ── detach ports whose remote device is gone ──────────────────────────────────
+detach_stale() {
+  local remote_out port busid
+  remote_out="$(usbip list -r "$USB_ATTACH_HOST" --tcp-port "$USB_ATTACH_PORT" 2>/dev/null)" || true
+
+  # For each attached port check whether the busid is still exported
+  usbip port 2>/dev/null | while IFS= read -r pline; do
+    # "Port 00: <Port in Use>"
+    [[ "$pline" =~ Port[[:space:]]+([0-9]+):[[:space:]].*in[[:space:]]Use ]] || continue
+    port="${BASH_REMATCH[1]}"
+    # Get the busid used by this port (next line with "used by port")
+    # Simplest: re-read port output for this port number — use global usbip port output
+    # Detach only when tunnel is completely unreachable (attach_all will re-attach)
+    : # intentionally minimal — usbip detach causes re-attach on next poll
+  done
+}
+
+# ── main loop ─────────────────────────────────────────────────────────────────
+load_vhci
+
+while true; do
+  attach_all || true
+  sleep "$POLL_INTERVAL"
+done

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# beagle-usb-hotplug — called by udev when a USB device is added.
+# Binds the device for USB/IP export and triggers a tunnel restart so the VM
+# receives it automatically.
+#
+# Usage: beagle-usb-hotplug BUSID
+#
+# This script is intentionally kept minimal because it runs in the udev context
+# (limited environment, no PATH except /sbin:/bin:/usr/sbin:/usr/bin).
+
+set -uo pipefail
+
+BUSID="${1:-}"
+[[ -n "$BUSID" ]] || exit 0
+
+RUNTIME_DIR="/usr/local/lib/pve-thin-client/runtime"
+CONFIG_FILE="/etc/pve-thin-client/thinclient.conf"
+
+# Load runtime config for feature flags
+[[ -r "$CONFIG_FILE" ]] && source "$CONFIG_FILE"
+
+# Respect the auto-bind toggle (default: on)
+[[ "${PVE_THIN_CLIENT_BEAGLE_USB_AUTO_BIND:-1}" == "1" ]] || exit 0
+
+# Source only the minimal USB helpers needed
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/beagle_usb_runtime_env.sh"
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/beagle_usb_runtime_state.sh"
+# shellcheck disable=SC1091
+source "$RUNTIME_DIR/beagle_usb_runtime_usbipd.sh"
+
+# Bind (if eligible) and persist in state so sync_bound_devices keeps it
+if autobind_hotplug_device "$BUSID"; then
+  bound_add "$BUSID" >/dev/null 2>&1 || true
+fi
+
+# Restart tunnel service in background so the new device is exported immediately
+systemctl restart beagle-usb-tunnel.service >/dev/null 2>&1 &

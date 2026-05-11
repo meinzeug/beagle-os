@@ -1,0 +1,14 @@
+# Beagle OS: Auto-bind USB devices for USB/IP forwarding to VMs.
+#
+# When a USB device is plugged into the thin client, this rule fires the
+# beagle-usb-hotplug helper which binds the device (if eligible) and restarts
+# the USB reverse tunnel so the VM receives it automatically.
+#
+# The helper itself filters out HID-only/hub/Bluetooth devices, so this rule
+# can safely match all USB devices at the device level.
+
+ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", \
+  RUN+="/usr/local/lib/pve-thin-client/runtime/beagle-usb-hotplug %k"
+
+ACTION=="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", \
+  RUN+="/bin/systemctl restart beagle-usb-tunnel.service"

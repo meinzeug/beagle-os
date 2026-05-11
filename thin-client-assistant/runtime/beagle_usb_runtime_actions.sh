@@ -84,6 +84,8 @@ run_usb_tunnel_daemon() {
   [[ -n "$(usb_host)" && -n "$(usb_port)" && -n "$(usb_user)" ]] || exit 0
   [[ -r "$(usb_key_file)" && -r "$(usb_known_hosts_file)" ]] || exit 0
   ssh_cmd="$(ssh_bin)"
+  # Auto-bind all eligible USB devices before syncing manually-bound list.
+  auto_bind_eligible_devices || true
   sync_bound_devices
   exec "$ssh_cmd" -N \
     -o BatchMode=yes \
