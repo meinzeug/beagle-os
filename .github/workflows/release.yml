@@ -502,7 +502,16 @@ jobs:
                   echo "::warning::Failed to abort rebase conflict cleanly; continuing with VERSION drift check." >&2
                 fi
                 echo "::warning::Rebase onto origin/main failed while syncing release metadata." >&2
-                echo "::warning::Will verify origin/main VERSION matches release VERSION before continuing." >&2
+                echo "::warning::Rebuilding release metadata commit on top of origin/main." >&2
+                git fetch origin main
+                git reset --hard origin/main
+                python3 scripts/sync-release-version.py "$VERSION"
+                git add VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html
+                if git diff --cached --quiet; then
+                  echo "::notice::origin/main already contains synced release metadata for ${VERSION}." >&2
+                else
+                  git commit -m "release: sync metadata to ${VERSION} [skip release] [skip ci]"
+                fi
               fi
               git remote set-url origin "https://x-access-token:${RELEASE_SYNC_TOKEN}@github.com/${REPO}.git"
               push_error="$(git push origin "HEAD:refs/heads/main" 2>&1)" || {
