@@ -822,6 +822,9 @@ export function bootstrapApp() {
   bootstrapHashState();
   setActivePanel(state.activePanel, { preserveInventorySelection: Boolean(state.selectedVmid) });
   setActiveDetailPanel(state.activeDetailPanel);
+  if (state.activePanel === 'inventory' && state.selectedVmid) {
+    loadDetail(state.selectedVmid);
+  }
   setAuthMode(Boolean(state.token));
   updateSessionChrome();
   updateSettingsVisibility();
