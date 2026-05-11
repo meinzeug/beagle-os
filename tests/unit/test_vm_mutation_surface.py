@@ -67,6 +67,49 @@ def test_handles_snapshot_path() -> None:
     assert VmMutationSurfaceService.handles_delete("/api/v1/vms/100/snapshot") is True
 
 
+def test_handles_vm_config_put_path() -> None:
+    assert VmMutationSurfaceService.handles_put("/api/v1/virtualization/vms/100/config") is True
+    assert VmMutationSurfaceService.handles_put("/api/v1/virtualization/vms/100/power") is False
+
+
+def test_vm_config_put_delegates_to_editor() -> None:
+    vm = _Vm(100, "node-a")
+    calls: list[tuple[int, dict]] = []
+    service = VmMutationSurfaceService(
+        attach_usb_to_guest=lambda vm, busid: {},
+        build_vm_usb_state=lambda vm: {},
+        find_vm=lambda vmid: vm if int(vmid) == 100 else None,
+        invalidate_vm_cache=lambda vmid, node: None,
+        issue_beagle_stream_server_access_token=lambda vm: ("", {}),
+        rotate_beagle_stream_server_token=lambda vm: {},
+        migrate_vm=lambda vmid, target_node, live, copy_storage, requester_identity: {},
+        queue_vm_action=lambda vm, action, requester_identity, params=None: {},
+        reboot_vm=lambda vmid: "",
+        service_name="beagle-control-plane",
+        start_vm=lambda vmid: "",
+        start_installer_prep=lambda vm: {},
+        stop_vm=lambda vmid: "",
+        summarize_action_result=lambda payload: payload or {},
+        beagle_stream_server_proxy_ticket_url=lambda token: token,
+        usb_action_wait_seconds=0,
+        utcnow=lambda: "2026-04-23T10:00:00Z",
+        version="test",
+        wait_for_action_result=lambda node, vmid, action_id: None,
+        detach_usb_from_guest=lambda vm, port, busid: {},
+        update_vm_config=lambda vm, payload: calls.append((int(vm.vmid), dict(payload))) or {"ok": True, "config": payload.get("updates", {})},
+    )
+
+    response = service.route_put(
+        "/api/v1/virtualization/vms/100/config",
+        json_payload={"updates": {"name": "demo"}},
+        requester_identity="admin",
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["ok"] is True
+    assert calls == [(100, {"updates": {"name": "demo"}})]
+
+
 def _service_with_enqueue() -> tuple[VmMutationSurfaceService, list[tuple], list[tuple]]:
     vm = _Vm(100, "node-a")
     migrate_calls: list[tuple] = []

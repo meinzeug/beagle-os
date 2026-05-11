@@ -170,6 +170,8 @@ class AuthzPolicyService:
             if route in {"/api/v1/scheduler/warm-pools/apply", "/api/v1/energy/hourly-profile/import"}:
                 return "settings:write"
         if verb == "PUT":
+            if re.match(r"^/api/v1/virtualization/vms/\d+/config$", route):
+                return "vm:mutate"
             if route in {"/api/v1/scheduler/config", "/api/v1/costs/model", "/api/v1/energy/config"}:
                 return "settings:write"
             if route == "/api/v1/fleet/remediation/config":

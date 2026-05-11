@@ -33,6 +33,7 @@ class VmMutationSurfaceService:
         delete_vm_snapshot: Callable[[int, str], str] | None = None,
         reset_vm_to_snapshot: Callable[[int, str], str] | None = None,
         clone_vm: Callable[[int, int, str], str] | None = None,
+        update_vm_config: Callable[[Any, dict[str, Any]], dict[str, Any]] | None = None,
     ) -> None:
         self._attach_usb_to_guest = attach_usb_to_guest
         self._build_vm_usb_state = build_vm_usb_state
@@ -58,6 +59,7 @@ class VmMutationSurfaceService:
         self._delete_vm_snapshot = delete_vm_snapshot
         self._reset_vm_to_snapshot = reset_vm_to_snapshot
         self._clone_vm = clone_vm
+        self._update_vm_config = update_vm_config
 
     @staticmethod
     def _json_response(status: HTTPStatus, payload: dict[str, Any]) -> dict[str, Any]:
@@ -98,6 +100,10 @@ class VmMutationSurfaceService:
         return bool(path.startswith("/api/v1/vms/") and path.endswith("/snapshot"))
 
     @staticmethod
+    def handles_put(path: str) -> bool:
+        return bool(path.startswith("/api/v1/virtualization/vms/") and path.endswith("/config"))
+
+    @staticmethod
     def requires_json_body(path: str) -> bool:
         return (
             (path.startswith("/api/v1/vms/") and path.endswith("/actions"))
@@ -112,6 +118,29 @@ class VmMutationSurfaceService:
     @staticmethod
     def accepts_optional_json_body(path: str) -> bool:
         return VmMutationSurfaceService._update_match(path) is not None
+
+    def route_put(
+        self,
+        path: str,
+        *,
+        json_payload: dict[str, Any] | None,
+        requester_identity: str,
+    ) -> dict[str, Any]:
+        del requester_identity
+        if path.startswith("/api/v1/virtualization/vms/") and path.endswith("/config"):
+            vm, error = self._vm_from_segment(path, -2)
+            if vm is None:
+                status = HTTPStatus.BAD_REQUEST if error == "invalid vmid" else HTTPStatus.NOT_FOUND
+                return self._json_response(status, {"ok": False, "error": error})
+            if self._update_vm_config is None:
+                return self._json_response(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"ok": False, "error": "vm config editor not available"},
+                )
+            result = self._update_vm_config(vm, json_payload if isinstance(json_payload, dict) else {})
+            status = result.pop("status", HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST)
+            return self._json_response(status, result)
+        return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def _vm_from_segment(self, path: str, index_from_end: int) -> tuple[Any | None, str | None]:
         vmid_text = path.split("/")[index_from_end]

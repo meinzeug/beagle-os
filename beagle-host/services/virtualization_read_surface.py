@@ -4,6 +4,8 @@ import re
 from http import HTTPStatus
 from typing import Any, Callable
 
+from vm_config_editor import VmConfigEditorService
+
 
 class VirtualizationReadSurfaceService:
     def __init__(
@@ -659,7 +661,7 @@ class VirtualizationReadSurfaceService:
                 return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
             return self._json_response(
                 HTTPStatus.OK,
-                self._envelope(config=payload),
+                self._envelope(config=payload, schema=VmConfigEditorService.schema()),
             )
 
         match = re.match(r"^/api/v1/virtualization/vms/(?P<vmid>\d+)/interfaces$", path)

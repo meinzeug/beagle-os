@@ -331,6 +331,14 @@ export function postJson(path, payload, options) {
   }, options || {}));
 }
 
+export function putJson(path, payload, options) {
+  return request(path, Object.assign({
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {})
+  }, options || {}));
+}
+
 export function patchJson(path, payload, options) {
   return request(path, Object.assign({
     method: 'PATCH',

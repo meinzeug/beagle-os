@@ -16,6 +16,7 @@ import {
 } from './dom.js';
 import { blobRequest, postJson, request } from './api.js';
 import { t } from './i18n.js';
+import { bindVmConfigEditor, renderVmConfigEditor } from './vm_config_editor.js';
 
 const virtualizationHooks = {
   openInventoryWithNodeFilter() {},
@@ -579,40 +580,7 @@ export function openStoragePoolDetail(poolName) {
 }
 
 export function renderVmConfigPanel(config, interfaces) {
-  const diskKeys = Object.keys(config).filter((key) => DISK_KEY_PATTERN.test(key)).sort();
-  const netKeys = Object.keys(config).filter((key) => NET_KEY_PATTERN.test(key)).sort();
-  let html = '<section class="detail-section"><h3>VM Konfiguration</h3>';
-  VM_MAIN_KEYS.forEach((key) => {
-    if (config[key] != null && config[key] !== '') {
-      html += fieldBlock(key, String(config[key]));
-    }
-  });
-  html += '</section>';
-  if (diskKeys.length) {
-    html += '<section class="detail-section"><h3>Disks</h3>';
-    diskKeys.forEach((key) => {
-      html += fieldBlock(key, String(config[key] || ''), 'mono');
-    });
-    html += '</section>';
-  }
-  if (netKeys.length) {
-    html += '<section class="detail-section"><h3>Netzwerk (Config)</h3>';
-    netKeys.forEach((key) => {
-      html += fieldBlock(key, String(config[key] || ''), 'mono');
-    });
-    html += '</section>';
-  }
-  if (Array.isArray(interfaces) && interfaces.length) {
-    html += '<section class="detail-section"><h3>Netzwerk Interfaces (Guest Agent)</h3>';
-    interfaces.forEach((iface) => {
-      const addrs = (iface['ip-addresses'] || []).map((addr) => {
-        return String(addr['ip-address'] || '') + (addr.prefix ? '/' + addr.prefix : '');
-      }).join(', ');
-      html += fieldBlock(String(iface.name || ''), addrs || 'n/a');
-    });
-    html += '</section>';
-  }
-  return html;
+  return renderVmConfigEditor({ vmid: Number(config && config.vmid), config, interfaces });
 }
 
 export function loadVmConfig(vmid) {
@@ -636,6 +604,16 @@ export function loadVmConfig(vmid) {
     const interfaces = (results[1] && results[1].interfaces) || [];
     configPanel.setAttribute('data-loaded', String(vmid));
     configPanel.innerHTML = renderVmConfigPanel(config, interfaces);
+    bindVmConfigEditor(configPanel, {
+      vmid,
+      config,
+      interfaces,
+      onStatus(message, tone) {
+        if (tone === 'bad') {
+          virtualizationHooks.setBanner(message, 'warn');
+        }
+      }
+    });
   }).catch((error) => {
     configPanel.innerHTML = '<div class="banner warn">Fehler: ' + escapeHtml(error.message) + '</div>';
   });

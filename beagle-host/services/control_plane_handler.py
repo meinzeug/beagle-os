@@ -1090,6 +1090,29 @@ class Handler(HandlerMixin, BaseHTTPRequestHandler):
         if not self._authorize_or_respond("PUT", path):
             return
 
+        if vm_mutation_surface_service().handles_put(path):
+            try:
+                json_payload = self._read_json_body()
+            except Exception as exc:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"invalid payload: {exc}"})
+                return
+            response = vm_mutation_surface_service().route_put(
+                path,
+                json_payload=json_payload,
+                requester_identity=self._requester_identity(),
+            )
+            self._audit_event(
+                "mutation.request",
+                "success" if int(response["status"]) < 400 else "error",
+                method="PUT",
+                path=path,
+                permission=authz_policy_service().required_permission("PUT", path),
+                username=self._requester_identity(),
+                status=int(response["status"]),
+            )
+            self._write_json(response["status"], response["payload"])
+            return
+
         if self._backups_surface().handles_put(path):
             try:
                 json_payload = self._read_json_body()

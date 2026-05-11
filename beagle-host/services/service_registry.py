@@ -122,6 +122,7 @@ from virtualization_inventory import VirtualizationInventoryService
 from virtualization_read_surface import VirtualizationReadSurfaceService
 from webhook_service import WebhookService
 from vm_mutation_surface import VmMutationSurfaceService
+from vm_config_editor import VmConfigEditorService
 from vm_profile import VmProfileService
 from vm_console_access import VmConsoleAccessService
 from vm_http_surface import VmHttpSurfaceService
@@ -1350,6 +1351,7 @@ ADMIN_HTTP_SURFACE_SERVICE: AdminHttpSurfaceService | None = None
 AUTH_HTTP_SURFACE_SERVICE: AuthHttpSurfaceService | None = None
 ENDPOINT_LIFECYCLE_SURFACE_SERVICE: EndpointLifecycleSurfaceService | None = None
 PUBLIC_BEAGLE_STREAM_SERVER_SURFACE_SERVICE: PublicBeagleStreamServerSurfaceService | None = None
+VM_CONFIG_EDITOR_SERVICE: VmConfigEditorService | None = None
 VM_MUTATION_SURFACE_SERVICE: VmMutationSurfaceService | None = None
 MIGRATION_SERVICE: MigrationService | None = None
 HA_MANAGER_SERVICE: HaManagerService | None = None
@@ -3959,8 +3961,30 @@ def vm_mutation_surface_service() -> VmMutationSurfaceService:
                 name=str(name or "").strip(),
                 timeout=None,
             ),
+            update_vm_config=lambda vm, payload: vm_config_editor_service().update_vm_config(vm, payload),
         )
     return VM_MUTATION_SURFACE_SERVICE
+
+
+def vm_config_editor_service() -> VmConfigEditorService:
+    global VM_CONFIG_EDITOR_SERVICE
+    if VM_CONFIG_EDITOR_SERVICE is None:
+        VM_CONFIG_EDITOR_SERVICE = VmConfigEditorService(
+            get_vm_config=lambda node, vmid: HOST_PROVIDER.get_vm_config(str(node or ""), int(vmid)),
+            set_vm_options=lambda vmid, options: HOST_PROVIDER.set_vm_options(int(vmid), options, timeout=None),
+            delete_vm_options=lambda vmid, option_names: HOST_PROVIDER.delete_vm_options(
+                int(vmid), option_names, timeout=None
+            ),
+            invalidate_vm_cache=invalidate_vm_cache,
+            run_virsh=lambda command: str(getattr(HOST_PROVIDER, "_run_virsh")(*command)),
+            define_domain_xml=lambda xml_text: getattr(HOST_PROVIDER, "_run_virsh")(
+                "define", "/dev/stdin", input_data=xml_text
+            ),
+            libvirt_domain_name=lambda vmid: str(
+                getattr(HOST_PROVIDER, "_libvirt_domain_name", lambda v: f"beagle-{int(v)}")(int(vmid))
+            ),
+        )
+    return VM_CONFIG_EDITOR_SERVICE
 
 
 def vm_state_service() -> VmStateService:
