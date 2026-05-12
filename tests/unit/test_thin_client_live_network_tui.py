@@ -42,11 +42,13 @@ def test_live_usb_boot_entries_include_ryzen_usb_compatibility_guards() -> None:
     assert "usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1" in writer
     assert "copy to RAM compatibility mode" in writer
     assert "live-media-timeout=30" in writer
-    assert "toram" in writer
+    assert 'live_boot_runtime_args="live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=30 ignore_uuid toram' in writer
     assert "usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1" in local_installer
     assert "copy to RAM compatibility mode" in local_installer
+    assert 'compatibility_live_args="live-media-timeout=30 ignore_uuid toram' in local_installer
     assert "usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1" in windows_installer
     assert "copy to RAM compatibility mode" in windows_installer
+    assert '$runtimeBootMediaArgs = "live-media-path=/live live-media-timeout=30 ignore_uuid toram' in windows_installer
 
 
 def test_live_usb_network_choice_is_persistent_and_can_be_overridden() -> None:

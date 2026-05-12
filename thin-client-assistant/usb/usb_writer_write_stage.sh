@@ -419,7 +419,7 @@ write_usb() {
     [[ -n "$network_interface" ]] || network_interface="eth0"
     runtime_ip_args="$(boot_ip_arg "$network_mode" "$network_static_address" "$network_static_prefix" "$network_gateway" "$hostname_value" "$network_interface")"
 
-  local live_boot_runtime_args="live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=30 ignore_uuid ${runtime_ip_args} usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1"
+  local live_boot_runtime_args="live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=30 ignore_uuid toram ${runtime_ip_args} usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1"
   local live_boot_safe_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic"
   local live_boot_legacy_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic"
 
@@ -457,7 +457,7 @@ menuentry 'Beagle OS Live (legacy IRQ mode)' {
 
 menuentry 'Beagle OS Live (copy to RAM compatibility mode)' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} ${live_boot_runtime_args} ${live_boot_safe_args} toram pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} ${live_boot_runtime_args} ${live_boot_safe_args} pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
   initrd /live/initrd.img
 }
 EOF

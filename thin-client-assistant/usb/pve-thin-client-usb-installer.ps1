@@ -540,7 +540,7 @@ function Write-GrubConfig {
                 Remove-Item -LiteralPath $tempPreset -Force -ErrorAction SilentlyContinue
             }
         }
-        $runtimeBootMediaArgs = "live-media-path=/live live-media-timeout=30 ignore_uuid ip=dhcp usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1"
+        $runtimeBootMediaArgs = "live-media-path=/live live-media-timeout=30 ignore_uuid toram ip=dhcp usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1"
         $runtimeSafeArgs = "loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic"
         $runtimeLegacyArgs = "loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic"
         $content = @"
@@ -566,7 +566,7 @@ menuentry 'Beagle OS Live (legacy IRQ mode)' {
 }
 
 menuentry 'Beagle OS Live (copy to RAM compatibility mode)' {
-    linux /live/vmlinuz boot=live components username=thinclient hostname=$hostname $runtimeBootMediaArgs $runtimeSafeArgs toram pve_thin_client.mode=runtime
+    linux /live/vmlinuz boot=live components username=thinclient hostname=$hostname $runtimeBootMediaArgs $runtimeSafeArgs pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 "@

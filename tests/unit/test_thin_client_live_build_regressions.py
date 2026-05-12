@@ -83,6 +83,9 @@ def test_runtime_scripts_normalize_live_boot_var_local_overlay_paths() -> None:
     assert 'runtime_resolve_helper_path()' in common_text
     assert 'runtime_stage_dir_to_tmpfs()' in common_text
     assert 'RUNTIME_TMPFS_DIR_DEFAULT="/run/pve-thin-client/runtime"' in common_text
+    assert 'if [[ -r "$target_dir/common.sh" && -r "$target_dir/runtime_value_helpers.sh" ]]; then' in common_text
+    assert 'if ! source "$RUNTIME_VALUE_HELPERS_SH"; then' in common_text
+    assert 'beagle_curl_tls_args()' in common_text
     assert '$(dirname -- "${BASH_SOURCE[0]}")' not in common_text
 
 

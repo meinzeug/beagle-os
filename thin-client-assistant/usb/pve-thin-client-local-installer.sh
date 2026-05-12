@@ -1816,7 +1816,7 @@ write_grub_cfg() {
   local irq_args_safe="nomodeset irqpoll pci=nomsi noapic"
   local irq_args_legacy="nomodeset irqpoll noapic nolapic"
   local ryzen_usb_args="usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1"
-  local compatibility_live_args="live-media-timeout=30 ignore_uuid ${ryzen_usb_args}"
+  local compatibility_live_args="live-media-timeout=30 ignore_uuid toram ${ryzen_usb_args}"
 
   cat > "$TARGET_MOUNT/boot/grub/grub.cfg" <<EOF
 insmod part_gpt
@@ -1851,7 +1851,7 @@ menuentry 'Beagle OS Desktop (legacy IRQ mode)' {
 
 menuentry 'Beagle OS Desktop (copy to RAM compatibility mode)' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current $compatibility_live_args loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop $irq_args_safe toram
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current $compatibility_live_args loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop $irq_args_safe
   initrd /live/current/initrd.img
 }
 
