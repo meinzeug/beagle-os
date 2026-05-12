@@ -16,6 +16,7 @@ BEAGLE_STREAM_CLIENT_CLI_SH="${BEAGLE_STREAM_CLIENT_CLI_SH:-$SCRIPT_DIR/beagle_s
 BEAGLE_STREAM_CLIENT_HOST_SYNC_SH="${BEAGLE_STREAM_CLIENT_HOST_SYNC_SH:-$SCRIPT_DIR/beagle_stream_client_host_sync.sh}"
 BEAGLE_STREAM_CLIENT_REMOTE_API_SH="${BEAGLE_STREAM_CLIENT_REMOTE_API_SH:-$SCRIPT_DIR/beagle_stream_client_remote_api.sh}"
 BEAGLE_STREAM_CLIENT_MANAGER_REGISTRATION_SH="${BEAGLE_STREAM_CLIENT_MANAGER_REGISTRATION_SH:-$SCRIPT_DIR/beagle_stream_client_manager_registration.sh}"
+BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH="${BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH:-$SCRIPT_DIR/beagle_stream_client_stream_profile.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 # shellcheck disable=SC1090
@@ -36,8 +37,10 @@ source "$BEAGLE_STREAM_CLIENT_RUNTIME_EXEC_SH"
 load_runtime_config
 # Runtime config comes from the installer defaults. Re-apply the manager/local
 # stream profile afterwards so live tuning and auto-quality overrides win.
-# shellcheck disable=SC1090
-source "$BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH"
+if [[ -r "$BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH" ]]; then
+  # shellcheck disable=SC1090
+  source "$BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH"
+fi
 beagle_log_event "beagle-stream-client.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default} host=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-UNSET} app=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP:-Desktop}"
 
 BEAGLE_STREAM_CLIENT_LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-${XDG_RUNTIME_DIR:-/tmp}/pve-thin-client}"
