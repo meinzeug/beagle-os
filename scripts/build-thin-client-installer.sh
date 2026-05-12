@@ -343,7 +343,6 @@ EOF
     beagle-wg-runtime-guard.service \
     pve-thin-client-network-menu.service \
     beagle-thin-client-prepare.service \
-    pve-thin-client-runtime.service \
     pve-thin-client-installer-menu.service \
     pve-thin-client-installer-menu-serial.service \
     systemd-networkd.service \
@@ -352,7 +351,6 @@ EOF
     getty@tty1.service
 
   ensure_rootfs_wants_link beagle-thin-client-prepare.service multi-user.target
-  ensure_rootfs_wants_link pve-thin-client-runtime.service multi-user.target
   ensure_rootfs_wants_link pve-thin-client-installer-menu.service multi-user.target
   ensure_rootfs_wants_link pve-thin-client-installer-menu-serial.service multi-user.target
 }

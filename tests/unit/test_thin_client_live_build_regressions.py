@@ -80,12 +80,15 @@ def test_live_runtime_executes_tmpfs_staged_shell_scripts_with_bash() -> None:
 
 def test_live_build_does_not_start_legacy_runtime_x_service_by_default() -> None:
     hook_text = ENABLE_SERVICES_HOOK.read_text(encoding="utf-8")
+    build_thin_client_text = BUILD_THIN_CLIENT.read_text(encoding="utf-8")
     prepare_downloads_text = PREPARE_HOST_DOWNLOADS.read_text(encoding="utf-8")
 
     assert "beagle-thin-client-prepare.service" in hook_text
     assert "getty@tty1.service" in hook_text
     assert "ensure_wantedby_symlink /etc/systemd/system/beagle-thin-client-prepare.service multi-user.target" in hook_text
     assert "pve-thin-client-runtime.service multi-user.target" not in hook_text
+    assert '    pve-thin-client-runtime.service \\' not in build_thin_client_text
+    assert "ensure_rootfs_wants_link pve-thin-client-runtime.service multi-user.target" not in build_thin_client_text
     assert 'rm -f \\' in prepare_downloads_text
     assert 'multi-user.target.wants/pve-thin-client-runtime.service"' in prepare_downloads_text
 
