@@ -8,20 +8,98 @@ BEAGLE_STATE_DIR_DEFAULT="/var/lib/beagle-os"
 PRESET_STATE_DIR_DEFAULT="/run/beagle-os/preset-state"
 BEAGLE_TRACE_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/runtime-trace.log"
 BEAGLE_LAST_MARKER_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/last-marker.env"
-RUNTIME_SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)}"
+
+runtime_script_dir_candidates() {
+  printf '%s\n' \
+    "${RUNTIME_SCRIPT_DIR:-}" \
+    "/run/pve-thin-client/runtime" \
+    "/usr/local/lib/pve-thin-client/runtime"
+}
+
+runtime_resolve_source_dir() {
+  local source_path source_dir
+
+  source_path="${BASH_SOURCE[0]:-${0:-}}"
+  if [[ -z "$source_path" ]]; then
+    printf '%s\n' "/usr/local/lib/pve-thin-client/runtime"
+    return 0
+  fi
+
+  case "$source_path" in
+    */*) source_dir="${source_path%/*}" ;;
+    *) source_dir="$PWD" ;;
+  esac
+
+  if [[ "$source_dir" != /* ]]; then
+    source_dir="$(cd -- "$source_dir" 2>/dev/null && pwd -P)"
+  else
+    source_dir="$(cd -- "$source_dir" 2>/dev/null && pwd -P || printf '%s\n' "$source_dir")"
+  fi
+
+  printf '%s\n' "$source_dir"
+}
+
+runtime_first_readable_file() {
+  local file_name candidate
+  file_name="$1"
+
+  while IFS= read -r candidate; do
+    [[ -n "$candidate" ]] || continue
+    if [[ "$candidate" == /var/local/* ]]; then
+      candidate="/usr/local/${candidate#/var/local/}"
+    fi
+    candidate="${candidate%/}/$file_name"
+    if [[ -r "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done < <(runtime_script_dir_candidates)
+
+  return 1
+}
+
+runtime_resolve_helper_path() {
+  local current_path file_name candidate
+  current_path="${1:-}"
+  file_name="$2"
+
+  if [[ -n "$current_path" && -r "$current_path" ]]; then
+    printf '%s\n' "$current_path"
+    return 0
+  fi
+
+  candidate="$(runtime_first_readable_file "$file_name" 2>/dev/null || true)"
+  if [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  if [[ -n "$current_path" ]]; then
+    printf '%s\n' "$current_path"
+    return 0
+  fi
+
+  printf '%s\n' "$RUNTIME_SCRIPT_DIR/$file_name"
+}
+
+RUNTIME_SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-$(runtime_resolve_source_dir)}"
 if [[ "$RUNTIME_SCRIPT_DIR" == /var/local/* ]]; then
   RUNTIME_SCRIPT_DIR="/usr/local/${RUNTIME_SCRIPT_DIR#/var/local/}"
 fi
+if [[ ! -r "$RUNTIME_SCRIPT_DIR/config_loader.sh" ]]; then
+  RUNTIME_SCRIPT_DIR="$(runtime_first_readable_file config_loader.sh 2>/dev/null || printf '%s\n' "$RUNTIME_SCRIPT_DIR/config_loader.sh")"
+  RUNTIME_SCRIPT_DIR="${RUNTIME_SCRIPT_DIR%/config_loader.sh}"
+fi
 export RUNTIME_SCRIPT_DIR
-MODE_OVERRIDES_PY="${MODE_OVERRIDES_PY:-$RUNTIME_SCRIPT_DIR/mode_overrides.py}"
-CONFIG_DISCOVERY_PY="${CONFIG_DISCOVERY_PY:-$RUNTIME_SCRIPT_DIR/config_discovery.py}"
-CONFIG_LOADER_SH="${CONFIG_LOADER_SH:-$RUNTIME_SCRIPT_DIR/config_loader.sh}"
-RUNTIME_CORE_SH="${RUNTIME_CORE_SH:-$RUNTIME_SCRIPT_DIR/runtime_core.sh}"
-RUNTIME_VALUE_HELPERS_SH="${RUNTIME_VALUE_HELPERS_SH:-$RUNTIME_SCRIPT_DIR/runtime_value_helpers.sh}"
-X11_DISPLAY_SH="${X11_DISPLAY_SH:-$RUNTIME_SCRIPT_DIR/x11_display.sh}"
-STREAM_STATE_SH="${STREAM_STATE_SH:-$RUNTIME_SCRIPT_DIR/stream_state.sh}"
-RUNTIME_OWNERSHIP_SH="${RUNTIME_OWNERSHIP_SH:-$RUNTIME_SCRIPT_DIR/runtime_ownership.sh}"
-KIOSK_RUNTIME_SH="${KIOSK_RUNTIME_SH:-$RUNTIME_SCRIPT_DIR/kiosk_runtime.sh}"
+MODE_OVERRIDES_PY="$(runtime_resolve_helper_path "${MODE_OVERRIDES_PY:-}" mode_overrides.py)"
+CONFIG_DISCOVERY_PY="$(runtime_resolve_helper_path "${CONFIG_DISCOVERY_PY:-}" config_discovery.py)"
+CONFIG_LOADER_SH="$(runtime_resolve_helper_path "${CONFIG_LOADER_SH:-}" config_loader.sh)"
+RUNTIME_CORE_SH="$(runtime_resolve_helper_path "${RUNTIME_CORE_SH:-}" runtime_core.sh)"
+RUNTIME_VALUE_HELPERS_SH="$(runtime_resolve_helper_path "${RUNTIME_VALUE_HELPERS_SH:-}" runtime_value_helpers.sh)"
+X11_DISPLAY_SH="$(runtime_resolve_helper_path "${X11_DISPLAY_SH:-}" x11_display.sh)"
+STREAM_STATE_SH="$(runtime_resolve_helper_path "${STREAM_STATE_SH:-}" stream_state.sh)"
+RUNTIME_OWNERSHIP_SH="$(runtime_resolve_helper_path "${RUNTIME_OWNERSHIP_SH:-}" runtime_ownership.sh)"
+KIOSK_RUNTIME_SH="$(runtime_resolve_helper_path "${KIOSK_RUNTIME_SH:-}" kiosk_runtime.sh)"
 
 # shellcheck disable=SC1090
 source "$CONFIG_LOADER_SH"

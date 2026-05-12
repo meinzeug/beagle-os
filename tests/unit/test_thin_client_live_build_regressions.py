@@ -78,6 +78,19 @@ def test_runtime_scripts_normalize_live_boot_var_local_overlay_paths() -> None:
 
     common_text = COMMON_SH.read_text(encoding="utf-8")
     assert 'export RUNTIME_SCRIPT_DIR' in common_text
+    assert 'runtime_resolve_source_dir()' in common_text
+    assert 'runtime_first_readable_file()' in common_text
+    assert 'runtime_resolve_helper_path()' in common_text
+    assert '$(dirname -- "${BASH_SOURCE[0]}")' not in common_text
+
+
+def test_runtime_heartbeat_uses_tmpfs_runtime_copy_before_sourcing_common() -> None:
+    heartbeat = (ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "usr" / "local" / "sbin" / "beagle-runtime-heartbeat").read_text(encoding="utf-8")
+
+    assert '_rt_run="/run/pve-thin-client/runtime"' in heartbeat
+    assert 'cp -a "${_rt_orig}/." "$_rt_run/"' in heartbeat
+    assert 'COMMON_SH="$_rt_orig/common.sh"' in heartbeat
+    assert 'DEVICE_SYNC_SH="$_rt_orig/device_sync.sh"' in heartbeat
 
 
 def test_prepare_runtime_persists_redacted_live_usb_debug_reports() -> None:

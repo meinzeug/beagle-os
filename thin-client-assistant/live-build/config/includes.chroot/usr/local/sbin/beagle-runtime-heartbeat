@@ -5,8 +5,19 @@ STATE_DIR="/var/lib/beagle-os"
 STATUS_FILE="$STATE_DIR/runtime-heartbeat.status"
 TRACE_FILE="$STATE_DIR/runtime-trace.log"
 PREV_FILE="$STATE_DIR/runtime-heartbeat.prev"
-COMMON_SH="/usr/local/lib/pve-thin-client/runtime/common.sh"
-DEVICE_SYNC_SH="/usr/local/lib/pve-thin-client/runtime/device_sync.sh"
+
+# Copy runtime helpers to tmpfs before sourcing so heartbeat survives
+# transient squashfs/overlayfs read faults during live boot.
+_rt_orig="${BEAGLE_RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
+_rt_run="/run/pve-thin-client/runtime"
+if [[ ! -f "${_rt_run}/common.sh" ]]; then
+  mkdir -p "$_rt_run" 2>/dev/null || true
+  cp -a "${_rt_orig}/." "$_rt_run/" 2>/dev/null || true
+fi
+[[ -f "${_rt_run}/common.sh" ]] && _rt_orig="$_rt_run"
+COMMON_SH="$_rt_orig/common.sh"
+DEVICE_SYNC_SH="$_rt_orig/device_sync.sh"
+unset _rt_orig _rt_run
 
 install -d -m 0755 "$STATE_DIR"
 
