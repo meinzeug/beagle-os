@@ -91,7 +91,7 @@ launch_kiosk() {
 launch_geforcenow() {
   write_launch_status "GFN" "geforcenow" "flatpak run com.nvidia.geforcenow" "GeForce NOW"
   beagle_log_event "launch-session.exec" "binary=flatpak target=com.nvidia.geforcenow"
-  exec "$SCRIPT_DIR/launch-geforcenow.sh"
+  exec bash "$SCRIPT_DIR/launch-geforcenow.sh"
 }
 
 case "${PVE_THIN_CLIENT_MODE:-BEAGLE_STREAM_CLIENT}" in

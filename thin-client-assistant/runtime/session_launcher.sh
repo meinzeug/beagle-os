@@ -59,7 +59,7 @@ beagle_launch_beagle_stream_client_session() {
   local relaunch_delay="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RELAUNCH_DELAY_SECONDS:-3}"
 
   while true; do
-    if "$SCRIPT_DIR/launch-beagle-stream-client.sh"; then
+    if bash "$SCRIPT_DIR/launch-beagle-stream-client.sh"; then
       launcher_status=0
     else
       launcher_status=$?

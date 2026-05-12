@@ -51,7 +51,7 @@ if command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
   /usr/local/bin/pve-thin-client-audio-init --watch "${PVE_THIN_CLIENT_AUDIO_WATCH_LOOPS:-0}" >/dev/null 2>&1 &
 fi
 
-"$SCRIPT_DIR/install-geforcenow.sh" --ensure-only
+bash "$SCRIPT_DIR/install-geforcenow.sh" --ensure-only
 
 scope_flag="$(resolve_gfn_install_scope)"
 beagle_log_event "gfn.exec" "scope=${scope_flag} app_id=${GFN_APP_ID}"

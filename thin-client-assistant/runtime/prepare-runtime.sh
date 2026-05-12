@@ -206,10 +206,10 @@ if command -v ip >/dev/null 2>&1; then
   ip -6 route delete 8000::/1 dev "$stale_wg_iface" 2>/dev/null || true
 fi
 
-if [[ "$prepare_runtime_reentry" -eq 0 && -x "$SCRIPT_DIR/apply-network-config.sh" ]]; then
+if [[ "$prepare_runtime_reentry" -eq 0 && -r "$SCRIPT_DIR/apply-network-config.sh" ]]; then
   plymouth_status "Configuring network..."
   beagle_log_event "prepare-runtime.network" "applying network configuration"
-  "$SCRIPT_DIR/apply-network-config.sh" || beagle_log_event "prepare-runtime.network-error" "network configuration failed"
+  bash "$SCRIPT_DIR/apply-network-config.sh" || beagle_log_event "prepare-runtime.network-error" "network configuration failed"
   write_runtime_debug_report "after-network" || true
 fi
 

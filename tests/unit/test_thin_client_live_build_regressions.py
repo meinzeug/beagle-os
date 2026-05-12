@@ -19,6 +19,7 @@ BUILD_THIN_CLIENT = ROOT / "scripts" / "build-thin-client-installer.sh"
 BUILD_BEAGLE_OS = ROOT / "scripts" / "build-beagle-os.sh"
 INSTALL_THINCLIENT = ROOT / "thin-client-assistant" / "installer" / "install.sh"
 LIVE_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "008-install-beagle-stream-client.hook.chroot"
+ENABLE_SERVICES_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "010-enable-services.hook.chroot"
 CREATE_THINCLIENT_USER_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "005-create-thinclient-user.hook.chroot"
 BEAGLE_STREAM_CLIENT_TARGETING = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_targeting.sh"
 BEAGLE_STREAM_CLIENT_HOST_SYNC = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_host_sync.sh"
@@ -53,13 +54,36 @@ def test_prepare_runtime_does_not_block_enrollment_on_getty_bootstrap_failure() 
 
     assert 'ensure_getty_overrides || beagle_log_event "prepare-runtime.getty-overrides-error"' in prepare_text
     assert 'ip route delete 0.0.0.0/1 dev "$stale_wg_iface" 2>/dev/null || true' in prepare_text
-    assert prepare_text.index("ip route delete 0.0.0.0/1") < prepare_text.index('"$SCRIPT_DIR/apply-network-config.sh"')
+    assert prepare_text.index("ip route delete 0.0.0.0/1") < prepare_text.index('bash "$SCRIPT_DIR/apply-network-config.sh"')
     assert prepare_text.index("ensure_getty_overrides ||") < prepare_text.index("enroll_endpoint_if_needed ||")
     assert prepare_text.index("enroll_endpoint_if_needed ||") < prepare_text.index("enroll_wireguard_if_needed ||")
     assert "prepare_runtime_already_ready()" in prepare_text
     assert 'prepare_runtime_reentry=1' in prepare_text
     assert 'prepare-runtime.reentry' in prepare_text
     assert 'if [[ "$prepare_runtime_reentry" -eq 0 ]]; then' in prepare_text
+
+
+def test_live_runtime_executes_tmpfs_staged_shell_scripts_with_bash() -> None:
+    prepare_text = PREPARE_RUNTIME.read_text(encoding="utf-8")
+    lifecycle_text = (ROOT / "thin-client-assistant" / "runtime" / "runtime_endpoint_enrollment.sh").read_text(encoding="utf-8")
+    session_launcher_text = (ROOT / "thin-client-assistant" / "runtime" / "session_launcher.sh").read_text(encoding="utf-8")
+    launch_session_text = LAUNCH_SESSION.read_text(encoding="utf-8")
+    launch_gfn_text = (ROOT / "thin-client-assistant" / "runtime" / "launch-geforcenow.sh").read_text(encoding="utf-8")
+
+    assert 'bash "$SCRIPT_DIR/apply-network-config.sh"' in prepare_text
+    assert 'bash "$script_path"' in lifecycle_text
+    assert 'bash "$SCRIPT_DIR/launch-beagle-stream-client.sh"' in session_launcher_text
+    assert 'exec bash "$SCRIPT_DIR/launch-geforcenow.sh"' in launch_session_text
+    assert 'bash "$SCRIPT_DIR/install-geforcenow.sh" --ensure-only' in launch_gfn_text
+
+
+def test_live_build_does_not_start_legacy_runtime_x_service_by_default() -> None:
+    hook_text = ENABLE_SERVICES_HOOK.read_text(encoding="utf-8")
+
+    assert "beagle-thin-client-prepare.service" in hook_text
+    assert "getty@tty1.service" in hook_text
+    assert "ensure_wantedby_symlink /etc/systemd/system/beagle-thin-client-prepare.service multi-user.target" in hook_text
+    assert "pve-thin-client-runtime.service multi-user.target" not in hook_text
 
 
 def test_runtime_scripts_normalize_live_boot_var_local_overlay_paths() -> None:

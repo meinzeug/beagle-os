@@ -164,7 +164,7 @@ enroll_wireguard_if_needed() {
   [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
 
   script_path="$(runtime_wireguard_enrollment_script)"
-  [[ -x "$script_path" ]] || return 1
+  [[ -r "$script_path" ]] || return 1
 
   interface_name="${PVE_THIN_CLIENT_BEAGLE_EGRESS_INTERFACE:-wg-beagle}"
   endpoint_id="${PVE_THIN_CLIENT_BEAGLE_DEVICE_ID:-$(runtime_endpoint_id)}"
@@ -172,5 +172,5 @@ enroll_wireguard_if_needed() {
   BEAGLE_DEVICE_ID="$endpoint_id" \
   BEAGLE_MANAGER_TOKEN="$manager_token" \
   WG_IFACE="$interface_name" \
-  "$script_path"
+  bash "$script_path"
 }
