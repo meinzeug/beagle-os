@@ -122,7 +122,6 @@ from virtualization_inventory import VirtualizationInventoryService
 from virtualization_read_surface import VirtualizationReadSurfaceService
 from webhook_service import WebhookService
 from vm_mutation_surface import VmMutationSurfaceService
-from vm_config_editor import VmConfigEditorService
 from vm_profile import VmProfileService
 from vm_console_access import VmConsoleAccessService
 from vm_http_surface import VmHttpSurfaceService
@@ -1351,7 +1350,6 @@ ADMIN_HTTP_SURFACE_SERVICE: AdminHttpSurfaceService | None = None
 AUTH_HTTP_SURFACE_SERVICE: AuthHttpSurfaceService | None = None
 ENDPOINT_LIFECYCLE_SURFACE_SERVICE: EndpointLifecycleSurfaceService | None = None
 PUBLIC_BEAGLE_STREAM_SERVER_SURFACE_SERVICE: PublicBeagleStreamServerSurfaceService | None = None
-VM_CONFIG_EDITOR_SERVICE: VmConfigEditorService | None = None
 VM_MUTATION_SURFACE_SERVICE: VmMutationSurfaceService | None = None
 MIGRATION_SERVICE: MigrationService | None = None
 HA_MANAGER_SERVICE: HaManagerService | None = None
@@ -2506,10 +2504,11 @@ def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: d
             "endpoint_id": endpoint_id,
             "hostname": hostname,
             "device_name": str(device_name or "").strip(),
-            "pairing_secret": random_secret(32),
+            "pairing_secret": "",
         }
     )
     payload = pairing_service().validate_token(token) or {}
+    pairing_secret = str(token or "").strip()
     return {
         "ok": True,
         "token": token,
@@ -2530,64 +2529,33 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
     if scoped_endpoint_id and identity_endpoint_id and scoped_endpoint_id != identity_endpoint_id:
         return {"ok": False, "error": "pairing token endpoint mismatch"}
 
-    submitted_token = str(pairing_token or "").strip()
-    if not submitted_token:
-        return {"ok": False, "error": "pairing token missing token"}
+    pairing_secret = str(payload.get("pairing_secret", "") or "").strip() or str(pairing_token or "").strip()
+    if not pairing_secret:
+        return {"ok": False, "error": "pairing token missing secret"}
     device_name = str(payload.get("device_name", "") or "").strip() or f"beagle-vm{vm.vmid}-client"
 
-    attempts = max(1, int(os.environ.get("BEAGLE_PAIR_EXCHANGE_ATTEMPTS", "8") or 8))
-    retry_delay_seconds = max(0.1, float(os.environ.get("BEAGLE_PAIR_EXCHANGE_RETRY_DELAY_SECONDS", "0.6") or 0.6))
-    last_error = "beagle-stream-server token exchange failed"
-    exchange_ok = False
+    status, _, body = proxy_beagle_stream_server_request(
+        vm,
+        request_path="/api/pair-token",
+        query="",
+        method="POST",
+        body=json.dumps(
+            {"access_token": pairing_secret, "token": pairing_secret, "name": device_name},
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8"),
+        request_headers={"Content-Type": "application/json", "Accept": "application/json"},
+    )
+    if int(status) >= 400:
+        return {"ok": False, "error": f"beagle-stream-server token exchange failed with HTTP {int(status)}"}
 
-    for attempt in range(1, attempts + 1):
-        try:
-            status, _, body = proxy_beagle_stream_server_request(
-                vm,
-                request_path="/api/pair-token",
-                query="",
-                method="POST",
-                body=json.dumps(
-                    {"token": submitted_token, "access_token": submitted_token, "name": device_name},
-                    separators=(",", ":"),
-                    ensure_ascii=True,
-                ).encode("utf-8"),
-                request_headers={"Content-Type": "application/json", "Accept": "application/json"},
-            )
-        except Exception as exc:
-            last_error = str(exc) or "beagle-stream-server token exchange failed"
-            if attempt < attempts:
-                time.sleep(retry_delay_seconds)
-                continue
-            return {"ok": False, "error": f"beagle-stream-server token exchange failed: {last_error}"}
-
-        if int(status) >= 400:
-            last_error = f"beagle-stream-server token exchange failed with HTTP {int(status)}"
-            if attempt < attempts:
-                time.sleep(retry_delay_seconds)
-                continue
-            return {"ok": False, "error": last_error}
-
-        try:
-            response_payload = json.loads((body or b"{}").decode("utf-8", errors="replace"))
-        except json.JSONDecodeError:
-            response_payload = {}
-        if bool((response_payload or {}).get("status")):
-            exchange_ok = True
-            break
-
-        last_error = "beagle-stream-server token exchange rejected"
-        if attempt < attempts:
-            time.sleep(retry_delay_seconds)
-            continue
-
-    if not exchange_ok:
-        return {"ok": False, "error": last_error}
-
-    # Consume only after successful downstream pairing to avoid burning tokens
-    # on transient transport/readiness failures.
-    if not isinstance(pairing_service().consume_token(submitted_token), dict):
-        return {"ok": False, "error": "invalid or expired pairing token"}
+    try:
+        response_payload = json.loads((body or b"{}").decode("utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        response_payload = {}
+    if not bool((response_payload or {}).get("status")):
+        return {"ok": False, "error": "beagle-stream-server token exchange rejected"}
+    pairing_service().consume_token(pairing_token)
     return {"ok": True}
 
 
@@ -3961,30 +3929,8 @@ def vm_mutation_surface_service() -> VmMutationSurfaceService:
                 name=str(name or "").strip(),
                 timeout=None,
             ),
-            update_vm_config=lambda vm, payload: vm_config_editor_service().update_vm_config(vm, payload),
         )
     return VM_MUTATION_SURFACE_SERVICE
-
-
-def vm_config_editor_service() -> VmConfigEditorService:
-    global VM_CONFIG_EDITOR_SERVICE
-    if VM_CONFIG_EDITOR_SERVICE is None:
-        VM_CONFIG_EDITOR_SERVICE = VmConfigEditorService(
-            get_vm_config=lambda node, vmid: HOST_PROVIDER.get_vm_config(str(node or ""), int(vmid)),
-            set_vm_options=lambda vmid, options: HOST_PROVIDER.set_vm_options(int(vmid), options, timeout=None),
-            delete_vm_options=lambda vmid, option_names: HOST_PROVIDER.delete_vm_options(
-                int(vmid), option_names, timeout=None
-            ),
-            invalidate_vm_cache=invalidate_vm_cache,
-            run_virsh=lambda command: str(getattr(HOST_PROVIDER, "_run_virsh")(*command)),
-            define_domain_xml=lambda xml_text: getattr(HOST_PROVIDER, "_run_virsh")(
-                "define", "/dev/stdin", input_data=xml_text
-            ),
-            libvirt_domain_name=lambda vmid: str(
-                getattr(HOST_PROVIDER, "_libvirt_domain_name", lambda v: f"beagle-{int(v)}")(int(vmid))
-            ),
-        )
-    return VM_CONFIG_EDITOR_SERVICE
 
 
 def vm_state_service() -> VmStateService:

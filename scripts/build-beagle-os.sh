@@ -132,7 +132,8 @@ install_dependencies() {
     initramfs-tools \
     qemu-utils \
     ca-certificates \
-    gdisk
+    gdisk \
+    patchelf
 }
 
 cleanup_mounts() {
@@ -471,6 +472,10 @@ install_beagle_stream_client_into_rootfs() {
   rm -rf "$target_dir"
   install -d -m 0755 "$target_dir" "$(dirname "$wrapper_path")"
   cp -a "$work_dir/squashfs-root/." "$target_dir/"
+  for binary in "$target_dir/usr/bin/beagle-stream-client" "$target_dir/usr/bin/beagle-stream"; do
+    [[ -x "$binary" ]] || continue
+    patchelf --set-rpath '\$ORIGIN/../lib:/opt/beagle-stream-client/usr/lib' "$binary"
+  done
 
   cat > "$wrapper_path" <<'EOF'
 #!/bin/sh

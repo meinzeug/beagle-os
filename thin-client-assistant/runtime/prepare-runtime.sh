@@ -104,6 +104,32 @@ ensure_wireguard_runtime_capabilities() {
   fi
 }
 
+ensure_beagle_stream_client_audio_capabilities() {
+  local binary current_caps
+
+  command -v setcap >/dev/null 2>&1 || return 0
+
+  for binary in \
+    /opt/beagle-stream-client/usr/bin/beagle-stream-client \
+    /opt/beagle-stream-client/usr/bin/beagle-stream; do
+    [[ -x "$binary" ]] || continue
+
+    if command -v getcap >/dev/null 2>&1; then
+      current_caps="$(getcap "$binary" 2>/dev/null || true)"
+      if [[ "$current_caps" == *"cap_sys_nice=ep"* ]]; then
+        beagle_log_event "prepare-runtime.stream-audio-capability" "status=ok binary=$binary capability=cap_sys_nice"
+        continue
+      fi
+    fi
+
+    if setcap cap_sys_nice+ep "$binary" >/dev/null 2>&1; then
+      beagle_log_event "prepare-runtime.stream-audio-capability" "status=applied binary=$binary capability=cap_sys_nice"
+    else
+      beagle_log_event "prepare-runtime.stream-audio-capability-error" "binary=$binary capability=cap_sys_nice"
+    fi
+  done
+}
+
 ensure_wireguard_runtime_guard() {
   local guard_script guard_log guard_unit systemctl_bin
   guard_script="${BEAGLE_WG_RUNTIME_GUARD_SH:-$SCRIPT_DIR/wireguard_runtime_guard.sh}"
@@ -214,6 +240,7 @@ if [[ "$prepare_runtime_reentry" -eq 0 && -r "$SCRIPT_DIR/apply-network-config.s
 fi
 
 ensure_wireguard_runtime_capabilities
+ensure_beagle_stream_client_audio_capabilities
 
 plymouth_status "Connecting device to Beagle Manager..."
 enroll_endpoint_if_needed || beagle_log_event "prepare-runtime.enroll-error" "endpoint enrollment failed"

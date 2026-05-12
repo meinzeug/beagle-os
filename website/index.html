@@ -191,6 +191,7 @@
               <div class="settings-build-meta">
                 <span>Fortschritt: <strong id="artifact-modal-progress">—</strong></span>
                 <span>Laufzeit: <strong id="artifact-modal-elapsed">—</strong></span>
+                <span>ETA: <strong id="artifact-modal-eta">—</strong></span>
                 <span>Prozesse: <strong id="artifact-modal-process-count">0</strong></span>
               </div>
             </div>
@@ -207,6 +208,7 @@
             <div class="info-item"><span class="info-label">Timer</span><span class="info-value" id="artifact-modal-timer">—</span></div>
             <div class="info-item"><span class="info-label">Aktualisiert</span><span class="info-value" id="artifact-modal-updated">—</span></div>
             <div class="info-item"><span class="info-label">Fehlend</span><span class="info-value" id="artifact-modal-missing">—</span></div>
+            <div class="info-item"><span class="info-label">Build Health</span><span class="info-value" id="artifact-modal-health">—</span></div>
           </aside>
         </div>
         <section class="artifact-build-context-grid" aria-label="Build-Kontext">
@@ -249,7 +251,18 @@
               <span class="info-label">Server Live-Details</span>
               <strong>Was gerade passiert</strong>
             </div>
-            <span id="artifact-modal-live-count">0 Events</span>
+            <div class="artifact-live-controls">
+              <span id="artifact-modal-live-count">0 Events</span>
+              <select id="artifact-modal-live-filter" class="input-select" aria-label="Event-Filter">
+                <option value="all">Alle</option>
+                <option value="warn">Nur Warnungen</option>
+                <option value="process">Nur Prozesse</option>
+                <option value="log">Nur Logs</option>
+              </select>
+              <label class="artifact-live-toggle"><input id="artifact-modal-live-autoscroll" type="checkbox" checked> Auto-Scroll</label>
+              <button class="button ghost" id="artifact-modal-copy-status" type="button">Status kopieren</button>
+              <button class="button ghost" id="artifact-modal-diagnose" type="button">Schnelldiagnose</button>
+            </div>
           </div>
           <div class="artifact-live-event-list" id="artifact-modal-live-events">
             <div class="artifact-live-event is-muted"><span>—</span><strong>Warte auf SSE-Daten.</strong></div>
@@ -2487,7 +2500,7 @@
                 <button class="button ghost" id="repo-update-check" type="button">Repo jetzt pruefen</button>
                 <button class="button ghost" id="settings-artifacts-refresh" type="button">Build-Status neu laden</button>
                 <button class="button ghost" id="upd-apply" type="button">Systemupdates installieren</button>
-                <button class="button ghost" id="artifacts-refresh-start" type="button">Artefakte jetzt bauen</button>
+                <button class="button danger" id="artifacts-refresh-start" type="button">Artefakte verwalten</button>
               </div>
               <p class="settings-update-quick-hint">Empfehlung: Einmal auf "Vollautomatik aktivieren" klicken. Danach regelt der Server Repo-Checks, Artefakt-Reparatur und Systemupdates selbst.</p>
 

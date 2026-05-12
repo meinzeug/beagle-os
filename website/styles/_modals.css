@@ -17,7 +17,7 @@
 .artifact-build-process-table { margin-top: 16px; max-height: 300px; overflow: auto; }
 .artifact-build-process-table code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .artifact-build-modal.is-running #artifact-modal-state { color: var(--ok); }
-.artifact-build-modal .settings-build-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.artifact-build-modal .settings-build-meta { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .artifact-build-context-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
 .artifact-build-context-card { display: grid; gap: 5px; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
 .artifact-build-context-card strong, .artifact-build-context-card span, .artifact-build-context-card a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -28,6 +28,11 @@
 .artifact-live-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .artifact-live-detail-head strong { display: block; font-size: 0.94rem; margin-top: 2px; }
 .artifact-live-detail-head > span { color: var(--text-muted); font-size: 0.76rem; white-space: nowrap; }
+.artifact-live-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.artifact-live-controls .input-select { min-width: 130px; max-width: 180px; }
+.artifact-live-controls .button { white-space: nowrap; }
+.artifact-live-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; color: var(--text-muted); white-space: nowrap; }
+.artifact-live-toggle input { width: 15px; height: 15px; }
 .artifact-live-event-list { display: grid; gap: 6px; max-height: 260px; overflow: auto; }
 .artifact-live-event { display: grid; gap: 3px; padding: 8px 10px; border-left: 3px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-card); }
 .artifact-live-event span { color: var(--text-muted); font-size: 0.70rem; font-family: var(--font-mono); }
@@ -90,6 +95,7 @@ body.modal-open, body.mobile-menu-open { overflow: hidden; }
 	.artifact-build-context-grid { grid-template-columns: 1fr 1fr; }
 	.artifact-build-modal-actions { grid-template-columns: 1fr 1fr; }
 	.artifact-build-modal .settings-build-meta { grid-template-columns: 1fr; }
+	.artifact-live-controls { justify-content: flex-start; }
 	.stream-preset-grid { grid-template-columns: 1fr 1fr; }
 	.stream-tune-grid { grid-template-columns: 1fr 1fr; }
 }

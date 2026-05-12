@@ -17,6 +17,8 @@ let updateStatusEventSource = null;
 let updateStatusReconnectTimer = 0;
 let updateStatusStreamActive = false;
 let lastSettingsVisibilityPanel = '';
+let artifactLiveFilter = 'all';
+let artifactLiveAutoScroll = true;
 
 function formatBytesCompact(value) {
   const bytes = Number(value || 0);
@@ -90,6 +92,51 @@ function stableArtifactProgress(payload, rawProgress) {
   return artifactProgressValue;
 }
 
+function computeArtifactEta(progressValue, elapsedSeconds) {
+  const progress = Number(progressValue);
+  const elapsed = Number(elapsedSeconds);
+  if (!Number.isFinite(progress) || !Number.isFinite(elapsed) || progress <= 0 || progress >= 100 || elapsed <= 0) {
+    return '—';
+  }
+  const remaining = Math.max(0, Math.round((elapsed / progress) * (100 - progress)));
+  return formatDurationCompact(remaining);
+}
+
+function computeArtifactHealth(payload, running, missingCount) {
+  const refreshStatus = payload && payload.refresh_status ? payload.refresh_status : {};
+  const result = String(refreshStatus.last_result || '').toLowerCase();
+  const failed = result.includes('fail') || result.includes('error') || result.includes('aborted');
+  if (failed) {
+    return 'kritisch';
+  }
+  if (running) {
+    return 'aktiv';
+  }
+  if (missingCount > 0) {
+    return 'instabil';
+  }
+  return 'stabil';
+}
+
+function eventMatchesArtifactFilter(item) {
+  const mode = String(artifactLiveFilter || 'all');
+  if (mode === 'all') {
+    return true;
+  }
+  const tone = String(item && item.tone ? item.tone : '').toLowerCase();
+  const message = String(item && item.message ? item.message : '').toLowerCase();
+  if (mode === 'warn') {
+    return tone === 'warn' || tone === 'error' || tone === 'failed' || message.includes('error') || message.includes('failed');
+  }
+  if (mode === 'process') {
+    return tone === 'process' || message.includes('pid') || message.includes('mksquashfs') || message.includes('unsquashfs');
+  }
+  if (mode === 'log') {
+    return tone === 'log' || tone === 'info';
+  }
+  return true;
+}
+
 function renderArtifactBuildModal(data) {
   if (!artifactBuildModalOpen) {
     return;
@@ -112,18 +159,23 @@ function renderArtifactBuildModal(data) {
   const running = Boolean(payload.running_refresh);
   const visibleProgress = buildActivity.progress != null ? Number(buildActivity.progress) : Number(refreshStatus.progress);
   const progress = stableArtifactProgress(payload, visibleProgress);
+  const elapsedSeconds = buildActivity.elapsed_seconds != null ? buildActivity.elapsed_seconds : refreshStatus.duration_seconds;
+  const eta = computeArtifactEta(progress, elapsedSeconds);
+  const health = computeArtifactHealth(payload, running, missing.length);
 
   text('artifact-modal-state', running ? 'LIVE BUILD' : String(primaryStatus.label || refreshStatus.last_result || 'wartet'));
   text('artifact-modal-phase', String(buildActivity.label || refreshStatus.step || primaryStatus.label || 'Noch kein Build aktiv'));
   text('artifact-modal-detail', String(buildActivity.detail || refreshStatus.message || primaryStatus.message || 'Der Server wartet auf den naechsten Artefakt-Build.'));
   text('artifact-modal-hint', String(buildActivity.hint || 'SSE aktualisiert diesen Dialog, sobald sich Service, Prozess oder Status aendern.'));
   text('artifact-modal-progress', progress ? String(progress) + '%' : '—');
-  text('artifact-modal-elapsed', formatDurationCompact(buildActivity.elapsed_seconds != null ? buildActivity.elapsed_seconds : refreshStatus.duration_seconds));
+  text('artifact-modal-elapsed', formatDurationCompact(elapsedSeconds));
+  text('artifact-modal-eta', eta);
   text('artifact-modal-process-count', String(activeProcesses.length));
   text('artifact-modal-service', String(services['beagle-artifacts-refresh.service'] || 'unknown'));
   text('artifact-modal-timer', String(services['beagle-artifacts-refresh.timer'] || 'unknown'));
   text('artifact-modal-updated', formatDate(refreshStatus.updated_at || refreshStatus.finished_at || refreshStatus.started_at || ''));
   text('artifact-modal-missing', missing.length ? missing.join(', ') : 'keine');
+  text('artifact-modal-health', health);
   text('artifact-modal-github-repo', String(githubContext.repository || repoContext.github_repository || '—'));
   text('artifact-modal-github-branch', 'Branch: ' + String(repoContext.branch || (repoAutoUpdate.config && repoAutoUpdate.config.branch) || '—'));
   text('artifact-modal-current-commit', shortCommit(repoContext.current_commit || repoStatus.current_commit));
@@ -198,7 +250,7 @@ function renderArtifactBuildHistory(history) {
 function renderArtifactLiveEvents(events) {
   const body = qs('artifact-modal-live-events');
   const count = qs('artifact-modal-live-count');
-  const rows = Array.isArray(events) ? events : [];
+  const rows = (Array.isArray(events) ? events : []).filter((item) => eventMatchesArtifactFilter(item));
   if (count) {
     count.textContent = String(rows.length) + (rows.length === 1 ? ' Event' : ' Events');
   }
@@ -219,6 +271,9 @@ function renderArtifactLiveEvents(events) {
       '<strong>' + escapeHtml(message) + '</strong>' +
       '</div>';
   }).join('');
+  if (artifactLiveAutoScroll) {
+    body.scrollTop = 0;
+  }
 }
 
 function artifactsTotalCount(payload) {
@@ -230,7 +285,8 @@ function artifactsPresentCount(payload) {
   return rows.filter((item) => item && item.exists).length;
 }
 
-function openArtifactBuildModal() {
+function openArtifactBuildModal(options) {
+  const withLiveData = !(options && options.withLiveData === false);
   const modal = qs('artifact-build-modal');
   if (!modal) {
     return;
@@ -239,9 +295,17 @@ function openArtifactBuildModal() {
   modal.hidden = false;
   modal.setAttribute('aria-hidden', 'false');
   document.body.classList.add('modal-open');
+  if (qs('artifact-modal-live-filter')) {
+    qs('artifact-modal-live-filter').value = artifactLiveFilter;
+  }
+  if (qs('artifact-modal-live-autoscroll')) {
+    qs('artifact-modal-live-autoscroll').checked = artifactLiveAutoScroll;
+  }
   renderArtifactBuildModal(latestArtifactStatus || {});
-  startUpdateStatusStream();
-  loadArtifactStatus({ silent: true });
+  if (withLiveData) {
+    startUpdateStatusStream();
+    loadArtifactStatus({ silent: true });
+  }
 }
 
 function closeArtifactBuildModal() {
@@ -2035,7 +2099,9 @@ export function bindSettingsEvents() {
     qs('settings-artifacts-refresh').addEventListener('click', loadArtifactStatus);
   }
   if (qs('artifacts-refresh-start')) {
-    qs('artifacts-refresh-start').addEventListener('click', refreshArtifacts);
+    qs('artifacts-refresh-start').addEventListener('click', () => {
+      openArtifactBuildModal({ withLiveData: false });
+    });
   }
   if (qs('artifact-modal-close')) {
     qs('artifact-modal-close').addEventListener('click', closeArtifactBuildModal);
@@ -2044,6 +2110,38 @@ export function bindSettingsEvents() {
     qs('artifact-modal-status-refresh').addEventListener('click', () => {
       openArtifactBuildModal();
       loadArtifactStatus({ silent: false });
+    });
+  }
+  if (qs('artifact-modal-live-filter')) {
+    qs('artifact-modal-live-filter').addEventListener('change', () => {
+      artifactLiveFilter = String(qs('artifact-modal-live-filter').value || 'all');
+      renderArtifactBuildModal(latestArtifactStatus || {});
+    });
+  }
+  if (qs('artifact-modal-live-autoscroll')) {
+    qs('artifact-modal-live-autoscroll').addEventListener('change', () => {
+      artifactLiveAutoScroll = Boolean(qs('artifact-modal-live-autoscroll').checked);
+    });
+  }
+  if (qs('artifact-modal-copy-status')) {
+    qs('artifact-modal-copy-status').addEventListener('click', () => {
+      const payload = JSON.stringify(latestArtifactStatus || {}, null, 2);
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(payload).then(() => {
+          settingsHooks.setBanner('Artifact-Status als JSON in die Zwischenablage kopiert.', 'info');
+        }).catch(() => {
+          settingsHooks.setBanner('Kopieren fehlgeschlagen. Browser-Zugriff verweigert.', 'warn');
+        });
+        return;
+      }
+      settingsHooks.setBanner('Zwischenablage nicht verfuegbar. Bitte Browser aktualisieren.', 'warn');
+    });
+  }
+  if (qs('artifact-modal-diagnose')) {
+    qs('artifact-modal-diagnose').addEventListener('click', () => {
+      openArtifactBuildModal();
+      loadArtifactStatus({ silent: false });
+      settingsHooks.setBanner('Schnelldiagnose laeuft: Status und Live-Events werden aktualisiert.', 'info');
     });
   }
   if (qs('artifact-modal-start')) {

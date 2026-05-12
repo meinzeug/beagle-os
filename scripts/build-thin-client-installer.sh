@@ -152,7 +152,8 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   curl \
   ca-certificates \
   libegl1 \
-  libopengl0
+  libopengl0 \
+  patchelf
 
 build_manual_iso() {
   local iso_root grub_cfg iso_output iso_output_short legacy_output legacy_output_short
@@ -478,6 +479,10 @@ stage_beagle_stream_client_assets() {
   install -d -m 0755 "$target_dir" "$(dirname "$beagle_stream_client_wrapper_path")"
   cp -a "$work_dir/squashfs-root/." "$target_dir/"
   validate_beagle_stream_client_bundle "$target_dir"
+  for binary in "$target_dir/usr/bin/beagle-stream-client" "$target_dir/usr/bin/beagle-stream"; do
+    [[ -x "$binary" ]] || continue
+    patchelf --set-rpath '\$ORIGIN/../lib:/opt/beagle-stream-client/usr/lib' "$binary"
+  done
   find "$target_dir" -type d -exec chmod 0755 {} +
   find "$target_dir" -type f -perm /111 -exec chmod 0755 {} +
   find "$target_dir" -type f ! -perm /111 -exec chmod 0644 {} +

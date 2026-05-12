@@ -64,6 +64,29 @@ def test_prepare_runtime_does_not_block_enrollment_on_getty_bootstrap_failure() 
     assert 'if [[ "$prepare_runtime_reentry" -eq 0 ]]; then' in prepare_text
 
 
+def test_prepare_runtime_grants_stream_audio_priority_capability() -> None:
+    prepare_text = PREPARE_RUNTIME.read_text(encoding="utf-8")
+    runtime_environment_text = (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_runtime_environment.sh").read_text(encoding="utf-8")
+    build_thin_client_text = BUILD_THIN_CLIENT.read_text(encoding="utf-8")
+    build_beagle_os_text = BUILD_BEAGLE_OS.read_text(encoding="utf-8")
+
+    assert "ensure_beagle_stream_client_audio_capabilities()" in prepare_text
+    assert "/opt/beagle-stream-client/usr/bin/beagle-stream-client" in prepare_text
+    assert "/opt/beagle-stream-client/usr/bin/beagle-stream" in prepare_text
+    assert "setcap cap_sys_nice+ep \"$binary\"" in prepare_text
+    assert "ensure_wireguard_runtime_capabilities\nensure_beagle_stream_client_audio_capabilities" in prepare_text
+    assert "patchelf" in build_thin_client_text
+    assert "patchelf --set-rpath" in build_thin_client_text
+    assert "patchelf" in build_beagle_os_text
+    assert "patchelf --set-rpath" in build_beagle_os_text
+    assert "/etc/ld.so.conf.d/beagle-stream-client.conf" not in prepare_text
+    assert "ldconfig" not in prepare_text
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PULSE_LATENCY_MSEC" in runtime_environment_text
+    assert "PULSE_LATENCY_MSEC:-90" in runtime_environment_text
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PIPEWIRE_LATENCY" in runtime_environment_text
+    assert "PIPEWIRE_LATENCY:-2048/48000" in runtime_environment_text
+
+
 def test_live_runtime_executes_tmpfs_staged_shell_scripts_with_bash() -> None:
     prepare_text = PREPARE_RUNTIME.read_text(encoding="utf-8")
     lifecycle_text = (ROOT / "thin-client-assistant" / "runtime" / "runtime_endpoint_enrollment.sh").read_text(encoding="utf-8")
@@ -241,7 +264,11 @@ def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -
     write_config_text = (ROOT / "thin-client-assistant" / "installer" / "write-config.sh").read_text(encoding="utf-8")
 
     assert 'configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-software}"' in profile_text
-    assert 'configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE:-32000}"' in profile_text
+    assert 'beagle_stream_detect_auto_profile()' in profile_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY:-1' in profile_text
+    assert 'beagle-stream-client.auto-quality' in profile_text
+    assert 'source "$BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH"' in launcher_text
+    assert 'stream profile afterwards so live tuning and auto-quality overrides win' in launcher_text
     assert 'out_ref+=(--display-mode "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE:-windowed}")' in runtime_text
     assert 'out_ref+=(--no-frame-pacing)' in runtime_text
     assert 'out_ref+=(--no-vsync)' in runtime_text
@@ -249,10 +276,13 @@ def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -
     assert 'export VK_ICD_FILENAMES="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VK_ICD_FILENAMES:-/dev/null}"' in launcher_text
     assert '"BEAGLE_STREAM_CLIENT_VIDEO_DECODER": "software"' in defaults_text
     assert '"BEAGLE_STREAM_CLIENT_DISPLAY_MODE": "windowed"' in defaults_text
-    assert '"BEAGLE_STREAM_CLIENT_FRAME_PACING": "0"' in defaults_text
-    assert '"BEAGLE_STREAM_CLIENT_VSYNC": "0"' in defaults_text
+    assert '"BEAGLE_STREAM_CLIENT_BITRATE": "auto"' in defaults_text
+    assert '"BEAGLE_STREAM_CLIENT_AUTO_QUALITY": "1"' in defaults_text
+    assert '"BEAGLE_STREAM_CLIENT_FRAME_PACING": "auto"' in defaults_text
+    assert '"BEAGLE_STREAM_CLIENT_VSYNC": "auto"' in defaults_text
     assert '"BEAGLE_STREAM_CLIENT_DISABLE_VULKAN": "1"' in defaults_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE="$BEAGLE_STREAM_CLIENT_DISPLAY_MODE"' in write_config_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY="$BEAGLE_STREAM_CLIENT_AUTO_QUALITY"' in write_config_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN="$BEAGLE_STREAM_CLIENT_DISABLE_VULKAN"' in write_config_text
 
 

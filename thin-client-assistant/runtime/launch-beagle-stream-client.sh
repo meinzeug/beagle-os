@@ -34,6 +34,10 @@ source "$BEAGLE_STREAM_CLIENT_PAIRING_SH"
 source "$BEAGLE_STREAM_CLIENT_RUNTIME_EXEC_SH"
 
 load_runtime_config
+# Runtime config comes from the installer defaults. Re-apply the manager/local
+# stream profile afterwards so live tuning and auto-quality overrides win.
+# shellcheck disable=SC1090
+source "$BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH"
 beagle_log_event "beagle-stream-client.start" "profile=${PVE_THIN_CLIENT_PROFILE_NAME:-default} host=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-UNSET} app=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP:-Desktop}"
 
 BEAGLE_STREAM_CLIENT_LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-${XDG_RUNTIME_DIR:-/tmp}/pve-thin-client}"

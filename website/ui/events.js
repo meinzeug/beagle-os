@@ -41,7 +41,6 @@ import {
   closeProvisionProgressModal,
   loadProvisioningCatalog,
   openProvisioningWorkspace,
-  runProvisionQuickIntent,
   renderProvisioningWorkspace
 } from './provisioning.js';
 import {
@@ -1013,32 +1012,6 @@ export function bindEvents() {
           eventHooks.loadDetail(vmid);
         }
       }
-    });
-  }
-  if (qs('provisioning-section')) {
-    qs('provisioning-section').addEventListener('click', (event) => {
-      const quickButton = event.target.closest('[data-provision-quick-intent]');
-      if (!quickButton) {
-        return;
-      }
-      runProvisionQuickIntent(
-        String(quickButton.getAttribute('data-provision-quick-intent') || ''),
-        String(quickButton.getAttribute('data-provision-prefix') || 'prov-'),
-        String(quickButton.getAttribute('data-provision-quick-create') || '') === '1'
-      );
-    });
-  }
-  if (qs('provision-modal')) {
-    qs('provision-modal').addEventListener('click', (event) => {
-      const quickButton = event.target.closest('[data-provision-quick-intent]');
-      if (!quickButton) {
-        return;
-      }
-      runProvisionQuickIntent(
-        String(quickButton.getAttribute('data-provision-quick-intent') || ''),
-        String(quickButton.getAttribute('data-provision-prefix') || 'prov-modal-'),
-        String(quickButton.getAttribute('data-provision-quick-create') || '') === '1'
-      );
     });
   }
 

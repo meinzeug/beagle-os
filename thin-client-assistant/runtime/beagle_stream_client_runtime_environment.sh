@@ -46,6 +46,9 @@ configure_audio_runtime() {
   export XDG_RUNTIME_DIR="$runtime_dir"
   mkdir -p "$runtime_dir" >/dev/null 2>&1 || true
 
+  export PULSE_LATENCY_MSEC="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PULSE_LATENCY_MSEC:-${PULSE_LATENCY_MSEC:-90}}"
+  export PIPEWIRE_LATENCY="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PIPEWIRE_LATENCY:-${PIPEWIRE_LATENCY:-2048/48000}}"
+
   pulse_socket="${runtime_dir}/pulse/native"
   if [[ -S "$pulse_socket" ]]; then
     export PULSE_SERVER="${PULSE_SERVER:-unix:${pulse_socket}}"

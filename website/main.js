@@ -99,7 +99,6 @@ import {
 } from './ui/audit.js';
 import {
   configureVirtualization,
-  loadVmConfig,
   renderVirtualizationInspector,
   renderVirtualizationOverview,
   renderVirtualizationPanel
@@ -134,7 +133,6 @@ import {
 } from './ui/live.js';
 import { request } from './ui/api.js';
 import { startVmMetrics } from './ui/vm_metrics.js';
-import { initScifiHud } from './ui/scifi_hud.js';
 import {
   actionButton,
   escapeHtml,
@@ -475,11 +473,8 @@ function loadDetail(vmid) {
       '<div class="detail-panel" data-detail-panel="config"><div class="banner info">Konfiguration wird geladen...</div></div>' +
       '<div class="detail-panel" data-detail-panel="bundles"><div class="banner info">Wird geladen...</div></div>';
     const hashState = parseAppHash();
-    const activeDetailPanel = hashState.detail || (hashState.vmid ? 'config' : state.activeDetailPanel) || 'summary';
+    const activeDetailPanel = hashState.detail || state.activeDetailPanel || 'summary';
     setActiveDetailPanel(activeDetailPanel);
-    if (activeDetailPanel === 'config') {
-      loadVmConfig(numericVmid);
-    }
     if (activeDetailPanel === 'metrics') {
       // Auto-refresh re-renders the stack; restart metrics rendering/stream for
       // the fresh metrics panel DOM so the tab does not appear empty.
@@ -555,8 +550,6 @@ function bootstrapHashState() {
   }
   if (hashState.detail) {
     state.activeDetailPanel = hashState.detail;
-  } else if (hashState.vmid) {
-    state.activeDetailPanel = 'config';
   } else if (storedDetail) {
     state.activeDetailPanel = storedDetail;
   }
@@ -572,9 +565,6 @@ function applyLiveSnapshot(snapshot) {
 
   if (Array.isArray(snapshot.vms)) {
     state.inventory = snapshot.vms;
-  }
-  if (snapshot.health && typeof snapshot.health === 'object') {
-    state.healthPayload = snapshot.health;
   }
   if (Array.isArray(snapshot.endpoints)) {
     state.endpointReports = snapshot.endpoints;
@@ -614,7 +604,6 @@ function applyLiveSnapshot(snapshot) {
   }
 
   // Render from fresh SSE state without full dashboard reload requests.
-  statCardFromHealth(state.healthPayload || snapshot.health || {}, state.virtualizationOverview);
   renderInventory();
   renderEndpointsOverview();
   renderVirtualizationOverview();
@@ -808,7 +797,6 @@ export function bootstrapApp() {
   bindClusterEvents();
   bindSessionsEvents();
   bindSettingsEvents();
-  initScifiHud();
   renderActivityLog();
   renderInventory();
   renderEndpointsOverview();
@@ -822,11 +810,8 @@ export function bootstrapApp() {
   renderIam();
   renderAudit();
   bootstrapHashState();
-  setActivePanel(state.activePanel, { preserveInventorySelection: Boolean(state.selectedVmid) });
+  setActivePanel(state.activePanel);
   setActiveDetailPanel(state.activeDetailPanel);
-  if (state.activePanel === 'inventory' && state.selectedVmid) {
-    loadDetail(state.selectedVmid);
-  }
   setAuthMode(Boolean(state.token));
   updateSessionChrome();
   updateSettingsVisibility();
@@ -849,13 +834,10 @@ export function bootstrapApp() {
   window.addEventListener('hashchange', () => {
     const hashState = parseAppHash();
     if (hashState.panel && hashState.panel !== state.activePanel) {
-      setActivePanel(hashState.panel, { preserveInventorySelection: Boolean(hashState.vmid) });
+      setActivePanel(hashState.panel);
     }
     if (hashState.detail && hashState.detail !== state.activeDetailPanel) {
       setActiveDetailPanel(hashState.detail);
-      if (hashState.detail === 'config' && state.selectedVmid) {
-        loadVmConfig(state.selectedVmid);
-      }
     }
     // Handle vmid in hash (e.g. back/forward navigation)
     if (hashState.vmid && /^\d+$/.test(hashState.vmid)) {

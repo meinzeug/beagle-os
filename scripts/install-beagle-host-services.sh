@@ -306,8 +306,8 @@ wait_for_libvirt_system() {
     sleep 1
   done
 
-  echo "WARNING: libvirt qemu:///system is not ready (may have version conflicts; installation will proceed)" >&2
-  return 0
+  echo "libvirt qemu:///system is not ready" >&2
+  return 1
 }
 
 can_manage_libvirt_system() {
@@ -846,7 +846,7 @@ if [[ "$BEAGLE_HOST_PROVIDER" == "beagle" ]]; then
   fi
 
   if can_manage_libvirt_system; then
-    wait_for_libvirt_system || true
+    wait_for_libvirt_system
   else
     echo "Skipping live libvirt readiness check during offline/chroot install" >&2
   fi
@@ -985,14 +985,14 @@ restart_unit_if_active "$BEAGLE_NOVNC_PROXY_SERVICE"
 
 cat > /etc/sudoers.d/beagle-artifacts-refresh <<'SUDOERS'
 # Managed by install-beagle-host-services.sh — do not edit by hand.
-beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-refresh.service, /bin/systemctl stop beagle-artifacts-refresh.service, /bin/systemctl reset-failed beagle-artifacts-refresh.service, /bin/systemctl show -p Id beagle-artifacts-refresh.service
+beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-refresh.service, /bin/systemctl show -p Id beagle-artifacts-refresh.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-artifacts-watchdog.service, /bin/systemctl show -p Id beagle-artifacts-watchdog.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-repo-auto-update.service, /bin/systemctl show -p Id beagle-repo-auto-update.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl start beagle-system-updates.service, /bin/systemctl show -p Id beagle-system-updates.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl enable --now beagle-repo-auto-update.timer, /bin/systemctl disable --now beagle-repo-auto-update.timer, /bin/systemctl stop beagle-repo-auto-update.service, /bin/systemctl reset-failed beagle-repo-auto-update.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl enable --now beagle-system-updates.timer, /bin/systemctl disable --now beagle-system-updates.timer, /bin/systemctl stop beagle-system-updates.service, /bin/systemctl reset-failed beagle-system-updates.service
 beagle-manager ALL=(root) NOPASSWD: /bin/systemctl enable --now beagle-artifacts-watchdog.timer, /bin/systemctl disable --now beagle-artifacts-watchdog.timer, /bin/systemctl stop beagle-artifacts-watchdog.service, /bin/systemctl reset-failed beagle-artifacts-watchdog.service
-beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-artifacts-refresh.service, /usr/bin/systemctl stop beagle-artifacts-refresh.service, /usr/bin/systemctl reset-failed beagle-artifacts-refresh.service, /usr/bin/systemctl show -p Id beagle-artifacts-refresh.service
+beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-artifacts-refresh.service, /usr/bin/systemctl show -p Id beagle-artifacts-refresh.service
 beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-artifacts-watchdog.service, /usr/bin/systemctl show -p Id beagle-artifacts-watchdog.service
 beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-repo-auto-update.service, /usr/bin/systemctl show -p Id beagle-repo-auto-update.service
 beagle-manager ALL=(root) NOPASSWD: /usr/bin/systemctl start beagle-system-updates.service, /usr/bin/systemctl show -p Id beagle-system-updates.service
