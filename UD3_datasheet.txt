@@ -1,0 +1,245 @@
+DATASHEET
+
+IGEL UD3
+THE VERSATILE ENDPOINT DEVICE
+FOR CLOUD WORKSPACES
+
+Combined with IGEL OS, the versatile UD3 empowers
+users with a high-fidelity digital experience and flexible
+expansion capabilities.
+
+Optimized with IGEL, the AMD
+Ryzen™ Embedded R1505G
+with Radeon™ Vega 3 Graphics
+system-on-chip delivers great
+performance with maximum
+efficiency.
+
+Configurable
+connectivity options
+offer flexibility across
+a vast range of user
+scenarios.
+
+Modern and legacy
+ports complement
+convenience and
+productivity.
+
+AMD Secure Processor,
+AMD Memory Guard**,
+IGEL OS, and the IGEL “chain
+of trust” strengthen security
+from the endpoint all the
+way to your virtual and cloud
+workspaces.
+
+UD3 with IGEL OS =
+Maximum Productivity
+IGEL OS.
+IGEL OS integrates with 130+ technologies to easily
+fit into almost any user environment with a familiar,
+trouble-free workspace. This ecosystem is continuously
+expanding through the IGEL Ready program.
+
+IGEL UMS.
+With easy, automated control from a single console,
+the IGEL Universal Management Suite (UMS) securely
+manages the UD3 and up to 300,000 IGEL-powered
+endpoints located on the corporate LAN or off.
+
+Connect with IGEL
+
+IGEL cultivates success for our customers.
+A selection of services, support, and training
+offerings and a vibrant online community of
+EUC experts empower our users to achieve
+the full capabilities of their IGEL solution.
+
+**Refer to page two for details.
+IGEL is a registered trademark of IGEL Technology GmbH. All hardware and software names are registered trademarks of the respective
+manufacturers. Errors and omissions excepted. Subject to change without notice.
+© 03/2023 IGEL Technology I 85-EN-11-13-4 I M350C I WEEE-Reg.-Nr. DE 79295479 I WEEE-Reg.-No. UK 5613471
+
+TECHNICAL SPECIFICATION UD3
+SECURITY
+AMD Secure Processor
+
+activated on AMD Soc on IGEL UD3
+
+**AMD Memory Guard
+
+activated in the UD3 UEFI-BIOS. More details on KB.igel.com
+
+UEFI Secure Boot
+
+activated on all IGEL UD endpoint devices
+
+IGEL OS
+
+is modular by design and lean, read-only file system, does not store data on the endpoint.
+
+CHAIN OF TRUST
+
+UEFI
+
+BOOTLOADER
+
+LINUX
+KERNEL
+
+IGEL OS
+PARTITIONS
+
+VDI/
+CLOUD
+
+SYSTEM
+Operating system (requires license activation)
+
+IGEL OS 11
+
+Management (requires license activation)
+
+IGEL Universal Management Suite
+
+Processor (system-on-chip)
+
+AMD Ryzen™ Embedded R1505G with Radeon™ Vega 3 Graphics
+* Dual-core at 2.0 GHz up to 2.7 GHz boost frequency. Optimized for IGEL to 10W TDP.
+
+MEMORY
+RAM
+
+2 x 2GB SO-DIMM DDR4 2400 MHz
+
+Flash memory (onboard eMMC)
+
+8 GB
+
+GRAPHICS
+Chipset
+
+AMD Radeon™ Vega 3 Graphics
+
+Video memory
+
+UMA 512 MB
+
+Ports
+
+2 x DisplayPort 1.2
+
+Maximum supported resolutions
+
+2 x 4K @ 60Hz. More details incl. resolutions for accelerated video decoding on kb.igel.com
+
+Further optimizations
+
+Optimized for Teradici PCoIP Ultra™. More details in IGEL UD3 Factsheet.
+
+NETWORK
+Ethernet
+
+10/100/1000 Ethernet (RJ-45)
+
+WLAN and bluetooth (optional)
+
+Intel® 9260 Wireless-AC (802.11ac WLAN and Bluetooth 5.1). More details on kb.igel.com
+
+https://www.igel.com/cosmos/
+
+INTERFACES
+SuperSpeed USB (3.2 Gen 1 Type-C™)
+
+1 x front.
+
+SuperSpeed USB
+
+2 x front. USB 3.2 Gen 1 or Gen 2, depending on availability.
+
+USB 2.0
+
+2 x back
+
+Serial
+
+1 x back
+
+Audio & speakers
+
+1 x front. 3.5 mm/ 1/8-inch TRRS audio jack (line-in/ line-out/headset).
+Realtek ALC897 or ALC888S, depending on availability.
+
+Security lock
+
+1 x back
+
+Smartcard reader (optional)
+
+1 x front (optional)
+
+DIMENSIONS
+Device (depth x width x height), upright
+
+196 mm x 68 mm x 198 mm with foot stand,
+188 mm x 45 mm x 188 mm without foot stand
+
+Weight
+
+1.03 kg without foot. 1.08 KG with foot stand. 1.53 kg with foot stand and external
+power adapter.
+
+OPERATING CONDITIONS
+Cooling
+
+Fanless convection
+
+Operating temperature
+
+0 °C to 40 °C, 32 °F to 104 °F vertical operation. 0 °C to 35 °C, 32 °F to 95 °F vertical operation
+with VESA mount. 0 °C to 35 °C, 32 °F to 95 °F horizontal operation with optional rubber feet.
+
+Operating humidity
+
+20% - 80% non-condensing
+
+POWER
+Input
+
+DC 12V/4A (48W) External Power Adapter, Level VI, UL/IEC 62368-1
+
+Power supply
+
+external, 100 – 240 V / 50 – 60 Hz
+
+Power consumption: idle / sleep mode
+
+5.45 W (idle) / 0.59 W (sleep) / < 0.48 W (off) (@230 V, 50 Hz)
+5.32 W (idle) / 0.55 W (sleep) / < 0.48 W (off) (@115 V, 60 Hz)
+
+CERTIFICATES
+CE, TÜV-GS, cULus, ICES-003, FCC Class B, RCM,
+VCCI, BSMI, ENERGY STAR® *
+
+CONNECT WITH IGEL
+
+SUPPORT & SERVICES
+
+IGEL Community
+IGEL Ready
+IGEL Partner Program
+IGEL Academy
+
+UD3 on Knowledge Base
+IGEL Advanced Services
+Regulatory Compliance
+Extend Hardware Warranty
+
+REQUEST A DEMO
+IGEL.COM/TEST IGEL OS
+
+For more infromation contact regulatory.compliance@igel.com for more information.
+*Energy Star valid in the USA, Canada, Switzerland, Taiwan and Japan.
+
+

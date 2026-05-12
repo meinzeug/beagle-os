@@ -1,0 +1,44 @@
+--- beagle-host/services/service_registry.py
++++ beagle-host/services/service_registry.py
+@@ -10,6 +10,7 @@
+ from virtualization_read_surface import VirtualizationReadSurfaceService
+ from webhook_service import WebhookService
+ from vm_mutation_surface import VmMutationSurfaceService
++from vm_config_editor import VmConfigEditorService
+ from vm_profile import VmProfileService
+ 
+@@ -25,6 +26,7 @@
+ PUBLIC_BEAGLE_STREAM_SERVER_SURFACE_SERVICE: PublicBeagleStreamServerSurfaceService | None = None
++VM_CONFIG_EDITOR_SERVICE: VmConfigEditorService | None = None
+ VM_MUTATION_SURFACE_SERVICE: VmMutationSurfaceService | None = None
+@@ -106,8 +108,30 @@
+                 name=str(name or "").strip(),
+                 timeout=None,
+             ),
++            update_vm_config=lambda vm, payload: vm_config_editor_service().update_vm_config(vm, payload),
+         )
+     return VM_MUTATION_SURFACE_SERVICE
++
++
++def vm_config_editor_service() -> VmConfigEditorService:
++    global VM_CONFIG_EDITOR_SERVICE
++    if VM_CONFIG_EDITOR_SERVICE is None:
++        VM_CONFIG_EDITOR_SERVICE = VmConfigEditorService(
++            get_vm_config=lambda node, vmid: HOST_PROVIDER.get_vm_config(str(node or ""), int(vmid)),
++            set_vm_options=lambda vmid, options: HOST_PROVIDER.set_vm_options(int(vmid), options, timeout=None),
++            delete_vm_options=lambda vmid, option_names: HOST_PROVIDER.delete_vm_options(
++                int(vmid), option_names, timeout=None
++            ),
++            invalidate_vm_cache=invalidate_vm_cache,
++            run_virsh=lambda command: str(getattr(HOST_PROVIDER, "_run_virsh")(*command)),
++            define_domain_xml=lambda xml_text: getattr(HOST_PROVIDER, "_run_virsh")(
++                "define", "/dev/stdin", input_data=xml_text
++            ),
++            libvirt_domain_name=lambda vmid: str(
++                getattr(HOST_PROVIDER, "_libvirt_domain_name", lambda v: f"beagle-{int(v)}")(int(vmid))
++            ),
++        )
++    return VM_CONFIG_EDITOR_SERVICE
+ 
+ 
+ def vm_state_service() -> VmStateService:
