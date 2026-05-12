@@ -20,7 +20,8 @@ TTYReset=yes
 TTYVHangup=yes
 TTYVTDisallocate=yes
 TimeoutStartSec=0
-RemainAfterExit=yes
+RemainAfterExit=no
+ExecStopPost=/bin/systemctl start getty@tty1.service
 
 [Install]
 WantedBy=multi-user.target
