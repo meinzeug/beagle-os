@@ -8,11 +8,12 @@ BEAGLE_STATE_DIR_DEFAULT="/var/lib/beagle-os"
 PRESET_STATE_DIR_DEFAULT="/run/beagle-os/preset-state"
 BEAGLE_TRACE_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/runtime-trace.log"
 BEAGLE_LAST_MARKER_FILE_DEFAULT="$BEAGLE_STATE_DIR_DEFAULT/last-marker.env"
+RUNTIME_TMPFS_DIR_DEFAULT="/run/pve-thin-client/runtime"
 
 runtime_script_dir_candidates() {
   printf '%s\n' \
     "${RUNTIME_SCRIPT_DIR:-}" \
-    "/run/pve-thin-client/runtime" \
+    "${RUNTIME_TMPFS_DIR:-$RUNTIME_TMPFS_DIR_DEFAULT}" \
     "/usr/local/lib/pve-thin-client/runtime"
 }
 
@@ -82,6 +83,21 @@ runtime_resolve_helper_path() {
   printf '%s\n' "$RUNTIME_SCRIPT_DIR/$file_name"
 }
 
+runtime_stage_dir_to_tmpfs() {
+  local source_dir target_dir
+  source_dir="$1"
+  target_dir="${RUNTIME_TMPFS_DIR:-$RUNTIME_TMPFS_DIR_DEFAULT}"
+
+  [[ -n "$source_dir" ]] || return 1
+  [[ -d "$source_dir" ]] || return 1
+  [[ "$source_dir" != "$target_dir" ]] || return 0
+
+  mkdir -p "$target_dir" 2>/dev/null || return 1
+  cp -a "$source_dir/." "$target_dir/" 2>/dev/null || return 1
+  [[ -r "$target_dir/common.sh" ]] || return 1
+  printf '%s\n' "$target_dir"
+}
+
 RUNTIME_SCRIPT_DIR="${RUNTIME_SCRIPT_DIR:-$(runtime_resolve_source_dir)}"
 if [[ "$RUNTIME_SCRIPT_DIR" == /var/local/* ]]; then
   RUNTIME_SCRIPT_DIR="/usr/local/${RUNTIME_SCRIPT_DIR#/var/local/}"
@@ -89,6 +105,11 @@ fi
 if [[ ! -r "$RUNTIME_SCRIPT_DIR/config_loader.sh" ]]; then
   RUNTIME_SCRIPT_DIR="$(runtime_first_readable_file config_loader.sh 2>/dev/null || printf '%s\n' "$RUNTIME_SCRIPT_DIR/config_loader.sh")"
   RUNTIME_SCRIPT_DIR="${RUNTIME_SCRIPT_DIR%/config_loader.sh}"
+fi
+if staged_runtime_dir="$(runtime_stage_dir_to_tmpfs "$RUNTIME_SCRIPT_DIR" 2>/dev/null || true)"; then
+  if [[ -n "$staged_runtime_dir" ]]; then
+    RUNTIME_SCRIPT_DIR="$staged_runtime_dir"
+  fi
 fi
 export RUNTIME_SCRIPT_DIR
 MODE_OVERRIDES_PY="$(runtime_resolve_helper_path "${MODE_OVERRIDES_PY:-}" mode_overrides.py)"
