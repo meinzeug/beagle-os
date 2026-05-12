@@ -88,6 +88,16 @@ def test_prepare_host_downloads_rebuilds_usb_payload_when_thinclient_runtime_cha
     assert 'any_source_newer_than "$packaged_payload" "${thin_client_package_sources[@]}"' in script
 
 
+def test_prepare_host_downloads_refreshes_live_squashfs_from_repo_sources() -> None:
+    script = (ROOT / "scripts" / "prepare-host-downloads.sh").read_text(encoding="utf-8")
+
+    assert "refresh_live_rootfs_from_repo()" in script
+    assert 'unsquashfs -d "$rootfs_stage" "$squashfs_path"' in script
+    assert 'mksquashfs "$rootfs_stage" "${squashfs_path}.new" -comp xz -noappend' in script
+    assert '"$ROOT_DIR/thin-client-assistant/runtime/"' in script
+    assert '"$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-network-menu.service"' in script
+
+
 def test_iso_bootstrap_fast_path_does_not_mask_thinclient_source_rebuild() -> None:
     script = (ROOT / "scripts" / "prepare-host-downloads.sh").read_text(encoding="utf-8")
     fast_path = script.split("ensure_bootstrap_from_deployed_iso()", 1)[1].split("recover_packaged_artifacts_from_existing_builds()", 1)[0]

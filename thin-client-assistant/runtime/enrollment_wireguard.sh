@@ -48,15 +48,39 @@ WG_RESOLV_CONF="${WG_RESOLV_CONF:-/etc/resolv.conf}"
 WG_MTU="${PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_MTU:-${WG_MTU:-1280}}"
 TIMEOUT="${TIMEOUT:-15}"
 
+read_enrollment_value() {
+    local key="$1"
+
+    [[ -r "${ENROLLMENT_CONF}" ]] || return 1
+
+    awk -F= -v key="$key" '
+        $1 == key {
+            value = substr($0, index($0, "=") + 1)
+            gsub(/^"/, "", value)
+            gsub(/"$/, "", value)
+            gsub(/^'\''/, "", value)
+            gsub(/'\''$/, "", value)
+            print value
+            found = 1
+            exit
+        }
+        END { if (!found) exit 1 }
+    ' "${ENROLLMENT_CONF}"
+}
+
 # ---------------------------------------------------------------------------
 # Read enrollment config if environment not provided
 # ---------------------------------------------------------------------------
 if [[ -f "${ENROLLMENT_CONF}" ]]; then
-    BEAGLE_CONTROL_PLANE="${BEAGLE_CONTROL_PLANE:-$(grep -E '^control_plane=' "${ENROLLMENT_CONF}" | cut -d= -f2- | tr -d '[:space:]')}"
-    BEAGLE_ENROLLMENT_TOKEN="${BEAGLE_ENROLLMENT_TOKEN:-$(grep -E '^enrollment_token=' "${ENROLLMENT_CONF}" | cut -d= -f2- | tr -d '[:space:]')}"
-    BEAGLE_DEVICE_ID="${BEAGLE_DEVICE_ID:-$(grep -E '^device_id=' "${ENROLLMENT_CONF}" | cut -d= -f2- | tr -d '[:space:]')}"
+    BEAGLE_CONTROL_PLANE="${BEAGLE_CONTROL_PLANE:-$(read_enrollment_value control_plane 2>/dev/null || true)}"
+    BEAGLE_ENROLLMENT_TOKEN="${BEAGLE_ENROLLMENT_TOKEN:-$(read_enrollment_value enrollment_token 2>/dev/null || true)}"
+    BEAGLE_DEVICE_ID="${BEAGLE_DEVICE_ID:-$(read_enrollment_value device_id 2>/dev/null || true)}"
 fi
-BEAGLE_CONTROL_PLANE="${BEAGLE_CONTROL_PLANE:-${BEAGLE_MANAGER_URL:-}}"
+BEAGLE_CONTROL_PLANE="${BEAGLE_CONTROL_PLANE:-${BEAGLE_MANAGER_URL:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}}}"
+BEAGLE_CONTROL_PLANE="${BEAGLE_CONTROL_PLANE%/}"
+BEAGLE_ENROLLMENT_TOKEN="${BEAGLE_ENROLLMENT_TOKEN:-${PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_TOKEN:-}}"
+BEAGLE_DEVICE_ID="${BEAGLE_DEVICE_ID:-${PVE_THIN_CLIENT_BEAGLE_DEVICE_ID:-}}"
+BEAGLE_MANAGER_TOKEN="${BEAGLE_MANAGER_TOKEN:-${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}}"
 
 if [[ -z "${BEAGLE_CONTROL_PLANE:-}" ]]; then
     echo "[wg-enroll] ERROR: BEAGLE_CONTROL_PLANE is not set and not found in ${ENROLLMENT_CONF}" >&2

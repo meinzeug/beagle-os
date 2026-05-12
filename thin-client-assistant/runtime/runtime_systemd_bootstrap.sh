@@ -27,18 +27,13 @@ ensure_getty_overrides() {
   mkdir -p "$tty1_dir" "$default_dir"
   chmod 0755 "$tty1_dir" "$default_dir" >/dev/null 2>&1 || true
 
-  cat >"$default_dir/zz-beagle-default.conf" <<'EOF'
-[Service]
-ExecStart=
-ExecStart=-/sbin/agetty -o '-p -- \u' --noclear - $TERM
-EOF
-
   cat >"$tty1_dir/zz-beagle-autologin.conf" <<'EOF'
 [Service]
 ExecStart=
 ExecStart=-/usr/local/bin/pve-thin-client-tty-login %I $TERM
 EOF
 
+  rm -f "$default_dir/zz-beagle-default.conf" >/dev/null 2>&1 || true
   rm -f "$tty1_dir/autologin.conf" >/dev/null 2>&1 || true
   "$systemctl_bin" daemon-reload >/dev/null 2>&1 || true
 }
@@ -59,10 +54,10 @@ normalize_boot_services() {
       "$systemctl_bin" list-unit-files "$prepare_unit" >/dev/null 2>&1 && \
         "$systemctl_bin" enable "$prepare_unit" >/dev/null 2>&1 || true
       "$systemctl_bin" list-unit-files pve-thin-client-runtime.service >/dev/null 2>&1 && \
-        "$systemctl_bin" enable pve-thin-client-runtime.service >/dev/null 2>&1 || true
+        "$systemctl_bin" disable pve-thin-client-runtime.service >/dev/null 2>&1 || true
       "$systemctl_bin" list-unit-files pve-thin-client-installer-menu.service >/dev/null 2>&1 && \
         "$systemctl_bin" disable pve-thin-client-installer-menu.service >/dev/null 2>&1 || true
-      "$systemctl_bin" disable getty@tty1.service >/dev/null 2>&1 || true
+      "$systemctl_bin" enable getty@tty1.service >/dev/null 2>&1 || true
       ;;
     installer)
       "$systemctl_bin" list-unit-files "$prepare_unit" >/dev/null 2>&1 && \

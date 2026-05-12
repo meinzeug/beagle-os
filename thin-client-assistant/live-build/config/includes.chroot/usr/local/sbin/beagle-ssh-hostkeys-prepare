@@ -35,7 +35,9 @@ KEY_DIR=""
 if [[ -n "$STATE_DIR" ]]; then
   KEY_DIR="$STATE_DIR/ssh-hostkeys"
   mount -o remount,rw "$STATE_DIR" >/dev/null 2>&1 || true
-  install -d -m 0700 "$KEY_DIR"
+  if ! install -d -m 0700 "$KEY_DIR" >/dev/null 2>&1; then
+    KEY_DIR=""
+  fi
 fi
 
 if [[ -n "$KEY_DIR" ]]; then

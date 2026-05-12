@@ -42,6 +42,28 @@ runtime_enrollment_config_file() {
   printf '%s\n' "${BEAGLE_STREAM_ENROLLMENT_CONF:-/etc/beagle/enrollment.conf}"
 }
 
+runtime_enrollment_value() {
+  local key="$1"
+  local file
+
+  file="$(runtime_enrollment_config_file)"
+  [[ -r "$file" ]] || return 1
+
+  awk -F= -v key="$key" '
+    $1 == key {
+      value = substr($0, index($0, "=") + 1)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      gsub(/^'\''/, "", value)
+      gsub(/'\''$/, "", value)
+      print value
+      found = 1
+      exit
+    }
+    END { if (!found) exit 1 }
+  ' "$file"
+}
+
 runtime_wireguard_enrollment_script() {
   printf '%s\n' "${RUNTIME_WIREGUARD_ENROLLMENT_SH:-$SCRIPT_DIR/enrollment_wireguard.sh}"
 }
@@ -135,6 +157,9 @@ enroll_wireguard_if_needed() {
   [[ "$egress_type" == "wireguard" ]] || return 0
 
   manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
+  if [[ -z "$manager_url" ]]; then
+    manager_url="$(runtime_enrollment_value control_plane 2>/dev/null || true)"
+  fi
   manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
   [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
 

@@ -226,6 +226,83 @@ def test_enrollment_wireguard_supports_manager_bearer_registration(tmp_path: Pat
     assert "Authorization: Bearer endpoint-bearer" in curl_args
 
 
+def test_enrollment_wireguard_reads_quoted_control_plane_from_enrollment_conf(tmp_path: Path) -> None:
+    _require_jq()
+    bindir = _build_wireguard_stubs(tmp_path)
+    enrollment_conf = tmp_path / "enrollment.conf"
+    enrollment_conf.write_text(
+        'control_plane="https://srv1.beagle-os.com/beagle-api"\n'
+        'enrollment_token="quoted-token"\n'
+        'device_id="endpoint-quoted"\n',
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    env["ENROLLMENT_CONF"] = str(enrollment_conf)
+    env["WG_CONF"] = str(tmp_path / "wireguard" / "wg-beagle.conf")
+    env["WG_KEYS_DIR"] = str(tmp_path / "keys")
+    env["CURL_ARGS_LOG"] = str(tmp_path / "curl-args.log")
+    env["CURL_DATA_LOG"] = str(tmp_path / "curl-data.json")
+    env["WG_SETCONF_LOG"] = str(tmp_path / "wg-setconf.log")
+    env["IP_LOG"] = str(tmp_path / "ip.log")
+    env["WG_RESOLV_CONF"] = str(tmp_path / "resolv.conf")
+    env["CONFIG_FILE"] = str(tmp_path / "thinclient.conf")
+    env["CREDENTIALS_FILE"] = str(tmp_path / "credentials.env")
+    env["CURL_HTTP_CODE"] = "200"
+    env["CURL_SERVER_PUBLIC_KEY"] = "server-pub-key"
+    env["CURL_SERVER_ENDPOINT"] = "vpn.beagle-os.com:51820"
+    env["CURL_ALLOWED_IPS"] = "10.88.0.0/16"
+    env["CURL_CLIENT_IP"] = "10.88.10.5/32"
+    env["CURL_DNS"] = "10.88.0.1"
+
+    subprocess.run(["bash", str(ENROLL_SCRIPT)], cwd=str(ROOT_DIR), env=env, check=True)
+
+    curl_args = (tmp_path / "curl-args.log").read_text(encoding="utf-8")
+    assert "https://srv1.beagle-os.com/beagle-api/api/v1/vpn/register" in curl_args
+
+    payload = json.loads((tmp_path / "curl-data.json").read_text(encoding="utf-8"))
+    assert payload["device_id"] == "endpoint-quoted"
+    assert payload["token"] == "quoted-token"
+
+
+def test_enrollment_wireguard_accepts_pve_runtime_env_fallbacks(tmp_path: Path) -> None:
+    _require_jq()
+    bindir = _build_wireguard_stubs(tmp_path)
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    env["WG_CONF"] = str(tmp_path / "wireguard" / "wg-beagle.conf")
+    env["WG_KEYS_DIR"] = str(tmp_path / "keys")
+    env["CURL_ARGS_LOG"] = str(tmp_path / "curl-args.log")
+    env["CURL_DATA_LOG"] = str(tmp_path / "curl-data.json")
+    env["WG_SETCONF_LOG"] = str(tmp_path / "wg-setconf.log")
+    env["IP_LOG"] = str(tmp_path / "ip.log")
+    env["WG_RESOLV_CONF"] = str(tmp_path / "resolv.conf")
+    env["CONFIG_FILE"] = str(tmp_path / "thinclient.conf")
+    env["CREDENTIALS_FILE"] = str(tmp_path / "credentials.env")
+    env["PVE_THIN_CLIENT_BEAGLE_MANAGER_URL"] = "https://srv1.beagle-os.com/beagle-api"
+    env["PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN"] = "endpoint-bearer"
+    env["PVE_THIN_CLIENT_BEAGLE_DEVICE_ID"] = "endpoint-runtime"
+    env["PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_TOKEN"] = "runtime-token"
+    env["CURL_HTTP_CODE"] = "200"
+    env["CURL_SERVER_PUBLIC_KEY"] = "server-pub-key"
+    env["CURL_SERVER_ENDPOINT"] = "vpn.beagle-os.com:51820"
+    env["CURL_ALLOWED_IPS"] = "10.88.0.0/16"
+    env["CURL_CLIENT_IP"] = "10.88.10.5/32"
+    env["CURL_DNS"] = "10.88.0.1"
+
+    subprocess.run(["bash", str(ENROLL_SCRIPT)], cwd=str(ROOT_DIR), env=env, check=True)
+
+    curl_args = (tmp_path / "curl-args.log").read_text(encoding="utf-8")
+    assert "Authorization: Bearer endpoint-bearer" in curl_args
+    assert "https://srv1.beagle-os.com/beagle-api/api/v1/vpn/register" in curl_args
+
+    payload = json.loads((tmp_path / "curl-data.json").read_text(encoding="utf-8"))
+    assert payload["device_id"] == "endpoint-runtime"
+    assert payload["token"] == "runtime-token"
+
+
 def test_post_enrollment_runtime_prefers_wireguard_for_heartbeat_and_streaming(tmp_path: Path) -> None:
     bindir = _build_wireguard_stubs(tmp_path)
 

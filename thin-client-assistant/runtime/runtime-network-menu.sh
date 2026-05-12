@@ -19,6 +19,8 @@ TTY_PATH="${BEAGLE_NETWORK_TUI_TTY:-/dev/tty1}"
 NETWORK_CHOICE_FILE="${BEAGLE_NETWORK_CHOICE_FILE:-/run/pve-thin-client/network-choice.env}"
 DEFAULT_DNS_SERVERS="${PVE_THIN_CLIENT_DEFAULT_DNS_SERVERS:-1.1.1.1 9.9.9.9 8.8.8.8}"
 BANNER_TIMEOUT_SECONDS="${BEAGLE_NETWORK_TUI_TIMEOUT_SECONDS:-3}"
+NETWORK_INTERFACE_WAIT_RETRIES="${BEAGLE_NETWORK_INTERFACE_WAIT_RETRIES:-5}"
+NETWORK_INTERFACE_WAIT_SECONDS="${BEAGLE_NETWORK_INTERFACE_WAIT_SECONDS:-1}"
 
 have_tui_dialog() {
   [[ -n "$TTY_PATH" && -e "$TTY_PATH" ]] && command -v whiptail >/dev/null 2>&1
@@ -39,6 +41,21 @@ dialog_msgbox() {
     printf '\n[%s]\n%s\nPress ENTER to continue. ' "$title" "$message" >"$TTY_PATH"
     read -r _ <"$TTY_PATH" || true
   fi
+}
+
+dialog_notice() {
+  local title="$1"
+  local message="$2"
+  local timeout_seconds="${3:-3}"
+  if have_tui_dialog; then
+    run_whiptail --title "$title" --infobox "$message" 12 78 || true
+    sleep "$timeout_seconds"
+    return 0
+  fi
+  {
+    printf '\n[%s]\n%s\n' "$title" "$message"
+  } >"$TTY_PATH"
+  sleep "$timeout_seconds"
 }
 
 dialog_menu() {
@@ -288,6 +305,29 @@ configure_wifi() {
   write_network_choice "wifi" "$iface" "$ssid" "$password"
 }
 
+maybe_auto_configure_network_choice() {
+  local -a wired_ifaces=()
+  local -a wifi_ifaces=()
+  local attempt=0
+
+  while (( attempt < NETWORK_INTERFACE_WAIT_RETRIES )); do
+    mapfile -t wired_ifaces < <(wired_interfaces)
+    mapfile -t wifi_ifaces < <(wifi_interfaces)
+    if (( ${#wired_ifaces[@]} > 0 || ${#wifi_ifaces[@]} > 0 )); then
+      break
+    fi
+    attempt=$((attempt + 1))
+    sleep "$NETWORK_INTERFACE_WAIT_SECONDS"
+  done
+
+  if (( ${#wired_ifaces[@]} == 1 && ${#wifi_ifaces[@]} == 0 )); then
+    write_network_choice "ethernet" "${wired_ifaces[0]}"
+    return 0
+  fi
+
+  return 1
+}
+
 main() {
   local -a items=()
   local choice=""
@@ -306,6 +346,22 @@ main() {
       persist_runtime_config_to_live_state || true
       return 0
     fi
+  fi
+
+  if maybe_auto_configure_network_choice; then
+    "$APPLY_NETWORK_CONFIG_SH" || {
+      dialog_msgbox "Netzwerkfehler" "Die Netzwerkverbindung konnte nicht aktiviert werden. Bitte erneut versuchen."
+      return 1
+    }
+    persist_runtime_config_to_live_state || true
+    configured_iface="$(pick_interface 2>/dev/null || true)"
+    configured_ipv4="$(current_ipv4_address "$configured_iface" 2>/dev/null || true)"
+    if [[ -n "$configured_ipv4" ]]; then
+      dialog_notice "Netzwerk bereit" "Netzwerk wurde automatisch konfiguriert.\n\nSchnittstelle: ${configured_iface}\nDHCP IPv4: ${configured_ipv4}\n\nBeagle OS startet jetzt den Desktop."
+    else
+      dialog_notice "Netzwerk bereit" "Netzwerk wurde automatisch konfiguriert, aber es wurde noch keine IPv4-Adresse erkannt.\n\nSchnittstelle: ${configured_iface:-unbekannt}\n\nBeagle OS startet jetzt den Desktop."
+    fi
+    return 0
   fi
 
   if wired_interfaces | grep -q .; then
@@ -340,9 +396,9 @@ main() {
   configured_iface="$(pick_interface 2>/dev/null || true)"
   configured_ipv4="$(current_ipv4_address "$configured_iface" 2>/dev/null || true)"
   if [[ -n "$configured_ipv4" ]]; then
-    dialog_msgbox "Netzwerk bereit" "Netzwerk wurde konfiguriert.\n\nSchnittstelle: ${configured_iface}\nDHCP IPv4: ${configured_ipv4}\n\nBeagle OS startet jetzt den Desktop."
+    dialog_notice "Netzwerk bereit" "Netzwerk wurde konfiguriert.\n\nSchnittstelle: ${configured_iface}\nDHCP IPv4: ${configured_ipv4}\n\nBeagle OS startet jetzt den Desktop."
   else
-    dialog_msgbox "Netzwerk bereit" "Netzwerk wurde konfiguriert, aber es wurde noch keine IPv4-Adresse erkannt.\n\nSchnittstelle: ${configured_iface:-unbekannt}\n\nBeagle OS startet jetzt den Desktop."
+    dialog_notice "Netzwerk bereit" "Netzwerk wurde konfiguriert, aber es wurde noch keine IPv4-Adresse erkannt.\n\nSchnittstelle: ${configured_iface:-unbekannt}\n\nBeagle OS startet jetzt den Desktop."
   fi
 }
 

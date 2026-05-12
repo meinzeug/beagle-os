@@ -5,6 +5,7 @@ plymouth
 plymouth-themes
 python3
 xserver-xorg-core
+xserver-xorg-legacy
 xserver-xorg-input-libinput
 x11-xserver-utils
 wmctrl

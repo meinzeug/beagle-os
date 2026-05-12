@@ -190,6 +190,68 @@ any_source_newer_than() {
   return 1
 }
 
+refresh_live_rootfs_from_repo() {
+  local squashfs_path="$1"
+  local rootfs_stage cleanup_cmd
+
+  command -v unsquashfs >/dev/null 2>&1 || {
+    echo "unsquashfs not found; cannot refresh live rootfs from repo sources" >&2
+    return 1
+  }
+  command -v mksquashfs >/dev/null 2>&1 || {
+    echo "mksquashfs not found; cannot refresh live rootfs from repo sources" >&2
+    return 1
+  }
+  command -v rsync >/dev/null 2>&1 || {
+    echo "rsync not found; cannot refresh live rootfs from repo sources" >&2
+    return 1
+  }
+
+  rootfs_stage="$(mktemp -d)"
+  cleanup_cmd="$(printf 'rm -rf %q' "$rootfs_stage")"
+  trap "$cleanup_cmd" RETURN
+
+  unsquashfs -d "$rootfs_stage" "$squashfs_path" >/dev/null
+
+  install -d -m 0755 \
+    "$rootfs_stage/usr/local/lib/pve-thin-client/runtime" \
+    "$rootfs_stage/usr/local/lib/pve-thin-client/installer" \
+    "$rootfs_stage/usr/local/lib/pve-thin-client/usb" \
+    "$rootfs_stage/usr/local/lib/pve-thin-client/templates"
+
+  rsync -a --delete --chown=root:root \
+    "$ROOT_DIR/thin-client-assistant/runtime/" \
+    "$rootfs_stage/usr/local/lib/pve-thin-client/runtime/"
+  rsync -a --delete --chown=root:root \
+    "$ROOT_DIR/thin-client-assistant/installer/" \
+    "$rootfs_stage/usr/local/lib/pve-thin-client/installer/"
+  rsync -a --delete --chown=root:root \
+    "$ROOT_DIR/thin-client-assistant/usb/" \
+    "$rootfs_stage/usr/local/lib/pve-thin-client/usb/"
+  rsync -a --delete --chown=root:root \
+    "$ROOT_DIR/thin-client-assistant/templates/" \
+    "$rootfs_stage/usr/local/lib/pve-thin-client/templates/"
+
+  install -D -m 0755 \
+    "$ROOT_DIR/scripts/lib/trace-guard.sh" \
+    "$rootfs_stage/usr/local/lib/scripts/lib/trace-guard.sh"
+  install -D -m 0644 \
+    "$ROOT_DIR/thin-client-assistant/systemd/beagle-thin-client-prepare.service" \
+    "$rootfs_stage/etc/systemd/system/beagle-thin-client-prepare.service"
+  install -D -m 0644 \
+    "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-prepare.service" \
+    "$rootfs_stage/etc/systemd/system/pve-thin-client-prepare.service"
+  install -D -m 0644 \
+    "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-network-menu.service" \
+    "$rootfs_stage/etc/systemd/system/pve-thin-client-network-menu.service"
+
+  mksquashfs "$rootfs_stage" "${squashfs_path}.new" -comp xz -noappend >/dev/null
+  mv "${squashfs_path}.new" "$squashfs_path"
+
+  trap - RETURN
+  eval "$cleanup_cmd"
+}
+
 # Build the canonical payload tarball from an already-present installer ISO
 # (e.g. deployed via rsync without running the full thin-client live-build).
 # Called automatically when the payload tarball is missing but the ISO exists.
@@ -229,6 +291,13 @@ ensure_bootstrap_from_deployed_iso() {
       echo "Failed to extract live assets from $iso" >&2
       return 1
     }
+
+  refresh_live_rootfs_from_repo "$live_dir/filesystem.squashfs"
+
+  (
+    cd "$live_dir"
+    sha256sum vmlinuz initrd.img filesystem.squashfs > SHA256SUMS
+  )
 
   local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
 
@@ -323,6 +392,13 @@ validate_and_repair_payload_assets() {
       echo "ERROR: Failed to extract live assets from $iso for payload repair" >&2
       return 1
     }
+
+  refresh_live_rootfs_from_repo "$live_dir/filesystem.squashfs"
+
+  (
+    cd "$live_dir"
+    sha256sum vmlinuz initrd.img filesystem.squashfs > SHA256SUMS
+  )
 
   # Rebuild payload with extracted assets
   local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
