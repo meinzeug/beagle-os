@@ -2,8 +2,6 @@ name: release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -490,11 +488,18 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          release_metadata_files=(
+            VERSION
+            extension/manifest.json
+            beagle-kiosk/package.json
+            beagle-kiosk/package-lock.json
+            website/index.html
+          )
           release_sha="${{ github.sha }}"
           if [[ "$REF_TYPE" != "tag" ]]; then
             repo_version="$(git show HEAD:VERSION 2>/dev/null | tr -d ' \n\r' || true)"
-            if [[ "$repo_version" != "$VERSION" ]] || ! git diff --quiet -- VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html; then
-              git add VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html
+            if [[ "$repo_version" != "$VERSION" ]] || ! git diff --quiet -- "${release_metadata_files[@]}"; then
+              git add "${release_metadata_files[@]}"
               git commit -m "release: sync metadata to ${VERSION} [skip release] [skip ci]"
               git fetch origin main
               if ! git rebase origin/main; then

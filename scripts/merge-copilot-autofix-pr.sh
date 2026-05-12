@@ -106,6 +106,67 @@ if [[ -n "$pr_head" && "$pr_head" != "$WORKFLOW_SHA" ]]; then
   exit 0
 fi
 
+pr_checks_json="$(gh pr view "$pr_number" --repo "$REPO" --json statusCheckRollup)"
+checks_ready="$(python3 - "$pr_checks_json" <<'PY'
+import json
+import sys
+
+required = {
+  "shellcheck": ("shellcheck",),
+  "ruff": ("ruff (Python lint)",),
+  "mypy": ("mypy (type check",),
+  "eslint": ("eslint (JS lint)",),
+  "pytest311": ("pytest (Python 3.11)",),
+  "pytest312": ("pytest (Python 3.12)",),
+  "bats": ("bats (shell tests)",),
+  "integration": ("integration (Python)",),
+  "webui": ("WebUI provisioning smoke",),
+  "legacy": ("Reject new legacy provider references",),
+  "shell_true": ("Reject new shell=True subprocess calls",),
+  "subprocess_args": ("Reject subprocess calls with string",),
+  "tls": ("No insecure TLS bypass",),
+}
+
+try:
+  data = json.loads(sys.argv[1])
+except (IndexError, json.JSONDecodeError):
+  print("invalid-json")
+  raise SystemExit(0)
+
+rollup = data.get("statusCheckRollup") or []
+if not rollup:
+  print("missing-all")
+  raise SystemExit(0)
+
+seen = set()
+not_success = []
+for check in rollup:
+  name = str(check.get("name") or check.get("context") or "")
+  status = str(check.get("status") or "").upper()
+  conclusion = str(check.get("conclusion") or check.get("state") or "").upper()
+  for key, needles in required.items():
+    if any(needle in name for needle in needles):
+      seen.add(key)
+      if status and status not in {"COMPLETED", "SUCCESS"}:
+        not_success.append(name)
+      elif conclusion and conclusion != "SUCCESS":
+        not_success.append(name)
+
+missing = sorted(set(required) - seen)
+if missing:
+  print("missing:" + ",".join(missing))
+elif not_success:
+  print("not-success:" + ",".join(sorted(set(not_success))))
+else:
+  print("ok")
+PY
+)"
+
+if [[ "$checks_ready" != "ok" ]]; then
+  echo "[copilot-automerge] PR #${pr_number} does not have all required PR checks green (${checks_ready}); not auto-approving or merging ${pr_url}" >&2
+  exit 0
+fi
+
 if [[ "$review_decision" == "CHANGES_REQUESTED" ]]; then
   echo "[copilot-automerge] PR #${pr_number} has requested changes; not auto-merging ${pr_url}" >&2
   exit 0

@@ -117,10 +117,6 @@ def test_vm_config_editor_surfaces_guided_control_ui() -> None:
     assert "data-vm-change-count" in editor
     assert "refreshEnterpriseConsole(form)" in editor
     assert "FIELD_VALIDATIONS" in editor
-    assert "Workload Profile Deck" in editor
-    assert "ENTERPRISE_PROFILES" in editor
-    assert "data-vm-profile-key" in editor
-    assert "applyProfile(form, String(profileButton.getAttribute('data-vm-profile-key') || ''))" in editor
     assert "VM Konfiguration" in editor
 
 

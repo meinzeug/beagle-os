@@ -169,7 +169,7 @@ export function runProvisionQuickIntent(intentKey, idPrefix, autoCreate) {
     provisioningHooks.setBanner('One-Click Profil nicht gefunden.', 'warn');
     return;
   }
-  if (Boolean(autoCreate)) {
+  if (autoCreate) {
     createProvisionedVmWithPrefix(prefix);
   }
 }

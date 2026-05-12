@@ -3,13 +3,8 @@ name: copilot-automerge
 on:
   workflow_run:
     workflows:
-      - build-iso
-      - e2e-nightly
       - lint
       - no-legacy-provider-references
-      - public-website
-      - release
-      - security-audit
       - security-secrets-check
       - security-subprocess-check
       - security-tls-check
@@ -45,7 +40,7 @@ jobs:
 
   approve-copilot-pr-run:
     name: Approve Copilot PR checks when GitHub pauses them
-    if: ${{ github.event.workflow_run.conclusion == 'action_required' }}
+    if: ${{ github.event.workflow_run.conclusion == 'action_required' && startsWith(github.event.workflow_run.head_branch, 'copilot/') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -63,7 +58,7 @@ jobs:
 
   merge-copilot-pr:
     name: Merge Copilot PR when checks pass
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'copilot/') }}
     runs-on: ubuntu-latest
 
     steps:

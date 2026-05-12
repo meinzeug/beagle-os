@@ -11,7 +11,9 @@ def test_release_workflow_syncs_release_metadata_before_persisting() -> None:
 
     assert 'run: python3 scripts/sync-release-version.py "$VERSION"' in workflow
     assert 'repo_version="$(git show HEAD:VERSION 2>/dev/null | tr -d ' in workflow
-    assert "git add VERSION extension/manifest.json beagle-kiosk/package.json beagle-kiosk/package-lock.json website/index.html" in workflow
+    assert "release_metadata_files=(" in workflow
+    assert 'git diff --quiet -- "${release_metadata_files[@]}"' in workflow
+    assert 'git add "${release_metadata_files[@]}"' in workflow
     assert "git fetch origin main" in workflow
     assert "git rebase origin/main" in workflow
     assert "BEAGLE_RELEASE_SYNC_TOKEN || secrets.COPILOT_ASSIGNMENT_TOKEN || github.token" in workflow
@@ -37,3 +39,12 @@ def test_release_workflow_reuses_single_resolved_version_across_jobs() -> None:
     assert workflow.count("BEAGLE_RELEASE_VERSION=\"${{ needs.detect-artifact-changes.outputs.release_version }}\"") >= 6
     assert "needs: [detect-artifact-changes, assemble-release-package, sbom]" in workflow
     assert "needs: [detect-artifact-changes, create-release]" in workflow
+
+
+def test_release_workflow_does_not_run_for_regular_main_pushes() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    trigger_block = workflow.split("permissions:", 1)[0]
+
+    assert "tags:" in trigger_block
+    assert "workflow_dispatch:" in trigger_block
+    assert "branches:" not in trigger_block
