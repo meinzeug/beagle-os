@@ -152,8 +152,12 @@ def test_runtime_getty_override_uses_systemd_safe_user_escape() -> None:
 
     assert 'rm -f "$default_dir/zz-beagle-default.conf"' in script
     assert 'ExecStart=-/usr/local/bin/pve-thin-client-tty-login %I $TERM' in script
+    assert '"$systemctl_bin" stop pve-thin-client-runtime.service' in script
+    assert '"$systemctl_bin" reset-failed pve-thin-client-runtime.service' in script
     assert '"$systemctl_bin" disable pve-thin-client-runtime.service' in script
+    assert '"$systemctl_bin" unmask getty@tty1.service' in script
     assert '"$systemctl_bin" enable getty@tty1.service' in script
+    assert '"$systemctl_bin" restart getty@tty1.service' in script
 
 
 def test_live_ssh_hostkey_prepare_degrades_when_state_dir_is_read_only() -> None:
