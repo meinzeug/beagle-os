@@ -114,6 +114,7 @@ jobs:
                 sourceType: "module",
                 globals: {
                   ...globals.browser,
+                  ...globals.webextensions,
                   ...globals.es2021,
                 },
               },

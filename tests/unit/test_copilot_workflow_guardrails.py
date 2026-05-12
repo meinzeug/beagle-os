@@ -40,3 +40,10 @@ def test_copilot_automerge_requires_full_pr_check_set_before_merge() -> None:
     assert "eslint (JS lint)" in script
     assert "Reject new legacy provider references" in script
     assert "No insecure TLS bypass" in script
+
+
+def test_lint_workflow_knows_webextension_globals() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "lint.yml").read_text(encoding="utf-8")
+
+    assert "extension/*.js" in workflow
+    assert "...globals.webextensions" in workflow
