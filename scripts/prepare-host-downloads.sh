@@ -245,6 +245,9 @@ refresh_live_rootfs_from_repo() {
     "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-network-menu.service" \
     "$rootfs_stage/etc/systemd/system/pve-thin-client-network-menu.service"
 
+  rm -f \
+    "$rootfs_stage/etc/systemd/system/multi-user.target.wants/pve-thin-client-runtime.service"
+
   mksquashfs "$rootfs_stage" "${squashfs_path}.new" -comp xz -noappend >/dev/null
   mv "${squashfs_path}.new" "$squashfs_path"
 
