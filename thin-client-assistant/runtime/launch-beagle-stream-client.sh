@@ -380,25 +380,11 @@ main() {
     fi
   else
     if [[ -n "${host:-}" ]]; then
-      wait_for_stream_target || {
-        beagle_log_event "beagle-stream-client.unreachable" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
-        echo "Beagle Stream Client broker target '$host' is unreachable from this network." >&2
-        exit 1
-      }
-      bootstrap_beagle_stream_client || true
-      if register_beagle_stream_client_via_manager; then
-        beagle_log_event "beagle-stream-client.register-refresh" "mode=hostless host=${host} port=${port:-default}"
-      fi
-
-      if beagle_stream_client_stream_ready; then
-        beagle_log_event "beagle-stream-client.ready" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
-      else
-        ensure_paired || {
-          beagle_log_event "beagle-stream-client.pairing-failed" "mode=hostless host=${host} port=${port:-default} auth=manager-token"
-          echo "Beagle Stream Client pairing failed for broker target '$host'." >&2
-          exit 1
-        }
-      fi
+      # In broker/hostless mode, endpoint reachability can be transient or firewalled.
+      # Skip blocking preflight checks and launch broker-direct immediately.
+      beagle_log_event "beagle-stream-client.hostless-preflight-skip" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+      host=""
+      connect_host=""
     fi
     beagle_log_event "beagle-stream-client.beagle-stream-hostless" "app=${app} enrollment=$(beagle_stream_enrollment_config)"
   fi
