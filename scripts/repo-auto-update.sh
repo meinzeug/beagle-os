@@ -119,6 +119,88 @@ def run(cmd: list[str], *, cwd: Path | None = None, timeout: int = 1800) -> subp
     )
 
 
+_GIT_RETRY_HINTS = (
+    "connection reset by peer",
+    "recv failure",
+    "early eof",
+    "ssl_read",
+    "gnutls_handshake",
+    "the requested url returned error: 5",
+    "could not resolve host",
+    "operation timed out",
+    "timed out",
+    "rpc failed",
+    "connection timed out",
+    "unexpected disconnect",
+    "remote end hung up unexpectedly",
+)
+
+
+def _git_with_network_hardening(cmd: list[str]) -> list[str]:
+    """Prepend git network-hardening flags before the git subcommand.
+
+    Forces HTTP/1.1 (some middleboxes RST GitHub's HTTP/2+TLS1.3 frontends),
+    raises post buffer for large refs, and adds lo-speed timeouts so a stalled
+    socket fails fast and gets retried instead of hanging the whole service.
+    """
+    if not cmd or cmd[0] != "git":
+        return cmd
+    overrides = [
+        "-c", "http.version=HTTP/1.1",
+        "-c", "http.postBuffer=524288000",
+        "-c", "http.lowSpeedLimit=1000",
+        "-c", "http.lowSpeedTime=30",
+    ]
+    return ["git", *overrides, *cmd[1:]]
+
+
+def run_git_network(
+    cmd: list[str],
+    *,
+    cwd: Path | None = None,
+    timeout: int = 1800,
+    attempts: int = 4,
+    backoff_seconds: float = 4.0,
+) -> subprocess.CompletedProcess[str]:
+    """Run a git network command with retries on transient TLS/TCP errors.
+
+    Mitigates known intermittent "Recv failure: Connection reset by peer" /
+    HTTP/2-frontend resets observed against github.com from some egress paths.
+    """
+    import time as _time
+
+    hardened = _git_with_network_hardening(cmd)
+    result: subprocess.CompletedProcess[str] | None = None
+    last_signal = ""
+    for attempt in range(1, max(1, attempts) + 1):
+        try:
+            result = subprocess.run(
+                hardened,
+                cwd=str(cwd) if cwd else None,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            last_signal = f"timeout after {exc.timeout}s"
+            if attempt >= attempts:
+                return subprocess.CompletedProcess(hardened, 124, "", last_signal)
+            _time.sleep(backoff_seconds * attempt)
+            continue
+        if result.returncode == 0:
+            return result
+        combined = f"{result.stdout}\n{result.stderr}".lower()
+        if not any(hint in combined for hint in _GIT_RETRY_HINTS):
+            return result
+        last_signal = (result.stderr or result.stdout or "").strip()
+        if attempt >= attempts:
+            return result
+        _time.sleep(backoff_seconds * attempt)
+    # Should not reach here, but keep mypy happy.
+    return result if result is not None else subprocess.CompletedProcess(hardened, 1, "", last_signal)
+
+
 def same_commit(installed: str, remote: str) -> bool:
     left = str(installed or "").strip()
     right = str(remote or "").strip()
@@ -256,7 +338,7 @@ if (
 
 worktree_dir.parent.mkdir(parents=True, exist_ok=True)
 if not worktree_dir.is_dir():
-    clone = run(["git", "clone", "--filter=blob:none", config["repo_url"], str(worktree_dir)], timeout=1800)
+    clone = run_git_network(["git", "clone", "--filter=blob:none", config["repo_url"], str(worktree_dir)], timeout=1800)
     if clone.returncode != 0:
         payload["state"] = "error"
         payload["reaction"] = "clone_failed"
@@ -272,7 +354,7 @@ if remote_set.returncode != 0:
     write_status(payload)
     raise SystemExit(1)
 
-fetch = run(["git", "fetch", "--prune", "origin", config["branch"]], cwd=worktree_dir, timeout=1800)
+fetch = run_git_network(["git", "fetch", "--prune", "origin", config["branch"]], cwd=worktree_dir, timeout=1800)
 if fetch.returncode != 0:
     payload["state"] = "error"
     payload["reaction"] = "fetch_failed"
