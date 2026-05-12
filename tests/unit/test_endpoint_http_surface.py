@@ -69,6 +69,8 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
                 "last_seen": "",
                 "last_wipe_report": self.devices.get(device_id, {}).get("last_wipe_report", {}),
                 "last_runtime_report": self.devices.get(device_id, {}).get("last_runtime_report", {}),
+                "pending_stream_profile": self.devices.get(device_id, {}).get("pending_stream_profile", {}),
+                "stream_profile_updated_at": self.devices.get(device_id, {}).get("stream_profile_updated_at", ""),
             }
             return type("Device", (), self.devices[device_id])()
 
@@ -95,6 +97,12 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
 
         def update_runtime_report(self, device_id, report):
             self.devices[device_id]["last_runtime_report"] = dict(report or {})
+            return type("Device", (), self.devices[device_id])()
+
+        def update_stream_profile(self, device_id, profile):
+            self.devices.setdefault(device_id, {"device_id": device_id, "hostname": device_id})
+            self.devices[device_id]["pending_stream_profile"] = dict(profile or {})
+            self.devices[device_id]["stream_profile_updated_at"] = "2026-04-22T00:01:00Z"
             return type("Device", (), self.devices[device_id])()
 
     class _PoolManager:
@@ -409,6 +417,16 @@ def test_device_sync_route_persists_runtime_report() -> None:
 
 def test_device_sync_route_returns_policy_and_commands() -> None:
     service = _service()
+    service._device_registry.update_stream_profile(
+        "endpoint-a",
+        {
+            "preset": "slow_dsl",
+            "resolution": "1280x720",
+            "fps": 30,
+            "bitrate": 6000,
+            "video_codec": "H.264",
+        },
+    )
     response = service.route_post(
         "/api/v1/endpoints/device/sync",
         endpoint_identity={"endpoint_id": "endpoint-a", "vmid": 100, "node": "beagle-0", "hostname": "thin-01"},
@@ -427,6 +445,8 @@ def test_device_sync_route_returns_policy_and_commands() -> None:
     assert response["payload"]["vpn"]["active"] is True
     assert response["payload"]["device"]["last_runtime_report"] == {}
     assert response["payload"]["health"]["anomaly_count"] == 0
+    assert response["payload"]["policy"]["stream_profile"]["preset"] == "slow_dsl"
+    assert response["payload"]["commands"]["restart_stream"] is True
 
 
 def test_device_sync_route_ingests_metrics_and_emits_alert_counts() -> None:

@@ -310,6 +310,9 @@ class EndpointHttpSurfaceService:
             attestation_record = self._attestation.get_record(device_id)
             allowed, reason = self._attestation.is_session_allowed(device_id)
             policy = self._mdm_policy.resolve_policy(device_id, group=str(getattr(device, "group", "") or ""))
+            stream_profile = getattr(device, "pending_stream_profile", {})
+            if not isinstance(stream_profile, dict):
+                stream_profile = {}
 
             return self._json_response(
                 HTTPStatus.OK,
@@ -337,6 +340,7 @@ class EndpointHttpSurfaceService:
                             "update_window_start_hour": int(getattr(policy, "update_window_start_hour", 2) or 2),
                             "update_window_end_hour": int(getattr(policy, "update_window_end_hour", 4) or 4),
                             "screen_lock_timeout_seconds": int(getattr(policy, "screen_lock_timeout_seconds", 0) or 0),
+                            "stream_profile": stream_profile,
                         },
                         attestation={
                             "allowed": bool(allowed),
@@ -348,6 +352,7 @@ class EndpointHttpSurfaceService:
                             "lock_screen": str(device.status) == "locked",
                             "wipe_pending": str(device.status) == "wipe_pending",
                             "device_status": str(device.status),
+                            "restart_stream": bool(stream_profile),
                         },
                         vpn={
                             "active": bool(vpn.get("active")),

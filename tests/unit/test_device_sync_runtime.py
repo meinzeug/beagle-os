@@ -41,6 +41,46 @@ def test_apply_runtime_sync_response_sets_lock_wipe_and_policy(tmp_path: Path) -
     assert policy["policy_id"] == "corp"
 
 
+def test_apply_runtime_sync_response_writes_stream_profile_env(tmp_path: Path) -> None:
+    response = tmp_path / "sync.json"
+    state_dir = tmp_path / "state"
+    response.write_text(
+        json.dumps(
+            {
+                "commands": {"restart_stream": True},
+                "policy": {
+                    "stream_profile": {
+                        "preset": "slow_dsl",
+                        "resolution": "1280x720",
+                        "fps": 30,
+                        "bitrate": 6000,
+                        "packet_size": 1200,
+                        "video_codec": "H.264",
+                        "video_decoder": "software",
+                        "audio_config": "stereo",
+                        "frame_pacing": True,
+                        "vsync": False,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cmd = (
+        f"source {SCRIPT}\n"
+        f"export BEAGLE_STATE_DIR={state_dir}\n"
+        f"apply_runtime_sync_response {response}\n"
+    )
+    subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), check=True)
+
+    profile_env = (state_dir / "stream-profile.env").read_text(encoding="utf-8")
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET='slow_dsl'" in profile_env
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION='1280x720'" in profile_env
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE='6000'" in profile_env
+    assert not (state_dir / "stream-profile.restart").exists()
+
+
 def test_runtime_device_sync_payload_marks_wireguard_state(tmp_path: Path) -> None:
     bindir = tmp_path / "bin"
     bindir.mkdir(parents=True, exist_ok=True)

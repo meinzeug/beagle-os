@@ -358,6 +358,7 @@ class HandlerMixin:
             desktop_template_builder_service=desktop_template_builder_service(),
             recording_service=recording_service(),
             session_manager_service=session_manager_service(),
+            device_registry_service=device_registry_service(),
             audit_event=self._audit_event,
             requester_identity=self._requester_identity,
             requester_tenant_id=self._requester_tenant_id,

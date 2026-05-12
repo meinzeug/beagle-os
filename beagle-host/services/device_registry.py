@@ -47,6 +47,8 @@ class Device:
     wipe_confirmed_at: str = ""
     last_wipe_report: dict[str, Any] = field(default_factory=dict)
     last_runtime_report: dict[str, Any] = field(default_factory=dict)
+    pending_stream_profile: dict[str, Any] = field(default_factory=dict)
+    stream_profile_updated_at: str = ""
 
 
 def device_hardware_from_dict(d: dict[str, Any]) -> DeviceHardware:
@@ -80,6 +82,8 @@ def device_from_dict(d: dict[str, Any]) -> Device:
         wipe_confirmed_at=d.get("wipe_confirmed_at", ""),
         last_wipe_report=d.get("last_wipe_report", {}) if isinstance(d.get("last_wipe_report", {}), dict) else {},
         last_runtime_report=d.get("last_runtime_report", {}) if isinstance(d.get("last_runtime_report", {}), dict) else {},
+        pending_stream_profile=d.get("pending_stream_profile", {}) if isinstance(d.get("pending_stream_profile", {}), dict) else {},
+        stream_profile_updated_at=d.get("stream_profile_updated_at", ""),
     )
 
 
@@ -254,6 +258,13 @@ class DeviceRegistryService:
     def update_runtime_report(self, device_id: str, report: dict[str, Any]) -> Device:
         dev = self._require(device_id)
         dev["last_runtime_report"] = dict(report or {})
+        self._save()
+        return device_from_dict(dev)
+
+    def update_stream_profile(self, device_id: str, profile: dict[str, Any]) -> Device:
+        dev = self._require(device_id)
+        dev["pending_stream_profile"] = dict(profile or {})
+        dev["stream_profile_updated_at"] = self._utcnow()
         self._save()
         return device_from_dict(dev)
 

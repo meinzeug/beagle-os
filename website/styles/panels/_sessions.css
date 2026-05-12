@@ -13,6 +13,45 @@
 	background: color-mix(in srgb, var(--ok) 10%, transparent);
 }
 
+.session-detail-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-top: 12px;
+}
+
+.session-source-chip {
+	display: inline-flex;
+	align-items: center;
+	min-height: 26px;
+	padding: 0 9px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	font-size: 0.72rem;
+	color: var(--text-muted);
+	background: var(--bg-elevated);
+}
+
+.stream-profile-summary {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.stream-profile-summary span {
+	min-width: 0;
+	padding: 8px 10px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	background: var(--bg-elevated);
+	color: var(--text-secondary);
+	font-size: 0.76rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 #session-detail-body .detail-grid {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -26,5 +65,8 @@
 @media (max-width: 720px) {
 	#session-detail-body .detail-grid {
 		grid-template-columns: 1fr;
+	}
+	.stream-profile-summary {
+		grid-template-columns: 1fr 1fr;
 	}
 }

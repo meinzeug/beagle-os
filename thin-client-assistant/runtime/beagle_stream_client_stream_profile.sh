@@ -1,5 +1,23 @@
 #!/usr/bin/env bash
 
+beagle_stream_profile_override_env() {
+  if [[ -n "${BEAGLE_STREAM_PROFILE_OVERRIDE_ENV:-}" ]]; then
+    printf '%s\n' "$BEAGLE_STREAM_PROFILE_OVERRIDE_ENV"
+    return 0
+  fi
+  if declare -F beagle_state_dir >/dev/null 2>&1; then
+    printf '%s/stream-profile.env\n' "$(beagle_state_dir)"
+    return 0
+  fi
+  printf '%s\n' "/var/lib/beagle-os/stream-profile.env"
+}
+
+BEAGLE_STREAM_PROFILE_OVERRIDE_ENV="$(beagle_stream_profile_override_env)"
+if [[ -r "$BEAGLE_STREAM_PROFILE_OVERRIDE_ENV" ]]; then
+  # shellcheck disable=SC1090
+  source "$BEAGLE_STREAM_PROFILE_OVERRIDE_ENV"
+fi
+
 beagle_stream_client_video_decoder() {
   local configured
   configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-software}"

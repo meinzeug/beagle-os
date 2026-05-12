@@ -134,6 +134,41 @@
       </div>
     </div>
 
+    <div class="modal" id="stream-tune-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog stream-tune-dialog" role="dialog" aria-modal="true" aria-labelledby="stream-tune-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Stream</span>
+            <h2 id="stream-tune-title">Bild fluessig einstellen</h2>
+            <p id="stream-tune-session-label">Waehle zuerst aus, wie schnell die Internetleitung ist.</p>
+          </div>
+          <button class="icon-button" id="stream-tune-close" type="button" aria-label="Schliessen">×</button>
+        </div>
+        <div class="stream-preset-grid" role="group" aria-label="Verbindung auswaehlen">
+          <button class="stream-preset" type="button" data-stream-preset="slow_dsl"><strong>Langsames DSL</strong><span>Fluessiger bei wenig Bandbreite</span></button>
+          <button class="stream-preset" type="button" data-stream-preset="balanced"><strong>Normal</strong><span>Guter Alltag auf stabiler Leitung</span></button>
+          <button class="stream-preset" type="button" data-stream-preset="fast"><strong>Schnell</strong><span>Scharf und direkt bei guter Leitung</span></button>
+          <button class="stream-preset" type="button" data-stream-preset="sharp"><strong>Sehr scharf</strong><span>Hohe Qualitaet fuer starke Leitung</span></button>
+        </div>
+        <form class="stream-tune-grid" id="stream-tune-form">
+          <label class="field"><span>Aufloesung</span><select id="stream-tune-resolution" class="input-select"><option value="1280x720">HD</option><option value="1600x900">HD+</option><option value="1920x1080">Full HD</option><option value="2560x1440">QHD</option><option value="3840x2160">4K</option></select></label>
+          <label class="field"><span>Bilder pro Sekunde</span><input id="stream-tune-fps" type="number" min="24" max="120" step="1"></label>
+          <label class="field"><span>Bildrate</span><input id="stream-tune-bitrate" type="number" min="1500" max="60000" step="500"></label>
+          <label class="field"><span>Videocodec</span><select id="stream-tune-codec" class="input-select"><option value="H.264">H.264</option><option value="H.265">H.265</option><option value="AV1">AV1</option></select></label>
+          <label class="field"><span>Dekoder</span><select id="stream-tune-decoder" class="input-select"><option value="auto">Automatisch</option><option value="software">Kompatibel</option><option value="hardware">Hardware</option></select></label>
+          <label class="field"><span>Audio</span><select id="stream-tune-audio" class="input-select"><option value="stereo">Stereo</option><option value="mono">Mono</option><option value="off">Aus</option><option value="surround">Surround</option></select></label>
+          <label class="field"><span>Paketgroesse</span><input id="stream-tune-packet" type="number" min="900" max="1400" step="10"></label>
+          <label class="field inline-check"><input id="stream-tune-frame-pacing" type="checkbox"><span>Ruhigeres Bild</span></label>
+          <label class="field inline-check"><input id="stream-tune-vsync" type="checkbox"><span>Tearing vermeiden</span></label>
+        </form>
+        <div class="stream-tune-hint" id="stream-tune-hint">Die Aenderung wird an den Thinclient geschickt und der Stream startet mit den neuen Werten neu.</div>
+        <div class="button-row stream-tune-actions">
+          <button class="button ghost" id="stream-tune-cancel" type="button">Abbrechen</button>
+          <button class="button primary" id="stream-tune-save" type="button">Anwenden</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal artifact-build-modal" id="artifact-build-modal" aria-hidden="true" hidden>
       <div class="modal-dialog artifact-build-dialog" role="dialog" aria-modal="true" aria-labelledby="artifact-build-modal-title">
         <div class="modal-dialog-head artifact-build-modal-head">

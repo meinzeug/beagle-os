@@ -231,7 +231,51 @@ class _PoolManagerStub:
         )()
 
 
-def _make_service(*, audit_event=None) -> tuple[PoolsHttpSurfaceService, _PoolManagerStub]:
+class _DeviceRegistryStub:
+    def __init__(self) -> None:
+        self.updated: list[tuple[str, dict]] = []
+        self.devices = {
+            "thinclient-100": type(
+                "Device",
+                (),
+                {
+                    "device_id": "thinclient-100",
+                    "hostname": "beagle-liveusb",
+                    "last_seen": "2026-04-27T03:28:00Z",
+                    "last_runtime_report": {
+                        "stream": {
+                            "active": True,
+                            "vmid": 100,
+                            "host": "192.168.123.114",
+                            "port": "50000",
+                            "app": "Desktop",
+                            "profile": {
+                                "resolution": "1920x1080",
+                                "fps": 60,
+                                "bitrate": 32000,
+                                "video_codec": "H.264",
+                            },
+                            "health": {"fps": 60},
+                        }
+                    },
+                    "pending_stream_profile": {},
+                    "stream_profile_updated_at": "",
+                },
+            )()
+        }
+
+    def list_devices(self):
+        return list(self.devices.values())
+
+    def update_stream_profile(self, device_id: str, profile: dict):
+        self.updated.append((device_id, dict(profile)))
+        device = self.devices[device_id]
+        setattr(device, "pending_stream_profile", dict(profile))
+        setattr(device, "stream_profile_updated_at", "2026-04-27T03:30:00Z")
+        return device
+
+
+def _make_service(*, audit_event=None, device_registry=None) -> tuple[PoolsHttpSurfaceService, _PoolManagerStub]:
     pool_mgr = _PoolManagerStub()
     session_events: list[tuple[str, dict[str, object]]] = []
     metrics = GamingMetricsService(
@@ -282,6 +326,7 @@ def _make_service(*, audit_event=None) -> tuple[PoolsHttpSurfaceService, _PoolMa
                 "get_session": staticmethod(lambda session_id: {"pool_id": "gaming-1"} if session_id == "gaming-1:303" else None),
             },
         )(),
+        device_registry_service=device_registry,
         audit_event=audit_event or (lambda *args, **kwargs: None),
         requester_identity=lambda: "operator",
         requester_tenant_id=lambda: "",
@@ -505,6 +550,52 @@ def test_stream_health_update_mirrors_into_gaming_metrics_for_gaming_pool() -> N
             },
         )
     ]
+
+
+def test_sessions_route_includes_direct_endpoint_streams() -> None:
+    registry = _DeviceRegistryStub()
+    service, _ = _make_service(device_registry=registry)
+
+    response = service.route_get("/api/v1/sessions")
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    direct = [item for item in response["payload"]["sessions"] if item.get("source") == "endpoint_report"]
+    assert len(direct) == 1
+    assert direct[0]["session_id"] == "direct:thinclient-100:100"
+    assert direct[0]["vmid"] == 100
+    assert direct[0]["stream_host"] == "192.168.123.114"
+    assert direct[0]["stream_profile"]["bitrate"] == 32000
+
+
+def test_stream_profile_update_sanitizes_and_stores_direct_endpoint_policy() -> None:
+    registry = _DeviceRegistryStub()
+    service, _ = _make_service(device_registry=registry)
+
+    response = service.route_post(
+        "/api/v1/sessions/direct:thinclient-100:100/stream-profile",
+        json_payload={
+            "preset": "slow_dsl",
+            "resolution": "1280x720",
+            "fps": 20,
+            "bitrate": 100000,
+            "packet_size": 1500,
+            "video_codec": "h264",
+            "video_decoder": "software",
+            "audio_config": "stereo",
+            "frame_pacing": True,
+        },
+    )
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    assert registry.updated[0][0] == "thinclient-100"
+    profile = registry.updated[0][1]
+    assert profile["fps"] == 24
+    assert profile["bitrate"] == 60000
+    assert profile["packet_size"] == 1400
+    assert profile["video_codec"] == "H.264"
+    assert response["payload"]["stream_profile"]["resolution"] == "1280x720"
 
 
 def test_allocate_route_registers_session_with_current_node() -> None:

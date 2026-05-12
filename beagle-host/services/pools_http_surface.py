@@ -36,6 +36,11 @@ class PoolsHttpSurfaceService:
     _POOL_RECYCLE = re.compile(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/recycle$")
     _POOL_SCALE = re.compile(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/scale$")
     _POOL_TEMPLATE = re.compile(r"^/api/v1/pool-templates/(?P<tid>[A-Za-z0-9._-]+)$")
+    _SESSION_STREAM_PROFILE = re.compile(r"^/api/v1/sessions/(?P<session_id>[A-Za-z0-9._:-]+)/stream-profile$")
+    _RESOLUTIONS = {"1280x720", "1600x900", "1920x1080", "2560x1440", "3840x2160"}
+    _CODECS = {"H.264", "H.265", "AV1"}
+    _DECODERS = {"auto", "software", "hardware"}
+    _AUDIO_CONFIGS = {"off", "mono", "stereo", "surround"}
 
     def __init__(
         self,
@@ -57,6 +62,7 @@ class PoolsHttpSurfaceService:
         service_name: str = "beagle-control-plane",
         utcnow: Callable[[], str],
         version: str = "",
+        device_registry_service: Any | None = None,
     ) -> None:
         self._pool_mgr = pool_manager_service
         self._gaming_metrics = gaming_metrics_service
@@ -64,6 +70,7 @@ class PoolsHttpSurfaceService:
         self._template_builder = desktop_template_builder_service
         self._recording = recording_service
         self._session_manager = session_manager_service
+        self._device_registry = device_registry_service
         self._audit_event = audit_event
         self._requester_identity = requester_identity
         self._requester_tenant_id = requester_tenant_id
@@ -110,6 +117,118 @@ class PoolsHttpSurfaceService:
             if int(desktop.get("vmid") or 0) == int(vmid):
                 return str(desktop.get("node") or "").strip()
         return ""
+
+    @staticmethod
+    def _runtime_stream_report(device: Any) -> dict[str, Any]:
+        report = getattr(device, "last_runtime_report", {})
+        if not isinstance(report, dict):
+            return {}
+        stream = report.get("stream") if isinstance(report.get("stream"), dict) else {}
+        if not isinstance(stream, dict):
+            return {}
+        return stream
+
+    def _direct_stream_sessions(self) -> list[dict[str, Any]]:
+        if self._device_registry is None or not hasattr(self._device_registry, "list_devices"):
+            return []
+        sessions: list[dict[str, Any]] = []
+        try:
+            devices = self._device_registry.list_devices()
+        except Exception:
+            return []
+        for device in devices:
+            stream = self._runtime_stream_report(device)
+            if not bool(stream.get("active")):
+                continue
+            try:
+                vmid = int(stream.get("vmid") or 0)
+            except (TypeError, ValueError):
+                vmid = 0
+            device_id = str(getattr(device, "device_id", "") or "").strip()
+            if not device_id:
+                continue
+            profile = stream.get("profile") if isinstance(stream.get("profile"), dict) else {}
+            health = stream.get("health") if isinstance(stream.get("health"), dict) else {}
+            health = dict(health or {})
+            if "fps" not in health and profile.get("fps"):
+                health["fps"] = profile.get("fps")
+            if "updated_at" not in health:
+                health["updated_at"] = str(stream.get("reported_at") or getattr(device, "last_seen", "") or "")
+            session_id = f"direct:{device_id}:{vmid or 'stream'}"
+            sessions.append(
+                {
+                    "session_id": session_id,
+                    "pool_id": "",
+                    "vmid": vmid,
+                    "user_id": str(getattr(device, "hostname", "") or device_id),
+                    "mode": "direct_endpoint_stream",
+                    "state": "streaming",
+                    "assigned_at": str(stream.get("started_at") or getattr(device, "last_seen", "") or ""),
+                    "source": "endpoint_report",
+                    "endpoint_id": device_id,
+                    "endpoint_hostname": str(getattr(device, "hostname", "") or ""),
+                    "stream_host": str(stream.get("host") or ""),
+                    "stream_port": str(stream.get("port") or ""),
+                    "stream_app": str(stream.get("app") or "Desktop"),
+                    "stream_profile": profile,
+                    "stream_health": health,
+                }
+            )
+        return sessions
+
+    @staticmethod
+    def _clamp_int(value: Any, *, default: int, minimum: int, maximum: int) -> int:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            parsed = default
+        return max(minimum, min(maximum, parsed))
+
+    def _normalize_stream_profile_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        preset = str(payload.get("preset") or "balanced").strip().lower().replace("-", "_")
+        presets: dict[str, dict[str, Any]] = {
+            "slow_dsl": {"resolution": "1280x720", "fps": 30, "bitrate": 6000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "software", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
+            "balanced": {"resolution": "1920x1080", "fps": 45, "bitrate": 16000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
+            "fast": {"resolution": "1920x1080", "fps": 60, "bitrate": 32000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": False, "vsync": False},
+            "sharp": {"resolution": "2560x1440", "fps": 60, "bitrate": 45000, "packet_size": 1200, "video_codec": "H.265", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": False, "vsync": True},
+        }
+        base = dict(presets.get(preset, presets["balanced"]))
+        if preset == "manual" or payload.get("manual"):
+            base.update({k: payload.get(k, base.get(k)) for k in base})
+        elif "resolution" in payload or "fps" in payload or "bitrate" in payload:
+            base.update({k: payload.get(k, base.get(k)) for k in base})
+
+        resolution = str(base.get("resolution") or "1920x1080").strip()
+        if resolution not in self._RESOLUTIONS:
+            raise ValueError("resolution must be one of: " + ", ".join(sorted(self._RESOLUTIONS)))
+        codec = str(base.get("video_codec") or "H.264").strip().upper().replace("H264", "H.264").replace("H265", "H.265")
+        if codec == "HEVC":
+            codec = "H.265"
+        if codec not in self._CODECS:
+            raise ValueError("video_codec must be one of: H.264, H.265, AV1")
+        decoder = str(base.get("video_decoder") or "auto").strip().lower()
+        if decoder not in self._DECODERS:
+            raise ValueError("video_decoder must be one of: auto, software, hardware")
+        audio_config = str(base.get("audio_config") or "stereo").strip().lower()
+        if audio_config not in self._AUDIO_CONFIGS:
+            raise ValueError("audio_config must be one of: off, mono, stereo, surround")
+        bitrate = self._clamp_int(base.get("bitrate"), default=16000, minimum=1500, maximum=60000)
+        fps = self._clamp_int(base.get("fps"), default=45, minimum=24, maximum=120)
+        packet_size = self._clamp_int(base.get("packet_size"), default=1200, minimum=900, maximum=1400)
+        return {
+            "preset": preset if preset in {*presets, "manual"} else "balanced",
+            "resolution": resolution,
+            "fps": fps,
+            "bitrate": bitrate,
+            "packet_size": packet_size,
+            "video_codec": codec,
+            "video_decoder": decoder,
+            "audio_config": audio_config,
+            "frame_pacing": bool(base.get("frame_pacing")),
+            "vsync": bool(base.get("vsync")),
+            "updated_at": self._utcnow(),
+            "updated_by": str(self._requester_identity() or ""),
+        }
 
     # ------------------------------------------------------------------
     # GET routing
@@ -194,6 +313,7 @@ class PoolsHttpSurfaceService:
                 if pool_id and not self._can_view_pool(pool_id):
                     continue
                 sessions.append(session)
+            sessions.extend(self._direct_stream_sessions())
             return self._json(HTTPStatus.OK, {"ok": True, "sessions": sessions})
 
         if path == "/api/v1/sessions/handover":
@@ -284,6 +404,8 @@ class PoolsHttpSurfaceService:
             "/api/v1/sessions/stream-health",
         }:
             return True
+        if self._SESSION_STREAM_PROFILE.match(path):
+            return True
         if self._KIOSK_SESSION_END.match(path):
             return True
         if self._KIOSK_SESSION_EXTEND.match(path):
@@ -346,6 +468,44 @@ class PoolsHttpSurfaceService:
                 username=requester,
             )
             return self._json(HTTPStatus.OK, {"ok": True, **self._pool_mgr.lease_to_dict(lease)})
+
+        m = self._SESSION_STREAM_PROFILE.match(path)
+        if m:
+            session_id = m.group("session_id")
+            parts = session_id.split(":")
+            if len(parts) < 3 or parts[0] != "direct":
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "stream tuning is only available for direct endpoint sessions"})
+            device_id = parts[1]
+            if self._device_registry is None or not hasattr(self._device_registry, "update_stream_profile"):
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "device registry does not support stream tuning"})
+            try:
+                profile = self._normalize_stream_profile_payload(p)
+                device = self._device_registry.update_stream_profile(device_id, profile)
+            except KeyError:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "endpoint not found"})
+            except (ValueError, TypeError) as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._safe_audit_event(
+                "session.stream_profile.update",
+                "success",
+                session_id=session_id,
+                endpoint_id=device_id,
+                username=requester,
+            )
+            return self._json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "session_id": session_id,
+                    "endpoint_id": device_id,
+                    "stream_profile": profile,
+                    "device": {
+                        "device_id": str(getattr(device, "device_id", device_id) or device_id),
+                        "hostname": str(getattr(device, "hostname", "") or ""),
+                        "stream_profile_updated_at": str(getattr(device, "stream_profile_updated_at", "") or ""),
+                    },
+                },
+            )
 
         if path == "/api/v1/pools":
             from core.virtualization.desktop_pool import DesktopPoolMode, DesktopPoolSpec, DesktopPoolType, SessionRecordingPolicy

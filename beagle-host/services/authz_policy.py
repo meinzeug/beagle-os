@@ -167,6 +167,8 @@ class AuthzPolicyService:
                 return "pool:write"
             if route == "/api/v1/sessions/stream-health":
                 return "pool:write"
+            if re.match(r"^/api/v1/sessions/[A-Za-z0-9._:-]+/stream-profile$", route):
+                return "pool:write"
             if route in {"/api/v1/scheduler/warm-pools/apply", "/api/v1/energy/hourly-profile/import"}:
                 return "settings:write"
         if verb == "PUT":

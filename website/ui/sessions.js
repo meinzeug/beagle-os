@@ -1,4 +1,4 @@
-import { request } from './api.js';
+import { postJson, request } from './api.js';
 import { escapeHtml, fieldBlock, formatDate, qs } from './dom.js';
 import { state } from './state.js';
 import { t } from './i18n.js';
@@ -51,6 +51,121 @@ function selectedSession() {
   return sessions.find((item) => String(item.session_id || '') === String(state.selectedSessionId || '')) || null;
 }
 
+const STREAM_PRESETS = {
+  slow_dsl: { resolution: '1280x720', fps: 30, bitrate: 6000, packet_size: 1200, video_codec: 'H.264', video_decoder: 'software', audio_config: 'stereo', frame_pacing: true, vsync: false },
+  balanced: { resolution: '1920x1080', fps: 45, bitrate: 16000, packet_size: 1200, video_codec: 'H.264', video_decoder: 'auto', audio_config: 'stereo', frame_pacing: true, vsync: false },
+  fast: { resolution: '1920x1080', fps: 60, bitrate: 32000, packet_size: 1200, video_codec: 'H.264', video_decoder: 'auto', audio_config: 'stereo', frame_pacing: false, vsync: false },
+  sharp: { resolution: '2560x1440', fps: 60, bitrate: 45000, packet_size: 1200, video_codec: 'H.265', video_decoder: 'auto', audio_config: 'stereo', frame_pacing: false, vsync: true }
+};
+
+function setModalHidden(modal, hidden) {
+  if (!modal) {
+    return;
+  }
+  modal.hidden = Boolean(hidden);
+  modal.setAttribute('aria-hidden', hidden ? 'true' : 'false');
+  document.body.classList.toggle('modal-open', !hidden);
+}
+
+function encodeSessionId(sessionId) {
+  return encodeURIComponent(String(sessionId || '')).replace(/%3A/gi, ':');
+}
+
+function updatePresetButtons(preset) {
+  document.querySelectorAll('[data-stream-preset]').forEach((button) => {
+    button.classList.toggle('is-active', String(button.getAttribute('data-stream-preset') || '') === String(preset || ''));
+  });
+}
+
+function fillTuneForm(profile, preset) {
+  const values = Object.assign({}, STREAM_PRESETS[preset] || STREAM_PRESETS.balanced, profile || {});
+  const setValue = (id, value) => {
+    const node = qs(id);
+    if (node) {
+      node.value = String(value == null ? '' : value);
+    }
+  };
+  setValue('stream-tune-resolution', values.resolution || '1920x1080');
+  setValue('stream-tune-fps', values.fps || 45);
+  setValue('stream-tune-bitrate', values.bitrate || 16000);
+  setValue('stream-tune-codec', values.video_codec || 'H.264');
+  setValue('stream-tune-decoder', values.video_decoder || 'auto');
+  setValue('stream-tune-audio', values.audio_config || 'stereo');
+  setValue('stream-tune-packet', values.packet_size || 1200);
+  const framePacing = qs('stream-tune-frame-pacing');
+  const vsync = qs('stream-tune-vsync');
+  if (framePacing) {
+    framePacing.checked = Boolean(values.frame_pacing);
+  }
+  if (vsync) {
+    vsync.checked = Boolean(values.vsync);
+  }
+  state.streamTunePreset = preset || values.preset || 'balanced';
+  updatePresetButtons(state.streamTunePreset);
+}
+
+function openTuneModal(session) {
+  if (!session || !session.endpoint_id) {
+    sessionHooks.setBanner('Diese Session kann noch nicht direkt getunt werden.', 'warn');
+    return;
+  }
+  state.streamTuneSessionId = String(session.session_id || '');
+  const label = qs('stream-tune-session-label');
+  if (label) {
+    label.textContent = 'Session ' + state.streamTuneSessionId + ' auf VM ' + String(session.vmid || '-') + '.';
+  }
+  const profile = session.stream_profile && typeof session.stream_profile === 'object' ? session.stream_profile : {};
+  fillTuneForm(profile, profile.preset || 'balanced');
+  setModalHidden(qs('stream-tune-modal'), false);
+}
+
+function closeTuneModal() {
+  setModalHidden(qs('stream-tune-modal'), true);
+}
+
+function collectTunePayload() {
+  const value = (id, fallback) => {
+    const node = qs(id);
+    return node ? node.value : fallback;
+  };
+  return {
+    preset: state.streamTunePreset || 'manual',
+    manual: true,
+    resolution: value('stream-tune-resolution', '1920x1080'),
+    fps: Number(value('stream-tune-fps', 45)),
+    bitrate: Number(value('stream-tune-bitrate', 16000)),
+    packet_size: Number(value('stream-tune-packet', 1200)),
+    video_codec: value('stream-tune-codec', 'H.264'),
+    video_decoder: value('stream-tune-decoder', 'auto'),
+    audio_config: value('stream-tune-audio', 'stereo'),
+    frame_pacing: Boolean(qs('stream-tune-frame-pacing') && qs('stream-tune-frame-pacing').checked),
+    vsync: Boolean(qs('stream-tune-vsync') && qs('stream-tune-vsync').checked)
+  };
+}
+
+function saveTuneProfile() {
+  const sessionId = String(state.streamTuneSessionId || '');
+  if (!sessionId) {
+    return Promise.resolve();
+  }
+  const saveButton = qs('stream-tune-save');
+  if (saveButton) {
+    saveButton.disabled = true;
+  }
+  return postJson('/sessions/' + encodeSessionId(sessionId) + '/stream-profile', collectTunePayload()).then((payload) => {
+    sessionHooks.setBanner('Stream-Einstellung gespeichert. Der Thinclient uebernimmt sie beim naechsten Sync.', 'ok');
+    closeTuneModal();
+    return reloadSessionsPanel().then(() => payload);
+  }).catch((error) => {
+    sessionHooks.setBanner('Stream-Einstellung fehlgeschlagen: ' + String(error && error.message ? error.message : error), 'warn');
+    throw error;
+  }).finally(() => {
+    if (saveButton) {
+      saveButton.disabled = false;
+    }
+  });
+}
+
 function renderSessionDetail(session) {
   const detailNode = qs('session-detail-body');
   if (!detailNode) {
@@ -65,6 +180,9 @@ function renderSessionDetail(session) {
     return;
   }
   const metrics = session.stream_health && typeof session.stream_health === 'object' ? session.stream_health : null;
+  const profile = session.stream_profile && typeof session.stream_profile === 'object' ? session.stream_profile : null;
+  const tuneAction = session.endpoint_id ? '<button class="button primary small" type="button" data-session-tune="1">Stream einstellen</button>' : '';
+  const sourceLabel = session.source === 'endpoint_report' ? 'Direkter Thinclient-Stream' : 'Pool-Session';
   detailNode.innerHTML =
     '<div class="detail-grid">' +
     fieldBlock('Session ID', String(session.session_id || '-'), 'mono') +
@@ -79,7 +197,14 @@ function renderSessionDetail(session) {
     fieldBlock('Dropped Frames', numberOrDash(metrics && metrics.dropped_frames, '')) +
     fieldBlock('Encoder Load', numberOrDash(metrics && metrics.encoder_load, ' %')) +
     fieldBlock('Metrik-Update', formatDate(metrics && metrics.updated_at ? metrics.updated_at : '')) +
-    '</div>';
+    '</div>' +
+    '<div class="stream-profile-summary">' +
+    '<span>' + escapeHtml(String(profile && profile.resolution ? profile.resolution : '-')) + '</span>' +
+    '<span>' + escapeHtml(String(profile && profile.fps ? profile.fps + ' FPS' : '-')) + '</span>' +
+    '<span>' + escapeHtml(String(profile && profile.bitrate ? Math.round(Number(profile.bitrate) / 1000) + ' Mbit' : '-')) + '</span>' +
+    '<span>' + escapeHtml(String(profile && profile.video_codec ? profile.video_codec : '-')) + '</span>' +
+    '</div>' +
+    '<div class="session-detail-actions"><span class="session-source-chip">' + escapeHtml(sourceLabel) + '</span>' + tuneAction + '</div>';
 }
 
 export function renderSessionsPanel() {
@@ -187,6 +312,37 @@ export function bindSessionsEvents() {
       }
       state.selectedSessionId = String(row.getAttribute('data-session-id') || '');
       renderSessionsPanel();
+    });
+  }
+
+  const detailBody = qs('session-detail-body');
+  if (detailBody) {
+    detailBody.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.closest('[data-session-tune]')) {
+        return;
+      }
+      openTuneModal(selectedSession());
+    });
+  }
+
+  const closeButtons = [qs('stream-tune-close'), qs('stream-tune-cancel')];
+  closeButtons.forEach((button) => {
+    if (button) {
+      button.addEventListener('click', closeTuneModal);
+    }
+  });
+  document.querySelectorAll('[data-stream-preset]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const preset = String(button.getAttribute('data-stream-preset') || 'balanced');
+      state.streamTunePreset = preset;
+      fillTuneForm(STREAM_PRESETS[preset] || STREAM_PRESETS.balanced, preset);
+    });
+  });
+  const saveButton = qs('stream-tune-save');
+  if (saveButton) {
+    saveButton.addEventListener('click', () => {
+      saveTuneProfile().catch(() => {});
     });
   }
 }

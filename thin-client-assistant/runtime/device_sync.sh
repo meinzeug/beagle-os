@@ -280,7 +280,7 @@ PY
 }
 
 runtime_report_json() {
-  local lock_active lock_marker lock_pid session_type backend displays_json info_file
+  local lock_active lock_marker lock_pid session_type backend displays_json info_file stream_active stream_pid stream_started stream_host stream_port stream_app stream_vmid stream_profile_json profile_override_env
   if [[ -f "$(runtime_lock_state_file_path)" ]]; then
     lock_active=1
   else
@@ -315,10 +315,59 @@ PY
 )"
     fi
   fi
+  profile_override_env="${BEAGLE_STREAM_PROFILE_OVERRIDE_ENV:-$(beagle_state_dir)/stream-profile.env}"
+  if [[ -r "$profile_override_env" ]]; then
+    # shellcheck disable=SC1090
+    source "$profile_override_env"
+  fi
+  if pgrep -x beagle-stream >/dev/null 2>&1 || pgrep -x beagle-stream-client >/dev/null 2>&1; then
+    stream_active=1
+    stream_pid="$(pgrep -xo beagle-stream 2>/dev/null || pgrep -xo beagle-stream-client 2>/dev/null || true)"
+  else
+    stream_active=0
+    stream_pid=""
+  fi
+  stream_started=""
+  if [[ -n "$stream_pid" && -r "/proc/$stream_pid/stat" ]]; then
+    stream_started="$(awk '{print $22}' "/proc/$stream_pid/stat" 2>/dev/null || true)"
+  fi
+  stream_host="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BROKER_HOST:-}}"
+  stream_port="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT:-${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_STREAM_PORT:-}}"
+  stream_app="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP:-Desktop}"
+  stream_vmid="${PVE_THIN_CLIENT_BEAGLE_VMID:-${PVE_THIN_CLIENT_PRESET_BEAGLE_VMID:-0}}"
+  stream_profile_json="$(python3 - <<'PY'
+import json
+import os
 
-  python3 - "$lock_active" "$lock_marker" "$lock_pid" "$session_type" "$backend" "$displays_json" <<'PY'
+def env(name, default=""):
+    return str(os.environ.get(name, default) or default)
+
+def as_int(name, default):
+    try:
+        return int(env(name, str(default)))
+    except ValueError:
+        return default
+
+payload = {
+    "preset": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET", ""),
+    "resolution": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION", "auto"),
+    "fps": as_int("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS", 60),
+    "bitrate": as_int("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE", 32000),
+    "packet_size": as_int("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE", 0),
+    "video_codec": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC", "H.264"),
+    "video_decoder": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER", "software"),
+    "audio_config": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG", "stereo"),
+    "frame_pacing": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING", "") == "1",
+    "vsync": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC", "") == "1",
+}
+print(json.dumps(payload))
+PY
+)"
+
+  python3 - "$lock_active" "$lock_marker" "$lock_pid" "$session_type" "$backend" "$displays_json" "$stream_active" "$stream_pid" "$stream_started" "$stream_host" "$stream_port" "$stream_app" "$stream_vmid" "$stream_profile_json" <<'PY'
 import json
 import sys
+profile = json.loads(sys.argv[14] or "{}")
 
 payload = {
     "lock_active": sys.argv[1] == "1",
@@ -327,6 +376,19 @@ payload = {
     "session_type": sys.argv[4],
     "lock_screen_backend": sys.argv[5],
     "x11_displays": json.loads(sys.argv[6] or "[]"),
+    "stream": {
+      "active": sys.argv[7] == "1",
+      "pid": int(sys.argv[8] or "0"),
+      "started_at": sys.argv[9],
+      "host": sys.argv[10],
+      "port": sys.argv[11],
+      "app": sys.argv[12] or "Desktop",
+      "vmid": int(sys.argv[13] or "0"),
+      "profile": profile,
+      "health": {
+        "fps": profile.get("fps") if isinstance(profile, dict) else None,
+      },
+    },
 }
 print(json.dumps(payload))
 PY
@@ -356,6 +418,9 @@ runtime_device_sync_payload() {
 
   python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" "$wipe_report_json" "$runtime_report_json" "$uptime_hours" "$reboot_count_7d" "$cpu_temp_c" "$network_errors" <<'PY'
 import json, sys
+runtime_report = json.loads(sys.argv[13] or "{}")
+stream_report = runtime_report.get("stream") if isinstance(runtime_report, dict) else {}
+streaming_active = bool(stream_report.get("active")) if isinstance(stream_report, dict) else False
 
 payload = {
     "device_id": sys.argv[1],
@@ -375,7 +440,7 @@ payload = {
         "assigned_ip": sys.argv[11],
     },
     "metrics": {
-        "streaming_active": False,
+      "streaming_active": streaming_active,
         "uptime_hours": float(sys.argv[14] or "0"),
         "reboot_count_7d": int(float(sys.argv[15] or "0")),
         "cpu_temp_c": float(sys.argv[16] or "0"),
@@ -388,7 +453,7 @@ payload = {
     },
     "reports": {
         "wipe": json.loads(sys.argv[12] or "{}"),
-        "runtime": json.loads(sys.argv[13] or "{}"),
+      "runtime": runtime_report,
     },
 }
 print(json.dumps(payload))
@@ -399,14 +464,16 @@ apply_runtime_sync_response() {
   local response_file="${1:-}"
   [[ -r "$response_file" ]] || return 1
 
-  local state_dir lock_file wipe_file policy_file
+  local state_dir lock_file wipe_file policy_file stream_env_file restart_marker
   state_dir="$(beagle_state_dir)"
   mkdir -p "$state_dir" >/dev/null 2>&1 || true
   lock_file="$state_dir/device.locked"
   wipe_file="$state_dir/device.wipe-pending"
   policy_file="$state_dir/device-policy.json"
+  stream_env_file="$state_dir/stream-profile.env"
+  restart_marker="$state_dir/stream-profile.restart"
 
-  python3 - "$response_file" "$lock_file" "$wipe_file" "$policy_file" <<'PY'
+  python3 - "$response_file" "$lock_file" "$wipe_file" "$policy_file" "$stream_env_file" "$restart_marker" <<'PY'
 import json, sys
 from pathlib import Path
 
@@ -417,6 +484,8 @@ policy = payload.get("policy") if isinstance(payload, dict) else {}
 lock_file = Path(sys.argv[2])
 wipe_file = Path(sys.argv[3])
 policy_file = Path(sys.argv[4])
+stream_env_file = Path(sys.argv[5])
+restart_marker = Path(sys.argv[6])
 
 if commands.get("lock_screen"):
     lock_file.write_text("locked\n", encoding="utf-8")
@@ -429,7 +498,46 @@ else:
     wipe_file.unlink(missing_ok=True)
 
 policy_file.write_text(json.dumps(policy, indent=2), encoding="utf-8")
+
+stream_profile = policy.get("stream_profile") if isinstance(policy, dict) else {}
+if not isinstance(stream_profile, dict):
+  stream_profile = {}
+
+def shell_value(value):
+  text = str(value)
+  return "'" + text.replace("'", "'\\''") + "'"
+
+env_map = {}
+if stream_profile:
+  env_map = {
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET": stream_profile.get("preset", ""),
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION": stream_profile.get("resolution", "1920x1080"),
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS": stream_profile.get("fps", 45),
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE": stream_profile.get("bitrate", 16000),
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE": stream_profile.get("packet_size", 1200),
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC": stream_profile.get("video_codec", "H.264"),
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER": stream_profile.get("video_decoder", "auto"),
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG": stream_profile.get("audio_config", "stereo"),
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING": "1" if stream_profile.get("frame_pacing") else "0",
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC": "1" if stream_profile.get("vsync") else "0",
+  }
+
+content = "".join(f"export {key}={shell_value(value)}\n" for key, value in env_map.items())
+old = stream_env_file.read_text(encoding="utf-8") if stream_env_file.exists() else ""
+if content != old:
+  if content:
+    stream_env_file.write_text(content, encoding="utf-8")
+  else:
+    stream_env_file.unlink(missing_ok=True)
+  restart_marker.write_text("restart\n", encoding="utf-8")
 PY
+  if [[ -f "$restart_marker" ]]; then
+  rm -f "$restart_marker" >/dev/null 2>&1 || true
+  if pgrep -x beagle-stream >/dev/null 2>&1 || pgrep -x beagle-stream-client >/dev/null 2>&1; then
+    pkill -TERM -x beagle-stream >/dev/null 2>&1 || true
+    pkill -TERM -x beagle-stream-client >/dev/null 2>&1 || true
+  fi
+  fi
 }
 
 sync_device_runtime_state() {

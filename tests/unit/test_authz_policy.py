@@ -40,6 +40,10 @@ class AuthzPolicyServiceTests(unittest.TestCase):
             AuthzPolicyService.required_permission("POST", "/api/v1/sessions/stream-health"),
             "pool:write",
         )
+        self.assertEqual(
+            AuthzPolicyService.required_permission("POST", "/api/v1/sessions/direct:thinclient-100:100/stream-profile"),
+            "pool:write",
+        )
 
     def test_ha_routes_require_cluster_write(self):
         self.assertEqual(
