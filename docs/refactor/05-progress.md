@@ -7551,3 +7551,37 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 **Rest-Risiko / Beobachtung**:
 - Lauf war waehrend dieses Runs noch aktiv (`ActiveState=activating`) und im Hintergrund mit `apt-get full-upgrade` beschaeftigt.
 - Auf srv1 besteht eine grosse Pending-Welle inkl. Pakettransitionen; finaler Success/Fail des einzelnen Laufs muss nach Abschluss im Journal bzw. Status-JSON kontrolliert werden.
+
+---
+
+## 2026-05-12 — BeagleStream Fork-Update & Debian-13-Build-Pipeline
+
+**Scope**: Beide beagle-stream Forks auf aktuellen Upstream gebracht, FFmpeg-Bundling-Fehler im AppImage behoben, CI für Debian-13-Release-Build aktualisiert.
+
+**Root Cause (AppImage-Fehler)**:
+- `BeagleStream-latest-x86_64.AppImage` wurde gegen FFmpeg 8.1.1 (`libavcodec.so.62`) gebaut, da upstream die CI auf FFmpeg-from-source umgestellt hat.
+- Das AppImage bundelt FFmpeg nicht (kein expliziter `--library`-Flag), weshalb `libavcodec.so.62` auf Thin Clients mit Ubuntu 24.04/libavcodec61 fehlte.
+
+**Umsetzung**:
+
+**beagle-stream-client** (`~/beagle-stream-client`, `beagle/phase-a`):
+- `git rebase upstream/master` — clean, 13 Beagle-Commits rebased.
+- `scripts/build-appimage.sh`: explizite `--library`-Flags für `libavcodec.so`, `libavformat.so`, `libswscale.so`, `libavutil.so` hinzugefügt.
+- Push nach `meinzeug/beagle-stream-client` — CI läuft (Build + AppImage-Release).
+
+**beagle-stream-server** (`~/beagle-stream-server`, `beagle/phase-a`):
+- `git merge --allow-unrelated-histories upstream/master`:
+  - CI/cmake/docs/packaging: upstream-Version übernommen.
+  - src/ (Beagle-Integration): Beagle-Version behalten.
+- `.github/workflows/beagle-release.yml`: `libpipewire-0.3-dev` und `libinput-dev` als Build-Deps ergänzt (upstream cmake erfordert PipeWire).
+- Push nach `meinzeug/beagle-stream-server` — CI läuft (deb-Build).
+
+**Status**:
+- CI beider Repos läuft aktiv auf GitHub Actions.
+- AppImage-Build dauert ~30–60 min (FFmpeg from source).
+- Nach Abschluss: neues AppImage/deb in GitHub Releases verfügbar.
+- Thin Client TC: Update-Skript auf `/opt/beagle-stream-client/` muss nach Release ausgeführt werden.
+
+**Rest-Risiken**:
+- Server-Merge behält Beagle-src-Versionen (nicht rebased) → upstream src-Verbesserungen fehlen.
+- Folgend: selektive Upstream-Integration in src/platform/linux/ empfohlen.
