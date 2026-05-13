@@ -1,0 +1,31 @@
+#!/bin/sh
+# 014-plymouth-beagle-theme.hook.chroot
+# Activate the Beagle OS Plymouth boot theme and rebuild initramfs.
+set -eu
+
+THEME_NAME=beagle-os
+THEME_DIR=/usr/share/plymouth/themes/${THEME_NAME}
+
+if [ ! -f "${THEME_DIR}/${THEME_NAME}.plymouth" ]; then
+    echo "WARNING: Beagle OS Plymouth theme not found at ${THEME_DIR}" >&2
+    exit 1
+fi
+
+# Register theme with update-alternatives (makes it the default)
+update-alternatives --install \
+    /usr/share/plymouth/themes/default.plymouth \
+    default.plymouth \
+    "${THEME_DIR}/${THEME_NAME}.plymouth" \
+    200 || true
+
+update-alternatives --set \
+    default.plymouth \
+    "${THEME_DIR}/${THEME_NAME}.plymouth" || true
+
+# Set as default Plymouth theme
+plymouth-set-default-theme "${THEME_NAME}" || true
+
+# Rebuild initramfs so the theme is included in the live initrd
+update-initramfs -u >/dev/null 2>&1 || true
+
+echo "Beagle OS Plymouth theme activated: ${THEME_NAME}"

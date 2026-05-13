@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Beagle OS
+Description=Beagle OS animated boot splash — dual-ring spinner with status messages
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/beagle-os
+ScriptFile=/usr/share/plymouth/themes/beagle-os/beagle-os.script

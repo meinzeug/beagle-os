@@ -1,0 +1,187 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║            BEAGLE OS  —  Boot Splash Theme                   ║
+// ║  Dual-ring animated spinner · Status text · Full-screen      ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── Pi constant (safer than Math.Pi on some Plymouth builds) ──
+Pi = 3.14159265358979;
+
+// ── Background ────────────────────────────────────────────────
+Window.SetBackgroundTopColor    (0.03, 0.03, 0.09);
+Window.SetBackgroundBottomColor (0.00, 0.00, 0.03);
+
+// ── Screen dimensions ─────────────────────────────────────────
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+cx       = screen_w / 2;
+cy       = screen_h / 2;
+
+// ── Logo shadow ───────────────────────────────────────────────
+logo_shadow_img = Image.Text("BEAGLE OS", 0.0, 0.12, 0.30, 0.85, "Sans Bold 54");
+logo_shadow     = Sprite(logo_shadow_img);
+logo_shadow.SetPosition(cx - logo_shadow_img.GetWidth() / 2 + 3,
+                        cy - 120 + 3, 1);
+
+// ── Main logo ─────────────────────────────────────────────────
+logo_img    = Image.Text("BEAGLE OS", 0.0, 0.72, 1.0, 1.0, "Sans Bold 54");
+logo_sprite = Sprite(logo_img);
+logo_sprite.SetPosition(cx - logo_img.GetWidth() / 2, cy - 120, 2);
+
+// ── Tagline ───────────────────────────────────────────────────
+tag_img    = Image.Text("Thin Client  \xc2\xb7  Live System", 0.30, 0.58, 0.80, 1.0, "Sans 15");
+tag_sprite = Sprite(tag_img);
+tag_sprite.SetPosition(cx - tag_img.GetWidth() / 2, cy - 54, 2);
+
+// ── Decorative rule ───────────────────────────────────────────
+rule_img = Image.Text(
+    "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -",
+    0.0, 0.28, 0.55, 0.45, "Sans Mono 9");
+rule_spr = Sprite(rule_img);
+rule_spr.SetPosition(cx - rule_img.GetWidth() / 2, cy - 22, 2);
+
+// ── Status text ───────────────────────────────────────────────
+status_y   = cy + 118;
+status_img = Image.Text("Initializing Beagle OS ...", 0.55, 0.82, 1.0, 1.0, "Sans 14");
+status_spr = Sprite(status_img);
+status_spr.SetPosition(cx - status_img.GetWidth() / 2, status_y, 3);
+
+// ── Spinner geometry ──────────────────────────────────────────
+spin_cx = cx;
+spin_cy = cy + 26;   // centered slightly below tagline / above status
+
+inner_n = 14;
+inner_r = 52;
+outer_n = 22;
+outer_r = 80;
+
+// ── Build inner ring ──────────────────────────────────────────
+i = 0;
+while (i < inner_n) {
+    dot_img = Image.Text("*", 0.0, 0.78, 1.0, 1.0, "Sans Bold 12");
+    dot_s   = Sprite(dot_img);
+    angle   = (i / inner_n) * 2 * Pi;
+    dot_s.SetPosition(
+        spin_cx + Math.Sin(angle) * inner_r - dot_img.GetWidth()  / 2,
+        spin_cy - Math.Cos(angle) * inner_r - dot_img.GetHeight() / 2,
+        2);
+    dot_s.SetOpacity(0);
+    inner_dots[i] = dot_s;
+    i = i + 1;
+}
+
+// ── Build outer ring ──────────────────────────────────────────
+i = 0;
+while (i < outer_n) {
+    dot_img = Image.Text(".", 0.0, 0.38, 0.72, 1.0, "Sans Bold 14");
+    dot_s   = Sprite(dot_img);
+    angle   = (i / outer_n) * 2 * Pi;
+    dot_s.SetPosition(
+        spin_cx + Math.Sin(angle) * outer_r - dot_img.GetWidth()  / 2,
+        spin_cy - Math.Cos(angle) * outer_r - dot_img.GetHeight() / 2,
+        2);
+    dot_s.SetOpacity(0);
+    outer_dots[i] = dot_s;
+    i = i + 1;
+}
+
+// ── Corner decorations ────────────────────────────────────────
+pad = 20;
+
+c_tl_img = Image.Text("+ -- +", 0.0, 0.22, 0.45, 0.40, "Sans Mono 11");
+c_tl     = Sprite(c_tl_img);
+c_tl.SetPosition(pad, pad, 1);
+
+c_tr_img = Image.Text("+ -- +", 0.0, 0.22, 0.45, 0.40, "Sans Mono 11");
+c_tr     = Sprite(c_tr_img);
+c_tr.SetPosition(screen_w - c_tr_img.GetWidth() - pad, pad, 1);
+
+c_bl_img = Image.Text("+ -- +", 0.0, 0.22, 0.45, 0.40, "Sans Mono 11");
+c_bl     = Sprite(c_bl_img);
+c_bl.SetPosition(pad, screen_h - c_bl_img.GetHeight() - pad, 1);
+
+c_br_img = Image.Text("+ -- +", 0.0, 0.22, 0.45, 0.40, "Sans Mono 11");
+c_br     = Sprite(c_br_img);
+c_br.SetPosition(screen_w - c_br_img.GetWidth() - pad,
+                 screen_h - c_br_img.GetHeight() - pad, 1);
+
+// ── Domain label ─────────────────────────────────────────────
+dom_img = Image.Text("beagle-os.com", 0.15, 0.32, 0.52, 0.48, "Sans 10");
+dom_spr = Sprite(dom_img);
+dom_spr.SetPosition(screen_w - dom_img.GetWidth() - pad - 4,
+                    screen_h - dom_img.GetHeight() - pad - 2, 1);
+
+// ── Animation state ───────────────────────────────────────────
+tick      = 0;
+logo_tick = 0;
+
+// ── Refresh callback (called ~50x per second by Plymouth) ─────
+fun refresh_callback() {
+    global tick, logo_tick;
+    global inner_n, inner_dots;
+    global outer_n, outer_dots;
+    global logo_sprite;
+
+    tick      = tick      + 0.072;
+    logo_tick = logo_tick + 0.032;
+
+    // Inner ring — fast clockwise sweep
+    i = 0;
+    while (i < inner_n) {
+        phase   = tick * 2.8 - (i / inner_n) * 2 * Pi;
+        raw     = (Math.Sin(phase) + 1) / 2;
+        inner_dots[i].SetOpacity(raw * raw);
+        i = i + 1;
+    }
+
+    // Outer ring — slow counter-clockwise, dimmer
+    i = 0;
+    while (i < outer_n) {
+        phase   = -(tick * 1.3) - (i / outer_n) * 2 * Pi;
+        raw     = (Math.Sin(phase) + 1) / 2;
+        outer_dots[i].SetOpacity(raw * 0.52);
+        i = i + 1;
+    }
+
+    // Logo gentle glow pulse
+    logo_sprite.SetOpacity(0.80 + Math.Sin(logo_tick) * 0.20);
+}
+
+Plymouth.SetRefreshFunction(refresh_callback);
+
+// ── Message callback ──────────────────────────────────────────
+fun message_callback(text) {
+    global status_spr, cx, status_y;
+    if (text != "") {
+        new_img = Image.Text(text, 0.55, 0.82, 1.0, 1.0, "Sans 14");
+        status_spr.SetImage(new_img);
+        status_spr.SetPosition(cx - new_img.GetWidth() / 2, status_y, 3);
+        status_spr.SetOpacity(1);
+    }
+}
+
+Plymouth.SetDisplayMessageFunction(message_callback);
+
+// ── Hide-all on quit (clean handoff to login) ─────────────────
+fun quit_callback() {
+    global logo_sprite, logo_shadow, tag_sprite, rule_spr;
+    global status_spr, c_tl, c_tr, c_bl, c_br, dom_spr;
+    global inner_n, inner_dots, outer_n, outer_dots;
+
+    logo_sprite.SetOpacity(0);
+    logo_shadow.SetOpacity(0);
+    tag_sprite.SetOpacity(0);
+    rule_spr.SetOpacity(0);
+    status_spr.SetOpacity(0);
+    c_tl.SetOpacity(0);
+    c_tr.SetOpacity(0);
+    c_bl.SetOpacity(0);
+    c_br.SetOpacity(0);
+    dom_spr.SetOpacity(0);
+
+    i = 0;
+    while (i < inner_n) { inner_dots[i].SetOpacity(0); i = i + 1; }
+    i = 0;
+    while (i < outer_n) { outer_dots[i].SetOpacity(0); i = i + 1; }
+}
+
+Plymouth.SetQuitFunction(quit_callback);
