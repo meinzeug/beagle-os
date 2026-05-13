@@ -9,7 +9,7 @@ if [[ ! -d "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" || ! -w "$BEAGLE_STREAM_CLIENT_RU
   BEAGLE_STREAM_CLIENT_RUNTIME_DIR="/tmp"
 fi
 export XDG_RUNTIME_DIR="$BEAGLE_STREAM_CLIENT_RUNTIME_DIR"
-BEAGLE_STREAM_CLIENT_LOCK_FILE="${BEAGLE_STREAM_CLIENT_RUNTIME_DIR}/beagle-stream-client-launch.lock"
+BEAGLE_STREAM_CLIENT_LOCK_FILE="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCK_FILE:-/tmp/beagle-stream-client-launch.lock}"
 exec 9>"$BEAGLE_STREAM_CLIENT_LOCK_FILE"
 flock -n 9 || exit 0
 
@@ -52,8 +52,61 @@ BEAGLE_STREAM_CLIENT_LOG_DIR="${PVE_THIN_CLIENT_LOG_DIR:-${XDG_RUNTIME_DIR:-/tmp
 BEAGLE_STREAM_CLIENT_LIST_LOG="$BEAGLE_STREAM_CLIENT_LOG_DIR/beagle-stream-client-list.log"
 BEAGLE_STREAM_CLIENT_PAIR_LOG="$BEAGLE_STREAM_CLIENT_LOG_DIR/beagle-stream-client-pair.log"
 BEAGLE_STREAM_CLIENT_STREAM_LOG="$BEAGLE_STREAM_CLIENT_LOG_DIR/beagle-stream-client-stream.log"
+BEAGLE_STREAM_CLIENT_STARTUP_STATE_FILE="$BEAGLE_STREAM_CLIENT_LOG_DIR/beagle-stream-client-startup.state"
+BEAGLE_STREAM_CLIENT_STARTUP_UI_PID=""
 
 mkdir -p "$BEAGLE_STREAM_CLIENT_LOG_DIR" 2>/dev/null || true
+
+beagle_stream_startup_status_enabled() {
+  [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_ENABLED:-1}" == "1" ]]
+}
+
+beagle_stream_startup_status_start() {
+  local title
+
+  beagle_stream_startup_status_enabled || return 0
+  [[ -n "${DISPLAY:-}" ]] || return 0
+  command -v zenity >/dev/null 2>&1 || return 0
+
+  title="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_TITLE:-Beagle OS verbindet Stream}"
+  printf '%s\n' "Schritt 1/10: Runtime initialisieren" >"$BEAGLE_STREAM_CLIENT_STARTUP_STATE_FILE"
+
+  (
+    local frames='|/-\\'
+    local idx=0
+    local frame step
+    while :; do
+      step="$(cat "$BEAGLE_STREAM_CLIENT_STARTUP_STATE_FILE" 2>/dev/null || printf 'Starte Stream...')"
+      frame="${frames:$((idx % 4)):1}"
+      printf '# [%s] %s\n' "$frame" "$step"
+      printf '50\n'
+      sleep 0.25
+      idx=$((idx + 1))
+    done
+  ) | zenity --progress \
+      --pulsate \
+      --auto-close \
+      --no-cancel \
+      --title "$title" \
+      --text "Starte Stream..." \
+      --width "560" \
+      >/dev/null 2>&1 &
+  BEAGLE_STREAM_CLIENT_STARTUP_UI_PID="$!"
+}
+
+beagle_stream_startup_status_step() {
+  local step="$1"
+
+  beagle_stream_startup_status_enabled || return 0
+  printf '%s\n' "$step" >"$BEAGLE_STREAM_CLIENT_STARTUP_STATE_FILE" 2>/dev/null || true
+  beagle_log_event "beagle-stream-client.startup-step" "${step}"
+}
+
+beagle_stream_startup_status_stop() {
+  [[ -n "$BEAGLE_STREAM_CLIENT_STARTUP_UI_PID" ]] && kill "$BEAGLE_STREAM_CLIENT_STARTUP_UI_PID" >/dev/null 2>&1 || true
+  BEAGLE_STREAM_CLIENT_STARTUP_UI_PID=""
+  rm -f "$BEAGLE_STREAM_CLIENT_STARTUP_STATE_FILE" >/dev/null 2>&1 || true
+}
 
 have_binary() {
   command -v "$1" >/dev/null 2>&1
@@ -258,11 +311,16 @@ main() {
     exit 1
   }
 
+  beagle_stream_startup_status_start
+  trap 'beagle_stream_startup_status_stop' EXIT
+  beagle_stream_startup_status_step "Schritt 1/10: Runtime initialisieren"
+
   have_binary "$bin" || {
     echo "Beagle Stream Client binary not found: $bin" >&2
     exit 1
   }
 
+  beagle_stream_startup_status_step "Schritt 2/10: WireGuard und Audio vorbereiten"
   ensure_wg_peer
 
   if command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
@@ -279,6 +337,7 @@ main() {
 
   configure_graphics_runtime
   record_decoder_choice "$(beagle_stream_client_video_decoder)"
+  beagle_stream_startup_status_step "Schritt 3/10: Grafik- und Decoder-Setup"
 
   if [[ "$hostless_beagle_stream" == "1" && -z "${SDL_RENDER_DRIVER:-}" ]]; then
     export SDL_RENDER_DRIVER="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RENDER_DRIVER:-opengl}"
@@ -322,6 +381,7 @@ main() {
       beagle_log_event "beagle-stream-client.session-broker" "mode=direct-skip host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
     fi
   elif beagle_stream_broker_connection; then
+    beagle_stream_startup_status_step "Schritt 4/10: Session-Ziel vom Manager laden"
     session_response_file="$(mktemp)"
     if fetch_beagle_stream_client_current_session_via_manager "$session_response_file"; then
       if retarget_beagle_stream_client_host_from_session_broker_response "$session_response_file"; then
@@ -356,6 +416,7 @@ main() {
   fi
 
   if [[ "$hostless_beagle_stream" != "1" ]]; then
+    beagle_stream_startup_status_step "Schritt 5/10: Host-Konfiguration synchronisieren"
     if ensure_beagle_stream_client_local_host_route; then
       beagle_log_event "beagle-stream-client.local-route" "local_host=$(beagle_stream_client_local_host) via=${connect_host:-$host}"
     fi
@@ -377,6 +438,7 @@ main() {
       beagle_log_event "beagle-stream-client.register-refresh" "host=${host} port=${port:-default}"
     fi
 
+    beagle_stream_startup_status_step "Schritt 6/10: Pairing-Status pruefen"
     if beagle_stream_client_stream_ready; then
       beagle_log_event "beagle-stream-client.ready" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
     else
@@ -387,6 +449,7 @@ main() {
       }
     fi
   else
+    beagle_stream_startup_status_step "Schritt 5/10: Hostless-Konfiguration synchronisieren"
     if [[ -n "${host:-}" ]]; then
       # In broker/hostless mode, endpoint reachability can be transient or firewalled.
       # Skip blocking preflight checks and launch broker-direct immediately.
@@ -409,6 +472,7 @@ main() {
         beagle_log_event "beagle-stream-client.register-refresh" "mode=hostless host=${host} port=${port:-default}"
       fi
 
+      beagle_stream_startup_status_step "Schritt 6/10: Pairing-Status pruefen"
       if beagle_stream_client_stream_ready; then
         beagle_log_event "beagle-stream-client.ready" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
       else
@@ -425,6 +489,7 @@ main() {
   # Resolve the requested app name even in hostless mode so we do not keep
   # sending a stale default like "Desktop" when the server exposes a different
   # desktop entry.
+  beagle_stream_startup_status_step "Schritt 7/10: Ziel-App aufloesen"
   resolved_app="$(resolve_stream_app_name "$app" 2>/dev/null || printf '%s' "$app")"
   if [[ -n "$resolved_app" && "$resolved_app" != "$app" ]]; then
     beagle_log_event "beagle-stream-client.app-fallback" "requested=${app} resolved=${resolved_app}"
@@ -433,6 +498,7 @@ main() {
   fi
 
   local requested_resolution
+  beagle_stream_startup_status_step "Schritt 8/10: Stream am Manager vorbereiten"
   requested_resolution="$(beagle_stream_client_resolution)"
   if [[ "$hostless_beagle_stream" != "1" ]]; then
     if prepare_beagle_stream_client_stream_via_manager "$requested_resolution" "$app"; then
@@ -449,6 +515,7 @@ main() {
   fi
 
   build_stream_args args
+  beagle_stream_startup_status_step "Schritt 9/10: Stream-Prozess starten"
   if [[ "$hostless_beagle_stream" == "1" ]]; then
     echo "Starting BeagleStream brokered stream: host=${host:-broker} connect_host=${connect_host:-${host:-broker}} port=${port:-default} app=$app resolution=$(beagle_stream_client_resolution) fps=$(beagle_stream_client_fps)" >&2
   elif [[ -n "$connect_host" && "$connect_host" != "$host" ]]; then
@@ -489,6 +556,7 @@ main() {
   wg_peer_watchdog &
   wg_watchdog_pid=$!
   while :; do
+    beagle_stream_startup_status_step "Schritt 10/10: Verbinde mit VM-Desktop"
     build_stream_args args
     if [[ "$stream_attempt" -gt 1 ]]; then
       beagle_log_event "beagle-stream-client.restart" "attempt=${stream_attempt}/${max_attempts} app=${app}"
@@ -549,6 +617,7 @@ main() {
     stream_attempt=$((stream_attempt + 1))
   done
   [[ -n "$wg_watchdog_pid" ]] && kill "$wg_watchdog_pid" 2>/dev/null || true
+  beagle_stream_startup_status_stop
   if [[ "$hostless_beagle_stream" == "1" ]]; then
     beagle_log_event "beagle-stream-client.exit" "code=${stream_exit} mode=beagle-stream-hostless app=${app}"
   else

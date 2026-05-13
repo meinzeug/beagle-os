@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 beagle_stream_client_list_timeout() {
-  printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LIST_TIMEOUT:-12}"
+  printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LIST_TIMEOUT:-6}"
 }
 
 beagle_stream_client_bootstrap_timeout() {

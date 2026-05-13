@@ -79,14 +79,22 @@ beagle_stream_route_link_mbps() {
 }
 
 beagle_stream_ping_stats() {
-  local target output transmitted received loss avg max
+  local target output transmitted received loss avg max ping_count ping_timeout ping_cap
   target="${1:-}"
   [[ -n "$target" ]] || return 1
   if ! command -v ping >/dev/null 2>&1; then
     return 1
   fi
 
-  output="$(LC_ALL=C ping -n -c "${PVE_THIN_CLIENT_BEAGLE_STREAM_AUTO_QUALITY_PING_COUNT:-5}" -W "${PVE_THIN_CLIENT_BEAGLE_STREAM_AUTO_QUALITY_PING_TIMEOUT:-1}" "$target" 2>/dev/null || true)"
+  ping_count="${PVE_THIN_CLIENT_BEAGLE_STREAM_AUTO_QUALITY_PING_COUNT:-3}"
+  ping_timeout="${PVE_THIN_CLIENT_BEAGLE_STREAM_AUTO_QUALITY_PING_TIMEOUT:-1}"
+  ping_cap="${PVE_THIN_CLIENT_BEAGLE_STREAM_AUTO_QUALITY_PING_CAP:-4}"
+
+  if command -v timeout >/dev/null 2>&1; then
+    output="$(LC_ALL=C timeout --preserve-status "${ping_cap}" ping -n -c "${ping_count}" -W "${ping_timeout}" "$target" 2>/dev/null || true)"
+  else
+    output="$(LC_ALL=C ping -n -c "${ping_count}" -W "${ping_timeout}" "$target" 2>/dev/null || true)"
+  fi
   transmitted="$(awk '/packets transmitted/ {print $1; exit}' <<<"$output")"
   received="$(awk '/packets transmitted/ {print $4; exit}' <<<"$output")"
   loss="$(awk -F', ' '/packet loss/ {for (idx = 1; idx <= NF; idx++) if ($idx ~ /packet loss/) {gsub(/% packet loss/, "", $idx); print int($idx); exit}}' <<<"$output")"
