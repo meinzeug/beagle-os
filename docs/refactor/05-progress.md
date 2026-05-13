@@ -1,3 +1,25 @@
+## Update (2026-05-13, Thinclient VM100 Startup-Kiosk + Fast-Path)
+
+**Scope**: Lokalen Thinclient-Startpfad fuer VM100 sichtbar, schneller und reproduzierbar gemacht.
+
+- **Repo-Fix**:
+  - `launch-beagle-stream-client.sh` zeigt beim Streamstart eine moderne 10-Schritte-Kiosk-HTML mit Statuswerten (`OK`, `SKIP`, aktiv) statt eines Browser-Fensters mit sichtbarer Chrome-UI.
+  - Chromium startet fuer den Loader im echten `--kiosk`-Modus mit separatem Runtime-Profil; Firefox/Zenity bleiben Fallbacks.
+  - Beagle-Wallpaper wird als Thinclient-Asset mit ausgeliefert und lokal in die Startup-HTML eingebunden.
+  - Hostless-Fast-Path ueberspringt teure Pairing-/List-Preflights, wenn Manager-Session und Broker-Ziel bereits vorliegen.
+  - Audio-Initialisierung laeuft standardmaessig async; Sync bleibt per `PVE_THIN_CLIENT_AUDIO_INIT_MODE=sync` opt-in.
+  - Auto-Quality nutzt einen kurzen State-Cache, damit wiederholte Bash-Command-Substitutions nicht mehrfach pingen.
+
+- **Live-Verifikation (`192.168.178.30`)**:
+  - Frischer Launcher-Lauf mit leerem Runtime-Log: Chromium-Prozess enthaelt `--kiosk`, Loader-HTML referenziert `beagle-stream-client-wallpaper.png` per lokalem `file://`.
+  - Startup-Schritte nach Optimierung: Schritt 2 ca. `0.60s`, Schritt 8 ca. `2.42s`, Schritt 9 ca. `1.64s`.
+  - Stream-Nachweis im frischen Log: `Launch response`, `Starting RTSP handshake`, `Received first video packet after 0 ms`.
+
+**Rest-Risiko / offener Punkt**:
+- Der aktuelle Nachweis ist ein kontrollierter Runtime-Neustart auf dem TC. Ein kompletter Live-USB-Kaltstart mit denselben Repo-Artefakten bleibt als finaler D2-Abnahmeschritt offen.
+
+---
+
 ## Update (2026-05-10, BEA-9 Top-Risiken + 2-Wochen-Plan konkretisiert)
 
 **Scope**: Issue BEA-9 (Top-Risiken und 2-Wochen-Umsetzungsplan) in die Refactor-Risikodoku ueberfuehrt.

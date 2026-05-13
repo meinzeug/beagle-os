@@ -187,7 +187,7 @@ beagle_stream_detect_auto_profile() {
 }
 
 beagle_stream_apply_auto_profile() {
-  local target profile line key value state_file
+  local target profile line key value state_file reuse_seconds now_seconds state_mtime state_age profile_from_cache
   [[ "${BEAGLE_STREAM_AUTO_PROFILE_APPLIED:-0}" == "1" ]] && return 0
   BEAGLE_STREAM_AUTO_PROFILE_APPLIED=1
 
@@ -201,9 +201,29 @@ beagle_stream_apply_auto_profile() {
   [[ -n "$target" ]] || target="$(beagle_stream_client_host 2>/dev/null || true)"
   [[ -n "$target" ]] || return 0
 
-  profile="$(beagle_stream_detect_auto_profile "$target" 2>/dev/null || true)"
-  [[ -n "$profile" ]] || return 0
   state_file="$(beagle_stream_auto_profile_state_file)"
+  reuse_seconds="${PVE_THIN_CLIENT_BEAGLE_STREAM_AUTO_QUALITY_REUSE_SECONDS:-300}"
+  profile_from_cache=0
+  if [[ "$reuse_seconds" =~ ^[0-9]+$ && "$reuse_seconds" -gt 0 && -r "$state_file" ]]; then
+    # shellcheck disable=SC1090
+    source "$state_file"
+    if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY_TARGET:-}" == "$target" ]]; then
+      now_seconds="$(date +%s 2>/dev/null || printf '0')"
+      state_mtime="$(stat -c %Y "$state_file" 2>/dev/null || printf '0')"
+      if [[ "$now_seconds" =~ ^[0-9]+$ && "$state_mtime" =~ ^[0-9]+$ && "$now_seconds" -ge "$state_mtime" ]]; then
+        state_age="$((now_seconds - state_mtime))"
+        if [[ "$state_age" -le "$reuse_seconds" && -n "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY_BUCKET:-}" ]]; then
+          profile="$(beagle_stream_auto_profile_for_bucket "$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY_BUCKET" 2>/dev/null || true)"
+          profile_from_cache=1
+        fi
+      fi
+    fi
+  fi
+
+  if [[ -z "$profile" ]]; then
+    profile="$(beagle_stream_detect_auto_profile "$target" 2>/dev/null || true)"
+  fi
+  [[ -n "$profile" ]] || return 0
   if [[ -r "$state_file" ]]; then
     # shellcheck disable=SC1090
     source "$state_file"
@@ -231,7 +251,7 @@ beagle_stream_apply_auto_profile() {
     esac
   done <<<"$profile"
 
-  if declare -F beagle_log_event >/dev/null 2>&1; then
+  if [[ "$profile_from_cache" != "1" || "${PVE_THIN_CLIENT_BEAGLE_STREAM_AUTO_QUALITY_LOG_CACHED:-0}" == "1" ]] && declare -F beagle_log_event >/dev/null 2>&1; then
     beagle_log_event "beagle-stream-client.auto-quality" "target=${target} bucket=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY_BUCKET:-unknown} resolution=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION:-auto} fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-auto} bitrate=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE:-auto}"
   fi
 }

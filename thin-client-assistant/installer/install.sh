@@ -164,6 +164,10 @@ install_runtime_assets() {
   cp -a "$ROOT_DIR/runtime" "$INSTALL_ROOT/"
   cp -a "$ROOT_DIR/installer" "$INSTALL_ROOT/"
   cp -a "$ROOT_DIR/templates" "$INSTALL_ROOT/"
+  if [[ -d "$ROOT_DIR/assets" ]]; then
+    install -d -m 0755 "$INSTALL_ROOT/assets"
+    cp -a "$ROOT_DIR/assets/." "$INSTALL_ROOT/assets/"
+  fi
   copy_file "$ROOT_DIR/runtime/launch-session.sh" "$INSTALL_ROOT/launch-session.sh"
   copy_file "$ROOT_DIR/runtime/prepare-runtime.sh" "$INSTALL_ROOT/prepare-runtime.sh"
   copy_file "$ROOT_DIR/runtime/launch-beagle-stream-client.sh" "$INSTALL_ROOT/launch-beagle-stream-client.sh"

@@ -53,7 +53,11 @@ if [ -x /usr/local/bin/pve-thin-client-display-init ]; then
 fi
 
 if [ -x /usr/local/bin/pve-thin-client-audio-init ]; then
-  /usr/local/bin/pve-thin-client-audio-init >"$LOG_DIR/audio-init.log" 2>&1 || true
+  if [ "${PVE_THIN_CLIENT_AUDIO_INIT_MODE:-async}" = "sync" ]; then
+    /usr/local/bin/pve-thin-client-audio-init >"$LOG_DIR/audio-init.log" 2>&1 || true
+  else
+    /usr/local/bin/pve-thin-client-audio-init >"$LOG_DIR/audio-init.log" 2>&1 &
+  fi
 fi
 
 if command -v xsetroot >/dev/null 2>&1; then

@@ -84,7 +84,7 @@ fetch_beagle_stream_client_current_session_via_manager() {
   fi
 
   curl_bin="$(beagle_stream_client_curl_bin)"
-  curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 10 --output "$response_file" --write-out '%{http_code}' \
+  curl_args=("$curl_bin" -fsS --connect-timeout 3 --max-time 6 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}")
   mapfile -t tls_args < <(beagle_curl_tls_args "$url" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
@@ -131,7 +131,7 @@ register_beagle_stream_client_via_manager() {
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
   curl_bin="$(beagle_stream_client_curl_bin)"
-  curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 12 --output "$response_file" --write-out '%{http_code}' \
+  curl_args=("$curl_bin" -fsS --connect-timeout 3 --max-time 8 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
   mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/register" "$manager_pin" "$manager_ca_cert")
@@ -176,7 +176,7 @@ prepare_beagle_stream_client_stream_via_manager() {
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
   curl_bin="$(beagle_stream_client_curl_bin)"
-  curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 12 --output "$response_file" --write-out '%{http_code}' \
+  curl_args=("$curl_bin" -fsS --connect-timeout 3 --max-time 8 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
   mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/prepare-stream" "$manager_pin" "$manager_ca_cert")
@@ -205,7 +205,7 @@ request_beagle_stream_client_pairing_token_via_manager() {
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
   curl_bin="$(beagle_stream_client_curl_bin)"
-  curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 10 --output "$response_file" --write-out '%{http_code}' \
+  curl_args=("$curl_bin" -fsS --connect-timeout 3 --max-time 6 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
   mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-token" "$manager_pin" "$manager_ca_cert")
@@ -246,7 +246,7 @@ exchange_beagle_stream_client_pairing_token_via_manager() {
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
   curl_bin="$(beagle_stream_client_curl_bin)"
-  curl_args=("$curl_bin" -fsS --connect-timeout 6 --max-time 10 --output "$response_file" --write-out '%{http_code}' \
+  curl_args=("$curl_bin" -fsS --connect-timeout 3 --max-time 6 --output "$response_file" --write-out '%{http_code}' \
     -H "Authorization: Bearer ${manager_token}" \
     -H 'Content-Type: application/json')
   mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-exchange" "$manager_pin" "$manager_ca_cert")

@@ -165,7 +165,11 @@ if [ -x /usr/local/bin/pve-thin-client-display-init ]; then
 fi
 
 if [ -x /usr/local/bin/pve-thin-client-audio-init ]; then
-  /usr/local/bin/pve-thin-client-audio-init >"$LOG_DIR/audio-init.log" 2>&1 || true
+  if [ "${PVE_THIN_CLIENT_AUDIO_INIT_MODE:-async}" = "sync" ]; then
+    /usr/local/bin/pve-thin-client-audio-init >"$LOG_DIR/audio-init.log" 2>&1 || true
+  else
+    /usr/local/bin/pve-thin-client-audio-init >"$LOG_DIR/audio-init.log" 2>&1 &
+  fi
   pkill -f '^bash /usr/local/bin/pve-thin-client-audio-init --watch' >/dev/null 2>&1 || true
   /usr/local/bin/pve-thin-client-audio-init --watch "${PVE_THIN_CLIENT_AUDIO_WATCH_LOOPS:-0}" >"$LOG_DIR/audio-watch.log" 2>&1 &
 fi

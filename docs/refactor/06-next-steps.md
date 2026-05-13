@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-13, Thinclient VM100 Startup-Kiosk validiert)
+
+**Zuletzt erledigt**:
+- Moderner BeagleStream-Startup-Loader fuer Thinclients: echte Chromium-Kiosk-Ansicht, Wallpaper-Hintergrund, 10-Schritte-Liste und Rueckgabestatus.
+- Hostless-Fast-Path und async Audio-Init reduzieren den sichtbaren Startpfad deutlich; Auto-Quality wird gecacht statt mehrfach zu pingen.
+- Live auf TC `192.168.178.30` verifiziert: frisches Stream-Log mit `Received first video packet after 0 ms` fuer VM100-Desktop.
+
+**Naechste konkrete Schritte**:
+
+1. Aus dem gepushten Repo ein neues Thinclient-/Live-USB-Artefakt bauen und den gleichen Ablauf per echtem Kaltstart ohne manuelle Hotfixes wiederholen.
+2. Falls der Kaltstart weiterhin laenger als der kontrollierte Runtime-Neustart dauert, die Zeit vor Launcher-Start (`start-pve-thin-client-session`, X11/Openbox, Display-Init) getrennt messen.
+3. Danach den D2-BeagleStream-End-to-End-Haken erst setzen, wenn Boot -> Enrollment -> WireGuard -> sichtbarer VM100-Desktop durchgehend aus Artefakten funktioniert.
+
+---
+
 ## Stand (2026-05-10, BEA-26 VM-Disk Backup/Restore Cross-Host smoke vorbereitet)
 
 **Zuletzt erledigt**:
