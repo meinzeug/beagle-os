@@ -383,19 +383,45 @@ main() {
       # In broker/hostless mode, endpoint reachability can be transient or firewalled.
       # Skip blocking preflight checks and launch broker-direct immediately.
       beagle_log_event "beagle-stream-client.hostless-preflight-skip" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
-      host=""
-      connect_host=""
+
+      bootstrap_beagle_stream_client || true
+      if ! beagle_stream_client_host_configured; then
+        if seed_beagle_stream_client_host_from_runtime_config; then
+          beagle_log_event "beagle-stream-client.seeded-config" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+        elif retarget_beagle_stream_client_host_from_runtime_config; then
+          beagle_log_event "beagle-stream-client.retargeted-config" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+        fi
+      fi
+
+      if beagle_stream_client_host_configured; then
+        beagle_log_event "beagle-stream-client.cached-config" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+      fi
+
+      if register_beagle_stream_client_via_manager; then
+        beagle_log_event "beagle-stream-client.register-refresh" "mode=hostless host=${host} port=${port:-default}"
+      fi
+
+      if beagle_stream_client_stream_ready; then
+        beagle_log_event "beagle-stream-client.ready" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+      else
+        ensure_paired || {
+          beagle_log_event "beagle-stream-client.pairing-failed" "mode=hostless host=${host} port=${port:-default} auth=manager-token"
+          echo "Beagle Stream Client pairing failed for host '$host'." >&2
+          exit 1
+        }
+      fi
     fi
     beagle_log_event "beagle-stream-client.beagle-stream-hostless" "app=${app} enrollment=$(beagle_stream_enrollment_config)"
   fi
 
-  if [[ "$hostless_beagle_stream" != "1" ]]; then
-    resolved_app="$(resolve_stream_app_name "$app" 2>/dev/null || printf '%s' "$app")"
-    if [[ -n "$resolved_app" && "$resolved_app" != "$app" ]]; then
-      beagle_log_event "beagle-stream-client.app-fallback" "requested=${app} resolved=${resolved_app}"
-      PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP="$resolved_app"
-      app="$resolved_app"
-    fi
+  # Resolve the requested app name even in hostless mode so we do not keep
+  # sending a stale default like "Desktop" when the server exposes a different
+  # desktop entry.
+  resolved_app="$(resolve_stream_app_name "$app" 2>/dev/null || printf '%s' "$app")"
+  if [[ -n "$resolved_app" && "$resolved_app" != "$app" ]]; then
+    beagle_log_event "beagle-stream-client.app-fallback" "requested=${app} resolved=${resolved_app}"
+    PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP="$resolved_app"
+    app="$resolved_app"
   fi
 
   local requested_resolution
