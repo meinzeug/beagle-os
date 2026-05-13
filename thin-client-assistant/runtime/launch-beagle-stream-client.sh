@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BEAGLE_STREAM_CLIENT_LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/beagle-stream-client-launch.lock"
+BEAGLE_STREAM_CLIENT_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+if [[ ! -d "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" ]]; then
+  mkdir -p "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" >/dev/null 2>&1 || true
+fi
+if [[ ! -d "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" || ! -w "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" || ! -x "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" ]]; then
+  BEAGLE_STREAM_CLIENT_RUNTIME_DIR="/tmp"
+fi
+export XDG_RUNTIME_DIR="$BEAGLE_STREAM_CLIENT_RUNTIME_DIR"
+BEAGLE_STREAM_CLIENT_LOCK_FILE="${BEAGLE_STREAM_CLIENT_RUNTIME_DIR}/beagle-stream-client-launch.lock"
 exec 9>"$BEAGLE_STREAM_CLIENT_LOCK_FILE"
 flock -n 9 || exit 0
 

@@ -18,7 +18,27 @@ beagle_stream_client_audio_driver() {
   printf '%s\n' "alsa"
 }
 
+ensure_beagle_stream_client_runtime_dir() {
+  local runtime_dir fallback_dir uid
+
+  uid="$(id -u)"
+  runtime_dir="${XDG_RUNTIME_DIR:-/run/user/${uid}}"
+  if [[ ! -d "$runtime_dir" ]]; then
+    mkdir -p "$runtime_dir" >/dev/null 2>&1 || true
+  fi
+
+  if [[ ! -d "$runtime_dir" || ! -w "$runtime_dir" || ! -x "$runtime_dir" ]]; then
+    fallback_dir="/tmp/pve-thin-client-runtime-${uid}"
+    mkdir -p "$fallback_dir" >/dev/null 2>&1 || true
+    chmod 0700 "$fallback_dir" >/dev/null 2>&1 || true
+    runtime_dir="$fallback_dir"
+  fi
+
+  printf '%s\n' "$runtime_dir"
+}
+
 configure_graphics_runtime() {
+  export XDG_RUNTIME_DIR="$(ensure_beagle_stream_client_runtime_dir)"
   export DISPLAY="${DISPLAY:-:0}"
   export HOME="${HOME:-/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}}"
   export XAUTHORITY="$(select_xauthority)"
@@ -42,7 +62,7 @@ configure_audio_runtime() {
   local runtime_dir pulse_socket
 
   export HOME="${HOME:-/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}}"
-  runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  runtime_dir="$(ensure_beagle_stream_client_runtime_dir)"
   export XDG_RUNTIME_DIR="$runtime_dir"
   mkdir -p "$runtime_dir" >/dev/null 2>&1 || true
 
