@@ -419,15 +419,19 @@ write_usb() {
     [[ -n "$network_interface" ]] || network_interface="eth0"
     runtime_ip_args="$(boot_ip_arg "$network_mode" "$network_static_address" "$network_static_prefix" "$network_gateway" "$hostname_value" "$network_interface")"
 
-  local live_boot_runtime_args="live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=30 ignore_uuid toram ${runtime_ip_args} usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1"
-  local live_boot_safe_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic"
-  local live_boot_legacy_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic"
+  local live_boot_runtime_args="live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=60 ignore_uuid toram ${runtime_ip_args} usbcore.autosuspend=-1 rootdelay=10 idle=nomwait processor.max_cstate=1"
+  local live_boot_safe_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off"
+  local live_boot_legacy_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll"
 
 cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
 insmod part_gpt
+insmod part_msdos
 insmod fat
 insmod jpeg
 insmod gfxterm
+insmod usb
+insmod usb_keyboard
+terminal_input console
 terminal_output gfxterm
 if [ -f /boot/grub/background.jpg ]; then
   background_image /boot/grub/background.jpg
@@ -435,7 +439,7 @@ fi
 set color_normal=white/black
 set color_highlight=cyan/black
 set default=0
-set timeout=5
+set timeout=10
 
 menuentry 'Beagle OS Live' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
@@ -443,19 +447,19 @@ menuentry 'Beagle OS Live' {
   initrd /live/initrd.img
 }
 
-menuentry 'Beagle OS Live (safe mode)' {
+menuentry 'Beagle OS Live (safe mode / AMD compat)' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
   linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} ${live_boot_runtime_args} ${live_boot_safe_args} pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
   initrd /live/initrd.img
 }
 
-menuentry 'Beagle OS Live (legacy IRQ mode)' {
+menuentry 'Beagle OS Live (legacy IRQ / no ACPI)' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
   linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} ${live_boot_runtime_args} ${live_boot_legacy_args} pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
   initrd /live/initrd.img
 }
 
-menuentry 'Beagle OS Live (copy to RAM compatibility mode)' {
+menuentry 'Beagle OS Live (copy to RAM compatibility)' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
   linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} ${live_boot_runtime_args} ${live_boot_safe_args} pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
   initrd /live/initrd.img
@@ -470,13 +474,19 @@ EOF
       grub_timeout="0"
     fi
 
-    local installer_boot_media_args="live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=30 ip=dhcp usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1"
-    local installer_boot_safe_args="console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic"
-    local installer_boot_legacy_args="console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll noapic nolapic"
+    local installer_boot_media_args="live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/pve-thin-client/live live-media-timeout=60 ip=dhcp usbcore.autosuspend=-1 rootdelay=10 idle=nomwait processor.max_cstate=1"
+    local installer_boot_safe_args="console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off"
+    local installer_boot_legacy_args="console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll"
 
     cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
+insmod part_gpt
+insmod part_msdos
+insmod fat
 insmod jpeg
 insmod gfxterm
+insmod usb
+insmod usb_keyboard
+terminal_input console
 terminal_output gfxterm
 if [ -f /boot/grub/background.jpg ]; then
   background_image /boot/grub/background.jpg
@@ -521,10 +531,85 @@ EOF
     --removable \
     --no-nvram
 
+  # Create a hybrid MBR so that legacy BIOSes (InsydeH20, older Lenovo/AMD,
+  # Insyde/Phoenix firmware) list the USB stick as a bootable device. A pure
+  # GPT with protective MBR is invisible to many BIOS implementations in
+  # legacy mode because they require an active (0x80) partition entry.
+  # We add the FAT32/ESP partition (partition 2) into the legacy MBR partition
+  # table with the active flag set while preserving the GRUB stage1 boot code.
+  _apply_hybrid_mbr "$TARGET_DEVICE" 2 || true
+
+  # Fix BOOTX64.CSV: remove any upstream branding (e.g. Ubuntu) so that the
+  # InsydeH20 EFI menu shows "Beagle OS" instead.
+  local efi_boot_dir="$mount_dir/EFI/BOOT"
+  if [[ -d "$efi_boot_dir" ]]; then
+    printf 'BOOTX64.EFI,Beagle OS,,Beagle OS Live USB\n' > "$efi_boot_dir/BOOTX64.CSV"
+    # Replace the hardcoded disk hint in EFI/BOOT/grub.cfg with a pure UUID
+    # search so the stick boots correctly regardless of disk enumeration order.
+    if [[ -f "$efi_boot_dir/grub.cfg" ]]; then
+      sed -i 's/^search\.fs_uuid \([^ ]*\) root .*/search --no-floppy --fs-uuid --set=root \1/' \
+        "$efi_boot_dir/grub.cfg"
+    fi
+  fi
+
   (
     cd "$live_mount_dir" || exit
     sha256sum -c SHA256SUMS
   )
 
   sync
+}
+
+# _apply_hybrid_mbr DEVICE PART_NUM
+# Adds GPT partition PART_NUM to a hybrid MBR and marks it active so that
+# legacy BIOSes recognise the USB stick as bootable without breaking UEFI.
+_apply_hybrid_mbr() {
+  local device="$1" part_num="$2"
+
+  if ! command -v sgdisk &>/dev/null; then
+    echo "WARNING: sgdisk not found; skipping hybrid MBR creation. Install gdisk for maximum BIOS compatibility." >&2
+    return 0
+  fi
+
+  # sgdisk --hybrid adds the specified partition(s) to the legacy MBR table
+  # while keeping the GPT intact.
+  sgdisk --hybrid "${part_num}" "$device" || {
+    echo "WARNING: sgdisk --hybrid failed on $device; continuing." >&2
+    return 0
+  }
+
+  # sgdisk does not set the 0x80 active/boot flag on the new MBR entry.
+  # We locate the first non-0xEE, non-empty MBR partition entry and mark it
+  # active so that BIOS boot device enumeration finds the USB.
+  python3 - "$device" <<'PY'
+import sys, struct
+
+dev = sys.argv[1]
+try:
+    with open(dev, "r+b") as f:
+        f.seek(446)
+        table = bytearray(f.read(64))  # 4 x 16-byte entries
+        patched = False
+        for i in range(4):
+            off = i * 16
+            status  = table[off]
+            ptype   = table[off + 4]
+            if ptype == 0x00:
+                continue  # empty entry
+            if ptype == 0xEE:
+                continue  # protective GPT entry – leave alone
+            # Force type to 0x0C (FAT32 LBA) so legacy BIOSes (InsydeH20) recognize
+            # the partition as a standard bootable FAT32 volume, not an EFI partition.
+            table[off + 4] = 0x0C
+            if status != 0x80:
+                table[off] = 0x80  # set active flag
+            patched = True
+            print(f"hybrid MBR: set active+FAT32-LBA on entry {i} (was type=0x{ptype:02X}) in {dev}")
+            break
+        if patched:
+            f.seek(446)
+            f.write(table)
+except OSError as e:
+    print(f"WARNING: could not patch hybrid MBR active flag: {e}", file=sys.stderr)
+PY
 }

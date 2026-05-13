@@ -620,7 +620,7 @@ install_dependencies() {
   local need_packages="0"
   local tool
 
-  for tool in wipefs parted mkfs.vfat grub-install rsync partprobe udevadm xorriso; do
+  for tool in wipefs parted mkfs.vfat grub-install rsync partprobe udevadm xorriso sgdisk; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       missing+=("$tool")
       need_packages="1"
@@ -640,6 +640,7 @@ install_dependencies() {
     dosfstools \
     e2fsprogs \
     parted \
+    gdisk \
     grub-pc-bin \
     grub-efi-amd64-bin \
     efibootmgr \
