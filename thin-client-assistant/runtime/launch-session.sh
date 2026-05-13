@@ -6,9 +6,14 @@ set -euo pipefail
 # fail with I/O errors on some kernel/squashfs combinations.
 _rt_orig="${BEAGLE_RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
 _rt_run="/run/pve-thin-client/runtime"
-if [[ ! -f "${_rt_run}/common.sh" ]]; then
+if [[ -d "$_rt_orig" ]]; then
   mkdir -p "$_rt_run" 2>/dev/null || true
-  cp -a "${_rt_orig}/." "$_rt_run/" 2>/dev/null || true
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete "${_rt_orig}/" "$_rt_run/" >/dev/null 2>&1 || true
+  else
+    rm -rf "${_rt_run:?}/"* >/dev/null 2>&1 || true
+    cp -a "${_rt_orig}/." "$_rt_run/" 2>/dev/null || true
+  fi
 fi
 [[ -f "${_rt_run}/common.sh" ]] && _rt_orig="$_rt_run"
 SCRIPT_DIR="$_rt_orig"

@@ -700,23 +700,21 @@ main() {
         beagle_log_event "beagle-stream-client.cached-config" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
       fi
 
-      if [[ "$hostless_fast_launch" == "1" ]]; then
-        beagle_stream_startup_status_render "6" "skip" "Pairing-Status pruefen" "Manager-Session vorhanden"
-      elif register_beagle_stream_client_via_manager; then
+      if [[ "$hostless_fast_launch" != "1" ]] && register_beagle_stream_client_via_manager; then
         beagle_log_event "beagle-stream-client.register-refresh" "mode=hostless host=${host} port=${port:-default}"
       fi
 
-      if [[ "$hostless_fast_launch" != "1" ]]; then
-        beagle_stream_startup_status_step "6" "Pairing-Status pruefen" "Schnellcheck der Stream-Berechtigung"
-        if beagle_stream_client_stream_ready; then
-          beagle_log_event "beagle-stream-client.ready" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
-        else
-          ensure_paired || {
-            beagle_log_event "beagle-stream-client.pairing-failed" "mode=hostless host=${host} port=${port:-default} auth=manager-token"
-            echo "Beagle Stream Client pairing failed for host '$host'." >&2
-            exit 1
-          }
-        fi
+      beagle_stream_startup_status_step "6" "Pairing-Status pruefen" "Schnellcheck der Stream-Berechtigung"
+      if beagle_stream_client_stream_ready; then
+        beagle_log_event "beagle-stream-client.ready" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default} fast_launch=${hostless_fast_launch}"
+      else
+        # Fast-launch keeps manager preflights minimal, but a stale or missing client
+        # certificate still needs an explicit pairing recovery before stream start.
+        ensure_paired || {
+          beagle_log_event "beagle-stream-client.pairing-failed" "mode=hostless host=${host} port=${port:-default} auth=manager-token fast_launch=${hostless_fast_launch}"
+          echo "Beagle Stream Client pairing failed for host '$host'." >&2
+          exit 1
+        }
       fi
     fi
     beagle_log_event "beagle-stream-client.beagle-stream-hostless" "app=${app} enrollment=$(beagle_stream_enrollment_config)"

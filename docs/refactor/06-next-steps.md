@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-05-13, TTY1-Konsole-Rueckfall stabilisiert)
+
+**Zuletzt erledigt**:
+- TTY1-Konsole-Rueckfall auf dem lokalen TC eingedaemmt: der konflikttraechtige `ExecStopPost`-getty-Hack aus `pve-thin-client-network-menu.service` wurde entfernt.
+- Runtime-Script-Drift zwischen `/usr/local` und `/run` wurde technisch gehaertet (aktive Resync-Logik in Prepare/Launch-Entrypoints).
+- Hostless-Fast-Launch fuehrt wieder Pairing-Recovery aus, falls die Stream-Berechtigung nicht sofort gueltig ist.
+
+**Naechste konkrete Schritte**:
+
+1. Einen kompletten Kaltstart direkt vom neu gebauten Live-USB durchlaufen und dabei den End-to-End-Pfad bis zum sichtbaren VM100-Desktop mit frischen Logs belegen.
+2. Falls App-Aufloesung erneut auf `Desktop`/Cert-Fehler faellt, den konkreten Pairing-/Registry-Zustand auf TC und Manager in einem Lauf mitschreiben und denselben Lauf sofort reproduzierbar im Repo absichern.
+
+---
+
 ## Stand (2026-05-13, Thinclient Startup-Regression behoben)
 
 **Zuletzt erledigt**:

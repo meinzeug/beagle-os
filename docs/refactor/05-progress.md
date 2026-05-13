@@ -1,3 +1,23 @@
+## Update (2026-05-13, TTY1-Konsole-Rueckfall + Runtime-Drift gehaertet)
+
+**Scope**: Neuer Live-USB-Lauf auf lokalem TC `192.168.178.30` fiel auf TTY1-Konsole zurueck; Streamstart war inkonsistent wegen Runtime-Drift und fehlender Pairing-Erholung im Fast-Launch.
+
+- **Root-Cause**:
+  - `pve-thin-client-network-menu.service` startete per `ExecStopPost` wieder `getty@tty1`; dadurch konkurrierten Konsole und X-Session um TTY1.
+  - Runtime-Skripte unter `/run/pve-thin-client/runtime` konnten gegenueber `/usr/local/lib/pve-thin-client/runtime` driften.
+  - Hostless-Fast-Launch konnte bei ungueltiger Client-Autorisierung den Pairing-Repair vor Streamstart ueberspringen.
+
+- **Repo-Fix**:
+  - `thin-client-assistant/systemd/pve-thin-client-network-menu.service` auf stabilen Modus zurueckgestellt (`RemainAfterExit=yes`, kein `ExecStopPost`-getty-Hack).
+  - `prepare-runtime.sh` und `launch-session.sh` synchronisieren Runtime-Skripte jetzt bei jedem Start aktiv nach `/run` (mit `rsync --delete`-Fallback), statt nur beim ersten Auftreten.
+  - `launch-beagle-stream-client.sh` fuehrt auch im Hostless-Fast-Launch immer einen Berechtigungscheck inkl. `ensure_paired`-Recovery aus.
+
+- **Live-Verifikation (`192.168.178.30`)**:
+  - Konflikt auf TTY1 beseitigt; Xorg/Openbox/Launcher laufen wieder statt reiner Login-Konsole.
+  - Self-heal-Nachweis: absichtlich veraenderte `/run`-Runtime-Datei wurde nach Prepare-Neustart wieder auf Source-Hash zurueckgefuehrt.
+
+---
+
 ## Update (2026-05-13, Thinclient Startup-Regression nach Kiosk-Loader gefixt)
 
 **Scope**: Regression nach Loader-/Startup-Optimierung auf lokalem TC `192.168.178.30` beseitigt.
