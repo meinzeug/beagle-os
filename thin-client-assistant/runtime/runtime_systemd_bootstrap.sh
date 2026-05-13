@@ -62,8 +62,8 @@ normalize_boot_services() {
         "$systemctl_bin" disable pve-thin-client-installer-menu.service >/dev/null 2>&1 || true
       "$systemctl_bin" unmask getty@tty1.service >/dev/null 2>&1 || true
       "$systemctl_bin" enable getty@tty1.service >/dev/null 2>&1 || true
-      "$systemctl_bin" restart getty@tty1.service >/dev/null 2>&1 || \
-        "$systemctl_bin" start getty@tty1.service >/dev/null 2>&1 || true
+      "$systemctl_bin" restart --no-block getty@tty1.service >/dev/null 2>&1 || \
+        "$systemctl_bin" start --no-block getty@tty1.service >/dev/null 2>&1 || true
       ;;
     installer)
       "$systemctl_bin" list-unit-files "$prepare_unit" >/dev/null 2>&1 && \
