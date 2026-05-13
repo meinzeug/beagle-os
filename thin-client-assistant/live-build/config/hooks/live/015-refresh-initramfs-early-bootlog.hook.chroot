@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+script_path="/etc/initramfs-tools/scripts/init-premount/10-beagle-early-bootlog"
+
+if [ -f "$script_path" ]; then
+  chmod 0755 "$script_path" || true
+fi
+
+if command -v update-initramfs >/dev/null 2>&1; then
+  update-initramfs -u >/dev/null 2>&1 || true
+fi
