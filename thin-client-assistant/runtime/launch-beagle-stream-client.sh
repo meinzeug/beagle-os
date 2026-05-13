@@ -643,6 +643,10 @@ main() {
       beagle_log_event "beagle-stream-client.local-route" "local_host=$(beagle_stream_client_local_host) via=${connect_host:-$host}"
     fi
 
+    if seed_beagle_stream_client_host_from_runtime_config; then
+      beagle_log_event "beagle-stream-client.seeded-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} source=runtime-credentials"
+    fi
+
     bootstrap_beagle_stream_client || true
     if ! beagle_stream_client_host_configured; then
       if seed_beagle_stream_client_host_from_runtime_config; then
@@ -673,6 +677,10 @@ main() {
   else
     beagle_stream_startup_status_step "5" "Hostless-Konfiguration synchronisieren" "Broker-Ziel lokal zwischenspeichern"
     if [[ -n "${host:-}" ]]; then
+      if seed_beagle_stream_client_host_from_runtime_config; then
+        beagle_log_event "beagle-stream-client.seeded-config" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default} source=runtime-credentials"
+      fi
+
       # In broker/hostless mode, endpoint reachability can be transient or firewalled.
       # Skip blocking preflight checks and launch broker-direct immediately.
       beagle_log_event "beagle-stream-client.hostless-preflight-skip" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
@@ -781,6 +789,7 @@ main() {
 
   local stream_exit=0 stream_attempt=1 max_attempts retry_delay stream_pid stream_start_line stream_forced_restart
   local app_lookup_port_fallback_used=0
+  local stream_cert_repair_attempted=0
   local connect_host_fallback_used=0
   max_attempts="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_MAX_RESTARTS:-3}"
   retry_delay="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESTART_DELAY:-3}"
@@ -826,9 +835,21 @@ main() {
       stream_exit=$?
     fi
 
-    if [[ "$stream_exit" -ne 0 && "$stream_attempt" -lt "$max_attempts" && "$app_lookup_port_fallback_used" -eq 0 ]]; then
+    if [[ "$stream_exit" -ne 0 && "$stream_attempt" -lt "$max_attempts" ]]; then
       if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi 'Server certificate mismatch|"applist" request failed|Failed to find application|Failed to load application'; then
-        if [[ "$port" =~ ^[0-9]+$ ]]; then
+        if [[ "$stream_cert_repair_attempted" -eq 0 ]]; then
+          beagle_log_event "beagle-stream-client.repair" "attempt=${stream_attempt}/${max_attempts} action=pairing-and-app-resolve reason=applist-or-cert-mismatch"
+          seed_beagle_stream_client_host_from_runtime_config >/dev/null 2>&1 || true
+          register_beagle_stream_client_via_manager >/dev/null 2>&1 || true
+          ensure_paired >/dev/null 2>&1 || true
+          resolved_app="$(resolve_stream_app_name "$app" 2>/dev/null || printf '%s' "$app")"
+          if [[ -n "$resolved_app" && "$resolved_app" != "$app" ]]; then
+            beagle_log_event "beagle-stream-client.app-fallback" "requested=${app} resolved=${resolved_app} reason=repair"
+            PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP="$resolved_app"
+            app="$resolved_app"
+          fi
+          stream_cert_repair_attempted=1
+        elif [[ "$app_lookup_port_fallback_used" -eq 0 && "$port" =~ ^[0-9]+$ ]]; then
           local fallback_port
           fallback_port="$((port + 1))"
           if [[ "$fallback_port" -gt 0 ]]; then
