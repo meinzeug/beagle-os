@@ -1,3 +1,30 @@
+## Update (2026-05-13, Thinclient Startup-Regression nach Kiosk-Loader gefixt)
+
+**Scope**: Regression nach Loader-/Startup-Optimierung auf lokalem TC `192.168.178.30` beseitigt.
+
+- **Root-Cause**:
+  - `beagle_stream_client_stream_profile.sh` lief unter `set -u` in `profile: unbound variable`, sobald der Auto-Quality-Cache keinen Profilwert setzte.
+  - Dadurch brach der Launcher vor `prepare-stream`/`exec` ab und `launch-session` startete den Thinclient-Desktop-Flow immer wieder neu.
+  - Gleichzeitig lud die Kiosk-HTML per `meta refresh` das komplette Wallpaper bei jedem Schritt neu und blieb als Fullscreen-Overlay laenger sichtbar als noetig.
+
+- **Repo-Fix**:
+  - `beagle_stream_client_stream_profile.sh` initialisiert `profile` explizit und bleibt unter `set -u` stabil.
+  - `launch-beagle-stream-client.sh` ersetzt das komplette HTML-Reload durch lokales JSON-Polling im Browser.
+  - Das Wallpaper wird nur einmal in den Runtime-Pfad kopiert.
+  - Chromium bekommt `--allow-file-access-from-files`, damit die lokale JSON-State-Datei ohne sichtbare Browser-Chrome gelesen werden kann.
+  - Der Kiosk-Loader wird direkt vor dem eigentlichen Streamstart geschlossen, damit der Desktop nicht hinter Chromium verborgen bleibt.
+
+- **Live-Verifikation (`192.168.178.30`)**:
+  - Neuer Startlauf erreicht wieder `phase=beagle-stream-client.exec ... connect_host=192.168.123.114 port=50000`.
+  - Frischer Stream-Log zeigt:
+    - `command: beagle-stream stream 192.168.123.114:50000 Desktop ...`
+    - `Launch response ... sessionUrl0=rtspenc://192.168.123.114:50021`
+    - `Starting RTSP handshake...`
+    - `Received first video packet after 0 ms`
+  - Auf dem laufenden Stream blieb kein aktiver Chromium-Startup-Prozess mehr sichtbar.
+
+---
+
 ## Update (2026-05-13, Thinclient VM100 Startup-Kiosk + Fast-Path)
 
 **Scope**: Lokalen Thinclient-Startpfad fuer VM100 sichtbar, schneller und reproduzierbar gemacht.

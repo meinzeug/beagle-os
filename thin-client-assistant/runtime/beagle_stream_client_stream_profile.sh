@@ -187,7 +187,7 @@ beagle_stream_detect_auto_profile() {
 }
 
 beagle_stream_apply_auto_profile() {
-  local target profile line key value state_file reuse_seconds now_seconds state_mtime state_age profile_from_cache
+  local target profile="" line key value state_file reuse_seconds now_seconds state_mtime state_age profile_from_cache
   [[ "${BEAGLE_STREAM_AUTO_PROFILE_APPLIED:-0}" == "1" ]] && return 0
   BEAGLE_STREAM_AUTO_PROFILE_APPLIED=1
 

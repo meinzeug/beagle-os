@@ -86,6 +86,10 @@ beagle_stream_startup_wallpaper_source() {
 
 beagle_stream_startup_prepare_wallpaper() {
   local source
+  if [[ -s "$BEAGLE_STREAM_CLIENT_STARTUP_WALLPAPER_FILE" ]]; then
+    printf '%s\n' "$BEAGLE_STREAM_CLIENT_STARTUP_WALLPAPER_FILE"
+    return 0
+  fi
   source="$(beagle_stream_startup_wallpaper_source 2>/dev/null || true)"
   [[ -n "$source" ]] || return 0
   cp -f "$source" "$BEAGLE_STREAM_CLIENT_STARTUP_WALLPAPER_FILE" >/dev/null 2>&1 || return 0
@@ -117,6 +121,7 @@ beagle_stream_startup_status_start() {
     "$browser_bin" \
       --kiosk "file://${BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE}" \
       --user-data-dir="$BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE" \
+      --allow-file-access-from-files \
       --window-position=0,0 \
       --start-fullscreen \
       --no-first-run \
@@ -243,9 +248,11 @@ for item in state["steps"]:
 
 elapsed = int(now - float(state.get("started_at", now)))
 wallpaper_url = ""
+json_url = "file://" + quote(str(json_path.resolve()), safe="/:")
 if wallpaper_path:
   wallpaper_url = "file://" + quote(str(Path(wallpaper_path).resolve()), safe="/:")
-doc = f'''<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="1"><title>Beagle OS Streamstart</title>
+initial_state = html.escape(json.dumps(state, ensure_ascii=True))
+doc = f'''<!doctype html><html><head><meta charset="utf-8"><title>Beagle OS Streamstart</title>
 <style>
 html,body{{margin:0;height:100%;overflow:hidden;font-family:Inter,Segoe UI,Arial,sans-serif;background:#05070d;color:#eef6ff;}}
 body{{display:grid;place-items:center;background-image:linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.36) 44%,rgba(0,0,0,.64)),url('{html.escape(wallpaper_url)}');background-size:cover;background-position:center;background-repeat:no-repeat;}}
@@ -264,7 +271,44 @@ small{{grid-column:2/4;color:#b0c7d5;white-space:nowrap;overflow:hidden;text-ove
 li.ok{{border-color:rgba(63,238,158,.58);background:rgba(7,37,25,.72);}} li.ok .result{{color:#a8f8ca;border-color:rgba(63,238,158,.58);}}
 li.active{{border-color:rgba(0,229,255,.75);background:rgba(11,38,58,.82);}} li.active .result{{color:#9eeeff;border-color:rgba(0,229,255,.75);}}
 li.warn{{border-color:#d49d32;background:rgba(43,31,7,.78);}} li.error{{border-color:#df5151;background:rgba(50,11,14,.80);}}
-</style></head><body><main class="panel"><div class="head"><div class="spinner"></div><div><h1>VM-Desktop wird verbunden</h1><div class="meta">{html.escape(label)} - {html.escape(detail)} · {elapsed}s</div></div></div><ol>{''.join(rows)}</ol></main></body></html>'''
+</style></head><body><main class="panel"><div class="head"><div class="spinner"></div><div><h1>VM-Desktop wird verbunden</h1><div class="meta" id="meta">{html.escape(label)} - {html.escape(detail)} · {elapsed}s</div></div></div><ol id="steps">{''.join(rows)}</ol></main>
+<script>
+const startupStateUrl = {json.dumps(json_url)};
+const initialState = {initial_state};
+const metaNode = document.getElementById('meta');
+const stepsNode = document.getElementById('steps');
+function iconFor(status) {{
+  return {{ok: 'OK', active: '...', skip: 'SKIP', warn: '!', error: 'ERR'}}[status] || '--';
+}}
+function escapeHtml(value) {{
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[char]));
+}}
+function render(state) {{
+  if (!state || !Array.isArray(state.steps)) return;
+  const startedAt = Number(state.started_at || 0);
+  const updatedAt = Number(state.updated_at || Date.now() / 1000);
+  const elapsed = startedAt > 0 ? Math.max(0, Math.round(updatedAt - startedAt)) : 0;
+  metaNode.textContent = `${{state.active_label || 'Streamstart'}} - ${{state.active_detail || 'wartet'}} · ${{elapsed}}s`;
+  stepsNode.innerHTML = state.steps.map((item) => `
+    <li class="${{escapeHtml(item.status || 'pending')}}">
+      <span class="idx">${{String(item.index || 0).padStart(2, '0')}}</span>
+      <span class="name">${{escapeHtml(item.name || '')}}</span>
+      <span class="result">${{escapeHtml(iconFor(item.status || 'pending'))}}</span>
+      <small>${{escapeHtml(item.detail || 'wartet')}}</small>
+    </li>`).join('');
+}}
+async function refreshState() {{
+  try {{
+    const response = await fetch(`${{startupStateUrl}}?ts=${{Date.now()}}`, {{cache: 'no-store'}});
+    if (!response.ok) return;
+    render(await response.json());
+  }} catch (_error) {{
+    // ignore transient file-read errors while launcher rewrites the state file
+  }}
+}}
+render(initialState);
+setInterval(refreshState, 400);
+</script></body></html>'''
 html_path.write_text(doc, encoding="utf-8")
 PY
   beagle_log_event "beagle-stream-client.startup-step" "step=${active_step}/10 status=${status} label=${label} detail=${detail}"
@@ -726,6 +770,10 @@ main() {
     printf '%q ' "${args[@]}"
     printf '\n'
   } >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG"
+
+  # Remove the fullscreen startup UI before the actual stream window appears,
+  # otherwise Chromium can stay visually on top of the desktop session.
+  beagle_stream_startup_status_stop
 
   # GTK hint overlays can crash on minimal live images with broken icon caches.
   # Keep this disabled by default and allow explicit opt-in via env.

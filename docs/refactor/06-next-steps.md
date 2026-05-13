@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-05-13, Thinclient Startup-Regression behoben)
+
+**Zuletzt erledigt**:
+- Regression nach Kiosk-Loader-Einbau auf TC `192.168.178.30` repariert: Auto-Quality-Cache crasht nicht mehr unter `set -u`.
+- Startup-HTML rendert jetzt ohne komplettes Wallpaper-Reload und der Kiosk-Loader wird vor dem Streamfenster geschlossen.
+- Live erneut bestaetigt: `beagle-stream stream 192.168.123.114:50000 Desktop ...` mit `Received first video packet after 0 ms`.
+
+**Naechste konkrete Schritte**:
+
+1. Den kompletten Bootpfad erneut aus einem frischen Thinclient-/Live-USB-Artefakt testen, damit dieselbe Reparatur nicht nur im laufenden Runtime-Tree, sondern auch nach Kaltstart greift.
+2. Die verbleibenden `launch-session.beagle-stream-client state=clean-exit relaunch=1`-Events separat untersuchen und entscheiden, ob das nur ein harmloser Wrapper-Relaunch oder noch Session-Drift ist.
+
+---
+
 ## Stand (2026-05-13, Thinclient VM100 Startup-Kiosk validiert)
 
 **Zuletzt erledigt**:
