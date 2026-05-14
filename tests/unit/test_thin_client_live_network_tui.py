@@ -39,10 +39,13 @@ def test_live_usb_boot_entries_include_ryzen_usb_compatibility_guards() -> None:
     local_installer = LOCAL_INSTALLER.read_text(encoding="utf-8")
     windows_installer = WINDOWS_USB_INSTALLER.read_text(encoding="utf-8")
 
-    assert "usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1" in writer
+    assert "usbcore.autosuspend=-1" in writer
+    assert "idle=nomwait" in writer
+    assert "processor.max_cstate=1" in writer
     assert "copy to RAM compatibility mode" in writer
-    assert "live-media-timeout=30" in writer
-    assert 'live_boot_runtime_args="live-media=/dev/disk/by-uuid/${usb_uuid} live-media-path=/live live-media-timeout=30 ignore_uuid toram' in writer
+    assert "live-media-timeout=180" in writer
+    assert 'local live_boot_runtime_args="live-media-path=/live live-media-timeout=180 ignore_uuid ${runtime_ip_args}' in writer
+    assert "${live_boot_runtime_args} ${live_boot_safe_args} toram" in writer
     assert "usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1" in local_installer
     assert "copy to RAM compatibility mode" in local_installer
     assert 'compatibility_live_args="live-media-timeout=30 ignore_uuid toram' in local_installer
@@ -157,7 +160,8 @@ def test_runtime_getty_override_uses_systemd_safe_user_escape() -> None:
     assert '"$systemctl_bin" disable pve-thin-client-runtime.service' in script
     assert '"$systemctl_bin" unmask getty@tty1.service' in script
     assert '"$systemctl_bin" enable getty@tty1.service' in script
-    assert '"$systemctl_bin" restart getty@tty1.service' in script
+    assert '"$systemctl_bin" restart --no-block getty@tty1.service' in script
+    assert '"$systemctl_bin" start --no-block getty@tty1.service' in script
 
 
 def test_live_ssh_hostkey_prepare_degrades_when_state_dir_is_read_only() -> None:
