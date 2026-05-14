@@ -54,6 +54,18 @@ Außerdem: `toram` war in **allen** Live-Menüeinträgen aktiv, nicht nur im Cop
 
 **Bisher nicht eindeutig diagnostiziert** (kein Logzugriff gehabt).
 
+**Update 2026-05-14 (Root Cause gefunden):**
+- Der Fruehboot-Logger in `init-premount` stoppte nach `candidate media detected`.
+- Ursache war der persistente USB-Mount im Logger selbst (`mount -t vfat -o rw <dev>`),
+	der auf Lenovo B50-45 reproduzierbar haengen kann.
+- Ergebnis: Der Hook blockiert den Bootpfad vor `init-premount exit`; live-boot faellt
+	danach in `Unable to find a medium containing a live file system`.
+
+**Fix (pending commit):**
+- Kein Mount mehr im `init-premount`-Logger.
+- Logger schreibt nur noch nach `/run/beagle-boot-early.log` und `dmesg`.
+- Medium wird weiterhin erkannt und geloggt, aber ohne Blockade-Risiko.
+
 **Verdächtige Ursachen:**
 - Plymouth/DRM Initialisierung schlägt auf AMD A6-6310 (amdgpu/radeon) fehl und hängt
 - `quiet splash` im Standard-Eintrag unterdrückt alle Meldungen → Hänger unsichtbar
@@ -112,6 +124,7 @@ sudo mount /dev/sdb2 /mnt && cat /mnt/beagle-boot-early.log && sudo umount /mnt
 | `4825194` | toram nur noch im Copy-to-RAM-Eintrag |
 | `0362ae3` | Initramfs Frühboot-Logger init-premount |
 | `pending` | `live-media=removable` entfernt; `live-media-path + ignore_uuid` fuer robusten Medium-Scan |
+| `pending` | `init-premount` Logger mountet USB nicht mehr (verhindert Boot-Haenger) |
 
 ---
 

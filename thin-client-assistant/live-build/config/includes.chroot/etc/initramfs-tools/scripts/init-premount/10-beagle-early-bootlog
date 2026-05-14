@@ -16,8 +16,6 @@ esac
 [ -r /scripts/functions ] && . /scripts/functions
 
 LOG_FILE="/run/beagle-boot-early.log"
-USB_LOG_MOUNT="/run/beagle-bootlog-media"
-USB_LOG_PATH="/beagle-boot-early.log"
 
 log_line() {
   local ts
@@ -73,29 +71,6 @@ candidate_media_device() {
   return 1
 }
 
-try_persist_to_usb() {
-  local dev
-  dev="$1"
-
-  mkdir -p "$USB_LOG_MOUNT"
-  if ! mount -t vfat -o rw "$dev" "$USB_LOG_MOUNT" >/dev/null 2>&1; then
-    log_line "usb persist mount failed: dev=$dev"
-    return 1
-  fi
-
-  {
-    echo "=========="
-    echo "beagle early boot snapshot"
-    echo "timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)"
-    cat "$LOG_FILE"
-  } >>"${USB_LOG_MOUNT}${USB_LOG_PATH}" 2>/dev/null || true
-
-  sync >/dev/null 2>&1 || true
-  umount "$USB_LOG_MOUNT" >/dev/null 2>&1 || true
-  log_line "usb persist success: dev=$dev path=${USB_LOG_PATH}"
-  return 0
-}
-
 mkdir -p /run
 : >"$LOG_FILE"
 log_line "init-premount entry"
@@ -106,7 +81,9 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
   dev="$(candidate_media_device 2>/dev/null || true)"
   if [ -n "$dev" ]; then
     log_line "candidate media detected: $dev"
-    try_persist_to_usb "$dev" && break
+    # Never mount candidate media during init-premount. On some BIOS/USB
+    # combinations this can stall and prevent live-boot from progressing.
+    break
   fi
   log_line "candidate media not found yet; retrying"
   sleep 1
