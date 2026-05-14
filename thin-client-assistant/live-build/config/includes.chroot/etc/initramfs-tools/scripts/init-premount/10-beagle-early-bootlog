@@ -24,6 +24,48 @@ log_line() {
   printf '<6>beagle-early: %s\n' "$*" >/dev/kmsg 2>/dev/null || true
 }
 
+read_first_line() {
+  local path
+  path="$1"
+  [ -r "$path" ] || return 1
+  head -n1 "$path" 2>/dev/null
+}
+
+capture_hardware_state() {
+  local kernel arch cpu_model cpu_count mem_kib mem_mib
+  local sys_vendor product_name product_version board_vendor board_name
+  local bios_vendor bios_version bios_date
+
+  kernel="$(uname -r 2>/dev/null || echo unknown)"
+  arch="$(uname -m 2>/dev/null || echo unknown)"
+
+  cpu_model="$(awk -F: '/^model name[[:space:]]*:/ {sub(/^[[:space:]]+/, "", $2); print $2; exit} /^Hardware[[:space:]]*:/ {sub(/^[[:space:]]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)"
+  [ -n "$cpu_model" ] || cpu_model="unknown"
+  cpu_count="$(grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 0)"
+
+  mem_kib="$(awk '/^MemTotal:[[:space:]]+/ {print $2; exit}' /proc/meminfo 2>/dev/null || true)"
+  if [ -n "$mem_kib" ] && [ "$mem_kib" -gt 0 ] 2>/dev/null; then
+    mem_mib=$((mem_kib / 1024))
+  else
+    mem_mib="unknown"
+  fi
+
+  sys_vendor="$(read_first_line /sys/class/dmi/id/sys_vendor 2>/dev/null || echo unknown)"
+  product_name="$(read_first_line /sys/class/dmi/id/product_name 2>/dev/null || echo unknown)"
+  product_version="$(read_first_line /sys/class/dmi/id/product_version 2>/dev/null || echo unknown)"
+  board_vendor="$(read_first_line /sys/class/dmi/id/board_vendor 2>/dev/null || echo unknown)"
+  board_name="$(read_first_line /sys/class/dmi/id/board_name 2>/dev/null || echo unknown)"
+  bios_vendor="$(read_first_line /sys/class/dmi/id/bios_vendor 2>/dev/null || echo unknown)"
+  bios_version="$(read_first_line /sys/class/dmi/id/bios_version 2>/dev/null || echo unknown)"
+  bios_date="$(read_first_line /sys/class/dmi/id/bios_date 2>/dev/null || echo unknown)"
+
+  log_line "hardware: kernel=${kernel} arch=${arch}"
+  log_line "hardware: cpu_model=${cpu_model} cpu_threads=${cpu_count} mem_total_mib=${mem_mib}"
+  log_line "hardware: system_vendor=${sys_vendor} product=${product_name} version=${product_version}"
+  log_line "hardware: board_vendor=${board_vendor} board_name=${board_name}"
+  log_line "hardware: bios_vendor=${bios_vendor} bios_version=${bios_version} bios_date=${bios_date}"
+}
+
 capture_disk_state() {
   log_line "cmdline: $(cat /proc/cmdline 2>/dev/null || echo unavailable)"
 
@@ -75,6 +117,7 @@ mkdir -p /run
 : >"$LOG_FILE"
 log_line "init-premount entry"
 
+capture_hardware_state
 capture_disk_state
 
 for _ in 1 2 3 4 5 6 7 8 9 10; do
