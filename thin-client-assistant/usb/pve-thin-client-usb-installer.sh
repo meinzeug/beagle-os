@@ -133,6 +133,19 @@ have_usb_writer_helpers() {
     [[ -f "$REPO_ROOT/$USB_WRITER_DEVICE_SELECTION_HELPER_RELATIVE" ]]
 }
 
+validate_usb_writer_helpers() {
+  local write_stage_helper="$REPO_ROOT/$USB_WRITER_WRITE_STAGE_HELPER_RELATIVE"
+
+  [[ -f "$write_stage_helper" ]] || return 0
+
+  if grep -q 'module_blacklist=sdhci,sdhci_pci,sdhci_acpi' "$write_stage_helper"; then
+    echo "Stale USB helper payload detected: SDHCI blacklist is still present in usb_writer_write_stage.sh" >&2
+    echo "Refusing to continue because this payload can cause black-screen boot hangs on Lenovo/AMD systems." >&2
+    echo "Please re-download the VM-specific USB script and retry." >&2
+    exit 1
+  fi
+}
+
 allocate_helper_bootstrap_dir() {
   local base=""
   local candidate=""
@@ -168,6 +181,7 @@ bootstrap_usb_writer_helpers() {
   local -a checksum_curl_args download_curl_args
 
   if have_usb_writer_helpers; then
+    validate_usb_writer_helpers
     beagle_installer_log_event "bootstrap_helpers_present" "bootstrap" "ok" "USB writer helpers are bundled"
     return 0
   fi
@@ -179,6 +193,7 @@ bootstrap_usb_writer_helpers() {
     BOOTSTRAPPED_STANDALONE="1"
     GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
     if have_usb_writer_helpers; then
+      validate_usb_writer_helpers
       beagle_installer_log_event "bootstrap_reused" "bootstrap" "ok" "$BOOTSTRAP_DIR"
       return 0
     fi
@@ -313,6 +328,7 @@ bootstrap_usb_writer_helpers() {
     echo "Bootstrap bundle from $bootstrap_url does not contain the expected USB writer helpers." >&2
     exit 1
   }
+  validate_usb_writer_helpers
 }
 
 project_version_from_root() {
