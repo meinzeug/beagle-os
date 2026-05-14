@@ -38,8 +38,8 @@ Auf älteren BIOS/Chipsätzen ist der Block-Device-Pfad zu diesem Zeitpunkt noch
 Außerdem: `toram` war in **allen** Live-Menüeinträgen aktiv, nicht nur im Copy-to-RAM-Eintrag.  
 `toram` destabilisiert das frühe Medium-Handling auf Systemen mit wenig USB-Timing-Marge.
 
-**Fix (Commits a375870, 4825194):**
-- `live-media=removable` statt harter UUID-Bindung (Eintrag auto-detected das Medium robust)
+**Fix (Commits a375870, 4825194, pending):**
+- UUID-Bindung entfernt; Medium-Scan ueber `live-media-path` + `ignore_uuid` (kein `live-media=removable` mehr)
 - `live-media-path=/live` bleibt explizit gesetzt
 - `live-media-timeout=180` (war 30/60)
 - `rootdelay=15 rootwait usb-storage.delay_use=5` ergänzt
@@ -111,6 +111,7 @@ sudo mount /dev/sdb2 /mnt && cat /mnt/beagle-boot-early.log && sudo umount /mnt
 | `a375870` | live-media=removable, live-media-timeout=180, rootdelay/rootwait/usb-storage.delay_use |
 | `4825194` | toram nur noch im Copy-to-RAM-Eintrag |
 | `0362ae3` | Initramfs Frühboot-Logger init-premount |
+| `pending` | `live-media=removable` entfernt; `live-media-path + ignore_uuid` fuer robusten Medium-Scan |
 
 ---
 
