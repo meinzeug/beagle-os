@@ -44,6 +44,7 @@ INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_ISO_URL="${RELEASE_ISO_URL:-}"
 BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-0}"
+BOOTSTRAP_ALLOW_LATEST_CACHE="${PVE_DCV_BOOTSTRAP_ALLOW_LATEST_CACHE:-0}"
 INSTALLER_LOG_URL="${BEAGLE_INSTALLER_LOG_URL:-}"
 INSTALLER_LOG_TOKEN="${BEAGLE_INSTALLER_LOG_TOKEN:-}"
 INSTALLER_LOG_SESSION_ID="${BEAGLE_INSTALLER_LOG_SESSION_ID:-}"
@@ -159,6 +160,7 @@ bootstrap_usb_writer_helpers() {
   local checksum_log=""
   local cache_dir=""
   local cached_tarball=""
+  local bootstrap_is_latest="0"
   local download_target=""
   local used_cached="0"
   local checksum_entry_found="0"
@@ -206,6 +208,9 @@ bootstrap_usb_writer_helpers() {
 
   payload_name="$(basename "${bootstrap_url%%\?*}")"
   [[ -n "$payload_name" ]] || payload_name="pve-thin-client-usb-bootstrap.tar.gz"
+  if [[ "$payload_name" == *-latest.tar.gz ]]; then
+    bootstrap_is_latest="1"
+  fi
   tarball="$BOOTSTRAP_DIR/$payload_name"
   cache_dir="$BOOTSTRAP_CACHE_DIR"
 
@@ -221,6 +226,12 @@ bootstrap_usb_writer_helpers() {
 
   if [[ -n "$cache_dir" ]] && mkdir -p "$cache_dir" 2>/dev/null; then
     cached_tarball="$cache_dir/$payload_name"
+  fi
+
+  # Never trust cached *-latest bootstrap bundles by default.
+  # They can become stale when intermediate proxies/CDNs serve outdated bytes.
+  if [[ "$bootstrap_is_latest" == "1" && "$BOOTSTRAP_ALLOW_LATEST_CACHE" != "1" ]]; then
+    cached_tarball=""
   fi
 
   if [[ -n "$cached_tarball" && -f "$cached_tarball" ]]; then
@@ -262,6 +273,9 @@ bootstrap_usb_writer_helpers() {
     if [[ "$checksum_entry_found" == "1" && "$checksum_ok" == "1" ]]; then
       beagle_installer_log_event "bootstrap_cache_hit" "bootstrap" "ok" "$cached_tarball"
     elif [[ "$checksum_entry_found" == "1" ]]; then
+      used_cached="0"
+    else
+      # If SHA256SUMS has no matching entry, cached payload freshness cannot be proven.
       used_cached="0"
     fi
   fi
