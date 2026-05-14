@@ -39,11 +39,8 @@ def test_live_usb_boot_entries_include_ryzen_usb_compatibility_guards() -> None:
     local_installer = LOCAL_INSTALLER.read_text(encoding="utf-8")
     windows_installer = WINDOWS_USB_INSTALLER.read_text(encoding="utf-8")
 
-    assert "usbcore.autosuspend=-1" in writer
-    assert "idle=nomwait" in writer
-    assert "processor.max_cstate=1" in writer
+    assert 'local live_boot_runtime_args="live-media-path=/live live-media-timeout=180 ignore_uuid ${runtime_ip_args} usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1 mmc_core.use_spi_crc=N"' in writer
     assert "copy to RAM compatibility mode" in writer
-    assert 'local live_boot_runtime_args="live-media-path=/live live-media-timeout=180 ignore_uuid ${runtime_ip_args}' in writer
     assert "${live_boot_runtime_args} ${live_boot_safe_args} toram" in writer
     assert "usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1" in local_installer
     assert "copy to RAM compatibility mode" in local_installer
