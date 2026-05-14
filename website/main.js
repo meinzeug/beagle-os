@@ -126,6 +126,7 @@ import {
   loadDarkModePreference,
   updateDarkModeButton
 } from './ui/theme.js';
+import { initScifiHud } from './ui/scifi_hud.js';
 import {
   configureLive,
   connectLiveUpdates,
@@ -632,6 +633,7 @@ export function bootstrapApp() {
     throw new Error('BeagleBrowserCommon must be loaded before website/main.js');
   }
 
+  initScifiHud();
   initTokenStores(browserCommon);
   initMigrateModal();
   configureApiAuth({
