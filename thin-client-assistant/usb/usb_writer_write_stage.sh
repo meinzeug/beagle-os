@@ -419,9 +419,9 @@ write_usb() {
     [[ -n "$network_interface" ]] || network_interface="eth0"
     runtime_ip_args="$(boot_ip_arg "$network_mode" "$network_static_address" "$network_static_prefix" "$network_gateway" "$hostname_value" "$network_interface")"
 
-  # Keep normal boots on removable media so live-boot does not probe internal
-  # disks first. Use a relative live-media-path; live-boot prepends the mountpoint.
-  local live_boot_runtime_args="live-media=removable live-media-path=live live-media-timeout=5 ignore_uuid ${runtime_ip_args} usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1 mmc_core.use_spi_crc=N"
+  # Keep a relative live-media-path and UUID-agnostic scan; some thin clients
+  # expose USB sticks as fixed disks, so do not enforce live-media=removable.
+  local live_boot_runtime_args="live-media-path=live live-media-timeout=60 ignore_uuid ${runtime_ip_args} usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1 mmc_core.use_spi_crc=N"
   local live_boot_safe_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
   local live_boot_legacy_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
 
@@ -476,7 +476,7 @@ EOF
       grub_timeout="0"
     fi
 
-    local installer_boot_media_args="live-media=removable live-media-path=pve-thin-client/live live-media-timeout=5 ignore_uuid ip=dhcp usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1"
+    local installer_boot_media_args="live-media-path=pve-thin-client/live live-media-timeout=60 ignore_uuid ip=dhcp usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1"
     local installer_boot_safe_args="console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
     local installer_boot_legacy_args="console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
 
