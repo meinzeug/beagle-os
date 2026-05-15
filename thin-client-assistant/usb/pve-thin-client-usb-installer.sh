@@ -138,13 +138,10 @@ validate_usb_writer_helpers() {
 
   [[ -f "$write_stage_helper" ]] || return 0
 
-  # Detect stale SDHCI blacklist: old syntax without new syntax is a sign of outdated payload.
-  # Good payload has BOTH module_blacklist= (initramfs) AND rd.driver.blacklist= (kernel).
-  if grep -q 'module_blacklist=sdhci,sdhci_pci,sdhci_acpi' "$write_stage_helper" && \
-     ! grep -q 'rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi' "$write_stage_helper"; then
-    echo "Stale USB helper payload detected: SDHCI blacklist is present but incomplete (missing rd.driver.blacklist=)." >&2
-    echo "This indicates an old payload that may cause black-screen boot hangs on Lenovo/AMD systems." >&2
-    echo "Please re-download the USB script to get the updated version with both blacklist syntaxes." >&2
+  if grep -q 'module_blacklist=sdhci,sdhci_pci,sdhci_acpi' "$write_stage_helper"; then
+    echo "Stale USB helper payload detected: SDHCI blacklist is still present in usb_writer_write_stage.sh" >&2
+    echo "Refusing to continue because this payload can cause black-screen boot hangs on Lenovo/AMD systems." >&2
+    echo "Please re-download the USB script to get the updated version without the SDHCI blacklist." >&2
     exit 1
   fi
 }
