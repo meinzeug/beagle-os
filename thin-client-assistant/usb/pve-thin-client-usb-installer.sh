@@ -44,6 +44,7 @@ INSTALL_PAYLOAD_URL="${INSTALL_PAYLOAD_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_BOOTSTRAP_URL="${RELEASE_BOOTSTRAP_URL:-${RELEASE_PAYLOAD_URL:-}}"
 RELEASE_ISO_URL="${RELEASE_ISO_URL:-}"
 BOOTSTRAP_DISABLE_CACHE="${PVE_DCV_BOOTSTRAP_DISABLE_CACHE:-0}"
+BOOTSTRAP_ALLOW_LATEST_CACHE="${PVE_DCV_BOOTSTRAP_ALLOW_LATEST_CACHE:-0}"
 INSTALLER_LOG_URL="${BEAGLE_INSTALLER_LOG_URL:-}"
 INSTALLER_LOG_TOKEN="${BEAGLE_INSTALLER_LOG_TOKEN:-}"
 INSTALLER_LOG_SESSION_ID="${BEAGLE_INSTALLER_LOG_SESSION_ID:-}"
@@ -132,6 +133,19 @@ have_usb_writer_helpers() {
     [[ -f "$REPO_ROOT/$USB_WRITER_DEVICE_SELECTION_HELPER_RELATIVE" ]]
 }
 
+validate_usb_writer_helpers() {
+  local write_stage_helper="$REPO_ROOT/$USB_WRITER_WRITE_STAGE_HELPER_RELATIVE"
+
+  [[ -f "$write_stage_helper" ]] || return 0
+
+  if grep -q 'module_blacklist=sdhci,sdhci_pci,sdhci_acpi' "$write_stage_helper"; then
+    echo "Stale USB helper payload detected: SDHCI blacklist is still present in usb_writer_write_stage.sh" >&2
+    echo "Refusing to continue because this payload can cause black-screen boot hangs on Lenovo/AMD systems." >&2
+    echo "Please re-download the USB script to get the updated version without the SDHCI blacklist." >&2
+    exit 1
+  fi
+}
+
 allocate_helper_bootstrap_dir() {
   local base=""
   local candidate=""
@@ -159,6 +173,7 @@ bootstrap_usb_writer_helpers() {
   local checksum_log=""
   local cache_dir=""
   local cached_tarball=""
+  local bootstrap_is_latest="0"
   local download_target=""
   local used_cached="0"
   local checksum_entry_found="0"
@@ -166,6 +181,7 @@ bootstrap_usb_writer_helpers() {
   local -a checksum_curl_args download_curl_args
 
   if have_usb_writer_helpers; then
+    validate_usb_writer_helpers
     beagle_installer_log_event "bootstrap_helpers_present" "bootstrap" "ok" "USB writer helpers are bundled"
     return 0
   fi
@@ -177,6 +193,7 @@ bootstrap_usb_writer_helpers() {
     BOOTSTRAPPED_STANDALONE="1"
     GRUB_BACKGROUND_SRC="$REPO_ROOT/thin-client-assistant/usb/assets/grub-background.jpg"
     if have_usb_writer_helpers; then
+      validate_usb_writer_helpers
       beagle_installer_log_event "bootstrap_reused" "bootstrap" "ok" "$BOOTSTRAP_DIR"
       return 0
     fi
@@ -206,6 +223,9 @@ bootstrap_usb_writer_helpers() {
 
   payload_name="$(basename "${bootstrap_url%%\?*}")"
   [[ -n "$payload_name" ]] || payload_name="pve-thin-client-usb-bootstrap.tar.gz"
+  if [[ "$payload_name" == *-latest.tar.gz ]]; then
+    bootstrap_is_latest="1"
+  fi
   tarball="$BOOTSTRAP_DIR/$payload_name"
   cache_dir="$BOOTSTRAP_CACHE_DIR"
 
@@ -221,6 +241,12 @@ bootstrap_usb_writer_helpers() {
 
   if [[ -n "$cache_dir" ]] && mkdir -p "$cache_dir" 2>/dev/null; then
     cached_tarball="$cache_dir/$payload_name"
+  fi
+
+  # Never trust cached *-latest bootstrap bundles by default.
+  # They can become stale when intermediate proxies/CDNs serve outdated bytes.
+  if [[ "$bootstrap_is_latest" == "1" && "$BOOTSTRAP_ALLOW_LATEST_CACHE" != "1" ]]; then
+    cached_tarball=""
   fi
 
   if [[ -n "$cached_tarball" && -f "$cached_tarball" ]]; then
@@ -263,6 +289,9 @@ bootstrap_usb_writer_helpers() {
       beagle_installer_log_event "bootstrap_cache_hit" "bootstrap" "ok" "$cached_tarball"
     elif [[ "$checksum_entry_found" == "1" ]]; then
       used_cached="0"
+    else
+      # If SHA256SUMS has no matching entry, cached payload freshness cannot be proven.
+      used_cached="0"
     fi
   fi
 
@@ -299,6 +328,7 @@ bootstrap_usb_writer_helpers() {
     echo "Bootstrap bundle from $bootstrap_url does not contain the expected USB writer helpers." >&2
     exit 1
   }
+  validate_usb_writer_helpers
 }
 
 project_version_from_root() {
