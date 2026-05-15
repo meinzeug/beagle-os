@@ -161,3 +161,30 @@ sudo mount /dev/sdb2 /mnt && cat /mnt/beagle-boot-early.log && sudo umount /mnt
 - Zur Diagnostik wurde ein zusaetzlicher initramfs-Hook im `init-bottom` eingefuehrt,
   der den fruehen `/run/beagle-boot-early.log` best-effort auf den Live-Stick kopiert,
   ohne den Bootablauf bei Persistenzfehlern zu blockieren.
+
+### Phase 4 — SDHCI Controller Interrupt Timeout (Lenovo B50-45 mit Safe Mode)
+
+**Symptome (aus Screenshot 2026-05-15):**
+- Boot-Sequenz: GRUB → Kernel laden → `init-premount` läuft bis Completion → USB-Medium erkannt (`/dev/sda2`)
+- Dannach: `mmc0: Timeout waiting for hardware cmd interrupt` Schleife
+- `SDHCI REGISTER DUMP` erscheint wiederholt
+- Boot hängt, erreicht niemals Netzwerk-TUI
+- Keine Log-Persistierung auf Stick (weil Boot vorher steckenbleibt)
+
+**Root Cause:** 
+- SDHCI/MMC-Kontroller-Hardware auf Lenovo B50-45 verursacht Interrupt-Timeout im Kernel
+- `mmc_core.use_spi_crc=N` Parameter unterdrückt nur CRC-Fehler, NICHT Interrupt-Handler-Timeouts
+- Der Kernel versucht mmc0-Device zu initialisieren und hängt in der Interrupt-Abarbeitung
+
+**Fix (Commit 3b47fd8):**
+- BEIDE Blacklist-Syntaxen zu Safe- und Legacy-Boot-Modi hinzufügen:
+  - `module_blacklist=sdhci,sdhci_pci,sdhci_acpi` (initramfs-Syntax)
+  - `rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi` (kernel/dracut-Syntax)
+- Nur für Safe/Legacy Modi, nicht für Runtime-Eintrag (dort bleibt `mmc_core.use_spi_crc=N` für breitere Kompatibilität)
+- Damit wird das SDHCI-Modul komplett deaktiviert, bevor der Kernel die Interrupt-Handler initialisiert
+
+**Nächste Schritte:**
+1. Payload neu bauen auf srv1 mit Commit 3b47fd8
+2. USB-Stick neu schreiben
+3. Auf Lenovo B50-45: "Safe Mode / AMD compat" Boot-Eintrag versuchen
+4. Logs nach erfolgreichem Boot-up prüfen
