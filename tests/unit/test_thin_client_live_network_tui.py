@@ -41,8 +41,9 @@ def test_live_usb_boot_entries_include_ryzen_usb_compatibility_guards() -> None:
 
     assert "usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1" in writer
     assert "copy to RAM compatibility mode" in writer
-    assert "live-media-timeout=5" in writer
-    assert 'live_boot_runtime_args="live-media=removable live-media-path=live live-media-timeout=5 ignore_uuid' in writer
+    assert "live-media-timeout=60" in writer
+    assert 'live_boot_runtime_args="live-media-path=live live-media-timeout=60 ignore_uuid' in writer
+    assert "do not enforce live-media=removable" in writer
     assert "rootdelay=15 rootwait usb-storage.delay_use=5" in writer
     assert "module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi" in writer
     assert writer.count(" toram ") == 2
