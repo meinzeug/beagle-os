@@ -15,3 +15,8 @@ if ! lsinitramfs "$latest_initrd" | grep -q 'scripts/init-premount/10-beagle-ear
   echo "Early beagle boot logger missing from initramfs: $latest_initrd" >&2
   exit 1
 fi
+
+if ! lsinitramfs "$latest_initrd" | grep -q 'scripts/init-bottom/20-beagle-early-bootlog-persist$'; then
+  echo "Early beagle bootlog persistence hook missing from initramfs: $latest_initrd" >&2
+  exit 1
+fi

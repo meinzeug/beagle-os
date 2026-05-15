@@ -1,0 +1,40 @@
+#!/bin/sh
+
+PREREQ=""
+
+prereqs() {
+  echo "$PREREQ"
+}
+
+case "$1" in
+  prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+LOG_FILE="/run/beagle-boot-early.log"
+LIVE_MEDIUM="/run/live/medium"
+DEBUG_DIR="$LIVE_MEDIUM/pve-thin-client/state/debug"
+TS="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date +%s)"
+TARGET_TOP="$LIVE_MEDIUM/beagle-boot-early.log"
+TARGET_DEBUG="$DEBUG_DIR/${TS}-beagle-boot-early.log"
+
+[ -s "$LOG_FILE" ] || exit 0
+[ -d "$LIVE_MEDIUM" ] || exit 0
+
+# best effort only: never block boot when persistence fails
+if [ ! -w "$LIVE_MEDIUM" ]; then
+  mount -o remount,rw "$LIVE_MEDIUM" >/dev/null 2>&1 || true
+fi
+
+if [ -w "$LIVE_MEDIUM" ]; then
+  cp "$LOG_FILE" "$TARGET_TOP" >/dev/null 2>&1 || true
+  mkdir -p "$DEBUG_DIR" >/dev/null 2>&1 || true
+  if [ -d "$DEBUG_DIR" ] && [ -w "$DEBUG_DIR" ]; then
+    cp "$LOG_FILE" "$TARGET_DEBUG" >/dev/null 2>&1 || true
+    cp "$LOG_FILE" "$DEBUG_DIR/latest.log" >/dev/null 2>&1 || true
+  fi
+fi
+
+exit 0
