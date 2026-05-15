@@ -123,8 +123,12 @@ sudo mount /dev/sdb2 /mnt && cat /mnt/beagle-boot-early.log && sudo umount /mnt
 | `a375870` | live-media=removable, live-media-timeout=180, rootdelay/rootwait/usb-storage.delay_use |
 | `4825194` | toram nur noch im Copy-to-RAM-Eintrag |
 | `0362ae3` | Initramfs Frühboot-Logger init-premount |
-| `pending` | `live-media=removable` entfernt; `live-media-path + ignore_uuid` fuer robusten Medium-Scan |
-| `pending` | `init-premount` Logger mountet USB nicht mehr (verhindert Boot-Haenger) |
+| `831e56c` | `live-media=removable` entfernt; `live-media-path + ignore_uuid` fuer robusten Medium-Scan |
+| `9ee9529` | `init-premount` Logger mountet USB nicht mehr (verhindert Boot-Haenger) |
+| `338ac01` | SDHCI-Blacklist in Live-GRUB entfernt, `mmc_core.use_spi_crc=N` aktiv |
+| `556b483` | USB-Bootstrap: stale `*-latest` Cache wird standardmaessig nicht mehr vertraut |
+| `3ef2535` | USB-Installer bricht hart ab, wenn stale Helper noch `module_blacklist=sdhci...` enthaelt |
+| `c7b32a2` | Neuer initramfs `init-bottom` Hook persistiert `/run/beagle-boot-early.log` auf den Stick |
 
 ---
 
@@ -139,10 +143,21 @@ sudo mount /dev/sdb2 /mnt && cat /mnt/beagle-boot-early.log && sudo umount /mnt
 
 ---
 
-## Offener Stand (2026-05-13)
+## Offener Stand (2026-05-15)
 
-- [ ] Rebuild mit frischer Payload von srv1 durchführen
-- [ ] Stick neu schreiben (nicht nur grub.cfg patchen)
-- [ ] Boot-Test auf Lenovo B50-45 mit frischem Stick
-- [ ] Frühboot-Log `/beagle-boot-early.log` nach Boot auslesen
-- [ ] Falls Phase-3-Hänger weiterhin: qemu-Simulation auf srv1 mit seriellem Output
+- [x] Rebuild mit frischer Payload von srv1 durchgeführt
+- [x] Stick neu geschrieben
+- [x] Verifiziert: Payload-URL enthaelt `mmc_core.use_spi_crc=N` und keine SDHCI-Blacklist
+- [x] Verifiziert: Aktuelle Stick-Fehlerbilder reproduzierbar dokumentiert
+- [ ] Nach Boot erneut Logs auf Stick auslesen (`/beagle-boot-early.log`, `pve-thin-client/state/debug/latest.log`)
+- [ ] Falls weiterhin keine Logs persistieren: neuen `init-bottom` Persistenz-Hook aus `c7b32a2` im naechsten Build/Stick verifizieren
+- [ ] Danach erneuter Lenovo B50-45 Boot-Test bis Netzwerk-TUI oder klarer Stop-Punkt mit persistiertem Early-Log
+
+## Update 2026-05-15
+
+- Trotz aktualisierter Payload und neu geschriebenem Stick bleibt der Endpoint vor der Netzwerk-TUI haengen.
+- Auf dem betroffenen Stick waren weder `/beagle-boot-early.log` noch `pve-thin-client/state/debug/latest.log` vorhanden.
+- Das weist auf einen sehr fruehen Abbruch hin (vor spaeter Runtime-Logpersistenz).
+- Zur Diagnostik wurde ein zusaetzlicher initramfs-Hook im `init-bottom` eingefuehrt,
+  der den fruehen `/run/beagle-boot-early.log` best-effort auf den Live-Stick kopiert,
+  ohne den Bootablauf bei Persistenzfehlern zu blockieren.

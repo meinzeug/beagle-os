@@ -421,11 +421,11 @@ write_usb() {
 
   # Do not restrict to removable media: some BIOS/USB bridges expose sticks as fixed disks.
   # Some laptops (e.g. Lenovo B50-45) have SDHCI controllers that timeout during boot.
-  # Use mmc_core.use_spi_crc=N to suppress CRC errors instead of blacklisting SDHCI entirely.
-  # This allows the kernel to recover from transient timeouts without stalling the boot.
+  # mmc_core.use_spi_crc=N alone does not suppress interrupt handler timeouts.
+  # For safe/legacy modes, use both blacklist syntaxes to disable SDHCI entirely.
   local live_boot_runtime_args="live-media-path=/live live-media-timeout=180 ignore_uuid ${runtime_ip_args} usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1 mmc_core.use_spi_crc=N"
-  local live_boot_safe_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off"
-  local live_boot_legacy_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll"
+  local live_boot_safe_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
+  local live_boot_legacy_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
 
 cat > "$mount_dir/boot/grub/grub.cfg" <<EOF
 insmod part_gpt
