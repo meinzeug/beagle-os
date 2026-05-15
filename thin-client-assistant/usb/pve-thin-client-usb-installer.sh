@@ -138,10 +138,11 @@ validate_usb_writer_helpers() {
 
   [[ -f "$write_stage_helper" ]] || return 0
 
-  if grep -q 'module_blacklist=sdhci,sdhci_pci,sdhci_acpi' "$write_stage_helper"; then
-    echo "Stale USB helper payload detected: SDHCI blacklist is still present in usb_writer_write_stage.sh" >&2
-    echo "Refusing to continue because this payload can cause black-screen boot hangs on Lenovo/AMD systems." >&2
-    echo "Please re-download the USB script to get the updated version without the SDHCI blacklist." >&2
+  if grep -q 'module_blacklist=sdhci,sdhci_pci,sdhci_acpi' "$write_stage_helper" &&
+     ! grep -q 'rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi' "$write_stage_helper"; then
+    echo "Stale USB helper payload detected: SDHCI blacklist is present but incomplete in usb_writer_write_stage.sh" >&2
+    echo "Refusing to continue because this payload can still hang on Lenovo/AMD SDHCI interrupt timeouts." >&2
+    echo "Please re-download the USB script to get the updated version with both blacklist syntaxes." >&2
     exit 1
   fi
 }

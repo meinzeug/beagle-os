@@ -188,3 +188,41 @@ sudo mount /dev/sdb2 /mnt && cat /mnt/beagle-boot-early.log && sudo umount /mnt
 2. USB-Stick neu schreiben
 3. Auf Lenovo B50-45: "Safe Mode / AMD compat" Boot-Eintrag versuchen
 4. Logs nach erfolgreichem Boot-up prüfen
+
+### Phase 5 — Regression durch Live-Medium-Scan/Timeout (2026-05-15)
+
+**Symptome:**
+- Nach den Lenovo-Fixversuchen bootete ein zuvor funktionierender Live-USB-Stick
+  nicht mehr bis zur Netzwerk-TUI.
+- Stattdessen hing der Bootpfad sichtbar im Live-Medium-/Storage-Zugriff bzw.
+  endete in `Unable to find a medium containing a live file system`.
+
+**Root Cause:**
+- Der Default-Bootpfad hatte kein begrenzendes `live-media=...` mehr und liess
+  live-boot breit ueber Blockgeraete suchen.
+- `live-media-timeout=180` verlaengerte den Fruehbootpfad massiv.
+- `live-media-path=/live` ist fuer live-boot unguenstig, weil der Helper den
+  Mountpoint selbst voranstellt; `live` ist der robuste relative Pfad.
+
+**Fix (pending commit):**
+- Default-Live- und Installer-Boot nutzen wieder einen begrenzten USB-Pfad:
+  `live-media=removable live-media-path=live live-media-timeout=5`.
+- Installer nutzt entsprechend `live-media-path=pve-thin-client/live`.
+- `toram` bleibt nur in Copy-to-RAM-Eintraegen.
+- Safe/Legacy behalten die duale SDHCI-Blacklist:
+  `module_blacklist=...` plus `rd.driver.blacklist=...`.
+- Stale-Payload-Guard akzeptiert die neue duale Blacklist und blockiert nur noch
+  unvollstaendige alte Blacklist-Payloads.
+
+**Verifikation:**
+- Lokal: `pytest -q tests/unit/test_thin_client_live_network_tui.py tests/unit/test_usb_payload_resolution_regressions.py` -> `17 passed`.
+- `srv1` Temp-VM/QEMU: partitioniertes FAT32-Live-Medium als USB-Storage mit
+  `live-media=removable live-media-path=live live-media-timeout=5` findet das
+  Live-Medium, startet systemd und erreicht `pve-thin-client-network-menu.service`.
+  Der Lauf wurde nach 90s per Timeout beendet; Ergebnis war kein Medium-Find-Fehler.
+
+**Nächste Schritte:**
+1. Commit pushen.
+2. Auf `srv1` neuen Payload-/USB-Artefaktbuild starten.
+3. Stick neu schreiben.
+4. Standard-Eintrag zuerst testen; auf Lenovo B50-45 danach Safe Mode / AMD compat.

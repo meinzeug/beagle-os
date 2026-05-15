@@ -540,9 +540,9 @@ function Write-GrubConfig {
                 Remove-Item -LiteralPath $tempPreset -Force -ErrorAction SilentlyContinue
             }
         }
-        $runtimeBootMediaArgs = "live-media-path=/live live-media-timeout=30 ignore_uuid toram ip=dhcp usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1"
-        $runtimeSafeArgs = "loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic"
-        $runtimeLegacyArgs = "loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic"
+        $runtimeBootMediaArgs = "live-media=removable live-media-path=live live-media-timeout=5 ignore_uuid ip=dhcp usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1 mmc_core.use_spi_crc=N"
+        $runtimeSafeArgs = "loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
+        $runtimeLegacyArgs = "loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
         $content = @"
 insmod part_gpt
 insmod fat
@@ -566,15 +566,15 @@ menuentry 'Beagle OS Live (legacy IRQ mode)' {
 }
 
 menuentry 'Beagle OS Live (copy to RAM compatibility mode)' {
-    linux /live/vmlinuz boot=live components username=thinclient hostname=$hostname $runtimeBootMediaArgs $runtimeSafeArgs pve_thin_client.mode=runtime
+    linux /live/vmlinuz boot=live components username=thinclient hostname=$hostname $runtimeBootMediaArgs $runtimeSafeArgs toram pve_thin_client.mode=runtime
   initrd /live/initrd.img
 }
 "@
     } else {
         $timeout = if ([string]::IsNullOrWhiteSpace($PresetBase64Value) -and [string]::IsNullOrWhiteSpace($PresetName)) { "5" } else { "0" }
-                $installerBootMediaArgs = "live-media-path=/pve-thin-client/live live-media-timeout=30 ip=dhcp usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1"
-                $installerSafeArgs = "console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic"
-                $installerLegacyArgs = "console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll noapic nolapic"
+                $installerBootMediaArgs = "live-media=removable live-media-path=pve-thin-client/live live-media-timeout=5 ignore_uuid ip=dhcp usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1"
+                $installerSafeArgs = "console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
+                $installerLegacyArgs = "console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
                 $content = @"
 terminal_output console
 set default=0

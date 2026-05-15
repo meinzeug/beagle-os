@@ -1639,6 +1639,13 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 
 **Naechste konkrete Schritte**:
 
+1. **Live-USB Boot-Regression abschliessen**: Nach dem Push auf `srv1` neuen
+   Thinclient-/USB-Payload bauen, Stick neu schreiben und den Standard-Boot bis
+   Netzwerk-TUI auf echter Hardware validieren; Lenovo B50-45 danach mit
+   `Safe Mode / AMD compat` pruefen.
+2. **Live-USB Boot-Logs sichern**: Nach dem Hardwaretest `/beagle-boot-early.log`
+   und `pve-thin-client/state/debug/latest.log` auslesen und `bootbug.md`
+   aktualisieren.
 1. **Plan 04 produktiv schließen**: `smart_scheduler` wirklich als optionalen Drop-In in den produktiven Pool-/Placement-Pfad ziehen.
 2. **Plan 04 Analytics vertiefen**: Saved-CPU-Hours und Prewarm-Erfolg pro Pool/User differenzieren statt nur global zu summieren.
 3. **Plan 09 Datenbasis vertiefen**: echten stündlichen Carbon-/Strommix-Feed hinter die Green-Hours-Heatmap legen, statt nur die aktuelle Konfiguration zu projizieren.

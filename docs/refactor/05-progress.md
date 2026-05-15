@@ -7654,3 +7654,25 @@ Deployment + Live-Validierung auf `srv1.beagle-os.com` erfolgreich. 65 Unit-Test
 **Rest-Risiken**:
 - Server-Merge behält Beagle-src-Versionen (nicht rebased) → upstream src-Verbesserungen fehlen.
 - Folgend: selektive Upstream-Integration in src/platform/linux/ empfohlen.
+
+## 2026-05-15 — Live-USB Boot-Regression nach Lenovo-Fixes eingegrenzt und gepatcht
+
+**Scope**: Der vom Live-USB-Skript erzeugte Beagle-OS-Stick bootete nach den
+Lenovo-/Alt-Hardware-Fixes nicht mehr reproduzierbar bis zur Netzwerk-TUI.
+
+**Umsetzung**:
+- `thin-client-assistant/usb/usb_writer_write_stage.sh`: Default-Bootpfad wieder
+  auf removable USB begrenzt (`live-media=removable`), relativen
+  `live-media-path` gesetzt und `live-media-timeout` auf 5s reduziert.
+- Safe/Legacy behalten die duale SDHCI-Blacklist fuer Lenovo B50-45.
+- Linux-Guard blockiert nur noch unvollstaendige alte SDHCI-Blacklist-Payloads.
+- Windows-USB-Writer auf dieselben Bootparameter nachgezogen.
+- Regressionstest fuer Bootparameter aktualisiert.
+
+**Verifikation**:
+- Lokal: `pytest -q tests/unit/test_thin_client_live_network_tui.py tests/unit/test_usb_payload_resolution_regressions.py` -> `17 passed`.
+- `srv1`: Temp-VM/QEMU mit partitioniertem FAT32-USB-Live-Medium findet das
+  Live-Medium, startet systemd und erreicht `pve-thin-client-network-menu.service`.
+
+**Rest**:
+- Neuer srv1-Artefaktbuild und echter Stick-Boot auf Hardware stehen noch aus.
