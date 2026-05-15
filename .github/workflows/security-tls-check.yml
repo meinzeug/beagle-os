@@ -25,7 +25,7 @@ jobs:
             fi
             echo "::error file=$file,line=$line::Insecure TLS bypass found: $content"
             VIOLATIONS=$((VIOLATIONS + 1))
-          done < <(grep -RIn \
+          done < <(grep -RInI --binary-files=without-match \
             'curl.*--insecure\|curl -k \|curl -[a-zA-Z]*k[a-zA-Z]* ' \
             --include='*.sh' --include='*.py' --include='*.tpl' \
             --exclude-dir='.venv' \
@@ -51,7 +51,7 @@ jobs:
             fi
             echo "::error file=$file,line=$line::requests verify=False found outside tests: $content"
             VIOLATIONS=$((VIOLATIONS + 1))
-          done < <(grep -RIn 'verify=False' \
+          done < <(grep -RInI --binary-files=without-match 'verify=False' \
             --include='*.py' \
             --exclude-dir='.venv' \
             . 2>/dev/null || true)
