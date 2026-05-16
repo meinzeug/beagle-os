@@ -1,3 +1,25 @@
+## Update (2026-05-16, WebUI-Firewall-Baseline ueber systemd/polkit repariert)
+
+**Scope**: Button `Baseline anwenden` im Settings-Firewall-Panel lieferte `HTTP 400` mit `sudo: unable to change to root gid`.
+
+- **Root-Cause**:
+  - Die Control Plane laeuft bewusst systemd-gehaertet mit `RestrictSUIDSGID=yes`.
+  - Der Firewall-Handler startete `/opt/beagle/scripts/apply-beagle-firewall.sh` aus dem API-Prozess per `sudo`; dieser setuid-Pfad ist in der Sandbox blockiert.
+  - Der WebUI-Button nutzt `POST /api/v1/settings/firewall`, waehrend die Mutation bisher nur im `PUT`-Router lag.
+
+- **Repo-Fix**:
+  - Neuer root-oneshot `beagle-firewall-apply.service` fuehrt Firewall-Aktionen aus.
+  - Neue polkit-Regel erlaubt nur `beagle-manager` das Starten genau dieser Unit.
+  - Neuer Runner `scripts/beagle-firewall-action-runner.sh` liest validierte Action-Requests aus `/run/beagle-control-plane`, begrenzt Zusatzregeln auf sichere Port-Regeln und schreibt den Ergebnisstatus zurueck.
+  - `server_settings.py` nutzt fuer Firewall-Aktionen systemd/polkit statt `sudo` im sandboxed Prozess und routet `POST /api/v1/settings/firewall` auf denselben Handler.
+
+- **Live-Verifikation (`srv1`)**:
+  - `POST /api/v1/settings/firewall {"action":"enable"}` liefert `HTTP 200`, `ok=true`, `active=true`, `guard_table=true`.
+  - `beagle-firewall-apply.service` laeuft als root-oneshot erfolgreich durch; `nft list table inet beagle_guard` ist aktiv.
+  - Add-/Delete-Custom-Rule ueber denselben POST-Pfad mit temporaerer `allow 65535/tcp`-Regel validiert und wieder entfernt.
+
+---
+
 ## Update (2026-05-13, TTY1-Konsole-Rueckfall + Runtime-Drift gehaertet)
 
 **Scope**: Neuer Live-USB-Lauf auf lokalem TC `192.168.178.30` fiel auf TTY1-Konsole zurueck; Streamstart war inkonsistent wegen Runtime-Drift und fehlender Pairing-Erholung im Fast-Launch.

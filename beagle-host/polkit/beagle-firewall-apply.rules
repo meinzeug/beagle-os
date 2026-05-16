@@ -1,0 +1,16 @@
+// Managed by Beagle OS. Allows the beagle-manager service user to apply the
+// Beagle nftables guard through the dedicated root oneshot unit.
+polkit.addRule(function(action, subject) {
+  if (action.id !== "org.freedesktop.systemd1.manage-units") {
+    return polkit.Result.NOT_HANDLED;
+  }
+  if (subject.user !== "beagle-manager") {
+    return polkit.Result.NOT_HANDLED;
+  }
+  var unit = action.lookup("unit");
+  var verb = action.lookup("verb");
+  if (unit === "beagle-firewall-apply.service" && verb === "start") {
+    return polkit.Result.YES;
+  }
+  return polkit.Result.NOT_HANDLED;
+});

@@ -615,6 +615,45 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
             self.assertTrue(result["ok"], result)
             self.assertEqual(calls[0], [str(script), "--add-extra-rule", "tcp dport 9443 accept"])
 
+    def test_update_firewall_enable_uses_systemd_unit_when_sandboxed(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = Path(tmpdir) / "data"
+            install_dir = Path(tmpdir) / "install"
+            script = install_dir / "scripts" / "apply-beagle-firewall.sh"
+            action_file = Path(tmpdir) / "run" / "firewall-action.env"
+            script.parent.mkdir(parents=True)
+            script.write_text("#!/bin/sh\n", encoding="utf-8")
+            service = ServerSettingsService(data_dir=data_dir, install_dir=install_dir)
+            unit_calls = []
+
+            def fake_systemctl(args, **_kwargs):
+                unit_calls.append(args)
+                proc = mock.Mock()
+                proc.returncode = 0
+                proc.stdout = ""
+                proc.stderr = ""
+                return proc
+
+            with mock.patch.object(MODULE, "_BEAGLE_FIREWALL_ACTION_FILE", action_file), \
+                 mock.patch.object(MODULE, "_run_systemctl_privileged", side_effect=fake_systemctl), \
+                 mock.patch.object(MODULE.os, "geteuid", return_value=1000), \
+                 mock.patch.object(service, "get_firewall", return_value={"active": True, "rules": []}):
+                result = service.update_firewall({"action": "enable"})
+
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(unit_calls, [["start", "beagle-firewall-apply.service"]])
+            self.assertEqual(action_file.read_text(encoding="utf-8"), "BEAGLE_FIREWALL_ACTION=enable\nBEAGLE_FIREWALL_ARG_B64=\n")
+
+    def test_route_post_firewall_matches_webui_action_method(self):
+        service = self.make_service()
+        with mock.patch.object(service, "update_firewall", return_value={"ok": True, "firewall": {"active": True}}) as update:
+            response = service.route_post("/api/v1/settings/firewall", {"action": "enable"})
+
+        self.assertIsNotNone(response)
+        self.assertEqual(response["status"], MODULE.HTTPStatus.OK)
+        self.assertTrue(response["payload"]["ok"])
+        update.assert_called_once_with({"action": "enable"})
+
     def test_get_updates_includes_repo_auto_update_state(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             data_dir = Path(tmpdir) / "data"

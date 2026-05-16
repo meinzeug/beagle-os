@@ -1,0 +1,20 @@
+[Unit]
+Description=Apply Beagle OS firewall baseline from Web Console
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=BEAGLE_FIREWALL_ACTION_FILE=/run/beagle-control-plane/firewall-action.env
+ExecStart=__INSTALL_DIR__/scripts/beagle-firewall-action-runner.sh
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/beagle /etc/nftables.conf /run/beagle-control-plane
+NoNewPrivileges=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_DAC_OVERRIDE CAP_CHOWN CAP_FOWNER
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_DAC_OVERRIDE CAP_CHOWN CAP_FOWNER

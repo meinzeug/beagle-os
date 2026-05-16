@@ -17,6 +17,7 @@ REPO_AUTO_UPDATE_SERVICE_NAME="beagle-repo-auto-update.service"
 REPO_AUTO_UPDATE_TIMER_NAME="beagle-repo-auto-update.timer"
 SYSTEM_UPDATES_SERVICE_NAME="beagle-system-updates.service"
 SYSTEM_UPDATES_TIMER_NAME="beagle-system-updates.timer"
+BEAGLE_FIREWALL_APPLY_SERVICE="beagle-firewall-apply.service"
 UI_REAPPLY_SERVICE="beagle-ui-reapply.service"
 UI_REAPPLY_PATH="beagle-ui-reapply.path"
 BEAGLE_CONTROL_SERVICE="beagle-control-plane.service"
@@ -30,6 +31,7 @@ ARTIFACT_POLKIT_RULE_NAME="49-beagle-artifacts-refresh.rules"
 ARTIFACT_WATCHDOG_POLKIT_RULE_NAME="49-beagle-artifacts-watchdog.rules"
 REPO_AUTO_UPDATE_POLKIT_RULE_NAME="49-beagle-repo-auto-update.rules"
 SYSTEM_UPDATES_POLKIT_RULE_NAME="49-beagle-system-updates.rules"
+BEAGLE_FIREWALL_APPLY_POLKIT_RULE_NAME="49-beagle-firewall-apply.rules"
 BEAGLE_NOVNC_PROXY_SERVICE="beagle-novnc-proxy.service"
 BEAGLE_CONTROL_ENV_FILE="$CONFIG_DIR/beagle-manager.env"
 IDENTITY_PROVIDER_REGISTRY_FILE="${BEAGLE_IDENTITY_PROVIDER_REGISTRY_FILE:-$CONFIG_DIR/identity-providers.json}"
@@ -582,6 +584,7 @@ install_unit "$ROOT_DIR/beagle-host/systemd/$REPO_AUTO_UPDATE_SERVICE_NAME" "$SY
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$REPO_AUTO_UPDATE_TIMER_NAME" "$SYSTEMD_DIR/$REPO_AUTO_UPDATE_TIMER_NAME"
 install_unit "$ROOT_DIR/beagle-host/systemd/$SYSTEM_UPDATES_SERVICE_NAME" "$SYSTEMD_DIR/$SYSTEM_UPDATES_SERVICE_NAME"
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$SYSTEM_UPDATES_TIMER_NAME" "$SYSTEMD_DIR/$SYSTEM_UPDATES_TIMER_NAME"
+install_unit "$ROOT_DIR/beagle-host/systemd/$BEAGLE_FIREWALL_APPLY_SERVICE" "$SYSTEMD_DIR/$BEAGLE_FIREWALL_APPLY_SERVICE"
 if has_ui_reapply_units; then
   install_unit "$ROOT_DIR/beagle-host/systemd/$UI_REAPPLY_SERVICE" "$SYSTEMD_DIR/$UI_REAPPLY_SERVICE"
   install -m 0644 "$ROOT_DIR/beagle-host/systemd/$UI_REAPPLY_PATH" "$SYSTEMD_DIR/$UI_REAPPLY_PATH"
@@ -606,6 +609,9 @@ if [[ "$(readlink -f "$ROOT_DIR/beagle-host/bin/endpoint_profile_contract.py")" 
 fi
 if [[ "$(readlink -f "$ROOT_DIR/scripts/beagle-cluster-auto-join.sh")" != "$(readlink -f "$INSTALL_DIR/scripts/beagle-cluster-auto-join.sh" 2>/dev/null || true)" ]]; then
   install -m 0755 "$ROOT_DIR/scripts/beagle-cluster-auto-join.sh" "$INSTALL_DIR/scripts/beagle-cluster-auto-join.sh"
+fi
+if [[ "$(readlink -f "$ROOT_DIR/scripts/beagle-firewall-action-runner.sh")" != "$(readlink -f "$INSTALL_DIR/scripts/beagle-firewall-action-runner.sh" 2>/dev/null || true)" ]]; then
+  install -m 0755 "$ROOT_DIR/scripts/beagle-firewall-action-runner.sh" "$INSTALL_DIR/scripts/beagle-firewall-action-runner.sh"
 fi
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/providers/host_provider_contract.py" "$HOST_RUNTIME_DIR/providers/host_provider_contract.py"
 install_file_if_needed 0644 "$ROOT_DIR/beagle-host/providers/registry.py" "$HOST_RUNTIME_DIR/providers/registry.py"
@@ -1008,6 +1014,7 @@ install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-artifacts-refresh.rules"
 install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-artifacts-watchdog.rules" "$POLKIT_RULES_DIR/$ARTIFACT_WATCHDOG_POLKIT_RULE_NAME"
 install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-repo-auto-update.rules" "$POLKIT_RULES_DIR/$REPO_AUTO_UPDATE_POLKIT_RULE_NAME"
 install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-system-updates.rules" "$POLKIT_RULES_DIR/$SYSTEM_UPDATES_POLKIT_RULE_NAME"
+install -m 0644 "$INSTALL_DIR/beagle-host/polkit/beagle-firewall-apply.rules" "$POLKIT_RULES_DIR/$BEAGLE_FIREWALL_APPLY_POLKIT_RULE_NAME"
 if [[ -f /var/lib/beagle/refresh.status.json ]]; then
   chgrp beagle-manager /var/lib/beagle/refresh.status.json 2>/dev/null || true
   chmod 0640 /var/lib/beagle/refresh.status.json 2>/dev/null || true

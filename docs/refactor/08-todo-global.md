@@ -8,6 +8,7 @@
 - [x] Plasma-Cyberpunk-Wallpaper im Ubuntu-Firstboot robust machen: Asset via cloud-init `write_files` nach `/var/lib/beagle/seed/` schreiben und den Firstboot nicht mehr von zufaellig exponierten `/var/lib/cloud/*`-Seed-Dateien abhaengig machen.
 - [x] Stale VM-Runtime-Artefakte bei Delete/Recreate derselben VMID bereinigen, damit `vm100`-artige Recreates keine alten Endpoint-/Update-/Provisioning-Zustaende mitziehen.
 - [x] Provisioning-Callback-Idempotenz fuer `complete` und `prepare-firstboot` haerten, damit Retry-Callbacks keine erneuten Finalize-/Restart-Loops ausloesen (2026-05-10, BEA-12).
+- [x] WebUI-Firewall-Baseline-Button reparieren: `Baseline anwenden` nutzt systemd/polkit statt `sudo` im sandboxed Control-Plane-Prozess und ist live auf `srv1` mit `active=true` validiert (2026-05-16).
 
 - [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen. Live-USB-Reboot-Hotfix fuer Broker-Host-Fallback vor dem finalen Abnahmelauf mitziehen.
 

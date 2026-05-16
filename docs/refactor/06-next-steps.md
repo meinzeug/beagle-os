@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-16, Firewall-Baseline-Button repariert)
+
+**Zuletzt erledigt**:
+- `Baseline anwenden` im WebUI-Firewall-Panel nutzt jetzt einen dedizierten root-oneshot (`beagle-firewall-apply.service`) statt `sudo` aus dem gehaerteten Control-Plane-Prozess.
+- `POST /api/v1/settings/firewall` ist wieder explizit verdrahtet.
+- Live auf `srv1` validiert: API antwortet `ok=true`, `active=true`, `guard_table=true`.
+- Add-/Delete-Custom-Rule ueber denselben Runner mit temporaerer Testregel validiert und bereinigt.
+
+**Naechste konkrete Schritte**:
+
+1. In der Browser-WebUI den Settings-Firewall-Button visuell gegenpruefen, inklusive Refresh nach erfolgreichem Apply.
+2. Bei der naechsten Host-Install-/Update-Runde pruefen, dass die neue Unit und polkit-Regel durch `scripts/install-beagle-host-services.sh` automatisch installiert werden.
+
+---
+
 ## Stand (2026-05-13, TTY1-Konsole-Rueckfall stabilisiert)
 
 **Zuletzt erledigt**:

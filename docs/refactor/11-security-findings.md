@@ -1,5 +1,30 @@
 # Security Findings
 
+Stand: 2026-05-16 (ergaenzt: S-051 Firewall-Apply ohne sudo im sandboxed API-Prozess)
+
+## S-051 — Firewall-Apply hing an sudo im gehaerteten Control-Plane-Prozess (PATCHED)
+
+- Status: **gepatcht** (2026-05-16)
+- Risiko: **Mittel** (Firewall-Baseline konnte aus der WebUI nicht verlaesslich aktiviert werden; naives Fixen durch Lockern der Service-Sandbox waere ein Privilege-Risiko)
+- Betroffene Dateien:
+  - `beagle-host/services/server_settings.py`
+  - `beagle-host/systemd/beagle-firewall-apply.service`
+  - `beagle-host/polkit/beagle-firewall-apply.rules`
+  - `scripts/beagle-firewall-action-runner.sh`
+  - `scripts/install-beagle-host-services.sh`
+- Beschreibung:
+  - `Baseline anwenden` rief das Firewall-Skript aus dem `beagle-control-plane`-Prozess per `sudo` auf.
+  - Der Service laeuft absichtlich mit `RestrictSUIDSGID=yes`; dadurch scheiterte `sudo` mit `unable to change to root gid`.
+  - Die Reparatur durfte die Control-Plane-Sandbox nicht aufweichen.
+- Fix:
+  - Dedizierte root-oneshot-Unit `beagle-firewall-apply.service`.
+  - Polkit-Regel erlaubt nur dem Service-User `beagle-manager`, genau diese Unit zu starten.
+  - Der Runner validiert Actions und Zusatzregeln vor dem root-Aufruf und schreibt den Ergebnisstatus in `/run/beagle-control-plane` zurueck.
+  - `POST /api/v1/settings/firewall` ist fuer den WebUI-Button explizit verdrahtet.
+- Verifikation:
+  - Unit-Tests: `python3 -m pytest tests/unit/test_server_settings.py -q` -> `41 passed`.
+  - Live `srv1`: `POST /api/v1/settings/firewall {"action":"enable"}` -> `HTTP 200`, `ok=true`, `active=true`, `guard_table=true`.
+
 Stand: 2026-05-11 (ergaenzt: S-050 BeagleStream-Pairing-Fehler durch falsche interne API-URL)
 
 ## S-050 — Manager nutzte oeffentliche IP fuer interne Sunshine-API-Calls; Hairpin-NAT nicht vorhanden (PATCHED)

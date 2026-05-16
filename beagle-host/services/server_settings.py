@@ -12,6 +12,7 @@ Provides read/write access to server configuration:
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -97,6 +98,9 @@ _DEFAULT_ARTIFACT_WATCHDOG_ENABLED = True
 _DEFAULT_ARTIFACT_WATCHDOG_MAX_AGE_HOURS = 6
 _DEFAULT_ARTIFACT_WATCHDOG_AUTO_REPAIR = True
 _BEAGLE_FIREWALL_EXTRA_RULES = Path("/etc/beagle/beagle-firewall-extra.rules")
+_BEAGLE_FIREWALL_ACTION_FILE = Path(os.environ.get("BEAGLE_FIREWALL_ACTION_FILE", "/run/beagle-control-plane/firewall-action.env"))
+_BEAGLE_FIREWALL_STATUS_FILE = Path(os.environ.get("BEAGLE_FIREWALL_STATUS_FILE", "/run/beagle-control-plane/firewall-action.status"))
+_BEAGLE_FIREWALL_APPLY_SERVICE = "beagle-firewall-apply.service"
 _SAFE_FIREWALL_PORT_RULE = re.compile(
     r"^(?P<action>allow|deny|drop)\s+(?P<port>[0-9]{1,5})(?:/(?P<proto>tcp|udp))?$",
     re.IGNORECASE,
@@ -402,6 +406,12 @@ class ServerSettingsService:
         script = self._firewall_script()
         if not script.exists():
             return subprocess.CompletedProcess([str(script), *args], 127, "", "firewall script not found")
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            systemd_result = self._run_firewall_systemd_action(args)
+            if systemd_result is not None and systemd_result.returncode == 0:
+                return systemd_result
+            if systemd_result is not None and not shutil.which("sudo"):
+                return systemd_result
         cmd = [str(script), *args]
         if hasattr(os, "geteuid") and os.geteuid() != 0 and shutil.which("sudo"):
             cmd = ["sudo", "-n", *cmd]
@@ -411,6 +421,66 @@ class ServerSettingsService:
             text=True,
             timeout=30,
         )
+
+    def _run_firewall_systemd_action(self, args: list[str]) -> subprocess.CompletedProcess[str] | None:
+        request = self._firewall_systemd_request(args)
+        if request is None:
+            return None
+        try:
+            _BEAGLE_FIREWALL_ACTION_FILE.parent.mkdir(parents=True, exist_ok=True)
+            tmp = _BEAGLE_FIREWALL_ACTION_FILE.with_name(f".{_BEAGLE_FIREWALL_ACTION_FILE.name}.{os.getpid()}.tmp")
+            tmp.write_text(request, encoding="utf-8")
+            os.chmod(tmp, 0o600)
+            os.replace(str(tmp), str(_BEAGLE_FIREWALL_ACTION_FILE))
+            try:
+                _BEAGLE_FIREWALL_STATUS_FILE.unlink()
+            except FileNotFoundError:
+                pass
+        except OSError as exc:
+            return subprocess.CompletedProcess(
+                ["systemctl", "start", _BEAGLE_FIREWALL_APPLY_SERVICE],
+                1,
+                "",
+                f"firewall action request failed: {exc}",
+            )
+        systemd_result = _run_systemctl_privileged(["start", _BEAGLE_FIREWALL_APPLY_SERVICE], timeout=45)
+        if systemd_result.returncode != 0:
+            return systemd_result
+        return self._read_firewall_systemd_status(systemd_result)
+
+    def _read_firewall_systemd_status(self, systemd_result: subprocess.CompletedProcess[str]) -> subprocess.CompletedProcess[str]:
+        try:
+            values: dict[str, str] = {}
+            for line in _BEAGLE_FIREWALL_STATUS_FILE.read_text(encoding="utf-8").splitlines():
+                key, sep, value = line.partition("=")
+                if sep:
+                    values[key] = value
+            rc = int(values.get("BEAGLE_FIREWALL_RC", "0"))
+            output = base64.b64decode(values.get("BEAGLE_FIREWALL_OUTPUT_B64", "")).decode("utf-8", errors="replace")
+        except (OSError, ValueError):
+            return systemd_result
+        if rc == 0:
+            return subprocess.CompletedProcess(systemd_result.args, rc, output, "")
+        return subprocess.CompletedProcess(systemd_result.args, rc, "", output)
+
+    def _firewall_systemd_request(self, args: list[str]) -> str | None:
+        if not args:
+            return None
+        action = args[0].lstrip("-")
+        action_arg = args[1] if len(args) > 1 else ""
+        if action in {"enable", "disable", "status"}:
+            return f"BEAGLE_FIREWALL_ACTION={action}\nBEAGLE_FIREWALL_ARG_B64=\n"
+        if action == "add-extra-rule":
+            if not re.fullmatch(r"(tcp|udp) dport [0-9]{1,5} (accept|drop)", action_arg):
+                return None
+            encoded = base64.b64encode(action_arg.encode("utf-8")).decode("ascii")
+            return f"BEAGLE_FIREWALL_ACTION=add-extra-rule\nBEAGLE_FIREWALL_ARG_B64={encoded}\n"
+        if action == "delete-extra-rule":
+            if not re.fullmatch(r"[0-9]+", action_arg):
+                return None
+            encoded = base64.b64encode(action_arg.encode("utf-8")).decode("ascii")
+            return f"BEAGLE_FIREWALL_ACTION=delete-extra-rule\nBEAGLE_FIREWALL_ARG_B64={encoded}\n"
+        return None
 
     def _format_firewall_rule(self, rule: str) -> str:
         m = _SAFE_FIREWALL_PORT_RULE.match(rule.strip())
@@ -1834,6 +1904,10 @@ class ServerSettingsService:
         return None
 
     def route_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+        if path == "/api/v1/settings/firewall":
+            result = self.update_firewall(payload)
+            status = HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST
+            return {"kind": "json", "status": status, "payload": result}
         if path == "/api/v1/settings/security/tls/letsencrypt":
             domain = str(payload.get("domain", "")).strip()
             email = str(payload.get("email", "")).strip()
