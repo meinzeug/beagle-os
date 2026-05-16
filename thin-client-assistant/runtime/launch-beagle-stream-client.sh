@@ -848,6 +848,9 @@ main() {
         if [[ "$stream_cert_repair_attempted" -eq 0 ]]; then
           beagle_log_event "beagle-stream-client.repair" "attempt=${stream_attempt}/${max_attempts} action=pairing-and-app-resolve reason=applist-or-cert-mismatch"
           seed_beagle_stream_client_host_from_runtime_config >/dev/null 2>&1 || true
+          if sync_beagle_stream_client_host_from_serverinfo_probe >/dev/null 2>&1; then
+            beagle_log_event "beagle-stream-client.serverinfo-refresh" "attempt=${stream_attempt}/${max_attempts} reason=applist-or-cert-mismatch"
+          fi
           register_beagle_stream_client_via_manager >/dev/null 2>&1 || true
           ensure_paired >/dev/null 2>&1 || true
           resolved_app="$(resolve_stream_app_name "$app" 2>/dev/null || printf '%s' "$app")"

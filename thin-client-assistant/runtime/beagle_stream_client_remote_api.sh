@@ -135,9 +135,10 @@ payload_raw = sys.argv[2] or ""
 def collect_names(value):
 	names = []
 	if isinstance(value, dict):
-		name = value.get("name")
-		if isinstance(name, str) and name.strip():
-			names.append(name.strip())
+		for key in ("name", "title", "appName", "displayName", "application", "id"):
+			name = value.get(key)
+			if isinstance(name, str) and name.strip():
+				names.append(name.strip())
 		for key in ("apps", "data", "results", "items"):
 			if key in value:
 				names.extend(collect_names(value.get(key)))
