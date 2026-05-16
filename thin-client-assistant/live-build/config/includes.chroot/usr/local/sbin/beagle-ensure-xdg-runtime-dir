@@ -1,0 +1,17 @@
+#!/bin/bash
+# Ensure XDG_RUNTIME_DIR (/run/user/<uid>) exists with correct ownership.
+# Called via sudo by pve-thin-client-audio-init when systemd-logind has not
+# created the directory (common on live/stateless boot sessions).
+set -euo pipefail
+
+if [[ $# -ne 1 || ! "$1" =~ ^[0-9]+$ ]]; then
+    echo "Usage: beagle-ensure-xdg-runtime-dir <uid>" >&2
+    exit 1
+fi
+
+uid="$1"
+dir="/run/user/$uid"
+
+if [[ ! -d "$dir" ]]; then
+    install -d -o "$uid" -g "$uid" -m 0700 "$dir"
+fi

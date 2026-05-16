@@ -48,7 +48,12 @@ start_wireplumber_session() {
 ensure_audio_stack() {
   export HOME="${HOME:-/home/thinclient}"
   export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-  mkdir -p "$XDG_RUNTIME_DIR" >/dev/null 2>&1 || true
+  # On live/stateless boots systemd-logind may not create /run/user/<uid>.
+  # Use the privileged helper when the directory is missing.
+  if [[ ! -d "$XDG_RUNTIME_DIR" ]]; then
+    sudo /usr/local/sbin/beagle-ensure-xdg-runtime-dir "$(id -u)" >/dev/null 2>&1 || \
+      mkdir -p "$XDG_RUNTIME_DIR" >/dev/null 2>&1 || true
+  fi
   ensure_audio_log_dir >/dev/null 2>&1 || true
 
   command -v pipewire >/dev/null 2>&1 || return 0
