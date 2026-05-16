@@ -199,29 +199,36 @@ select_sink() {
     return 0
   fi
 
-  # Prefer PCI/onboard analog over USB audio devices.  USB microphone sinks
-  # (identified by "usb" in the name and absence of typical speaker indicators)
-  # should not be used as the default output.
-  is_usb_capture_only_sink() {
+  # Prefer PCI/onboard outputs over USB audio outputs to avoid selecting
+  # microphone dongle sinks as the system default playback target.
+  is_usb_sink() {
     local name="${1:-}"
-    # Sink names containing "usb" and "microphone"/"webcam"/"mic" are capture
-    # devices repurposed as sinks by PipeWire but are not suitable as output.
-    [[ "${name,,}" =~ usb ]] && [[ "${name,,}" =~ (microphone|webcam|_mic_|_mic\.) ]]
+    [[ "${name,,}" =~ (^|[._-])usb([._-]|$) ]]
   }
 
-  # First try: RUNNING PCI/onboard sink (not USB mic)
+  # First try: RUNNING PCI/onboard sink.
   while IFS= read -r candidate; do
-    is_usb_capture_only_sink "$candidate" || { printf '%s\n' "$candidate"; return 0; }
+    [[ "${candidate,,}" =~ (^|[._-])pci- ]] && { printf '%s\n' "$candidate"; return 0; }
   done < <(pactl list short sinks 2>/dev/null | awk '$5 == "RUNNING" {print $2}')
 
-  # Second try: any analog-stereo sink (not USB mic)
+  # Second try: RUNNING non-USB sink.
   while IFS= read -r candidate; do
-    is_usb_capture_only_sink "$candidate" || { printf '%s\n' "$candidate"; return 0; }
+    is_usb_sink "$candidate" || { printf '%s\n' "$candidate"; return 0; }
+  done < <(pactl list short sinks 2>/dev/null | awk '$5 == "RUNNING" {print $2}')
+
+  # Third try: any PCI/onboard sink.
+  while IFS= read -r candidate; do
+    [[ "${candidate,,}" =~ (^|[._-])pci- ]] && { printf '%s\n' "$candidate"; return 0; }
+  done < <(pactl list short sinks 2>/dev/null | awk '{print $2}')
+
+  # Fourth try: any analog-stereo sink that is not USB.
+  while IFS= read -r candidate; do
+    is_usb_sink "$candidate" || { printf '%s\n' "$candidate"; return 0; }
   done < <(pactl list short sinks 2>/dev/null | awk '/analog-stereo/ {print $2}')
 
-  # Third try: first available sink (not USB mic)
+  # Fifth try: first available sink that is not USB.
   while IFS= read -r candidate; do
-    is_usb_capture_only_sink "$candidate" || { printf '%s\n' "$candidate"; return 0; }
+    is_usb_sink "$candidate" || { printf '%s\n' "$candidate"; return 0; }
   done < <(pactl list short sinks 2>/dev/null | awk '{print $2}')
 
   # Last resort: first sink regardless of type
