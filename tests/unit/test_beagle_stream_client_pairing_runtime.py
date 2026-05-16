@@ -128,3 +128,26 @@ ensure_paired
 '''
     result = _run_pairing_ready_script(script, tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_pair_status_prefers_authenticated_apps_probe(tmp_path: Path) -> None:
+    script = f'''
+source "{PAIRING_SH}"
+beagle_stream_server_apps_json() {{
+  printf '{{"apps":[{{"name":"Desktop"}}]}}\n'
+}}
+beagle_stream_client_connect_host() {{
+  echo "anonymous fallback should not be used" >&2
+  return 99
+}}
+beagle_stream_client_port() {{
+  echo "anonymous fallback should not be used" >&2
+  return 99
+}}
+if [[ "$(beagle_stream_client_pair_status)" != "1" ]]; then
+  echo "expected paired"
+  exit 1
+fi
+'''
+    result = _run_pairing_ready_script(script, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr

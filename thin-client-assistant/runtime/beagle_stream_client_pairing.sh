@@ -16,7 +16,37 @@ beagle_stream_client_pair_log() {
 }
 
 beagle_stream_client_pair_status() {
-  local host port api_url target response
+  local host port api_url response
+
+  if declare -F beagle_stream_server_apps_json >/dev/null 2>&1; then
+    response="$(beagle_stream_server_apps_json 2>/dev/null || true)"
+    if [[ -n "$response" ]]; then
+      python3 - "$response" <<'PY'
+import json, sys
+
+try:
+    d = json.loads(sys.argv[1])
+except Exception:
+    raise SystemExit(1)
+
+status = d.get("status", None)
+if status is False:
+    print("0")
+    raise SystemExit(0)
+
+if isinstance(d, dict) and any(key in d for key in ("apps", "data", "results", "items")):
+    print("1")
+    raise SystemExit(0)
+
+if status is True:
+    print("1")
+    raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+      return $?
+    fi
+  fi
 
   # Try the Sunshine HTTPS API first (/serverinfo returns 404 in beagle-stream-server builds).
   # A 200 response with apps data means the client is paired; 401 means unpaired.
@@ -49,9 +79,7 @@ PY
   host="$(beagle_stream_client_connect_host)"
   port="$(beagle_stream_client_port)"
   [[ -n "$host" && -n "$port" ]] || return 1
-  target="http://${host}:${port}/serverinfo"
-
-  response="$(curl -fsS --connect-timeout 2 --max-time 5 "$target" 2>/dev/null || true)"
+  response="$(curl -fsS --connect-timeout 2 --max-time 5 "http://${host}:${port}/serverinfo" 2>/dev/null || true)"
   [[ -n "$response" ]] || return 1
 
   python3 - "$response" <<'PY'
