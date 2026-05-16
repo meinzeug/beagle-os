@@ -32,6 +32,9 @@ COMMON_SH = ROOT / "thin-client-assistant" / "runtime" / "common.sh"
 DEVICE_LOCK_SCREEN = ROOT / "thin-client-assistant" / "runtime" / "device_lock_screen.sh"
 DEVICE_STATE_ENFORCEMENT = ROOT / "thin-client-assistant" / "runtime" / "device_state_enforcement.sh"
 DEVICE_SYNC = ROOT / "thin-client-assistant" / "runtime" / "device_sync.sh"
+USB_HOTPLUG = ROOT / "thin-client-assistant" / "runtime" / "beagle-usb-hotplug"
+USB_RUNTIME_ACTIONS = ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_runtime_actions.sh"
+USB_RUNTIME_USBIPD = ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_runtime_usbipd.sh"
 
 
 def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None:
@@ -220,6 +223,10 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'ensure_paired || {' in launcher_text
     assert 'beagle_stream_client_stream_ready' in launcher_text
     assert 'beagle-stream-client.register-refresh' in launcher_text
+    assert 'sync_beagle_stream_client_host_from_serverinfo_probe' in launcher_text
+    assert 'beagle-stream-client.serverinfo-refresh' in launcher_text
+    assert 'http://${connect_host}:${port}/serverinfo' in host_sync_text
+    assert 'openssl s_client -connect "${connect_host}:${cert_port}"' in host_sync_text
     assert 'beagle-stream-client.port-fallback' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
     assert 'while [[ "$attempt" -lt "$(beagle_stream_client_pairing_timeout)" ]]; do' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
@@ -254,6 +261,23 @@ def test_beaglestream_launcher_restores_wireguard_peer_without_truncating_base64
     assert "print $3; exit" not in launcher_text
     assert 'beagle-stream-client.wg-routes-fallback' in launcher_text
     assert 'sudo ip route replace "$route" dev "$iface"' in launcher_text
+
+
+def test_usbip_autobind_keeps_local_hid_devices_off_usbip_host() -> None:
+    usbipd_text = USB_RUNTIME_USBIPD.read_text(encoding="utf-8")
+    hotplug_text = USB_HOTPLUG.read_text(encoding="utf-8")
+    actions_text = USB_RUNTIME_ACTIONS.read_text(encoding="utf-8")
+
+    assert '03) return 1 ;;  # Any HID interface can be keyboard/mouse: keep local.' in usbipd_text
+    assert '_usb_device_has_mounted_block_child "$busid" && return 1' in usbipd_text
+    assert 'findmnt -rn -S "/dev/$part"' in usbipd_text
+    assert 'is_bound_to_usbip_host()' in usbipd_text
+    assert 'if is_bound_to_usbip_host "$item"; then' in usbipd_text
+    assert 'if ! _is_eligible_for_autobind "$item"; then' in usbipd_text
+    assert 'bound_remove "$item"' in usbipd_text
+    assert 'autobind_hotplug_device "$BUSID" && is_bound_to_usbip_host "$BUSID"' in hotplug_text
+    assert '_is_eligible_for_autobind "$busid" || {' in actions_text
+    assert 'refusing to bind local input/reserved USB device' in actions_text
 
 
 def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -> None:

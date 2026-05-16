@@ -44,6 +44,7 @@ _is_eligible_for_autobind() {
   local class iface_class_file iface_class has_useful
 
   [[ -f "$devpath/bDeviceClass" ]] || return 1
+  _usb_device_has_mounted_block_child "$busid" && return 1
   class="$(tr '[:upper:]' '[:lower:]' < "$devpath/bDeviceClass" 2>/dev/null | tr -d '[:space:]')"
 
   case "$class" in
@@ -58,6 +59,11 @@ _is_eligible_for_autobind() {
       for iface_class_file in "$devpath"/${busid}:*/bInterfaceClass; do
         [[ -f "$iface_class_file" ]] || continue
         iface_class="$(tr '[:upper:]' '[:lower:]' < "$iface_class_file" 2>/dev/null | tr -d '[:space:]')"
+        case "$iface_class" in
+          03) return 1 ;;  # Any HID interface can be keyboard/mouse: keep local.
+          e0) return 1 ;;  # Bluetooth controllers must stay local.
+          0e) continue ;;  # Video is handled by beagle-camera-stream.
+        esac
         # Audio(01), Storage(08), Printer(07), Imaging(06), CDC(0a/0b), Vendor(ff)
         # Video(0e) intentionally excluded: use beagle-camera-stream instead of USB/IP
         case "$iface_class" in
@@ -68,6 +74,33 @@ _is_eligible_for_autobind() {
       ;;
   esac
   return 0
+}
+
+_usb_device_has_mounted_block_child() {
+  local busid="$1"
+  local devpath="/sys/bus/usb/devices/$busid"
+  local block_dir node part
+
+  for block_dir in "$devpath"/*/block/* "$devpath"/block/*; do
+    [[ -d "$block_dir" ]] || continue
+    for node in "$block_dir" "$block_dir"/*; do
+      [[ -e "$node" ]] || continue
+      part="$(basename "$node")"
+      [[ -b "/dev/$part" ]] || continue
+      if command -v findmnt >/dev/null 2>&1 && findmnt -rn -S "/dev/$part" >/dev/null 2>&1; then
+        return 0
+      fi
+      if grep -qE "^/dev/${part}[[:space:]]" /proc/mounts 2>/dev/null; then
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+is_bound_to_usbip_host() {
+  local busid="$1"
+  [[ -e "/sys/bus/usb/drivers/usbip-host/$busid" ]]
 }
 
 # Bind all USB devices that are eligible for VM forwarding (auto-bind mode).
@@ -86,7 +119,7 @@ auto_bind_eligible_devices() {
     [[ "$busid" =~ ^[0-9]+-[0-9]+(\.[0-9]+)*$ ]] || continue
     _is_eligible_for_autobind "$busid" || continue
     # Skip if already bound to usbip-host
-    [[ -e "/sys/bus/usb/drivers/usbip-host/$busid" ]] && continue
+    is_bound_to_usbip_host "$busid" && continue
     "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1 || true
     "$usbip_cmd" bind   -b "$busid" >/dev/null 2>&1 && \
       echo "beagle-usb: auto-bound $busid" >&2 || true
@@ -101,7 +134,7 @@ autobind_hotplug_device() {
   [[ "$(usb_auto_bind)" == "1" ]] || return 0
   require_enabled
   _is_eligible_for_autobind "$busid" || return 0
-  [[ -e "/sys/bus/usb/drivers/usbip-host/$busid" ]] && return 0
+  is_bound_to_usbip_host "$busid" && return 0
   usbip_cmd="$(usbip_bin)"
   ensure_usbipd
   "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1 || true
@@ -117,7 +150,15 @@ sync_bound_devices() {
   ensure_usbipd
   for item in $(state_bound_busids); do
     [[ -n "$item" ]] || continue
-    "$usbip_cmd" unbind -b "$item" >/dev/null 2>&1 || true
+    if is_bound_to_usbip_host "$item"; then
+      "$usbip_cmd" unbind -b "$item" >/dev/null 2>&1 || true
+      "$sleep_cmd" 1
+    fi
+    if ! _is_eligible_for_autobind "$item"; then
+      "$usbip_cmd" unbind -b "$item" >/dev/null 2>&1 || true
+      bound_remove "$item" >/dev/null 2>&1 || true
+      continue
+    fi
     "$usbip_cmd" bind -b "$item" >/dev/null 2>&1 || true
   done
   "$sleep_cmd" 1
@@ -125,6 +166,7 @@ sync_bound_devices() {
   if [[ -n "$(state_bound_busids)" ]] && ! have_exportable_devices; then
     for item in $(state_bound_busids); do
       [[ -n "$item" ]] || continue
+      _is_eligible_for_autobind "$item" || continue
       "$usbip_cmd" unbind -b "$item" >/dev/null 2>&1 || true
       "$sleep_cmd" 1
       "$usbip_cmd" bind -b "$item" >/dev/null 2>&1 || true

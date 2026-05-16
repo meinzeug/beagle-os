@@ -1661,6 +1661,17 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 
 **Naechste konkrete Schritte**:
 
+## Naechster Schritt (2026-05-16, Thinclient BeagleStream Live-Stream)
+
+1. Thinclient-Audio auf dem aktuellen Live-Boot separat abnehmen: ALSA meldet im
+   erfolgreichen Desktop-Stream noch `Host is down`, Video/RTSP laufen.
+2. Den naechsten frisch gebauten USB-Live-Stick mit demselben Serverinfo-Refresh
+   und USB-HID-Autobind-Fix booten; pruefen, dass `serverinfo-refresh` vor
+   `app-resolve` im Runtime-Log auftaucht und Keyboard/Mouse nicht in
+   `usbip-host` landen.
+3. Nach Abschluss des laufenden srv1-Artefaktbuilds die neuen Runtime-Skripte im
+   gehosteten Payload kontrollieren und den Thinclient-Flow erneut kalt booten.
+
 ## Naechster Schritt (2026-05-02, Release/runtime consistency after 8.0.8)
 
 1. Den naechsten GitHub-Release-Run fuer `8.0.8` beobachten, bestaetigen dass `VERSION`, Tag und Release-Assets denselben Patch-Stand tragen und kein weiterer `8.0.2`/`8.0.7`-Drift mehr entsteht.

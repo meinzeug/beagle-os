@@ -53,6 +53,11 @@ bind_usb_device() {
   usbip_cmd="$(usbip_bin)"
   systemctl_cmd="$(systemctl_bin)"
   ensure_usbipd
+  _is_eligible_for_autobind "$busid" || {
+    echo "refusing to bind local input/reserved USB device: $busid" >&2
+    usb_list_json
+    return 1
+  }
   "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1 || true
   "$usbip_cmd" bind -b "$busid" >/dev/null 2>&1 || true
   bound_add "$busid"

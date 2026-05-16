@@ -694,6 +694,11 @@ main() {
         else
           retarget_beagle_stream_client_host_from_runtime_config >/dev/null 2>&1 || true
         fi
+        if sync_beagle_stream_client_host_from_serverinfo_probe; then
+          beagle_log_event "beagle-stream-client.serverinfo-refresh" "mode=hostless-fast host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
+        elif register_beagle_stream_client_via_manager; then
+          beagle_log_event "beagle-stream-client.register-refresh" "mode=hostless-fast host=${host} port=${port:-default}"
+        fi
         hostless_fast_launch=1
         beagle_stream_startup_status_render "5" "ok" "Hostless-Konfiguration synchronisieren" "fast-path aktiv"
       else

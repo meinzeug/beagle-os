@@ -491,6 +491,7 @@
 - [x] BeagleStream Phase A Forks unter `meinzeug/*` umsetzen: Beagle Stream Server-Server mit Broker-Integration/Token-als-PIN und Beagle Stream Client-Qt-Client mit Broker-Allocate/WireGuard/Branding auf Branch `beagle/phase-a`.
 - [x] BeagleStream Phase A Thin-Client-Runtime vorbereiten: hostless Enrollment startet `beagle-stream stream <App>`, Build kann BeagleStream-AppImage stage'n und Healthcheck meldet fehlenden `beagle-stream` bei Broker-Modus.
 - [ ] BeagleStream Phase A Runtime-Abnahme auf `srv1`: Server-Fork registriert VM, Client-Fork alloziert Session, aktiviert WireGuard-Peer und paired per HMAC-Token-als-PIN.
+	- Update 2026-05-16: echter Live-Thinclient `192.168.178.30` streamt VM100-Desktop nach Serverinfo-/TLS-Cert-Registry-Refresh wieder sichtbar; USB-Keyboard/-Mouse sind nach USB/IP-Autobind-Fix wieder lokal per libinput aktiv. Rest fuer komplette Abnahme: Audio-Device und kalt gebooteter Neubuild-Payload.
 - [ ] Live-USB Boot-Regression nach Lenovo-Fixes live abschliessen: neuen Payload mit Standard-`toram` auf `srv1` bauen, USB-Stick neu schreiben, Standard-Boot bis Netzwerk-TUI und Lenovo B50-45 Safe Mode mit Logs in `bootbug.md` bestaetigen.
 - [x] Thinclient-Broker-Presets haerten: USB-Live-/Install-Presets und Enrollment-Rewrite setzen `CONNECTION_METHOD=broker`, damit hostless `vm100`-Sticks nicht wieder in den alten Direktmodus zurueckfallen.
 - [x] Thinclient-Live-USB-Bootassets vereinheitlichen: GRUB-/Plymouth-/TTY-/Session-Wallpaper nutzen das versionierte Beagle-Wallpaper und skalieren auf die aktuelle Bildschirmgroesse.

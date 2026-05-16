@@ -30,8 +30,8 @@ source "$RUNTIME_DIR/beagle_usb_runtime_state.sh"
 # shellcheck disable=SC1091
 source "$RUNTIME_DIR/beagle_usb_runtime_usbipd.sh"
 
-# Bind (if eligible) and persist in state so sync_bound_devices keeps it
-if autobind_hotplug_device "$BUSID"; then
+# Bind (if eligible) and persist only if usbip-host actually owns it.
+if autobind_hotplug_device "$BUSID" && is_bound_to_usbip_host "$BUSID"; then
   bound_add "$BUSID" >/dev/null 2>&1 || true
 fi
 

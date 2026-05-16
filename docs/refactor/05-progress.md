@@ -7695,3 +7695,65 @@ spaete `SQUASHFS error: Unable to read page...`-Fehler beim Boot.
 - Windows-USB-Writer auf denselben Stand gebracht.
 - Regressionstest erweitert, damit Standard- und Copy-to-RAM-Eintraege zusammen
   vier `toram`-Bootzeilen im Linux-Writer absichern.
+
+## 2026-05-16 — Thinclient BeagleStream Desktop-App-Resolve repariert
+
+**Scope**: Live-Thinclient `192.168.178.30` blieb bei `Loading app list...` mit
+`Failed to find application Desktop` stehen.
+
+**Befund**:
+- Der App-Name war nicht die Ursache. Die App-Liste scheiterte vorher an
+  `QNetworkReply::SslHandshakeFailedError` / `Server certificate mismatch`.
+- Die BeagleStream-Host-Registry enthielt einen stale Server-Cert-Pin; dadurch
+  sah der Launcher eine leere App-Liste und reichte weiterhin `Desktop` weiter.
+
+**Umsetzung**:
+- `beagle_stream_client_host_sync.sh` synchronisiert die Host-Registry nun auch
+  direkt aus `http://<stream-host>:<port>/serverinfo` plus aktuellem TLS-Zertifikat
+  des BeagleStream-HTTPS-Endpunkts.
+- Der hostless Fast-Path ruft diesen Serverinfo-Refresh vor App-Resolve/Streamstart
+  auf und nutzt den Manager-Register-Refresh nur noch als Fallback.
+- Regressionstest fuer hostless Runtime erweitert.
+
+**Verifikation**:
+- Lokal: `bash -n` fuer die geaenderten Runtime-Skripte.
+- Lokal: `python3 -m pytest tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_launch_beagle_stream_client_runtime.py -q` -> `25 passed`.
+- Hot auf Thinclient: Patch nach `/run/pve-thin-client/runtime` und
+  `/usr/local/lib/pve-thin-client/runtime` kopiert, Serverinfo-Sync manuell
+  ausgefuehrt (`before_configured=1`, `after_configured=0`), Stream neu gestartet.
+- Thinclient-Streamlog danach: `Launch response ... status_code="200"`,
+  RTSP-Handshake erfolgreich, erste Video-Pakete empfangen.
+
+**Rest**:
+- Audio-Device meldet auf diesem Live-Boot weiter ALSA `Host is down`; der
+  Desktop-Video-Stream laeuft trotzdem. Separat behandeln, falls Audio fuer den
+  Abnahmelauf Pflicht wird.
+
+## 2026-05-16 — Thinclient USB-HID vor USB/IP-Autobind geschuetzt
+
+**Scope**: Auf dem laufenden Live-Thinclient funktionierten USB-Maus und
+USB-Tastatur nicht mehr.
+
+**Befund**:
+- Kernel erkannte Logitech-Keyboard und GXT-Maus, aber beide waren an
+  `usbip-host` gebunden und fehlten zeitweise in `/dev/input`.
+- Ursache war der Hotplug-State: `beagle-usb-hotplug` schrieb auch uebersprungene
+  HID-Geraete in `BEAGLE_USB_BOUND_BUSIDS`; `sync_bound_devices` band diese
+  State-Eintraege spaeter ohne erneuten Eligibility-Check.
+
+**Umsetzung**:
+- Hotplug persistiert nur noch Bus-IDs, die wirklich an `usbip-host` gebunden sind.
+- `sync_bound_devices` entbindet alte State-Eintraege, prueft Eligibility erneut
+  und entfernt nicht geeignete Geraete aus dem USB-State.
+- USB-Geraete mit HID-Interface bleiben lokal; manuelles USB/IP-Bind verweigert
+  lokale Eingabe-/reservierte Geraete.
+- Gemountete USB-Blockgeraete, insbesondere Live-/Boot-Medien, werden nicht mehr
+  automatisch per USB/IP exportiert.
+
+**Verifikation**:
+- Lokal: `bash -n` fuer USB Runtime-Skripte.
+- Lokal: `python3 -m pytest tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_launch_beagle_stream_client_runtime.py -q` -> `26 passed`.
+- Hot auf Thinclient: USB-State bereinigt, falsch gebundene HID-Geraete entbunden;
+  `/dev/input/by-id` zeigt wieder Logitech-Keyboard und GXT-Maus.
+- Xorg-Log bestaetigt `Using input driver 'libinput'` und `XINPUT: Adding extended
+  input device` fuer Logitech-Keyboard und GXT-Maus.
