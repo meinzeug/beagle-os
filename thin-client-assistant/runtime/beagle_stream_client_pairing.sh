@@ -58,11 +58,45 @@ beagle_stream_client_pair_status_ready() {
   [[ "$(beagle_stream_client_pair_status 2>/dev/null || true)" == "1" ]]
 }
 
+beagle_stream_client_list_log_has_tls_or_pair_errors() {
+  local start_line="${1:-1}"
+  local log_file="${BEAGLE_STREAM_CLIENT_LIST_LOG:-}"
+
+  [[ -n "$log_file" && -r "$log_file" ]] || return 1
+  tail -n "+${start_line}" "$log_file" 2>/dev/null | grep -Eqi \
+    'server certificate mismatch|sslhandshakefailederror|failed to find application|failed to load application|unauthorized|not paired'
+}
+
 beagle_stream_client_list_ready() {
-  beagle_stream_client_list
+  local log_file start_line
+
+  log_file="${BEAGLE_STREAM_CLIENT_LIST_LOG:-}"
+  start_line=1
+  if [[ -n "$log_file" && -r "$log_file" ]]; then
+    start_line="$(( $(wc -l < "$log_file" 2>/dev/null || printf '0') + 1 ))"
+  fi
+
+  beagle_stream_client_list || return 1
+  if beagle_stream_client_list_log_has_tls_or_pair_errors "$start_line"; then
+    return 1
+  fi
+  return 0
 }
 
 beagle_stream_client_stream_ready() {
+  # PairStatus from serverinfo/API is authoritative when available.
+  # Explicit "0" means unpaired and must not be overridden by list() output.
+  # Only when status is unavailable do we fall back to list() heuristics.
+  local pair_status
+
+  pair_status="$(beagle_stream_client_pair_status 2>/dev/null || true)"
+  if [[ "$pair_status" == "1" ]]; then
+    return 0
+  fi
+  if [[ "$pair_status" == "0" ]]; then
+    return 1
+  fi
+
   beagle_stream_client_list_ready
 }
 

@@ -9,8 +9,10 @@ beagle_stream_client_config_path() {
     "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_CONFIG:-}" \
     "${HOME:-/home/thinclient}/.config/Beagle OS/BeagleStream.conf" \
     "${HOME:-/home/thinclient}/.config/Beagle Stream Client Game Streaming Project/Beagle Stream Client.conf" \
+    "${HOME:-/home/thinclient}/.config/Moonlight Game Streaming Project/Moonlight.conf" \
     "/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}/.config/Beagle OS/BeagleStream.conf" \
-    "/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}/.config/Beagle Stream Client Game Streaming Project/Beagle Stream Client.conf"
+    "/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}/.config/Beagle Stream Client Game Streaming Project/Beagle Stream Client.conf" \
+    "/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}/.config/Moonlight Game Streaming Project/Moonlight.conf"
   do
     [[ -n "$candidate" ]] || continue
     if [[ -r "$candidate" ]]; then

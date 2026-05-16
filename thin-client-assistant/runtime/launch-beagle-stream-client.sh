@@ -3,10 +3,15 @@ set -euo pipefail
 
 BEAGLE_STREAM_CLIENT_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 if [[ ! -d "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" ]]; then
+  if command -v sudo >/dev/null 2>&1 && [[ -x /usr/local/sbin/beagle-ensure-xdg-runtime-dir ]]; then
+    sudo /usr/local/sbin/beagle-ensure-xdg-runtime-dir "$(id -u)" >/dev/null 2>&1 || true
+  fi
   mkdir -p "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" >/dev/null 2>&1 || true
 fi
 if [[ ! -d "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" || ! -w "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" || ! -x "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" ]]; then
-  BEAGLE_STREAM_CLIENT_RUNTIME_DIR="/tmp"
+  BEAGLE_STREAM_CLIENT_RUNTIME_DIR="/tmp/pve-thin-client-runtime-$(id -u)"
+  mkdir -p "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" >/dev/null 2>&1 || true
+  chmod 0700 "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" >/dev/null 2>&1 || true
 fi
 export XDG_RUNTIME_DIR="$BEAGLE_STREAM_CLIENT_RUNTIME_DIR"
 BEAGLE_STREAM_CLIENT_LOCK_FILE="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCK_FILE:-/tmp/beagle-stream-client-launch.lock}"
