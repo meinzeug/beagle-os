@@ -7753,6 +7753,34 @@ Lenovo-/Alt-Hardware-Fixes nicht mehr reproduzierbar bis zur Netzwerk-TUI.
 **Rest**:
 - Neuer srv1-Artefaktbuild und echter Stick-Boot auf Hardware stehen noch aus.
 
+## 2026-05-16 — Thinclient BeagleStream Pairing-Register Timeout repariert
+
+**Scope**: Live-Thinclient `192.168.178.30` startete den Desktop-Stream nach
+WireGuard-Fix weiterhin nicht stabil; der Launcher hing im Pairing-/Register-Pfad.
+
+**Befund**:
+- Die VM war ueber WireGuard erreichbar (`192.168.123.114:50000`), aber der
+  aktuelle Thinclient-Client-Cert war noch nicht im Stream-Server-State registriert.
+- Der Manager-Register-Call braucht auf echter VM wegen QGA, State-Write und
+  Stream-Server-Restart laenger als 5 Sekunden; der Thinclient brach deshalb zu
+  frueh ab und fiel in einen zu engen Pairing-Loop.
+
+**Umsetzung**:
+- `register_beagle_stream_client_via_manager` nutzt jetzt
+  `PVE_THIN_CLIENT_BEAGLE_MANAGER_REGISTER_TIMEOUT` mit Default `45` Sekunden.
+- `ensure_paired` wartet zwischen Pairing-Versuchen standardmaessig 3 Sekunden
+  und refreshed die teure Manager-Registrierung nur noch periodisch statt vor
+  jedem Pair-Exchange.
+
+**Verifikation**:
+- Lokal: `bash -n` fuer Pairing-/Manager-/Launcher-Skripte.
+- Lokal: `python3 -m pytest tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_beagle_stream_client_pairing_runtime.py tests/unit/test_launch_beagle_stream_client_runtime.py -q` -> `36 passed`.
+- Hot auf Thinclient: geaenderte Runtime-Skripte nach `/run/pve-thin-client/runtime`
+  und `/usr/local/lib/pve-thin-client/runtime` kopiert, Launcher neu gestartet.
+- Thinclient-Streamlog danach: `beagle-stream stream 192.168.123.114:50000 Desktop`,
+  Launch `status_code="200"`, Video `1920x1080x60`, SDL-Audio via `pulseaudio`,
+  erste Video- und Audio-Pakete empfangen.
+
 ## 2026-05-16 — Live-/Install-USB Standard-Boot auf toram umgestellt
 
 **Scope**: Der manuell gepatchte Live-Stick fand das Medium wieder, zeigte aber

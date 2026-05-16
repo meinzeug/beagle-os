@@ -1366,6 +1366,18 @@
 2. **Plan 05 vervollstaendigen**: Preismodell-Editor und Budget-Verwaltung im Settings-/Enterprise-Flow sichtbar machen, statt nur die Read-Surface zu liefern.
 3. **Plan 09 vertiefen**: Energy-Admin-Konfiguration und echte Green-Scheduling-Integration mit Plan 04 schließen.
 4. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
+## Naechster Schritt (2026-05-16, Thinclient Pairing-Register)
+
+1. Beim naechsten frisch gebauten USB-Live-Stick kalt booten und bestaetigen, dass
+   der Register-Call nicht mehr mit `--max-time 5`, sondern mit dem neuen
+   45-Sekunden-Default laeuft.
+2. Danach auf dem TC nur noch einen Launcher-Prozess laufen lassen und den
+   sichtbaren Desktop-Stream mit Eingabe + Audio fuer mindestens 10 Minuten
+   beobachten.
+3. Falls `PairStatus` trotz laufendem Stream weiter `0` zeigt, den BeagleStream-
+   Server-Fork separat pruefen; der aktuelle Launcher ist nicht mehr durch den
+   Status blockiert, aber die Statusanzeige sollte langfristig konsistent sein.
+
 5. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion prüfen.
 
 ## Stand (2026-05-01, USB-Writer follow-up)

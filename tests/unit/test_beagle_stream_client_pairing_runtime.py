@@ -87,6 +87,7 @@ register_beagle_stream_client_via_manager() {{ return 0; }}
 submit_beagle_stream_server_pairing_token() {{ return 1; }}
 beagle_stream_client_pair_status_ready() {{ return 0; }}
 beagle_stream_client_pairing_timeout() {{ printf '3\n'; }}
+beagle_stream_client_pairing_retry_sleep() {{ printf '0\n'; }}
 beagle_log_event() {{ return 0; }}
 request_calls=0
 request_beagle_stream_client_pairing_token_via_manager() {{
@@ -119,6 +120,7 @@ request_beagle_stream_client_pairing_token_via_manager() {{ return 1; }}
 submit_beagle_stream_server_pairing_token() {{ return 1; }}
 beagle_stream_client_pair_status_ready() {{ return 0; }}
 beagle_stream_client_pairing_timeout() {{ printf '1\n'; }}
+beagle_stream_client_pairing_retry_sleep() {{ printf '0\n'; }}
 beagle_log_event() {{ return 0; }}
 exchange_beagle_stream_client_pairing_token_via_manager() {{
   [[ "${{1:-}}" == 'PRESET_TOKEN' ]]

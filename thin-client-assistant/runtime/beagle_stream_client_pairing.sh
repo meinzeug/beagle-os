@@ -4,6 +4,10 @@ beagle_stream_client_pairing_timeout() {
   printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TIMEOUT:-30}"
 }
 
+beagle_stream_client_pairing_retry_sleep() {
+  printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_RETRY_SLEEP:-3}"
+}
+
 beagle_stream_client_pair_log() {
   local message="${1:-}"
   local log_file="${BEAGLE_STREAM_CLIENT_PAIR_LOG:-}"
@@ -110,7 +114,7 @@ beagle_stream_client_stream_ready() {
 }
 
 ensure_paired() {
-  local bin host port paired_ok attempt target pairing_token
+  local bin host port paired_ok attempt target pairing_token retry_sleep
 
   bin="$(beagle_stream_client_bin)"
   host="$(beagle_stream_client_connect_host)"
@@ -131,6 +135,7 @@ ensure_paired() {
   [[ -n "$target" ]] || return 1
 
   pairing_token="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN:-}"
+  retry_sleep="$(beagle_stream_client_pairing_retry_sleep)"
 
   paired_ok="0"
   attempt=0
@@ -146,13 +151,15 @@ ensure_paired() {
 
     if [[ -z "$pairing_token" ]]; then
       attempt=$((attempt + 1))
-      sleep 1
+      sleep "$retry_sleep"
       continue
     fi
 
-    # The client certificate can rotate between startup phases on some images.
-    # Re-register before each exchange attempt so manager/host state stays in sync.
-    register_beagle_stream_client_via_manager >/dev/null 2>&1 || true
+    if [[ "$attempt" -gt 0 && $((attempt % 5)) -eq 0 ]]; then
+      # Client certificates can rotate during early startup. Refresh occasionally
+      # without hammering the manager into endpoint-wide rate limits.
+      register_beagle_stream_client_via_manager >/dev/null 2>&1 || true
+    fi
     if exchange_beagle_stream_client_pairing_token_via_manager "$pairing_token"; then
       # Manager-side exchange succeeded: Sunshine accepted the pairing token.
       # Trust the exchange result. The secondary pair_status/stream_ready checks
@@ -177,7 +184,7 @@ ensure_paired() {
     # Pair tokens can be short-lived or one-shot. Refresh on next loop.
     pairing_token=""
     attempt=$((attempt + 1))
-    sleep 1
+    sleep "$retry_sleep"
   done
 
   [[ "$paired_ok" == "1" ]] || return 1
