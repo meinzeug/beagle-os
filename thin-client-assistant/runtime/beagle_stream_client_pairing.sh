@@ -4,6 +4,17 @@ beagle_stream_client_pairing_timeout() {
   printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TIMEOUT:-30}"
 }
 
+beagle_stream_client_pair_log() {
+  local message="${1:-}"
+  local log_file="${BEAGLE_STREAM_CLIENT_PAIR_LOG:-}"
+
+  [[ -n "$message" && -n "$log_file" ]] || return 0
+  {
+    printf '=== %s ===\n' "$(date -Iseconds)"
+    printf '%s\n' "$message"
+  } >>"$log_file" 2>/dev/null || true
+}
+
 beagle_stream_client_pair_status() {
   local host port api_url target response
 
@@ -121,17 +132,26 @@ ensure_paired() {
 
   [[ -n "$target" ]] || return 1
 
-  if request_beagle_stream_client_pairing_token_via_manager; then
-    pairing_token="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN:-}"
-  else
-    pairing_token=""
-  fi
-
-  [[ -n "$pairing_token" ]] || return 1
+  pairing_token="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN:-}"
 
   paired_ok="0"
   attempt=0
   while [[ "$attempt" -lt "$(beagle_stream_client_pairing_timeout)" ]]; do
+    if [[ -z "$pairing_token" ]]; then
+      if request_beagle_stream_client_pairing_token_via_manager; then
+        pairing_token="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN:-}"
+        beagle_stream_client_pair_log "pair-token acquired via manager"
+      else
+        beagle_stream_client_pair_log "pair-token request failed via manager"
+      fi
+    fi
+
+    if [[ -z "$pairing_token" ]]; then
+      attempt=$((attempt + 1))
+      sleep 1
+      continue
+    fi
+
     # The client certificate can rotate between startup phases on some images.
     # Re-register before each exchange attempt so manager/host state stays in sync.
     register_beagle_stream_client_via_manager >/dev/null 2>&1 || true
@@ -142,16 +162,22 @@ ensure_paired() {
       # yet resolved, /serverinfo 404 on beagle-stream-server builds). The token
       # is consumed after exchange, so we must not retry exchange.
       paired_ok="1"
+      beagle_stream_client_pair_log "pair-exchange accepted via manager"
       beagle_stream_client_pair_status_ready >/dev/null 2>&1 || true
       beagle_stream_client_stream_ready >/dev/null 2>&1 || true
       break
     fi
+    beagle_stream_client_pair_log "pair-exchange failed via manager; trying direct submit"
     if submit_beagle_stream_server_pairing_token; then
       if beagle_stream_client_pair_status_ready || beagle_stream_client_stream_ready; then
         paired_ok="1"
+        beagle_stream_client_pair_log "direct pairing token submit succeeded"
         break
       fi
     fi
+    beagle_stream_client_pair_log "direct pairing token submit did not produce ready state"
+    # Pair tokens can be short-lived or one-shot. Refresh on next loop.
+    pairing_token=""
     attempt=$((attempt + 1))
     sleep 1
   done

@@ -73,3 +73,58 @@ exit 0
 '''
     result = _run_pairing_ready_script(script, tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_ensure_paired_retries_until_manager_token_available(tmp_path: Path) -> None:
+    script = f'''
+source "{PAIRING_SH}"
+beagle_stream_client_bin() {{ printf '/usr/bin/false\n'; }}
+beagle_stream_client_connect_host() {{ printf '127.0.0.1\n'; }}
+beagle_stream_client_port() {{ printf '47984\n'; }}
+beagle_stream_client_target() {{ printf '127.0.0.1:47984\n'; }}
+beagle_stream_client_stream_ready() {{ return 1; }}
+register_beagle_stream_client_via_manager() {{ return 0; }}
+submit_beagle_stream_server_pairing_token() {{ return 1; }}
+beagle_stream_client_pair_status_ready() {{ return 0; }}
+beagle_stream_client_pairing_timeout() {{ printf '3\n'; }}
+beagle_log_event() {{ return 0; }}
+request_calls=0
+request_beagle_stream_client_pairing_token_via_manager() {{
+  request_calls=$((request_calls + 1))
+  if [[ "$request_calls" -lt 2 ]]; then
+    return 1
+  fi
+  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN='TOKEN_OK'
+  return 0
+}}
+exchange_beagle_stream_client_pairing_token_via_manager() {{
+  [[ "${{1:-}}" == 'TOKEN_OK' ]]
+}}
+ensure_paired
+'''
+    result = _run_pairing_ready_script(script, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_ensure_paired_uses_preseeded_token_when_manager_request_fails(tmp_path: Path) -> None:
+    script = f'''
+source "{PAIRING_SH}"
+beagle_stream_client_bin() {{ printf '/usr/bin/false\n'; }}
+beagle_stream_client_connect_host() {{ printf '127.0.0.1\n'; }}
+beagle_stream_client_port() {{ printf '47984\n'; }}
+beagle_stream_client_target() {{ printf '127.0.0.1:47984\n'; }}
+beagle_stream_client_stream_ready() {{ return 1; }}
+register_beagle_stream_client_via_manager() {{ return 1; }}
+request_beagle_stream_client_pairing_token_via_manager() {{ return 1; }}
+submit_beagle_stream_server_pairing_token() {{ return 1; }}
+beagle_stream_client_pair_status_ready() {{ return 0; }}
+beagle_stream_client_pairing_timeout() {{ printf '1\n'; }}
+beagle_log_event() {{ return 0; }}
+exchange_beagle_stream_client_pairing_token_via_manager() {{
+  [[ "${{1:-}}" == 'PRESET_TOKEN' ]]
+}}
+export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN='PRESET_TOKEN'
+ensure_paired
+'''
+    result = _run_pairing_ready_script(script, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
