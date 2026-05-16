@@ -22,6 +22,15 @@ SOURCE_ARCHIVE_PATH="$ROOTFS_DIR/usr/local/share/beagle/beagle-os-source.tar.gz"
 INSTALLIMAGE_FILES_DIR="$ROOT_DIR/server-installer/installimage"
 
 CHROOT_MOUNTS=()
+APT_RETRY_ATTEMPTS="${BEAGLE_APT_RETRY_ATTEMPTS:-5}"
+APT_RETRY_SLEEP_SECONDS="${BEAGLE_APT_RETRY_SLEEP_SECONDS:-8}"
+APT_COMMON_OPTIONS=(
+  -o Acquire::Retries=5
+  -o Acquire::https::Timeout=60
+  -o Acquire::http::Timeout=60
+  -o Acquire::http::No-Cache=true
+  -o Acquire::BrokenProxy=true
+)
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -45,8 +54,8 @@ ensure_root() {
 
 install_builder_dependencies() {
   export DEBIAN_FRONTEND=noninteractive
-  apt-get update
-  apt-get install -y \
+  apt_retry apt-get update
+  apt_retry apt-get install -y --fix-missing \
     debootstrap \
     ca-certificates \
     curl \
@@ -96,6 +105,42 @@ run_in_chroot() {
     LC_ALL=C.UTF-8 \
     LANG=C.UTF-8 \
     "$@"
+}
+
+apt_retry() {
+  local attempt rc
+  for attempt in $(seq 1 "$APT_RETRY_ATTEMPTS"); do
+    if "$@" "${APT_COMMON_OPTIONS[@]}"; then
+      return 0
+    fi
+    rc=$?
+    if [[ "$attempt" -ge "$APT_RETRY_ATTEMPTS" ]]; then
+      return "$rc"
+    fi
+    echo "apt command failed with rc=$rc, retrying ($attempt/$APT_RETRY_ATTEMPTS): $*" >&2
+    sleep "$APT_RETRY_SLEEP_SECONDS"
+    if [[ "${1:-}" == "apt-get" && "${2:-}" == "install" ]]; then
+      apt-get update "${APT_COMMON_OPTIONS[@]}" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
+apt_retry_chroot() {
+  local attempt rc
+  for attempt in $(seq 1 "$APT_RETRY_ATTEMPTS"); do
+    if run_in_chroot "$@" "${APT_COMMON_OPTIONS[@]}"; then
+      return 0
+    fi
+    rc=$?
+    if [[ "$attempt" -ge "$APT_RETRY_ATTEMPTS" ]]; then
+      return "$rc"
+    fi
+    echo "chroot apt command failed with rc=$rc, retrying ($attempt/$APT_RETRY_ATTEMPTS): $*" >&2
+    sleep "$APT_RETRY_SLEEP_SECONDS"
+    if [[ "${1:-}" == "apt-get" && "${2:-}" == "install" ]]; then
+      run_in_chroot apt-get update "${APT_COMMON_OPTIONS[@]}" >/dev/null 2>&1 || true
+    fi
+  done
 }
 
 prepare_sources_list() {
@@ -306,13 +351,13 @@ cp -L /etc/resolv.conf "$ROOTFS_DIR/etc/resolv.conf"
 install_policy_rc_d
 mount_chroot_fs
 
-run_in_chroot apt-get update
+apt_retry_chroot apt-get update
 # Pre-seed grub-pc so its postinst does not block on the install_devices
 # prompt during chroot install. Hetzner installimage decides the boot
 # device at install time anyway.
-run_in_chroot apt-get install -y debconf-utils
+apt_retry_chroot apt-get install -y --fix-missing debconf-utils
 run_in_chroot bash -c 'echo "grub-pc grub-pc/install_devices multiselect " | debconf-set-selections; echo "grub-pc grub-pc/install_devices_empty boolean true" | debconf-set-selections'
-run_in_chroot apt-get install -y \
+apt_retry_chroot apt-get install -y --fix-missing \
   systemd-sysv \
   locales \
   openssh-server \

@@ -121,8 +121,9 @@ jobs:
       - name: Install build dependencies
         if: ${{ needs.detect-artifact-changes.outputs.rebuild_server_release == 'true' || steps.reuse_installimage.outcome != 'success' }}
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
+          sudo apt-get update -qq -o Acquire::Retries=5
+          sudo apt-get install -y --fix-missing --no-install-recommends \
+            -o Acquire::Retries=5 \
             debootstrap \
             squashfs-tools \
             xorriso \

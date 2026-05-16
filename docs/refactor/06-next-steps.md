@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-05-16, Release-installimage apt-Retry)
+
+**Zuletzt erledigt**:
+- Fehlgeschlagener GitHub-Release-Run `25959173216` wurde gecancelt.
+- Installimage-Build ist gegen transiente Debian-Mirror-Resets gehaertet (`apt_retry`, `--fix-missing`, `Acquire::Retries=5`).
+- Release-/Build-ISO-Workflow-Dependency-Steps nutzen ebenfalls apt-Retries.
+
+**Naechste konkrete Schritte**:
+
+1. Neuen Release-Workflow auf `main` starten und den `Build server installimage tarball`-Job bis zum Artefakt-Upload beobachten.
+2. Falls ein Mirror weiterhin instabil ist, den Build temporär mit einem alternativen `BEAGLE_SERVER_INSTALLIMAGE_MIRROR` erneut starten.
+
+---
+
 ## Stand (2026-05-16, Server-Firewall-Default explizit)
 
 **Zuletzt erledigt**:

@@ -1,3 +1,15 @@
+## Update (2026-05-16, Release-installimage apt-Retry gehaertet)
+
+**Scope**: GitHub-Actions-Release `25959173216` brach im Job `Build server installimage tarball` wegen transientem Debian-Mirror TLS/Connection-Reset bei `ucf_3.0052_all.deb` ab.
+
+- **Fix**:
+  - Abgebrochener Release-Run wurde auf GitHub gecancelt.
+  - `scripts/build-server-installimage.sh` nutzt jetzt `apt_retry`/`apt_retry_chroot` mit `Acquire::Retries=5`, Timeouts, `--fix-missing` und erneutem `apt-get update` zwischen fehlgeschlagenen Install-Versuchen.
+  - Release- und Build-ISO-Workflow installieren Runner-Abhaengigkeiten ebenfalls mit `Acquire::Retries=5` und `--fix-missing`.
+  - Regressionstest `tests/unit/test_installimage_apt_retry_regressions.py` sichert Build-Skript und Workflow-Pfade ab.
+
+---
+
 ## Update (2026-05-16, Server-Install-Firewall-Default explizit gemacht)
 
 **Scope**: Frische Beagle-OS-Serverinstallationen muessen die Beagle-Firewall standardmaessig aktiv haben.
