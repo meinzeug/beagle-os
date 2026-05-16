@@ -7,6 +7,9 @@ BEAGLE_STREAM_CLIENT_HOST_REGISTRY_PY="${BEAGLE_STREAM_CLIENT_HOST_REGISTRY_PY:-
 source "$BEAGLE_STREAM_CLIENT_CLI_SH"
 
 seed_beagle_stream_client_host_from_runtime_config() {
+    : "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:=}"
+    : "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_CONNECT_HOST:=}"
+    : "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST:=}"
   local config_path uniqueid cert_b64 beagle_stream_server_name stream_port response_file
 
   uniqueid="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_UNIQUEID:-}"
