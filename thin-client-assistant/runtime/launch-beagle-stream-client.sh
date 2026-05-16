@@ -560,9 +560,23 @@ main() {
   fi
 
   configure_audio_runtime
+
+  # Prefer the canonical /run/user/<uid> runtime once it becomes available.
+  # During early live boots we may start with a /tmp fallback, which can leave
+  # the stream process disconnected from the active Pulse/PipeWire socket.
+  local preferred_audio_runtime="/run/user/$(id -u)"
+  if [[ "$XDG_RUNTIME_DIR" != "$preferred_audio_runtime" && -d "$preferred_audio_runtime" && -w "$preferred_audio_runtime" && -x "$preferred_audio_runtime" ]]; then
+    export XDG_RUNTIME_DIR="$preferred_audio_runtime"
+    beagle_log_event "beagle-stream-client.audio-runtime" "runtime_dir=${XDG_RUNTIME_DIR}"
+  fi
+
   audio_driver="$(beagle_stream_client_audio_driver)"
   if [[ -n "$audio_driver" && "$audio_driver" != "auto" ]]; then
     export SDL_AUDIODRIVER="$audio_driver"
+  elif [[ -S "$XDG_RUNTIME_DIR/pulse/native" ]]; then
+    # When PulseAudio-over-PipeWire socket is present, prefer pulse backend.
+    # This avoids intermittent ALSA host-down failures during first session boot.
+    export SDL_AUDIODRIVER="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_AUTO_DRIVER:-pulse}"
   fi
 
   configure_graphics_runtime
