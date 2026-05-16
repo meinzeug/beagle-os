@@ -93,6 +93,38 @@ def test_seed_config_path_is_explicitly_non_interactive_in_installer_script():
     assert "elif [[ -x \"$gui_bin\"" in content
 
 
+def test_server_installer_enables_beagle_firewall_on_fresh_install():
+    content = INSTALLER_SCRIPT_PATH.read_text(encoding="utf-8")
+    firewall_block = content.split("# nftables: basic stateful firewall", 1)[1]
+    firewall_block = firewall_block.split("install_bootloader()", 1)[0]
+
+    assert "table inet beagle_guard" in firewall_block
+    assert "policy drop" in firewall_block
+    assert 'tcp dport { 80, 443 }' in firewall_block
+    assert 'chroot_run "systemctl enable nftables"' in firewall_block
+
+
+def test_live_server_bootstrap_activates_beagle_firewall_immediately():
+    content = (
+        ROOT_DIR
+        / "server-installer"
+        / "live-build"
+        / "config"
+        / "includes.chroot"
+        / "usr"
+        / "local"
+        / "bin"
+        / "beagle-live-server-bootstrap"
+    ).read_text(encoding="utf-8")
+    firewall_block = content.split("configure_live_firewall() {", 1)[1]
+    firewall_block = firewall_block.split("wait_for_proxy_health()", 1)[0]
+
+    assert "table inet beagle_guard" in firewall_block
+    assert "policy drop" in firewall_block
+    assert "systemctl enable nftables" in firewall_block
+    assert "systemctl restart nftables" in firewall_block
+
+
 def test_pxe_script_renders_seed_url_into_dhcp_and_boot_entries():
     content = PXE_SCRIPT_PATH.read_text(encoding="utf-8")
 

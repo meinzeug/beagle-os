@@ -44,6 +44,7 @@ BEAGLE_AUTH_BOOTSTRAP_USERNAME="${BEAGLE_AUTH_BOOTSTRAP_USERNAME:-admin}"
 BEAGLE_AUTH_BOOTSTRAP_PASSWORD="${BEAGLE_AUTH_BOOTSTRAP_PASSWORD:-}"
 BEAGLE_AUTH_BOOTSTRAP_DISABLE="${BEAGLE_AUTH_BOOTSTRAP_DISABLE:-0}"
 BEAGLE_AUTH_RESET_ON_INSTALL="${BEAGLE_AUTH_RESET_ON_INSTALL:-0}"
+BEAGLE_FIREWALL_DEFAULT_ENABLED="${BEAGLE_FIREWALL_DEFAULT_ENABLED:-1}"
 BEAGLE_CLUSTER_JOIN_REQUESTED="${BEAGLE_CLUSTER_JOIN_REQUESTED:-no}"
 BEAGLE_CLUSTER_JOIN_ENV_FILE="${BEAGLE_CLUSTER_JOIN_ENV_FILE:-$CONFIG_DIR/cluster-join.env}"
 USB_TUNNEL_USER="${BEAGLE_USB_TUNNEL_SSH_USER:-beagle-tunnel}"
@@ -332,6 +333,23 @@ can_manage_libvirt_system() {
   fi
 
   return 0
+}
+
+can_apply_host_firewall() {
+  if [[ "${BEAGLE_IN_CHROOT_INSTALL:-0}" == "1" ]]; then
+    return 1
+  fi
+  if command -v systemd-detect-virt >/dev/null 2>&1; then
+    local virt_type
+    virt_type=$(systemd-detect-virt 2>/dev/null || true)
+    if [[ "$virt_type" == "chroot" ]]; then
+      return 1
+    fi
+  fi
+  if [[ ! -d /run/systemd/system ]]; then
+    return 1
+  fi
+  command -v nft >/dev/null 2>&1
 }
 
 ensure_kvm_device_permissions() {
@@ -1124,8 +1142,12 @@ if [[ -x "$INSTALL_DIR/scripts/apply-beagle-wireguard.sh" ]]; then
 fi
 
 if [[ -x "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" ]]; then
-  if can_manage_libvirt_system; then
-    "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" --enable || echo "Warning: Beagle firewall baseline could not be applied" >&2
+  if [[ "$(normalize_bool_flag "$BEAGLE_FIREWALL_DEFAULT_ENABLED")" == "1" ]]; then
+    if can_apply_host_firewall; then
+      "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" --enable || echo "Warning: Beagle firewall baseline could not be applied" >&2
+    else
+      BEAGLE_FIREWALL_NO_APPLY=1 "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" --write-only || echo "Warning: Beagle firewall baseline could not be written" >&2
+    fi
   else
     BEAGLE_FIREWALL_NO_APPLY=1 "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" --write-only || echo "Warning: Beagle firewall baseline could not be written" >&2
   fi

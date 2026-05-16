@@ -21,9 +21,11 @@ Stand: 2026-05-16 (ergaenzt: S-051 Firewall-Apply ohne sudo im sandboxed API-Pro
   - Polkit-Regel erlaubt nur dem Service-User `beagle-manager`, genau diese Unit zu starten.
   - Der Runner validiert Actions und Zusatzregeln vor dem root-Aufruf und schreibt den Ergebnisstatus in `/run/beagle-control-plane` zurueck.
   - `POST /api/v1/settings/firewall` ist fuer den WebUI-Button explizit verdrahtet.
+  - Serverinstallationen haben den expliziten Default `BEAGLE_FIREWALL_DEFAULT_ENABLED=1`; der Host-Service-Installer aktiviert die Firewall ohne Libvirt-Abhaengigkeit.
 - Verifikation:
   - Unit-Tests: `python3 -m pytest tests/unit/test_server_settings.py -q` -> `41 passed`.
   - Live `srv1`: `POST /api/v1/settings/firewall {"action":"enable"}` -> `HTTP 200`, `ok=true`, `active=true`, `guard_table=true`.
+  - Regression: Host-Service-, Server-Installer- und Live-Bootstrap-Tests pruefen die Default-Aktivierung.
 
 Stand: 2026-05-11 (ergaenzt: S-050 BeagleStream-Pairing-Fehler durch falsche interne API-URL)
 

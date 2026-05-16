@@ -1,3 +1,19 @@
+## Update (2026-05-16, Server-Install-Firewall-Default explizit gemacht)
+
+**Scope**: Frische Beagle-OS-Serverinstallationen muessen die Beagle-Firewall standardmaessig aktiv haben.
+
+- **Repo-Fix**:
+  - `scripts/install-beagle-host-services.sh` hat jetzt den expliziten Default `BEAGLE_FIREWALL_DEFAULT_ENABLED=1`.
+  - Firewall-Apply nutzt einen eigenen `can_apply_host_firewall`-Check und haengt nicht mehr am Libvirt-Management-Check.
+  - Offline-/Chroot-Installationen schreiben weiterhin die nftables-Regeln vor; echte Boot-/Host-Runs aktivieren sie.
+
+- **Regression-Coverage**:
+  - Host-Service-Installer-Test prueft Default-Aktivierung und die entfernte Libvirt-Abhaengigkeit.
+  - Server-Installer-Test prueft `table inet beagle_guard`, `policy drop` und `systemctl enable nftables`.
+  - Live-Bootstrap-Test prueft `systemctl enable nftables` plus unmittelbaren `restart nftables`.
+
+---
+
 ## Update (2026-05-16, WebUI-Firewall-Baseline ueber systemd/polkit repariert)
 
 **Scope**: Button `Baseline anwenden` im Settings-Firewall-Panel lieferte `HTTP 400` mit `sudo: unable to change to root gid`.

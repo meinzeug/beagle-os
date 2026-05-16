@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-05-16, Server-Firewall-Default explizit)
+
+**Zuletzt erledigt**:
+- Frische Serverinstallationen haben den expliziten Firewall-Default `BEAGLE_FIREWALL_DEFAULT_ENABLED=1`.
+- Der Host-Service-Installer aktiviert die Beagle-Firewall ohne Libvirt-Abhaengigkeit, sofern systemd/nft auf dem echten Host verfuegbar sind.
+- ISO-/Installimage- und Live-Bootstrap-Pfade sind per Regressionstest auf `beagle_guard` + nftables-Aktivierung abgesichert.
+
+**Naechste konkrete Schritte**:
+
+1. Den neu angestossenen GitHub-Release-Lauf beobachten und die erzeugten Server-Artefakte nach Abschluss gegen `scripts/check-beagle-host.sh` auf einem frischen Host pruefen.
+2. R1-Clean-Install-Nachweis aktualisieren, sobald der neue Release-Build verfuegbar ist.
+
+---
+
 ## Stand (2026-05-16, Firewall-Baseline-Button repariert)
 
 **Zuletzt erledigt**:

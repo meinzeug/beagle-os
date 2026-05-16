@@ -70,3 +70,17 @@ def test_install_beagle_host_services_writes_installed_commit_stamp_when_git_che
     assert 'git -C "$ROOT_DIR" rev-parse HEAD' in script
     assert 'printf \'%s\\n\' "$commit" > "$INSTALLED_COMMIT_FILE"' in script
     assert 'write_installed_commit_stamp' in script
+
+
+def test_firewall_baseline_is_enabled_by_default_without_libvirt_dependency() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_FIREWALL_DEFAULT_ENABLED="${BEAGLE_FIREWALL_DEFAULT_ENABLED:-1}"' in script
+    assert "can_apply_host_firewall()" in script
+    assert 'command -v nft >/dev/null 2>&1' in script
+    firewall_block = script.split('if [[ -x "$INSTALL_DIR/scripts/apply-beagle-firewall.sh" ]]; then', 1)[1]
+    firewall_block = firewall_block.split("write_installed_commit_stamp", 1)[0]
+    assert 'normalize_bool_flag "$BEAGLE_FIREWALL_DEFAULT_ENABLED"' in firewall_block
+    assert "can_apply_host_firewall" in firewall_block
+    assert '"$INSTALL_DIR/scripts/apply-beagle-firewall.sh" --enable' in firewall_block
+    assert "can_manage_libvirt_system" not in firewall_block
