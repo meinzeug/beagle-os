@@ -15,6 +15,14 @@ seed_beagle_stream_client_host_from_runtime_config() {
   stream_port="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_STREAM_PORT:-$(beagle_stream_client_port)}"
   config_path="$(beagle_stream_client_config_path 2>/dev/null || true)"
 
+  # Fallback: Wenn HOST leer, aber LOCAL_HOST gesetzt ist, dann setze HOST auf LOCAL_HOST
+  if [[ -z "$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST" && -n "$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST" ]]; then
+    export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST="$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST"
+  fi
+  if [[ -z "$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_CONNECT_HOST" && -n "$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST" ]]; then
+    export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_CONNECT_HOST="$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LOCAL_HOST"
+  fi
+
   [[ -n "$config_path" && -r "$config_path" ]] || return 1
   [[ -n "$uniqueid" && -n "$cert_b64" ]] || return 1
 
