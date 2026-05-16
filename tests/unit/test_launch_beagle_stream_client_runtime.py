@@ -9,6 +9,13 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 LAUNCHER = ROOT_DIR / "thin-client-assistant" / "runtime" / "launch-beagle-stream-client.sh"
 
 
+def test_launcher_has_audio_host_down_recovery_logic() -> None:
+    text = LAUNCHER.read_text(encoding="utf-8")
+    assert "audio-device-host-down" in text
+    assert "beagle-stream-client.audio-fallback" in text
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_DRIVER_FALLBACK" in text
+
+
 def _write_executable(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
     path.chmod(0o755)

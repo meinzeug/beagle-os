@@ -804,6 +804,8 @@ main() {
   local app_lookup_port_fallback_used=0
   local stream_cert_repair_attempted=0
   local connect_host_fallback_used=0
+  local stream_audio_repair_attempted=0
+  local stream_audio_driver_fallback_used=0
   max_attempts="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_MAX_RESTARTS:-3}"
   retry_delay="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESTART_DELAY:-3}"
   # Background watchdog: restores wg peer if binary's deactivatePeer() removes it mid-session.
@@ -849,6 +851,21 @@ main() {
     fi
 
     if [[ "$stream_exit" -ne 0 && "$stream_attempt" -lt "$max_attempts" ]]; then
+      if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi "Failed to open audio device|Couldn't open audio device: Host is down"; then
+        if [[ "$stream_audio_repair_attempted" -eq 0 ]] && command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
+          beagle_log_event "beagle-stream-client.repair" "attempt=${stream_attempt}/${max_attempts} action=audio-runtime-reinit reason=audio-device-host-down"
+          /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1 || true
+          if ! pgrep -f '^bash /usr/local/bin/pve-thin-client-audio-init --watch' >/dev/null 2>&1; then
+            /usr/local/bin/pve-thin-client-audio-init --watch "${PVE_THIN_CLIENT_AUDIO_WATCH_LOOPS:-0}" >/dev/null 2>&1 &
+          fi
+          stream_audio_repair_attempted=1
+        elif [[ "$stream_audio_driver_fallback_used" -eq 0 ]]; then
+          export SDL_AUDIODRIVER="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_DRIVER_FALLBACK:-dummy}"
+          beagle_log_event "beagle-stream-client.audio-fallback" "attempt=${stream_attempt}/${max_attempts} driver=${SDL_AUDIODRIVER} reason=audio-device-host-down"
+          stream_audio_driver_fallback_used=1
+        fi
+      fi
+
       if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi 'Server certificate mismatch|"applist" request failed|Failed to find application|Failed to load application'; then
         if [[ "$stream_cert_repair_attempted" -eq 0 ]]; then
           beagle_log_event "beagle-stream-client.repair" "attempt=${stream_attempt}/${max_attempts} action=pairing-and-app-resolve reason=applist-or-cert-mismatch"
