@@ -7676,3 +7676,22 @@ Lenovo-/Alt-Hardware-Fixes nicht mehr reproduzierbar bis zur Netzwerk-TUI.
 
 **Rest**:
 - Neuer srv1-Artefaktbuild und echter Stick-Boot auf Hardware stehen noch aus.
+
+## 2026-05-16 — Live-/Install-USB Standard-Boot auf toram umgestellt
+
+**Scope**: Der manuell gepatchte Live-Stick fand das Medium wieder, zeigte aber
+spaete `SQUASHFS error: Unable to read page...`-Fehler beim Boot.
+
+**Befund**:
+- Stick-Dateisystem war sauber (`fsck.vfat -n` ohne Fehler).
+- `sha256sum -c live/SHA256SUMS` bestaetigte `filesystem.squashfs: OK`.
+- Damit liegt der Fehler im Boot-Read-Pfad, nicht in einem korrupten Image.
+
+**Umsetzung**:
+- Standard-Live-USB-Eintrag bekommt reproduzierbar `toram`.
+- Standard-USB-Installer-Eintrag bekommt reproduzierbar `toram`.
+- Beide Writer behalten `live-media=removable`, relative `live-media-path` und
+  `live-media-timeout=5`.
+- Windows-USB-Writer auf denselben Stand gebracht.
+- Regressionstest erweitert, damit Standard- und Copy-to-RAM-Eintraege zusammen
+  vier `toram`-Bootzeilen im Linux-Writer absichern.

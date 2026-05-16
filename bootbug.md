@@ -204,11 +204,15 @@ sudo mount /dev/sdb2 /mnt && cat /mnt/beagle-boot-early.log && sudo umount /mnt
 - `live-media-path=/live` ist fuer live-boot unguenstig, weil der Helper den
   Mountpoint selbst voranstellt; `live` ist der robuste relative Pfad.
 
-**Fix (pending commit):**
+**Fix (Commit 5c9b5fa, erweitert 2026-05-16):**
 - Default-Live- und Installer-Boot nutzen wieder einen begrenzten USB-Pfad:
   `live-media=removable live-media-path=live live-media-timeout=5`.
 - Installer nutzt entsprechend `live-media-path=pve-thin-client/live`.
-- `toram` bleibt nur in Copy-to-RAM-Eintraegen.
+- Nach verifiziert korrektem `filesystem.squashfs` auf dem Stick, aber
+  spaeten `SQUASHFS error: Unable to read page...` beim Boot, nutzt auch der
+  Standard-Live- und Standard-Installer-Eintrag `toram`. Damit wird das
+  SquashFS frueh komplett gelesen und spaetere USB-Read-Instabilitaet auf
+  alter Hardware reduziert.
 - Safe/Legacy behalten die duale SDHCI-Blacklist:
   `module_blacklist=...` plus `rd.driver.blacklist=...`.
 - Stale-Payload-Guard akzeptiert die neue duale Blacklist und blockiert nur noch
@@ -222,7 +226,25 @@ sudo mount /dev/sdb2 /mnt && cat /mnt/beagle-boot-early.log && sudo umount /mnt
   Der Lauf wurde nach 90s per Timeout beendet; Ergebnis war kein Medium-Find-Fehler.
 
 **Nächste Schritte:**
-1. Commit pushen.
+1. Commit mit Standard-`toram` pushen.
 2. Auf `srv1` neuen Payload-/USB-Artefaktbuild starten.
 3. Stick neu schreiben.
 4. Standard-Eintrag zuerst testen; auf Lenovo B50-45 danach Safe Mode / AMD compat.
+
+## Update 2026-05-16
+
+- Der neu gebootete Stick enthielt Early-Logger-Hooks in der `initrd.img`, aber
+  keine persistierten Logs unter `/beagle-boot-early.log` oder
+  `pve-thin-client/state/debug/latest.log`.
+- Direktpruefung des Sticks auf dem Arbeitsrechner:
+  - `fsck.vfat -n /dev/sdb2` meldete keine FAT-Fehler.
+  - `sha256sum -c live/SHA256SUMS` meldete `filesystem.squashfs: OK`.
+- Der auf der Zielhardware sichtbare Fehler
+  `SQUASHFS error: Unable to read page...` ist damit kein kaputt geschriebenes
+  SquashFS, sondern ein Read-Problem im Bootbetrieb.
+- Manuelle GRUB-Probe auf dem Stick:
+  - `live-media=removable live-media-path=live live-media-timeout=5`
+  - Standard-Live-Eintrag zusaetzlich mit `toram`
+- Diese manuelle Aenderung wird jetzt in `usb_writer_write_stage.sh` und den
+  Windows-Writer uebernommen, damit neu erzeugte Live- und Install-Sticks den
+  gleichen Stand enthalten.

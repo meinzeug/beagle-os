@@ -43,17 +43,20 @@ def test_live_usb_boot_entries_include_ryzen_usb_compatibility_guards() -> None:
     assert "copy to RAM compatibility mode" in writer
     assert "live-media-timeout=5" in writer
     assert 'live_boot_runtime_args="live-media=removable live-media-path=live live-media-timeout=5 ignore_uuid' in writer
+    assert 'installer_boot_media_args="live-media=removable live-media-path=pve-thin-client/live live-media-timeout=5 ignore_uuid' in writer
     assert "rootdelay=15 rootwait usb-storage.delay_use=5" in writer
     assert "module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi" in writer
-    assert writer.count(" toram ") == 2
+    assert writer.count(" toram ") == 4
     assert "usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1" in local_installer
     assert "copy to RAM compatibility mode" in local_installer
     assert 'compatibility_live_args="live-media-timeout=30 ignore_uuid toram' in local_installer
     assert "usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1" in windows_installer
     assert "copy to RAM compatibility mode" in windows_installer
     assert '$runtimeBootMediaArgs = "live-media=removable live-media-path=live live-media-timeout=5 ignore_uuid' in windows_installer
+    assert '$installerBootMediaArgs = "live-media=removable live-media-path=pve-thin-client/live live-media-timeout=5 ignore_uuid' in windows_installer
     assert "rootdelay=15 rootwait usb-storage.delay_use=5" in windows_installer
     assert "module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi" in windows_installer
+    assert windows_installer.count(" toram ") == 4
 
 
 def test_live_usb_network_choice_is_persistent_and_can_be_overridden() -> None:

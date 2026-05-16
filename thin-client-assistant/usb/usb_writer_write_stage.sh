@@ -419,9 +419,10 @@ write_usb() {
     [[ -n "$network_interface" ]] || network_interface="eth0"
     runtime_ip_args="$(boot_ip_arg "$network_mode" "$network_static_address" "$network_static_prefix" "$network_gateway" "$hostname_value" "$network_interface")"
 
-  # Keep a relative live-media-path and UUID-agnostic scan; some thin clients
-  # expose USB sticks as fixed disks, so do not enforce live-media=removable.
-  local live_boot_runtime_args="live-media-path=live live-media-timeout=60 ignore_uuid ${runtime_ip_args} usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1 mmc_core.use_spi_crc=N"
+  # The default path is intentionally USB/removable-only and toram-backed:
+  # broad scans can hit broken internal storage controllers, while streaming
+  # squashfs from flaky USB controllers can trigger late SQUASHFS read errors.
+  local live_boot_runtime_args="live-media=removable live-media-path=live live-media-timeout=5 ignore_uuid ${runtime_ip_args} usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1 mmc_core.use_spi_crc=N"
   local live_boot_safe_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
   local live_boot_legacy_args="loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
 
@@ -445,7 +446,7 @@ set timeout=10
 
 menuentry 'Beagle OS Live' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} ${live_boot_runtime_args} quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} ${live_boot_runtime_args} quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles toram pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
   initrd /live/initrd.img
 }
 
@@ -476,7 +477,7 @@ EOF
       grub_timeout="0"
     fi
 
-    local installer_boot_media_args="live-media-path=pve-thin-client/live live-media-timeout=60 ignore_uuid ip=dhcp usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1"
+    local installer_boot_media_args="live-media=removable live-media-path=pve-thin-client/live live-media-timeout=5 ignore_uuid ip=dhcp usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1"
     local installer_boot_safe_args="console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
     local installer_boot_legacy_args="console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
 
@@ -500,7 +501,7 @@ set timeout=${grub_timeout}
 set gfxpayload=text
 
 menuentry 'Beagle OS Installer' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ${installer_boot_media_args} console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ${installer_boot_media_args} console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles toram systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /pve-thin-client/live/initrd.img
 }
 
