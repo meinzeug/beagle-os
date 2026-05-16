@@ -30,6 +30,7 @@ BEAGLE_STREAM_CLIENT_HOST_SYNC_SH="${BEAGLE_STREAM_CLIENT_HOST_SYNC_SH:-$SCRIPT_
 BEAGLE_STREAM_CLIENT_REMOTE_API_SH="${BEAGLE_STREAM_CLIENT_REMOTE_API_SH:-$SCRIPT_DIR/beagle_stream_client_remote_api.sh}"
 BEAGLE_STREAM_CLIENT_MANAGER_REGISTRATION_SH="${BEAGLE_STREAM_CLIENT_MANAGER_REGISTRATION_SH:-$SCRIPT_DIR/beagle_stream_client_manager_registration.sh}"
 BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH="${BEAGLE_STREAM_CLIENT_STREAM_PROFILE_SH:-$SCRIPT_DIR/beagle_stream_client_stream_profile.sh}"
+RUNTIME_ENDPOINT_ENROLLMENT_SH="${RUNTIME_ENDPOINT_ENROLLMENT_SH:-$SCRIPT_DIR/runtime_endpoint_enrollment.sh}"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 # shellcheck disable=SC1090
@@ -516,6 +517,54 @@ ensure_wg_peer() {
   fi
 }
 
+beagle_stream_wireguard_required() {
+  local mode egress_type
+  mode="${PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE:-full}"
+  egress_type="${PVE_THIN_CLIENT_BEAGLE_EGRESS_TYPE:-}"
+  [[ "$mode" != "direct" && "$egress_type" == "wireguard" ]]
+}
+
+ensure_beagle_stream_wireguard_ready() {
+  local iface wg_conf saved_script_dir saved_runtime_script_dir
+
+  beagle_stream_wireguard_required || return 0
+
+  iface="${PVE_THIN_CLIENT_BEAGLE_EGRESS_INTERFACE:-wg-beagle}"
+  wg_conf="${WG_CONF:-/etc/wireguard/${iface}.conf}"
+
+  if ! sudo test -f "$wg_conf" 2>/dev/null; then
+    if [[ -r "$RUNTIME_ENDPOINT_ENROLLMENT_SH" ]]; then
+      saved_script_dir="$SCRIPT_DIR"
+      saved_runtime_script_dir="${RUNTIME_SCRIPT_DIR-}"
+      RUNTIME_SCRIPT_DIR="$SCRIPT_DIR"
+      # shellcheck disable=SC1090
+      source "$RUNTIME_ENDPOINT_ENROLLMENT_SH"
+      SCRIPT_DIR="$saved_script_dir"
+      if [[ -n "$saved_runtime_script_dir" ]]; then
+        RUNTIME_SCRIPT_DIR="$saved_runtime_script_dir"
+      else
+        unset RUNTIME_SCRIPT_DIR
+      fi
+      if declare -F enroll_wireguard_if_needed >/dev/null 2>&1; then
+        enroll_wireguard_if_needed || beagle_log_event "beagle-stream-client.wireguard-enroll-error" "conf=${wg_conf}"
+      fi
+    fi
+  fi
+
+  if ! sudo test -f "$wg_conf" 2>/dev/null; then
+    beagle_log_event "beagle-stream-client.wireguard-required-missing" "conf=${wg_conf}"
+    echo "WireGuard is required for Beagle Stream, but '$wg_conf' is missing." >&2
+    return 1
+  fi
+
+  ensure_wg_peer
+  if ! ip link show "$iface" >/dev/null 2>&1; then
+    beagle_log_event "beagle-stream-client.wireguard-required-down" "iface=${iface} conf=${wg_conf}"
+    echo "WireGuard is required for Beagle Stream, but interface '$iface' is not up." >&2
+    return 1
+  fi
+}
+
 main() {
   local bin host connect_host app resolved_app audio_driver port
   local hostless_beagle_stream=0
@@ -525,7 +574,7 @@ main() {
 
   bin="$(beagle_stream_client_bin)"
   host="$(beagle_stream_client_host)"
-  connect_host="$(beagle_stream_client_connect_host)"
+  connect_host=""
   port="$(beagle_stream_client_port)"
   app="$(beagle_stream_client_app)"
 
@@ -548,7 +597,9 @@ main() {
   }
 
   beagle_stream_startup_status_step "2" "WireGuard und Audio vorbereiten" "Netzwerkroute und Sound-Stack vorbereiten"
+  ensure_beagle_stream_wireguard_ready || exit 1
   ensure_wg_peer
+  connect_host="$(beagle_stream_client_connect_host)"
 
   if command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
     if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_INIT_MODE:-async}" == "sync" ]]; then

@@ -149,7 +149,7 @@ enroll_endpoint_if_needed() {
 }
 
 enroll_wireguard_if_needed() {
-  local manager_url manager_token mode egress_type interface_name endpoint_id script_path
+  local manager_url manager_token enrollment_token mode egress_type interface_name endpoint_id script_path
 
   mode="${PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE:-full}"
   egress_type="${PVE_THIN_CLIENT_BEAGLE_EGRESS_TYPE:-}"
@@ -161,7 +161,12 @@ enroll_wireguard_if_needed() {
     manager_url="$(runtime_enrollment_value control_plane 2>/dev/null || true)"
   fi
   manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
-  [[ -n "$manager_url" && -n "$manager_token" ]] || return 1
+  enrollment_token="${PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_TOKEN:-}"
+  if [[ -z "$enrollment_token" ]]; then
+    enrollment_token="$(runtime_enrollment_value enrollment_token 2>/dev/null || true)"
+  fi
+  [[ -n "$manager_url" ]] || return 1
+  [[ -n "$manager_token" || -n "$enrollment_token" ]] || return 1
 
   script_path="$(runtime_wireguard_enrollment_script)"
   [[ -r "$script_path" ]] || return 1
@@ -171,6 +176,7 @@ enroll_wireguard_if_needed() {
   BEAGLE_CONTROL_PLANE="$manager_url" \
   BEAGLE_DEVICE_ID="$endpoint_id" \
   BEAGLE_MANAGER_TOKEN="$manager_token" \
+  BEAGLE_ENROLLMENT_TOKEN="$enrollment_token" \
   WG_IFACE="$interface_name" \
   bash "$script_path"
 }

@@ -1,5 +1,32 @@
 # Security Findings
 
+Stand: 2026-05-16 (ergaenzt: S-052 WireGuard-Pflicht ohne Public-Stream-Fallback)
+
+## S-052 — Thinclient konnte bei fehlender WireGuard-Konfig auf Public-Stream-Host fallen (PATCHED)
+
+- Status: **gepatcht** (2026-05-16)
+- Risiko: **Hoch** (bei WireGuard-Pflicht darf der Client nicht still auf Public-BeagleStream-Ports ausweichen; die Firewall blockierte den Pfad korrekt, aber der Launcher zielte trotzdem falsch)
+- Betroffene Dateien:
+  - `thin-client-assistant/runtime/runtime_endpoint_enrollment.sh`
+  - `thin-client-assistant/runtime/beagle_stream_client_connect_host.sh`
+  - `thin-client-assistant/runtime/launch-beagle-stream-client.sh`
+  - `tests/unit/test_thin_client_live_build_regressions.py`
+- Beschreibung:
+  - Live-/Thinclient-Sticks hatten ein Enrollment-Token, aber `enroll_wireguard_if_needed` verlangte zusaetzlich einen Manager-Bearer-Token.
+  - Wenn `/etc/wireguard/wg-beagle.conf` fehlte, lief der Launcher weiter und die Connect-Host-Auswahl akzeptierte den Public-Host-Fallback.
+  - Das erzeugte Streamversuche gegen `46.4.96.80:50000`, obwohl der produktive BeagleStream-Pfad ueber `192.168.123.x` via WireGuard laufen muss.
+- Fix:
+  - WireGuard-Enrollment akzeptiert Enrollment-Token-only und uebergibt `BEAGLE_ENROLLMENT_TOKEN` an das WG-Enrollment-Skript.
+  - Der Launcher erzwingt bei `egress_type=wireguard` vor dem Streamstart eine vorhandene WG-Konfig plus aktives Interface; andernfalls bricht er mit klarer Fehlermeldung ab.
+  - Connect-Host-Auswahl bevorzugt bei WireGuard-Pflicht die lokale VM-Adresse und faellt nicht mehr auf Public-IP zurueck.
+  - Der Live-Audio-Helper `beagle-ensure-xdg-runtime-dir` ist executable, damit Audio-Init den Nutzer-Runtime-Dir fuer PipeWire/Pulse anlegen kann.
+- Verifikation:
+  - `bash -n thin-client-assistant/runtime/runtime_endpoint_enrollment.sh thin-client-assistant/runtime/beagle_stream_client_connect_host.sh thin-client-assistant/runtime/launch-beagle-stream-client.sh thin-client-assistant/runtime/prepare-runtime.sh`
+  - `python3 -m pytest tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_launch_beagle_stream_client_runtime.py tests/unit/test_enrollment_wireguard.py -q` -> `36 passed`
+  - `git diff --check`
+  - Hot-Test auf TC `192.168.178.30`: WG-Konfig wurde erzeugt, `wg-beagle` ist up, Streamprozess nutzt `192.168.123.114:50000` bei `1920x1080`, `60 fps`, `32000 kbit/s`.
+  - Hot-Test Audio: `/run/user/1000/pulse/native` vorhanden; `pipewire`, `pipewire-pulse`, `wireplumber` laufen nach executable-Fix.
+
 Stand: 2026-05-16 (ergaenzt: S-051 Firewall-Apply ohne sudo im sandboxed API-Prozess)
 
 ## S-051 — Firewall-Apply hing an sudo im gehaerteten Control-Plane-Prozess (PATCHED)

@@ -12,6 +12,8 @@ RUNTIME_DEBUG_REPORT = ROOT / "thin-client-assistant" / "runtime" / "runtime_deb
 SYSTEMD_BOOTSTRAP = ROOT / "thin-client-assistant" / "runtime" / "runtime_systemd_bootstrap.sh"
 WIREGUARD_ENROLLMENT = ROOT / "thin-client-assistant" / "runtime" / "enrollment_wireguard.sh"
 WIREGUARD_RUNTIME_GUARD = ROOT / "thin-client-assistant" / "runtime" / "wireguard_runtime_guard.sh"
+RUNTIME_ENDPOINT_ENROLLMENT = ROOT / "thin-client-assistant" / "runtime" / "runtime_endpoint_enrollment.sh"
+BEAGLE_STREAM_CLIENT_CONNECT_HOST = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_connect_host.sh"
 BEAGLE_STREAM_CLIENT_RUNTIME_EXEC = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_runtime_exec.sh"
 LAUNCH_BEAGLE_STREAM_CLIENT = ROOT / "thin-client-assistant" / "runtime" / "launch-beagle-stream-client.sh"
 LAUNCH_SESSION = ROOT / "thin-client-assistant" / "runtime" / "launch-session.sh"
@@ -35,6 +37,7 @@ DEVICE_SYNC = ROOT / "thin-client-assistant" / "runtime" / "device_sync.sh"
 USB_HOTPLUG = ROOT / "thin-client-assistant" / "runtime" / "beagle-usb-hotplug"
 USB_RUNTIME_ACTIONS = ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_runtime_actions.sh"
 USB_RUNTIME_USBIPD = ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_runtime_usbipd.sh"
+ENSURE_XDG_RUNTIME_DIR = ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "usr" / "local" / "sbin" / "beagle-ensure-xdg-runtime-dir"
 
 
 def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None:
@@ -88,6 +91,13 @@ def test_prepare_runtime_grants_stream_audio_priority_capability() -> None:
     assert "PULSE_LATENCY_MSEC:-90" in runtime_environment_text
     assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PIPEWIRE_LATENCY" in runtime_environment_text
     assert "PIPEWIRE_LATENCY:-2048/48000" in runtime_environment_text
+
+
+def test_live_audio_runtime_dir_helper_is_executable() -> None:
+    mode = ENSURE_XDG_RUNTIME_DIR.stat().st_mode
+
+    assert mode & stat.S_IXUSR
+    assert "install -d -o \"$uid\" -g \"$uid\" -m 0700 \"$dir\"" in ENSURE_XDG_RUNTIME_DIR.read_text(encoding="utf-8")
 
 
 def test_live_runtime_executes_tmpfs_staged_shell_scripts_with_bash() -> None:
@@ -198,6 +208,32 @@ def test_prepare_runtime_starts_wireguard_runtime_guard() -> None:
     assert 'beagle-wg-runtime-guard.service' in build_thin_text
     assert 'beagle-wg-runtime-guard.service' in build_os_text
     assert 'beagle-wg-runtime-guard.service' in installer_text
+
+
+def test_wireguard_enrollment_works_with_enrollment_token_without_manager_bearer() -> None:
+    enrollment_text = RUNTIME_ENDPOINT_ENROLLMENT.read_text(encoding="utf-8")
+
+    assert 'enrollment_token="${PVE_THIN_CLIENT_BEAGLE_ENROLLMENT_TOKEN:-}"' in enrollment_text
+    assert "runtime_enrollment_value enrollment_token" in enrollment_text
+    assert '[[ -n "$manager_token" || -n "$enrollment_token" ]] || return 1' in enrollment_text
+    assert 'BEAGLE_ENROLLMENT_TOKEN="$enrollment_token"' in enrollment_text
+
+
+def test_wireguard_streaming_never_falls_back_to_public_connect_host() -> None:
+    connect_text = BEAGLE_STREAM_CLIENT_CONNECT_HOST.read_text(encoding="utf-8")
+    launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+
+    assert "beagle_stream_client_wireguard_required()" in connect_text
+    assert "if beagle_stream_client_wireguard_required; then" in connect_text
+    assert "resolve_preferred_beagle_stream_client_host \"$local_host\"" in connect_text
+    assert connect_text.index("if beagle_stream_client_wireguard_required; then") < connect_text.index('if [[ -n "$public_host" ]]')
+
+    assert "ensure_beagle_stream_wireguard_ready()" in launcher_text
+    assert 'enroll_wireguard_if_needed || beagle_log_event "beagle-stream-client.wireguard-enroll-error"' in launcher_text
+    assert 'beagle-stream-client.wireguard-required-missing' in launcher_text
+    assert 'ensure_beagle_stream_wireguard_ready || exit 1' in launcher_text
+    main_text = launcher_text[launcher_text.index("main() {") :]
+    assert main_text.index('ensure_beagle_stream_wireguard_ready || exit 1') < main_text.index('connect_host="$(beagle_stream_client_connect_host)"')
 
 
 def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() -> None:

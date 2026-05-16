@@ -1,5 +1,22 @@
 # Next Steps
 
+## Stand (2026-05-16, Thinclient-WireGuard-Pflicht vor Streamstart)
+
+**Zuletzt erledigt**:
+- WireGuard-Enrollment auf Live-/Thinclient-Sticks kann mit vorhandenem Enrollment-Token laufen, auch wenn noch kein Manager-Bearer in der Runtime-Env steht.
+- Der BeagleStream-Launcher startet bei `egress_type=wireguard` nicht mehr weiter, wenn `/etc/wireguard/wg-beagle.conf` oder das `wg-beagle`-Interface fehlen.
+- Der Connect-Host faellt bei WireGuard-Pflicht nicht mehr auf die oeffentliche `46.x`-Adresse zurueck, sondern nutzt die lokale VM-Adresse.
+- Der Live-Audio-Helper ist wieder executable, damit `/run/user/1000` und der Pulse/PipeWire-Socket beim Boot entstehen.
+
+**Naechste konkrete Schritte**:
+
+1. Neues Live-USB-/Thinclient-Artefakt aus `main` bauen und kalt booten.
+2. Auf dem Thinclient pruefen: `/etc/wireguard/wg-beagle.conf` vorhanden, `wg show wg-beagle` aktiv, `beagle-stream-client.exec ... connect_host=192.168.123.x`.
+3. Auf dem Thinclient pruefen: `/run/user/1000/pulse/native` vorhanden, `pipewire-pulse` aktiv, keine fruehen `Failed to open audio device: ALSA`-Fehler im frischen Stream-Log.
+4. Danach D2-BeagleStream-End-to-End-Abnahme erst setzen, wenn der sichtbare VM100-Desktop aus dem frisch gebauten Stick ohne manuelle Hotfixes streamt.
+
+---
+
 ## Stand (2026-05-16, Release-installimage apt-Retry)
 
 **Zuletzt erledigt**:

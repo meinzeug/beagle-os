@@ -1,3 +1,29 @@
+## Update (2026-05-16, Thinclient-WireGuard-Pflicht vor Streamstart erzwungen)
+
+**Scope**: Neu gebaute Live-USB-/Thinclient-Sticks duerfen im BeagleStream-Hostless-Pfad nicht mehr auf die oeffentliche `46.x`-Adresse ausweichen, wenn der Pool `egress_type=wireguard` verlangt.
+
+- **Root-Cause**:
+  - `enroll_wireguard_if_needed` brach ab, wenn kein Manager-Bearer-Token gesetzt war, obwohl auf dem Stick ein Enrollment-Token in `/etc/beagle/enrollment.conf` vorhanden war.
+  - Der Launcher behandelte fehlende `/etc/wireguard/wg-beagle.conf` nur als best-effort und startete danach weiter.
+  - `beagle_stream_client_connect_host` liess bei fehlender lokaler Route den Public-Host als Fallback zu; dadurch zielte der Client auf `46.4.96.80:50000`, waehrend die Firewall diese Public-Streamports korrekt blockiert.
+
+- **Repo-Fix**:
+  - WireGuard-Enrollment nutzt jetzt Enrollment-Token-Fallback ohne Manager-Bearer und gibt diesen explizit an `enrollment_wireguard.sh` weiter.
+  - Der Launcher versucht bei WireGuard-Pflicht eine fehlende WG-Konfig vor dem Streamstart zu erzeugen; wenn Konfig oder Interface danach fehlen, bricht er hart ab statt ueber Public-IP zu streamen.
+  - Connect-Host-Aufloesung bevorzugt bei WireGuard-Pflicht zwingend die lokale VM-Adresse und faellt nicht mehr auf den Public-Host zurueck.
+  - Audio-Boot-Fix mitgezogen: `beagle-ensure-xdg-runtime-dir` ist im Live-Build jetzt executable, damit `pve-thin-client-audio-init` `/run/user/1000` anlegen und PipeWire/Pulse starten kann.
+  - Die Stream-Qualitaetslogik wurde nicht veraendert; Auto-Quality/FPS/Bitrate bleiben unangetastet.
+
+- **Verifikation**:
+  - `bash -n thin-client-assistant/runtime/runtime_endpoint_enrollment.sh thin-client-assistant/runtime/beagle_stream_client_connect_host.sh thin-client-assistant/runtime/launch-beagle-stream-client.sh thin-client-assistant/runtime/prepare-runtime.sh`
+  - `python3 -m pytest tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_launch_beagle_stream_client_runtime.py tests/unit/test_enrollment_wireguard.py -q` -> `36 passed`
+  - `git diff --check`
+  - Hot-Test auf TC `192.168.178.30`: gepatchte Runtime installiert, `enroll_wireguard_if_needed` erzeugt `/etc/wireguard/wg-beagle.conf`, `wg-beagle` ist up, Route `192.168.123.114 dev wg-beagle`.
+  - Hot-Test Stream: laufender Prozess `beagle-stream stream 192.168.123.114:50000 Desktop --resolution 1920x1080 --fps 60 --bitrate 32000`; Trace zeigt `connect_host=192.168.123.114`.
+  - Hot-Test Audio: Nach `chmod 0755 /usr/local/sbin/beagle-ensure-xdg-runtime-dir` erzeugt der Audio-Init `/run/user/1000/pulse/native`; `pipewire`, `pipewire-pulse` und `wireplumber` laufen.
+
+---
+
 ## Update (2026-05-16, Release-installimage apt-Retry gehaertet)
 
 **Scope**: GitHub-Actions-Release `25959173216` brach im Job `Build server installimage tarball` wegen transientem Debian-Mirror TLS/Connection-Reset bei `ucf_3.0052_all.deb` ab.

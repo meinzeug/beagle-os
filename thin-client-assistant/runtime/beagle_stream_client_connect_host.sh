@@ -30,6 +30,13 @@ usable_beagle_stream_client_local_host() {
   printf '%s\n' "$local_host"
 }
 
+beagle_stream_client_wireguard_required() {
+  local mode egress_type
+  mode="${PVE_THIN_CLIENT_BEAGLE_EGRESS_MODE:-full}"
+  egress_type="${PVE_THIN_CLIENT_BEAGLE_EGRESS_TYPE:-}"
+  [[ "$mode" != "direct" && "$egress_type" == "wireguard" ]]
+}
+
 beagle_stream_client_gateway_fallback_host() {
   local gateway host
   gateway="${PVE_THIN_CLIENT_NETWORK_GATEWAY:-}"
@@ -66,6 +73,14 @@ beagle_stream_client_connect_host() {
 
   local_host="$(usable_beagle_stream_client_local_host 2>/dev/null || true)"
   public_host="$(beagle_stream_client_public_connect_host)"
+
+  if beagle_stream_client_wireguard_required; then
+    local_host="$(beagle_stream_client_local_host)"
+    if [[ -n "$local_host" ]]; then
+      resolve_preferred_beagle_stream_client_host "$local_host"
+      return 0
+    fi
+  fi
 
   if [[ -n "$local_host" ]]; then
     candidates+=("$(resolve_preferred_beagle_stream_client_host "$local_host")")
