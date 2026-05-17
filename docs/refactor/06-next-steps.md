@@ -1,5 +1,24 @@
 # Next Steps
 
+## Stand (2026-05-17, VM-Config-UI)
+
+**Zuletzt erledigt**:
+- Die VM-Detail-Config-Seite wurde nach der ersten breiten Optionsabdeckung
+  weiter fuer Laien vereinfacht: weniger Freitext, keine Hilfe-Modals, keine
+  Control-Cards, kompakte aufklappbare Gruppen.
+- `srv1` wurde mit der aktuellen JS/CSS-Version hot deployed und per Chrome
+  DevTools gegen den Live-Origin getestet.
+
+**Naechste konkrete Schritte**:
+
+1. Die echte eingeloggte VM100-Config-Seite nach dem naechsten Auto-Update einmal
+   manuell mit vorhandenen Live-Daten speichern und kontrollieren, dass die
+   Mutation nur die geaenderten Keys sendet.
+2. Danach weitere Spezialoptionen nur als gefuehrte Widgets nachziehen, wenn ein
+   echter Operator-Flow sie braucht; keine Rueckkehr zu rohen Vollformularen.
+
+---
+
 ## Stand (2026-05-16, Thinclient-WireGuard-Pflicht vor Streamstart)
 
 **Zuletzt erledigt**:

@@ -90,12 +90,17 @@ const OPTION_GROUPS = [
         ['megasas', 'MegaRAID SAS'],
         ['pvscsi', 'VMware PVSCSI']
       ] },
-      { key: 'boot', label: 'Boot Order', type: 'text', important: true },
-      { key: 'bootdisk', label: 'Legacy Boot Disk', type: 'text' },
+      { key: 'boot', label: 'Boot Order', type: 'select', important: true, options: [
+        ['order=scsi0;ide2;net0', 'Disk, dann ISO, dann Netzwerk'],
+        ['order=ide2;scsi0;net0', 'Installations-ISO zuerst'],
+        ['order=net0;scsi0', 'Netzwerk zuerst'],
+        ['order=scsi0', 'Nur Systemdisk']
+      ] },
+      { key: 'bootdisk', label: 'Legacy Boot Disk', type: 'select', options: [['', 'Automatisch'], ['scsi0', 'scsi0'], ['virtio0', 'virtio0'], ['sata0', 'sata0'], ['ide0', 'ide0']] },
       { key: 'onboot', label: 'Start at Boot', type: 'toggle', important: true },
-      { key: 'startup', label: 'Start/Shutdown Order', type: 'text' },
-      { key: 'agent', label: 'QEMU Guest Agent', type: 'text', important: true },
-      { key: 'hotplug', label: 'Hotplug', type: 'text' },
+      { key: 'startup', label: 'Start/Shutdown Order', type: 'select', options: [['', 'Keine Reihenfolge'], ['order=1', 'Startgruppe 1'], ['order=2,up=30', 'Startgruppe 2, 30s warten'], ['order=3,up=60,down=30', 'Startgruppe 3, langsamer Shutdown']] },
+      { key: 'agent', label: 'QEMU Guest Agent', type: 'select', important: true, options: [['enabled=1', 'Aktiv'], ['1', 'Aktiv (Legacy)'], ['0', 'Aus']] },
+      { key: 'hotplug', label: 'Hotplug', type: 'select', options: [['network,disk,usb', 'Disk, Netzwerk, USB'], ['network,disk,cpu,memory,usb,cloudinit', 'Alles erlauben'], ['network', 'Nur Netzwerk'], ['0', 'Aus']] },
       { key: 'tablet', label: 'Tablet Pointer', type: 'toggle' },
       { key: 'acpi', label: 'ACPI', type: 'toggle' },
       { key: 'kvm', label: 'KVM Hardware Virtualization', type: 'toggle' },
@@ -123,8 +128,12 @@ const OPTION_GROUPS = [
         ['serial0', 'Serial terminal'],
         ['none', 'None']
       ] },
-      { key: 'audio0', label: 'Audio Device', type: 'text', important: true },
-      { key: 'spice_enhancements', label: 'SPICE Enhancements', type: 'text' },
+      { key: 'audio0', label: 'Audio Device', type: 'select', important: true, options: [
+        ['device=ich9-intel-hda,driver=spice', 'SPICE Audio'],
+        ['device=ich9-intel-hda,driver=none', 'Kein Audio'],
+        ['', 'Nicht gesetzt']
+      ] },
+      { key: 'spice_enhancements', label: 'SPICE Enhancements', type: 'select', options: [['', 'Standard'], ['videostreaming=all', 'Video optimieren'], ['foldersharing=1', 'Folder Sharing']] },
       { key: 'keyboard', label: 'Keyboard Layout', type: 'select', options: [['', 'Default'], ['de', 'de'], ['en-us', 'en-us'], ['fr', 'fr'], ['es', 'es']] }
     ]
   },
@@ -135,8 +144,8 @@ const OPTION_GROUPS = [
       { key: 'ciuser', label: 'User', type: 'text', important: true },
       { key: 'cipassword', label: 'Password', type: 'password', sensitive: true },
       { key: 'sshkeys', label: 'SSH Public Keys', type: 'textarea', important: true },
-      { key: 'ipconfig0', label: 'IP Config 0', type: 'text', important: true },
-      { key: 'ipconfig1', label: 'IP Config 1', type: 'text' },
+      { key: 'ipconfig0', label: 'IP Config 0', type: 'select', important: true, options: [['ip=dhcp', 'DHCP'], ['', 'Nicht setzen']] },
+      { key: 'ipconfig1', label: 'IP Config 1', type: 'select', options: [['', 'Nicht setzen'], ['ip=dhcp', 'DHCP']] },
       { key: 'nameserver', label: 'DNS Servers', type: 'text', important: true },
       { key: 'searchdomain', label: 'DNS Search Domain', type: 'text' },
       { key: 'citype', label: 'Cloud-Init Type', type: 'select', options: [['', 'Auto'], ['nocloud', 'NoCloud'], ['configdrive2', 'ConfigDrive2']] },
@@ -184,6 +193,49 @@ const FIELD_HELP = {
   protection: help('Protection', 'Schutz gegen versehentliches Loeschen und riskante Aktionen.', 'Fuer produktive VMs aktivieren.'),
   cipassword: help('Cloud-Init Password', 'Optionales Initialpasswort fuer Cloud-Init.', 'Nicht speichern, wenn SSH-Keys reichen; private Keys niemals hier eintragen.'),
   sshkeys: help('SSH Keys', 'Oeffentliche SSH-Schluessel fuer Cloud-Init.', 'Nur Public Keys eintragen. Private Keys und Passwoerter bleiben ausserhalb der Config.')
+};
+
+const FIELD_HINTS = {
+  name: 'Anzeigename der VM.',
+  description: 'Optionaler Zweck oder Betreiberhinweis.',
+  tags: 'Kurze Filterbegriffe, z.B. desktop,gaming.',
+  ostype: 'Hilft dem Hypervisor bei passenden Defaults.',
+  protection: 'Schuetzt vor versehentlichem Loeschen.',
+  template: 'Nur fuer Golden Images aktivieren.',
+  sockets: 'Meist 1 lassen.',
+  cores: 'Normale Desktops: 2-4, Gaming: 4-8.',
+  vcpus: '0 bedeutet: alle konfigurierten CPUs.',
+  cpu: 'Portable ist migrationsfreundlich, host ist schneller.',
+  memory: '4096 = 4 GiB, 8192 = 8 GiB.',
+  balloon: '0 ist fuer Desktop/Gaming oft am einfachsten.',
+  cpuunits: 'Relative CPU-Prioritaet bei Last.',
+  cpulimit: 'Leer lassen, wenn kein hartes Limit noetig ist.',
+  numa: 'Nur fuer grosse VMs auf grossen Hosts.',
+  affinity: 'Nur Spezialfall; bindet an Host-CPU-Kerne.',
+  bios: 'Windows 11 braucht normalerweise OVMF/UEFI.',
+  machine: 'q35 ist der moderne Standard.',
+  scsihw: 'VirtIO SCSI single ist der Standard fuer neue VMs.',
+  boot: 'Waehle, ob Disk oder Installations-ISO zuerst startet.',
+  bootdisk: 'Nur fuer Legacy-Setups noetig.',
+  onboot: 'Startet VM automatisch mit dem Host.',
+  startup: 'Startreihenfolge bei mehreren VMs.',
+  agent: 'Aktivieren, wenn qemu-guest-agent im Gast installiert ist.',
+  hotplug: 'Welche Hardware im laufenden Betrieb geaendert werden darf.',
+  tablet: 'Bessere Mausposition in grafischen Konsolen.',
+  acpi: 'Sauberes Herunterfahren und Energieverwaltung.',
+  kvm: 'Hardwarebeschleunigung; normalerweise an.',
+  localtime: 'Windows braucht das manchmal, Linux meist nicht.',
+  vga: 'VirtIO fuer moderne Desktops, QXL fuer SPICE.',
+  audio0: 'SPICE Audio fuer interaktive Desktop-VMs.',
+  keyboard: 'Konsolen-Tastaturlayout.',
+  ciuser: 'Cloud-Init Benutzer beim ersten Start.',
+  cipassword: 'Leer lassen, wenn kein neues Passwort gesetzt werden soll.',
+  sshkeys: 'Nur Public Keys, niemals private Keys.',
+  ipconfig0: 'DHCP ist fuer die meisten VMs richtig.',
+  nameserver: 'DNS-Server, z.B. Router-IP oder 1.1.1.1.',
+  searchdomain: 'In Heimnetzen meist leer.',
+  citype: 'Auto ist fast immer richtig.',
+  ciupgrade: 'Aktualisiert Pakete beim ersten Boot.'
 };
 
 const ALL_FIELDS = OPTION_GROUPS.flatMap((group) => group.fields);
@@ -366,7 +418,9 @@ function renderPresetRail(field) {
 }
 
 function renderHelpButton(key, label) {
-  return '<button type="button" class="vm-config-help-button" data-vm-config-help="' + escapeHtml(key) + '" aria-label="Hilfe zu ' + escapeHtml(label) + '" title="Hilfe zu ' + escapeHtml(label) + '">?</button>';
+  void key;
+  void label;
+  return '';
 }
 
 function renderFieldCaption(field) {
@@ -374,95 +428,129 @@ function renderFieldCaption(field) {
   return '<span class="vm-config-field-caption"><span>' + escapeHtml(label) + '</span>' + renderHelpButton(field.key, label) + '</span>';
 }
 
+function renderFieldHint(field) {
+  const hint = FIELD_HINTS[field.key] || fieldGuide(field.key).summary || '';
+  return hint ? '<small class="vm-setting-hint">' + escapeHtml(hint) + '</small>' : '';
+}
+
+function renderSelectOptions(field, value) {
+  const options = Array.isArray(field.options) ? field.options.slice() : [];
+  if (value !== '' && !options.some(([optionValue]) => String(optionValue) === String(value))) {
+    options.unshift([String(value), String(value) + ' (aktueller Wert)']);
+  }
+  return options.map(([optionValue, optionLabel]) => {
+    const selected = String(value) === String(optionValue) ? ' selected' : '';
+    return '<option value="' + escapeHtml(String(optionValue)) + '"' + selected + '>' + escapeHtml(String(optionLabel)) + '</option>';
+  }).join('');
+}
+
 function renderField(field, config) {
   const key = field.key;
   const value = SENSITIVE_FIELDS.has(key) ? '' : normalizedFieldValue(config, key);
-  const common = ' data-vm-config-field="' + escapeHtml(key) + '"';
+  const common = ' name="vm_config_' + escapeHtml(key) + '" data-vm-config-field="' + escapeHtml(key) + '"';
   if (field.type === 'number') {
     const min = Number(field.min == null ? 0 : field.min);
     const max = Number(field.max == null ? Math.max(min + 1, Number(value || min) + 1) : field.max);
     const step = Number(field.step || 1);
     const rangeValue = String(value === '' ? min : value);
     return '' +
-      '<div class="vm-control-card vm-control-card-range" data-vm-config-control="' + escapeHtml(key) + '">' +
-      '<div class="vm-control-head">' + renderFieldCaption(field) + '<output data-vm-config-output="' + escapeHtml(key) + '">' + escapeHtml(value === '' ? 'leer' : String(value)) + '</output></div>' +
-      '<input class="vm-control-range" type="range" data-vm-config-range="' + escapeHtml(key) + '" min="' + escapeHtml(String(min)) + '" max="' + escapeHtml(String(max)) + '" step="' + escapeHtml(String(step)) + '" value="' + escapeHtml(rangeValue) + '">' +
-      '<div class="vm-control-foot"><span>' + escapeHtml(String(min)) + '</span><label><input class="vm-control-number" type="number"' + common + ' min="' + escapeHtml(String(min)) + '" max="' + escapeHtml(String(max)) + '" step="' + escapeHtml(String(step)) + '" value="' + escapeHtml(String(value)) + '"></label><span>' + escapeHtml(String(max)) + '</span></div>' +
+      '<div class="vm-setting-row vm-setting-number" data-vm-config-control="' + escapeHtml(key) + '">' +
+      '<div class="vm-setting-label">' + renderFieldCaption(field) + renderFieldHint(field) + '</div>' +
+      '<div class="vm-setting-control">' +
+      '<input class="vm-control-range" type="range" name="vm_config_range_' + escapeHtml(key) + '" data-vm-config-range="' + escapeHtml(key) + '" min="' + escapeHtml(String(min)) + '" max="' + escapeHtml(String(max)) + '" step="' + escapeHtml(String(step)) + '" value="' + escapeHtml(rangeValue) + '">' +
+      '<label class="vm-number-inline"><input class="vm-control-number" type="number"' + common + ' min="' + escapeHtml(String(min)) + '" max="' + escapeHtml(String(max)) + '" step="' + escapeHtml(String(step)) + '" value="' + escapeHtml(String(value)) + '"><output data-vm-config-output="' + escapeHtml(key) + '">' + escapeHtml(value === '' ? 'leer' : String(value)) + '</output></label>' +
       renderPresetRail(field) +
-      '</div>';
+      '</div></div>';
   }
   if (field.type === 'toggle') {
     return '' +
-      '<div class="vm-control-card vm-control-card-toggle" data-vm-config-control="' + escapeHtml(key) + '">' +
-      '<div class="vm-control-head">' + renderFieldCaption(field) + '<span class="vm-toggle-state" data-vm-config-toggle-state="' + escapeHtml(key) + '">' + (value ? 'Aktiv' : 'Aus') + '</span></div>' +
-      '<label class="vm-control-switch"><input type="checkbox"' + common + (value ? ' checked' : '') + '><span><i></i></span></label>' +
+      '<div class="vm-setting-row vm-setting-toggle" data-vm-config-control="' + escapeHtml(key) + '">' +
+      '<div class="vm-setting-label">' + renderFieldCaption(field) + renderFieldHint(field) + '</div>' +
+      '<div class="vm-setting-control"><label class="vm-control-switch"><input type="checkbox"' + common + (value ? ' checked' : '') + '><span><i></i></span><b data-vm-config-toggle-state="' + escapeHtml(key) + '">' + (value ? 'Aktiv' : 'Aus') + '</b></label>' +
       renderPresetRail(field) +
-      '</div>';
+      '</div></div>';
   }
   if (field.type === 'select') {
-    const options = (field.options || []).map(([optionValue, optionLabel]) => {
-      const selected = String(value) === String(optionValue) ? ' selected' : '';
-      return '<option value="' + escapeHtml(String(optionValue)) + '"' + selected + '>' + escapeHtml(String(optionLabel)) + '</option>';
-    }).join('');
-    return '<label class="field">' + renderFieldCaption(field) + '<select' + common + '>' + options + '</select>' + renderPresetRail(field) + '</label>';
+    return '<label class="vm-setting-row"><span class="vm-setting-label">' + renderFieldCaption(field) + renderFieldHint(field) + '</span><span class="vm-setting-control"><select' + common + '>' + renderSelectOptions(field, value) + '</select>' + renderPresetRail(field) + '</span></label>';
   }
   if (field.type === 'textarea') {
-    return '<label class="field">' + renderFieldCaption(field) + '<textarea rows="4"' + common + '>' + escapeHtml(String(value)) + '</textarea>' + renderPresetRail(field) + '</label>';
+    return '<label class="vm-setting-row vm-setting-textarea"><span class="vm-setting-label">' + renderFieldCaption(field) + renderFieldHint(field) + '</span><span class="vm-setting-control"><textarea rows="3"' + common + '>' + escapeHtml(String(value)) + '</textarea>' + renderPresetRail(field) + '</span></label>';
   }
   const type = field.type === 'password' ? 'password' : 'text';
   const placeholder = SENSITIVE_FIELDS.has(key) && normalize(config[key]) ? 'gesetzt - leer lassen fuer keine Aenderung' : '';
-  return '<label class="field">' + renderFieldCaption(field) + '<input type="' + type + '"' + common + ' value="' + escapeHtml(String(value)) + '" placeholder="' + escapeHtml(placeholder) + '">' + renderPresetRail(field) + '</label>';
+  return '<label class="vm-setting-row"><span class="vm-setting-label">' + renderFieldCaption(field) + renderFieldHint(field) + '</span><span class="vm-setting-control"><input type="' + type + '"' + common + ' value="' + escapeHtml(String(value)) + '" placeholder="' + escapeHtml(placeholder) + '">' + renderPresetRail(field) + '</span></label>';
 }
 
 function renderParamInput(label, key, value, kind) {
-  return '<label><span>' + escapeHtml(label) + '</span><input data-vm-device-param="' + escapeHtml(key) + '" data-vm-device-kind="' + escapeHtml(kind) + '" value="' + escapeHtml(String(value || '')) + '"></label>';
+  return '<label><span>' + escapeHtml(label) + '</span><input name="vm_device_' + escapeHtml(kind) + '_' + escapeHtml(key) + '" data-vm-device-param="' + escapeHtml(key) + '" data-vm-device-kind="' + escapeHtml(kind) + '" value="' + escapeHtml(String(value || '')) + '"></label>';
+}
+
+function renderParamSelect(label, key, value, kind, options) {
+  const normalized = String(value || '');
+  const list = options.slice();
+  if (normalized && !list.some(([optionValue]) => String(optionValue) === normalized)) {
+    list.unshift([normalized, normalized + ' (aktueller Wert)']);
+  }
+  return '<label><span>' + escapeHtml(label) + '</span><select name="vm_device_' + escapeHtml(kind) + '_' + escapeHtml(key) + '" data-vm-device-param="' + escapeHtml(key) + '" data-vm-device-kind="' + escapeHtml(kind) + '">' + list.map(([optionValue, optionLabel]) => {
+    const selected = String(optionValue) === normalized ? ' selected' : '';
+    return '<option value="' + escapeHtml(String(optionValue)) + '"' + selected + '>' + escapeHtml(String(optionLabel)) + '</option>';
+  }).join('') + '</select></label>';
 }
 
 function renderDeviceEditor(key, value) {
   const kind = deviceKind(key);
   const params = parseParams(value);
   if (kind === 'disk') {
-    const diskKeys = ['size', 'cache', 'discard', 'iothread', 'ssd', 'backup', 'replicate', 'media', 'format', 'serial', 'ro'];
     const diskHead = params.file || params.__head;
     return '' +
       '<div class="vm-device-fields" data-vm-device-compose="disk">' +
-      renderParamInput('Volume / File', '__head', diskHead, 'disk') +
-      diskKeys.map((param) => renderParamInput(param, param, params[param], 'disk')).join('') +
+      renderParamInput('Volume', '__head', diskHead, 'disk') +
+      renderParamInput('Size', 'size', params.size, 'disk') +
+      renderParamSelect('Cache', 'cache', params.cache, 'disk', [['', 'Default'], ['none', 'None'], ['writeback', 'Writeback'], ['writethrough', 'Writethrough']]) +
+      renderParamSelect('Discard', 'discard', params.discard, 'disk', [['', 'Default'], ['on', 'On'], ['ignore', 'Off']]) +
+      renderParamSelect('SSD', 'ssd', params.ssd, 'disk', [['', 'Default'], ['1', 'Ja'], ['0', 'Nein']]) +
+      renderParamSelect('Backup', 'backup', params.backup, 'disk', [['', 'Default'], ['1', 'Ja'], ['0', 'Nein']]) +
+      renderParamSelect('Media', 'media', params.media, 'disk', [['', 'Disk'], ['cdrom', 'CD-ROM']]) +
+      renderParamSelect('Format', 'format', params.format, 'disk', [['', 'Default'], ['qcow2', 'qcow2'], ['raw', 'raw']]) +
       '</div>';
   }
   if (kind === 'network') {
     const model = params.model || params.__head || 'virtio';
-    const netKeys = ['bridge', 'macaddr', 'firewall', 'tag', 'trunks', 'queues', 'rate', 'mtu', 'link_down'];
     return '' +
       '<div class="vm-device-fields" data-vm-device-compose="network">' +
-      renderParamInput('Model', '__head', model, 'network') +
-      netKeys.map((param) => renderParamInput(param, param, params[param], 'network')).join('') +
+      renderParamSelect('Model', '__head', model, 'network', [['virtio', 'VirtIO'], ['e1000', 'Intel E1000'], ['rtl8139', 'Realtek RTL8139']]) +
+      renderParamInput('Bridge', 'bridge', params.bridge || 'vmbr0', 'network') +
+      renderParamSelect('Firewall', 'firewall', params.firewall, 'network', [['', 'Default'], ['1', 'An'], ['0', 'Aus']]) +
+      renderParamInput('VLAN Tag', 'tag', params.tag, 'network') +
+      renderParamInput('MAC', 'macaddr', params.macaddr, 'network') +
+      renderParamSelect('Link', 'link_down', params.link_down, 'network', [['', 'Verbunden'], ['0', 'Verbunden'], ['1', 'Getrennt']]) +
       '</div>';
   }
-  return '<label class="field vm-device-raw"><span>Value</span><input class="mono" data-vm-device-raw value="' + escapeHtml(normalize(value)) + '"></label>';
+  return '<label class="field vm-device-raw"><span>Value</span><input class="mono" name="vm_device_raw" data-vm-device-raw value="' + escapeHtml(normalize(value)) + '"></label>';
 }
 
 function renderDeviceRow(key, value, isNew) {
   return '' +
-    '<article class="vm-device-row" data-vm-device-row data-vm-config-item="' + escapeHtml(key) + '" data-vm-device-key="' + escapeHtml(key) + '" data-vm-device-new="' + (isNew ? '1' : '0') + '">' +
-    '<div class="vm-device-row-head">' +
+    '<details class="vm-device-row" data-vm-device-row data-vm-config-item="' + escapeHtml(key) + '" data-vm-device-key="' + escapeHtml(key) + '" data-vm-device-new="' + (isNew ? '1' : '0') + '"' + (isNew ? ' open' : '') + '>' +
+    '<summary class="vm-device-row-head">' +
     '<div><strong>' + escapeHtml(key) + '</strong><span>' + escapeHtml(deviceKind(key) || 'option') + '</span></div>' +
-    '<button type="button" class="button ghost small" data-vm-device-remove="' + escapeHtml(key) + '">Remove</button>' +
-    '</div>' +
+    '</summary>' +
+    '<div class="vm-device-row-actions"><button type="button" class="button ghost small" data-vm-device-remove="' + escapeHtml(key) + '">Remove</button></div>' +
     renderDeviceEditor(key, value) +
-    '</article>';
+    '</details>';
 }
 
 function renderDeviceSection(title, kind, entries, buttons) {
   return '' +
-    '<section class="detail-section vm-config-device-section" data-vm-device-section="' + escapeHtml(kind) + '">' +
-    '<div class="section-head"><div><h3>' + escapeHtml(title) + '</h3></div><div class="vm-device-add-bar">' + buttons.map((button) => {
+    '<details class="detail-section vm-config-device-section" data-vm-device-section="' + escapeHtml(kind) + '"' + (entries.length ? ' open' : '') + '>' +
+    '<summary class="section-head"><div><h3>' + escapeHtml(title) + '</h3><p class="muted">' + escapeHtml(String(entries.length)) + ' Eintrag(e)</p></div></summary>' +
+    '<div class="vm-device-section-actions"><div class="vm-device-add-bar">' + buttons.map((button) => {
       return '<button type="button" class="button ghost small" data-vm-device-add="' + escapeHtml(button.prefix) + '" data-vm-device-template="' + escapeHtml(button.template) + '">' + escapeHtml(button.label) + '</button>';
     }).join('') + '</div></div>' +
     '<div class="vm-device-list" data-vm-device-list="' + escapeHtml(kind) + '">' +
     (entries.length ? entries.map(([key, value]) => renderDeviceRow(key, value, false)).join('') : '<div class="empty-card">Keine Eintraege.</div>') +
     '</div>' +
-    '</section>';
+    '</details>';
 }
 
 function renderHardware(config) {
@@ -492,32 +580,11 @@ function renderHardware(config) {
     ]);
 }
 
-function renderHelpModal() {
-  return '' +
-    '<div class="vm-config-help-modal" data-vm-config-help-modal hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="vm-config-help-title">' +
-    '<div class="vm-config-help-backdrop" data-vm-config-help-close></div>' +
-    '<div class="vm-config-help-dialog">' +
-    '<div class="vm-config-help-head"><div><span class="vm-config-guide-kicker">Beagle Guide Layer</span><h3 id="vm-config-help-title" data-vm-config-help-title>Option</h3></div><button type="button" class="vm-config-help-close" data-vm-config-help-close aria-label="Hilfe schliessen">x</button></div>' +
-    '<div class="vm-config-help-body"><section><h4>Was ist das?</h4><p data-vm-config-help-summary></p></section><section><h4>Wann aendern?</h4><p data-vm-config-help-guidance></p></section><section><h4>Risiko & Neustart</h4><p data-vm-config-help-risk></p><p data-vm-config-help-restart></p></section><section><h4>Aktueller Wert</h4><pre data-vm-config-help-current></pre></section></div>' +
-    '<div class="vm-config-help-actions"><button type="button" class="primary" data-vm-config-help-close>Verstanden</button></div>' +
-    '</div></div>';
-}
-
-function renderGuidePanel() {
-  return '' +
-    '<aside class="vm-config-guide-panel" data-vm-config-guide-panel aria-live="polite">' +
-    '<div class="vm-config-guide-panel-head"><span>Beagle Info View</span><strong data-vm-config-guide-panel-title>Feldhilfe</strong></div>' +
-    '<p data-vm-config-guide-panel-summary>Feld fokussieren oder Hilfe oeffnen.</p>' +
-    '<div class="vm-config-guide-panel-meta"><span data-vm-config-guide-panel-risk>Risiko: kontextabhaengig</span><span data-vm-config-guide-panel-restart>Neustart: kontextabhaengig</span></div>' +
-    '</aside>';
-}
-
 function renderEnterpriseConsole() {
   return '' +
-    '<section class="detail-section vm-enterprise-console">' +
-    '<div class="vm-enterprise-console-head"><div><h3>Enterprise Change Console</h3></div><div class="vm-enterprise-impact"><span data-vm-enterprise-risk="low">Risiko: niedrig</span><span data-vm-enterprise-restart="soft">Neustart: unkritisch</span></div></div>' +
-    '<div class="vm-enterprise-toolbar"><label><span>Suche Einstellung</span><input type="search" data-vm-config-filter placeholder="memory, boot, net0"></label><label class="check-label"><input type="checkbox" data-vm-show-changed><span>Nur geaenderte Felder</span></label></div>' +
-    '<div class="vm-enterprise-summary"><div><strong data-vm-change-count>0</strong><span>Aenderungen</span></div><div><strong data-vm-warning-count>0</strong><span>Pruefhinweise</span></div><div><strong data-vm-filter-count>0</strong><span>sichtbar</span></div></div>' +
+    '<section class="detail-section vm-enterprise-console" aria-label="Aenderungen">' +
+    '<div class="vm-enterprise-console-head"><div class="vm-enterprise-toolbar"><label><span>Suche</span><input type="search" name="vm_config_filter" data-vm-config-filter placeholder="memory, boot, net0"></label><label class="check-label"><input type="checkbox" name="vm_show_changed" data-vm-show-changed><span>Nur Aenderungen</span></label></div><div class="vm-enterprise-impact"><span data-vm-enterprise-risk="low">Risiko: niedrig</span><span data-vm-enterprise-restart="soft">Neustart: unkritisch</span></div></div>' +
+    '<div class="vm-enterprise-summary"><div><strong data-vm-change-count>0</strong><span>Aenderungen</span></div><div><strong data-vm-warning-count>0</strong><span>Hinweise</span></div><div><strong data-vm-filter-count>0</strong><span>sichtbar</span></div></div>' +
     '<p class="vm-enterprise-change-list" data-vm-change-list>Noch keine Aenderungen.</p>' +
     '</section>';
 }
@@ -525,11 +592,11 @@ function renderEnterpriseConsole() {
 function renderModeSwitcher(mode) {
   const simpleActive = mode !== 'pro';
   return '' +
-    '<section class="detail-section vm-mode-switcher">' +
-    '<div class="vm-mode-switcher-head"><h3>Bedienmodus</h3><div class="vm-mode-switcher-buttons" role="tablist" aria-label="VM Konfigurationsmodus">' +
+    '<section class="detail-section vm-mode-switcher" aria-label="Bedienmodus">' +
+    '<div class="vm-mode-switcher-head"><strong>Bedienmodus</strong><div class="vm-mode-switcher-buttons" role="tablist" aria-label="VM Konfigurationsmodus">' +
     '<button type="button" data-vm-mode="simple" aria-pressed="' + (simpleActive ? 'true' : 'false') + '" class="' + (simpleActive ? 'is-active' : '') + '">Einfach</button>' +
     '<button type="button" data-vm-mode="pro" aria-pressed="' + (!simpleActive ? 'true' : 'false') + '" class="' + (!simpleActive ? 'is-active' : '') + '">Profi</button>' +
-    '</div></div><p class="muted">Einfach zeigt nur die wichtigsten Einstellungen. Profi blendet alle Optionen ein.</p></section>';
+    '</div></div></section>';
 }
 
 function renderInterfaces(interfaces) {
@@ -562,28 +629,27 @@ export class VmConfigEditor {
 
   render() {
     let html = '<form class="vm-config-editor vm-config-editor-v2" data-vm-config-editor data-vmid="' + escapeHtml(String(this.vmid)) + '">';
-    html += '<section class="detail-section vm-config-hero"><div class="section-head"><div><h3>VM Konfiguration</h3><p class="muted">Beagle-native KVM/libvirt API, Proxmox-nahe Optionsabdeckung.</p></div><button type="submit" class="primary">Speichern</button></div><div class="banner banner-info" data-vm-config-status hidden></div></section>';
+    html += '<section class="detail-section vm-config-hero"><div class="section-head"><div><h3>VM Konfiguration</h3><p class="muted">VM #' + escapeHtml(String(this.vmid)) + '</p></div><button type="submit" class="primary">Speichern</button></div><div class="banner banner-info" data-vm-config-status hidden></div></section>';
     html += renderModeSwitcher(this.mode);
     html += renderEnterpriseConsole();
-    html += renderGuidePanel();
     OPTION_GROUPS.forEach((group) => {
-      html += '<section class="detail-section vm-config-group" data-vm-config-group="' + escapeHtml(group.id) + '"><h3>' + escapeHtml(group.title) + '</h3><div class="vm-config-grid">';
+      const open = group.id === 'advanced' ? '' : ' open';
+      html += '<details class="detail-section vm-config-group" data-vm-config-group="' + escapeHtml(group.id) + '"' + open + '><summary class="vm-config-group-summary"><h3>' + escapeHtml(group.title) + '</h3><span>' + escapeHtml(String(group.fields.length)) + ' Optionen</span></summary><div class="vm-config-grid">';
       group.fields.forEach((field) => {
         html += '<div class="vm-config-item" data-vm-config-item="' + escapeHtml(field.key) + '" data-vm-simple="' + (SIMPLE_FIELDS.has(field.key) ? '1' : '0') + '">' + renderField(field, this.config) + '</div>';
       });
-      html += '</div></section>';
+      html += '</div></details>';
     });
     html += renderHardware(this.config);
     const extraKeys = unknownKeys(this.config);
     if (extraKeys.length) {
-      html += '<section class="detail-section vm-config-group"><h3>Weitere Optionen</h3><div class="vm-config-grid">';
+      html += '<details class="detail-section vm-config-group"><summary class="vm-config-group-summary"><h3>Weitere Optionen</h3><span>' + escapeHtml(String(extraKeys.length)) + ' Optionen</span></summary><div class="vm-config-grid">';
       extraKeys.forEach((key) => {
-        html += '<div class="vm-config-item" data-vm-config-item="' + escapeHtml(key) + '" data-vm-simple="0"><label class="field">' + renderFieldCaption({ key, label: key }) + '<input class="mono" data-vm-config-field="' + escapeHtml(key) + '" value="' + escapeHtml(normalize(this.config[key])) + '"></label></div>';
+        html += '<div class="vm-config-item" data-vm-config-item="' + escapeHtml(key) + '" data-vm-simple="0"><label class="vm-setting-row"><span class="vm-setting-label">' + renderFieldCaption({ key, label: key }) + '<small class="vm-setting-hint">Uebernommene Spezialoption.</small></span><span class="vm-setting-control"><input class="mono" data-vm-config-field="' + escapeHtml(key) + '" value="' + escapeHtml(normalize(this.config[key])) + '"></span></label></div>';
       });
-      html += '</div></section>';
+      html += '</div></details>';
     }
     html += renderInterfaces(this.interfaces);
-    html += renderHelpModal();
     html += '</form>';
     return html;
   }
@@ -611,34 +677,17 @@ export class VmConfigEditor {
       const addButton = event.target && event.target.closest ? event.target.closest('[data-vm-device-add]') : null;
       if (addButton) {
         event.preventDefault();
+        event.stopPropagation();
         this.addDevice(form, addButton);
         return;
       }
       const removeButton = event.target && event.target.closest ? event.target.closest('[data-vm-device-remove]') : null;
       if (removeButton) {
         event.preventDefault();
+        event.stopPropagation();
         this.removeDevice(form, removeButton);
         return;
       }
-      const helpButton = event.target && event.target.closest ? event.target.closest('[data-vm-config-help]') : null;
-      if (helpButton) {
-        event.preventDefault();
-        this.openHelp(form, String(helpButton.getAttribute('data-vm-config-help') || ''));
-        return;
-      }
-      const closeButton = event.target && event.target.closest ? event.target.closest('[data-vm-config-help-close]') : null;
-      if (closeButton) {
-        event.preventDefault();
-        this.closeHelp(form);
-      }
-    });
-    form.addEventListener('mouseover', (event) => {
-      const key = this.keyFromGuideTarget(event.target);
-      if (key) this.updateGuidePanel(form, key);
-    });
-    form.addEventListener('focusin', (event) => {
-      const key = this.keyFromGuideTarget(event.target);
-      if (key) this.updateGuidePanel(form, key);
     });
     form.addEventListener('input', (event) => {
       if (event.target && event.target.matches && event.target.matches('[data-vm-config-filter]')) {
@@ -651,9 +700,6 @@ export class VmConfigEditor {
         this.showChangedOnly = Boolean(event.target.checked);
       }
       this.syncControlSurface(form, event.target);
-    });
-    form.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') this.closeHelp(form);
     });
     form.querySelectorAll('[data-vm-device-add]').forEach((button) => {
       button.addEventListener('click', (event) => {
@@ -824,16 +870,6 @@ export class VmConfigEditor {
     this.applyVisibility(form);
   }
 
-  keyFromGuideTarget(target) {
-    if (!target || !target.closest) return '';
-    const explicit = target.closest('[data-vm-config-help]');
-    if (explicit) return String(explicit.getAttribute('data-vm-config-help') || '').trim();
-    const field = target.closest('[data-vm-config-field]');
-    if (field) return String(field.getAttribute('data-vm-config-field') || '').trim();
-    const row = target.closest('[data-vm-device-key]');
-    return row ? String(row.getAttribute('data-vm-device-key') || '').trim() : '';
-  }
-
   syncControlSurface(form, target) {
     if (!target || !target.getAttribute) return;
     const rangeKey = String(target.getAttribute('data-vm-config-range') || '').trim();
@@ -854,43 +890,6 @@ export class VmConfigEditor {
       if (stateLabel) stateLabel.textContent = target.checked ? 'Aktiv' : 'Aus';
     }
     this.refreshEnterpriseConsole(form);
-  }
-
-  updateGuidePanel(form, key) {
-    const panel = form.querySelector('[data-vm-config-guide-panel]');
-    if (!panel || !key) return;
-    const guide = fieldGuide(key);
-    panel.querySelector('[data-vm-config-guide-panel-title]').textContent = guide.title || key;
-    panel.querySelector('[data-vm-config-guide-panel-summary]').textContent = guide.summary || '';
-    panel.querySelector('[data-vm-config-guide-panel-risk]').textContent = riskForKey(key);
-    panel.querySelector('[data-vm-config-guide-panel-restart]').textContent = restartHintForKey(key);
-  }
-
-  openHelp(form, key) {
-    const modal = form.querySelector('[data-vm-config-help-modal]');
-    if (!modal) return;
-    const guide = fieldGuide(key);
-    const control = form.querySelector('[data-vm-config-field="' + CSS.escape(key) + '"]');
-    const current = control ? (control.type === 'checkbox' ? (control.checked ? 'An' : 'Aus') : String(control.value || '')) : this.controlValueForKey(form, key);
-    modal.querySelector('[data-vm-config-help-title]').textContent = guide.title || key;
-    modal.querySelector('[data-vm-config-help-summary]').textContent = guide.summary || '';
-    modal.querySelector('[data-vm-config-help-guidance]').textContent = guide.guidance || '';
-    modal.querySelector('[data-vm-config-help-risk]').textContent = riskForKey(key);
-    modal.querySelector('[data-vm-config-help-restart]').textContent = restartHintForKey(key);
-    modal.querySelector('[data-vm-config-help-current]').textContent = current || '(leer)';
-    modal.hidden = false;
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('modal-open');
-    const close = modal.querySelector('[data-vm-config-help-close]');
-    if (close && close.focus) close.focus();
-  }
-
-  closeHelp(form) {
-    const modal = form.querySelector('[data-vm-config-help-modal]');
-    if (!modal || modal.hidden) return;
-    modal.hidden = true;
-    modal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('modal-open');
   }
 
   collectDeviceValue(row) {

@@ -277,3 +277,269 @@
   .vm-device-list { grid-template-columns: 1fr; }
   .vm-device-fields { grid-template-columns: 1fr; }
 }
+
+.vm-config-editor-v2 {
+  gap: 10px;
+}
+.vm-config-editor-v2 [hidden] {
+  display: none !important;
+}
+.vm-config-editor-v2 .detail-section {
+  border-radius: 8px;
+}
+.vm-config-editor-v2 .vm-config-hero {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+.vm-mode-switcher {
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+.vm-mode-switcher-head {
+  margin: 0;
+}
+.vm-mode-switcher-head strong {
+  color: var(--text);
+  font-size: 0.88rem;
+}
+.vm-mode-switcher-buttons {
+  border-radius: 7px;
+}
+.vm-mode-switcher-buttons button.is-active {
+  background: color-mix(in srgb, var(--accent) 24%, var(--bg-elevated));
+  box-shadow: none;
+}
+.vm-enterprise-console {
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+.vm-enterprise-console-head {
+  align-items: center;
+  margin-bottom: 8px;
+}
+.vm-enterprise-toolbar {
+  grid-template-columns: minmax(180px, 320px) auto;
+  margin: 0;
+}
+.vm-enterprise-summary {
+  grid-template-columns: repeat(3, minmax(86px, 1fr));
+  margin-bottom: 6px;
+}
+.vm-enterprise-summary > div {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+}
+.vm-enterprise-change-list {
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+.vm-config-group,
+.vm-config-device-section {
+  padding: 0;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+.vm-config-group-summary,
+.vm-config-device-section > .section-head {
+  min-height: 44px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid var(--border);
+  margin: 0;
+}
+.vm-config-group-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.vm-config-group-summary h3,
+.vm-config-device-section h3 {
+  margin: 0;
+  font-size: 0.94rem;
+}
+.vm-config-group-summary span,
+.vm-config-device-section .muted {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+.vm-config-group > .vm-config-grid,
+.vm-config-device-section > .vm-device-list {
+  padding: 0 14px 14px;
+}
+.vm-device-section-actions {
+  padding: 10px 14px 0;
+}
+.vm-config-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+.vm-setting-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.38fr) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: center;
+  min-height: 50px;
+  padding: 9px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+.vm-config-item:first-child .vm-setting-row {
+  border-top: 0;
+}
+.vm-setting-label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.vm-setting-control {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vm-setting-hint {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+.vm-config-field-caption {
+  justify-content: flex-start;
+  color: var(--text);
+  font-weight: 700;
+}
+.vm-setting-control input,
+.vm-setting-control select,
+.vm-setting-control textarea,
+.vm-device-fields input,
+.vm-device-fields select,
+.vm-device-raw input {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  padding: 0 9px;
+}
+.vm-setting-control textarea {
+  min-height: 72px;
+  padding-top: 8px;
+}
+.vm-setting-control input:focus,
+.vm-setting-control select:focus,
+.vm-setting-control textarea:focus,
+.vm-device-fields input:focus,
+.vm-device-fields select:focus,
+.vm-device-raw input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.vm-control-range {
+  height: 20px;
+  margin: 0;
+}
+.vm-number-inline {
+  display: grid;
+  grid-template-columns: minmax(110px, 180px) auto;
+  align-items: center;
+  gap: 8px;
+}
+.vm-number-inline output {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+.vm-control-presets {
+  margin-top: 0;
+}
+.vm-control-presets button {
+  min-height: 24px;
+  border-radius: 6px;
+  letter-spacing: 0;
+  background: var(--bg-card);
+}
+.vm-control-switch {
+  width: max-content;
+  display: inline-grid;
+  grid-template-columns: 48px auto;
+  align-items: center;
+  gap: 8px;
+}
+.vm-control-switch span {
+  width: 48px;
+  height: 26px;
+  border-radius: 999px;
+}
+.vm-control-switch span::before {
+  display: none;
+}
+.vm-control-switch i {
+  left: 3px;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+}
+.vm-control-switch input:checked + span i {
+  left: calc(100% - 23px);
+}
+.vm-control-switch b {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+.vm-device-list {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.vm-device-row {
+  padding: 0;
+  border-radius: 7px;
+  background: var(--bg-elevated);
+  box-shadow: none;
+}
+.vm-device-row-head {
+  margin: 0;
+  padding: 9px 10px;
+  cursor: pointer;
+}
+.vm-device-row-head::marker {
+  color: var(--text-muted);
+}
+.vm-device-fields {
+  padding: 0 10px 10px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.vm-device-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 10px 8px;
+}
+.vm-device-fields label:first-child {
+  grid-column: auto;
+}
+.vm-device-fields label,
+.vm-device-raw {
+  font-size: 0.72rem;
+}
+
+@media (max-width: 720px) {
+  .vm-enterprise-console-head,
+  .vm-enterprise-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .vm-setting-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .vm-number-inline {
+    grid-template-columns: 1fr;
+  }
+}

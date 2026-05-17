@@ -95,29 +95,31 @@ def test_vm_detail_surfaces_stream_runtime_variant_and_fallback_state() -> None:
 def test_vm_config_editor_surfaces_guided_control_ui() -> None:
     editor = _read(VM_CONFIG_EDITOR_JS)
 
-    assert "Beagle Info View" in editor
-    assert "Beagle Guide Layer" in editor
+    assert "vm-setting-row" in editor
+    assert "vm-setting-hint" in editor
+    assert "renderSelectOptions(field, value)" in editor
+    assert "renderParamSelect(" in editor
     assert "beagle.vmConfigEditor.mode" in editor
     assert "data-vm-mode=\"simple\"" in editor
     assert "data-vm-mode=\"pro\"" in editor
     assert "data-vm-config-item" in editor
-    assert "Einfach zeigt nur die wichtigsten Einstellungen" in editor
+    assert "vm-config-group-summary" in editor
     assert "FIELD_PRESETS" in editor
     assert "data-vm-preset-key" in editor
     assert "applyPreset(form, presetButton)" in editor
     assert "mode === 'append'" in editor
     assert "data-vm-config-range" in editor
-    assert "class=\"vm-control-card vm-control-card-range\"" in editor
-    assert "class=\"vm-control-card vm-control-card-toggle\"" in editor
+    assert "vm-setting-number" in editor
+    assert "vm-setting-toggle" in editor
     assert "syncControlSurface(form, event.target)" in editor
-    assert "updateGuidePanel(form, key)" in editor
-    assert "Enterprise Change Console" in editor
     assert "data-vm-config-filter" in editor
     assert "data-vm-show-changed" in editor
     assert "data-vm-change-count" in editor
     assert "refreshEnterpriseConsole(form)" in editor
     assert "FIELD_VALIDATIONS" in editor
     assert "VM Konfiguration" in editor
+    assert "vm-config-help-modal" not in editor
+    assert "vm-config-guide-panel" not in editor
 
 
 def test_provisioning_supports_one_click_quick_intents() -> None:

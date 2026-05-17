@@ -15,6 +15,9 @@ Stand: 2026-05-17 (ergaenzt: VM Config UI Sensitive Fields)
     erneute Secret-Uebertragung.
   - Die serverseitige Config-Whitelist bleibt explizit; unbekannte oder unsichere
     Keys werden weiter abgewiesen.
+  - UI-Nacharbeit 2026-05-17: Die vereinfachte Config-Seite fuehrt keine neuen
+    Secret-Felder ein; alle Browser-Smoke-Werte waren synthetisch und enthielten
+    keine produktiven Credentials.
 - Rest:
   - Kein Secret wurde in Repo-Dateien, Defaults, Tests oder Dokumentation
     geschrieben.

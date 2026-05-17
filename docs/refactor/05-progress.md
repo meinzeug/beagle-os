@@ -1,3 +1,30 @@
+## Update (2026-05-17, VM-Config-Seite fuer Laien vereinfacht)
+
+**Scope**: Die neu aufgebaute VM-Detail-Config war funktional breiter, aber fuer
+Nicht-Experten weiterhin zu formularlastig.
+
+- **Repo-Fix**:
+  - Config-Gruppen und Hardware-Bereiche sind jetzt kompakte `details`-Sektionen
+    statt gestapelter Eingabe-Cards.
+  - Separate Hilfe-Modals/Guide-Panels wurden entfernt; kurze Hinweise stehen
+    direkt am jeweiligen Feld.
+  - Viele fehleranfaellige Freitextfelder wurden durch Auswahlfelder ersetzt
+    (Boot-Reihenfolge, Guest-Agent, Hotplug, Audio, Cloud-Init DHCP, Disk-/NIC-
+    Parameter).
+  - Hardware-Zeilen haben keine Buttons mehr im `summary`, und alle
+    Formularfelder haben `name`-Attribute.
+
+- **Verifikation**:
+  - Lokal: `node --check website/ui/vm_config_editor.js`
+  - Lokal: `python3 -m pytest tests/unit/test_vm_config_editor.py tests/unit/test_vm_mutation_surface.py tests/unit/test_vm_actions_ui_regressions.py -q` -> `31 passed`
+  - Lokal: `bash scripts/validate-project.sh` -> erfolgreich
+  - `srv1`: JS/CSS nach `/opt/beagle` ausgerollt.
+  - Chrome DevTools gegen `https://srv1.beagle-os.com/#panel=inventory&vmid=100&detail=config`:
+    Editor per Live-Modul gerendert, `helpSurfaces=0`, `cards=0`,
+    `interactiveInSummary=false`, `namelessFields=0`, `net1Exists=true`.
+
+---
+
 ## Update (2026-05-16, Thinclient-WireGuard-Pflicht vor Streamstart erzwungen)
 
 **Scope**: Neu gebaute Live-USB-/Thinclient-Sticks duerfen im BeagleStream-Hostless-Pfad nicht mehr auf die oeffentliche `46.x`-Adresse ausweichen, wenn der Pool `egress_type=wireguard` verlangt.
