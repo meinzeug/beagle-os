@@ -156,6 +156,48 @@ function buildUsbDownloadMenuHtml() {
   );
 }
 
+function renderActivePanel(panelName) {
+  const panel = String(panelName || state.activePanel || 'overview');
+  if (panel === 'overview') {
+    renderVirtualizationOverview();
+    renderFleetHealth();
+    renderSchedulerInsights();
+    renderCostDashboard();
+    renderEnergyDashboard();
+    return;
+  }
+  if (panel === 'inventory') {
+    renderInventory();
+    renderEndpointsOverview();
+    return;
+  }
+  if (panel === 'virtualization') {
+    renderVirtualizationOverview();
+    renderVirtualizationPanel();
+    renderVirtualizationInspector();
+    return;
+  }
+  if (panel === 'cluster') {
+    renderClusterPanel();
+    return;
+  }
+  if (panel === 'sessions') {
+    renderSessionsPanel();
+    return;
+  }
+  if (panel === 'policies') {
+    renderPolicies();
+    return;
+  }
+  if (panel === 'iam') {
+    renderIam();
+    return;
+  }
+  if (panel === 'provisioning') {
+    renderProvisioningWorkspace();
+  }
+}
+
 function buildConsoleMenuHtml() {
   return (
     '<details class="detail-action-menu">' +
@@ -604,20 +646,8 @@ function applyLiveSnapshot(snapshot) {
     state.sessions = snapshot.sessions;
   }
 
-  // Render from fresh SSE state without full dashboard reload requests.
-  renderInventory();
-  renderEndpointsOverview();
-  renderVirtualizationOverview();
-  renderPolicies();
-  renderIam();
-  renderVirtualizationPanel();
-  renderClusterPanel();
-  renderSessionsPanel();
-  renderFleetHealth();
-  renderSchedulerInsights();
-  renderCostDashboard();
-  renderEnergyDashboard();
-  renderProvisioningWorkspace();
+  // Render only the active workspace from fresh SSE state to avoid hidden-panel API bursts.
+  renderActivePanel(state.activePanel);
 
   // Keep detail context alive when selected VM still exists.
   if (state.selectedVmid) {
@@ -733,7 +763,8 @@ export function bootstrapApp() {
     loadIdentityProviders,
     loadAuditPanel: loadAuditReport,
     loadAuditExportTargets,
-    loadAuditFailureQueue
+    loadAuditFailureQueue,
+    renderActivePanel
   });
   configureAuthUi({
     setAuthMode,

@@ -1,3 +1,34 @@
+## Update (2026-05-17, WebUI 429-Bursts reduziert)
+
+**Scope**: Nach dem VM-Config-Smoke tauchten `429 Too Many Requests`-Warnungen
+fuer Onboarding/Auth-Fallbacks und viele Fleet-/Energy-/Cost-Endpunkte auf.
+
+- **Root-Cause**:
+  - Dashboard-Refresh und Live-Snapshot-Render riefen auch Renderer fuer
+    versteckte Panels auf.
+  - Diese Renderer starteten eigene API-Reads fuer Fleet, Scheduler, Kosten,
+    Energy, GPU-Hints und Kiosk, obwohl der Nutzer auf Inventory/VM-Detail war.
+  - Das Default-Limit von 240 Requests/Minute war fuer diese Burst-Last zu knapp.
+
+- **Repo-Fix**:
+  - `loadDashboard()` und Live-Snapshot-Render rendern nur noch das aktive
+    Workspace-Panel.
+  - Die teuren Panel-Renderer brechen ab, wenn ihr Panel nicht aktiv ist.
+  - Das API-Rate-Limit-Default wurde auf 1200 Requests/Minute angehoben; Login-
+    Backoff/Lockout bleibt davon getrennt.
+
+- **Verifikation**:
+  - Lokal: `node --check` fuer die geaenderten WebUI-Module.
+  - Lokal: `python3 -m pytest tests/unit/test_request_handler_mixin_client_addr.py tests/unit/test_vm_actions_ui_regressions.py -q` -> `16 passed`
+  - Lokal: `bash scripts/validate-project.sh` -> erfolgreich
+  - `srv1`: WebUI-Dateien und `service_registry.py` ausgerollt,
+    `beagle-control-plane` neu gestartet.
+  - Chrome DevTools: versteckte Panel-Renderer mit aktivem `inventory` erzeugen
+    keine Fleet-/Energy-/Cost-/Scheduler-Fetches mehr.
+  - `srv1`-Journal nach Restart: keine neuen 429-Eintraege im Kontrollfenster.
+
+---
+
 ## Update (2026-05-17, VM-Config-Seite fuer Laien vereinfacht)
 
 **Scope**: Die neu aufgebaute VM-Detail-Config war funktional breiter, aber fuer

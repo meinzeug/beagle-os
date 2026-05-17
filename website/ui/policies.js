@@ -1537,6 +1537,9 @@ export function createPoolFromWizard() {
 }
 
 export function renderPolicies() {
+  if (state.activePanel !== 'policies') {
+    return;
+  }
   renderPoolWizardStepUi();
   renderPoolTemplateOptions();
   renderPoolGpuClassOptions();

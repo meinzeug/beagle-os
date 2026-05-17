@@ -94,6 +94,7 @@ function drilldownSection(item) {
 export async function renderCostDashboard() {
   const container = qs('cost-dashboard-panel');
   if (!container) return;
+  if (state.activePanel !== 'overview') return;
   if (!renderAccessState(container)) return;
 
   container.innerHTML = '<p class="loading">Lade Kostendaten…</p>';

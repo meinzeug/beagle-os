@@ -121,6 +121,7 @@ function warmPoolRow(item) {
 export async function renderSchedulerInsights() {
   const container = qs('scheduler-insights-panel');
   if (!container) return;
+  if (state.activePanel !== 'overview') return;
   if (!renderAccessState(container)) return;
 
   container.innerHTML = '<p class="loading">Lade Scheduler-Daten…</p>';

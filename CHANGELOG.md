@@ -4,6 +4,7 @@
 
 - Rebuilt the Web Console VM detail Config page with grouped Beagle-native VM settings, structured hardware editors and Proxmox-near option coverage without adding Proxmox provider coupling.
 - Simplified the VM detail Config page for non-expert operators with collapsible groups, inline hints, fewer raw text fields, no help modals/control cards and cleaner switch/select behavior.
+- Reduced WebUI 429 bursts by avoiding hidden-panel API loads and raising the default API read-rate budget for the current console workload.
 - Extended the VM config editor API whitelist for additional CPU, memory, boot, Cloud-Init, firmware and passthrough keys while keeping unknown options rejected.
 - Fixed project validation drift in browser assets by restoring valid BeagleStream access identifiers and marking `website/` as an ES module package.
 

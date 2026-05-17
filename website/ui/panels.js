@@ -12,7 +12,8 @@ const panelHooks = {
   loadIdentityProviders() {},
   loadAuditPanel() {},
   loadAuditExportTargets() {},
-  loadAuditFailureQueue() {}
+  loadAuditFailureQueue() {},
+  renderActivePanel() {}
 };
 
 export function configurePanels(nextHooks) {
@@ -284,6 +285,9 @@ export function setActivePanel(panelName, options) {
       void error;
     });
   }
+  Promise.resolve(panelHooks.renderActivePanel(next)).catch((error) => {
+    void error;
+  });
   syncHash();
 }
 

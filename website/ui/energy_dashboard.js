@@ -76,6 +76,7 @@ function greenHourTile(item) {
 export async function renderEnergyDashboard() {
   const container = qs('energy-dashboard-panel');
   if (!container) return;
+  if (state.activePanel !== 'overview') return;
   if (!renderAccessState(container)) return;
 
   container.innerHTML = '<p class="loading">Lade Energiedaten…</p>';

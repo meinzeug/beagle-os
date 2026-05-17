@@ -1,5 +1,24 @@
 # Next Steps
 
+## Stand (2026-05-17, WebUI 429-Bursts)
+
+**Zuletzt erledigt**:
+- Versteckte Fleet-/Scheduler-/Cost-/Energy-/Policies-Renderer laden nicht mehr
+  im Hintergrund, wenn Inventory/VM-Detail aktiv ist.
+- Das API-Rate-Limit-Default wurde fuer die moderne WebUI-Read-Last auf 1200
+  Requests/Minute angehoben.
+- `srv1` laeuft mit dem Fix und geleertem In-Memory-Rate-Limit-State nach
+  `beagle-control-plane`-Restart.
+
+**Naechste konkrete Schritte**:
+
+1. Bei der naechsten echten Operator-Session mit Login kurz das Journal auf
+   erneute 429-Bursts beobachten.
+2. Falls weiter 429 auftreten, als naechsten Schritt die verbliebenen alten Tabs
+   bzw. aktive Panel-Wechsel exakt den Request-Quellen zuordnen.
+
+---
+
 ## Stand (2026-05-17, VM-Config-UI)
 
 **Zuletzt erledigt**:

@@ -813,6 +813,7 @@ async function applyRemediationAction(action, targetId) {
 export async function renderFleetHealth() {
   const container = qs('fleet-health-panel');
   if (!container) return;
+  if (state.activePanel !== 'overview') return;
 
   if (!state.token) {
     container.innerHTML = '<div class="empty-card">Anmeldung erforderlich, um Fleet-Status zu laden.</div>';

@@ -46,6 +46,47 @@ const dashboardHooks = {
   }
 };
 
+function renderActivePanelWidgets() {
+  const panel = String(state.activePanel || 'overview');
+  if (panel === 'overview') {
+    dashboardHooks.renderVirtualizationOverview();
+    dashboardHooks.renderFleetHealth();
+    dashboardHooks.renderSchedulerInsights();
+    dashboardHooks.renderCostDashboard();
+    dashboardHooks.renderEnergyDashboard();
+    return;
+  }
+  if (panel === 'inventory') {
+    dashboardHooks.renderInventory();
+    dashboardHooks.renderEndpointsOverview();
+    return;
+  }
+  if (panel === 'virtualization') {
+    dashboardHooks.renderVirtualizationOverview();
+    dashboardHooks.renderVirtualizationPanel();
+    return;
+  }
+  if (panel === 'cluster') {
+    dashboardHooks.renderClusterPanel();
+    return;
+  }
+  if (panel === 'sessions') {
+    dashboardHooks.renderSessionsPanel();
+    return;
+  }
+  if (panel === 'policies') {
+    dashboardHooks.renderPolicies();
+    return;
+  }
+  if (panel === 'iam') {
+    dashboardHooks.renderIam();
+    return;
+  }
+  if (panel === 'provisioning') {
+    dashboardHooks.renderProvisioningWorkspace();
+  }
+}
+
 export function configureDashboard(nextHooks) {
   Object.assign(dashboardHooks, nextHooks || {});
 }
@@ -170,19 +211,7 @@ export function loadDashboard(options) {
       dashboardHooks.setAuthMode(true);
       dashboardHooks.updateSettingsVisibility();
       statCardFromHealth(health, state.virtualizationOverview);
-      dashboardHooks.renderInventory();
-      dashboardHooks.renderEndpointsOverview();
-      dashboardHooks.renderVirtualizationOverview();
-      dashboardHooks.renderPolicies();
-      dashboardHooks.renderIam();
-      dashboardHooks.renderVirtualizationPanel();
-      dashboardHooks.renderClusterPanel();
-      dashboardHooks.renderSessionsPanel();
-      dashboardHooks.renderFleetHealth();
-      dashboardHooks.renderSchedulerInsights();
-      dashboardHooks.renderCostDashboard();
-      dashboardHooks.renderEnergyDashboard();
-      dashboardHooks.renderProvisioningWorkspace();
+      renderActivePanelWidgets();
       dashboardHooks.updateFleetHealthAlert();
       if (silent) {
         return null;

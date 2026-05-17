@@ -11,6 +11,7 @@
 - [x] WebUI-Firewall-Baseline-Button reparieren: `Baseline anwenden` nutzt systemd/polkit statt `sudo` im sandboxed Control-Plane-Prozess und ist live auf `srv1` mit `active=true` validiert (2026-05-16).
 - [x] Serverinstallationen aktivieren die Beagle-Firewall standardmaessig: Host-Service-Installer-Default `BEAGLE_FIREWALL_DEFAULT_ENABLED=1`, ISO-/Installimage- und Live-Bootstrap-Regressionstests abgesichert (2026-05-16).
 - [x] VM-Detail-Config-UI laienfreundlich nachziehen: aufklappbare Gruppen statt gestapelter Cards/Modals, direkte Feldhinweise, mehr Auswahlfelder, funktionierende Toggles und Chrome-DevTools-Smoke auf `srv1` (2026-05-17).
+- [x] WebUI-429-Bursts reduzieren: versteckte Panel-Renderer laden keine Fleet-/Energy-/Cost-/Scheduler-Daten mehr und API-Rate-Limit-Default passt zur aktuellen WebUI-Read-Last (2026-05-17).
 
 - [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen. Live-USB-Reboot-Hotfix fuer Broker-Host-Fallback plus WireGuard-Pflicht-Fix (kein Public-Host-Fallback bei `egress_type=wireguard`) vor dem finalen Abnahmelauf mitziehen.
 
