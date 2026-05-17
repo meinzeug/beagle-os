@@ -13,7 +13,7 @@ _EDITABLE_SCHEMA: list[dict[str, Any]] = [
     },
     {
         "section": "CPU",
-        "fields": ["sockets", "cores", "vcpus", "cpu", "cpulimit", "cpuunits", "numa", "affinity"],
+        "fields": ["sockets", "cores", "vcpus", "cpu", "cpulimit", "cpuunits", "numa", "affinity", "allow-ksm"],
     },
     {
         "section": "Memory",
@@ -21,11 +21,26 @@ _EDITABLE_SCHEMA: list[dict[str, Any]] = [
     },
     {
         "section": "System",
-        "fields": ["ostype", "machine", "bios", "scsihw", "agent", "tablet", "acpi", "kvm", "localtime", "startdate", "reboot"],
+        "fields": [
+            "ostype",
+            "arch",
+            "machine",
+            "bios",
+            "scsihw",
+            "agent",
+            "tablet",
+            "acpi",
+            "kvm",
+            "localtime",
+            "startdate",
+            "reboot",
+            "freeze",
+            "tdf",
+        ],
     },
     {
         "section": "Boot",
-        "fields": ["boot", "bootdisk", "onboot", "startup", "order", "up", "down"],
+        "fields": ["boot", "bootdisk", "onboot", "startup", "order", "up", "down", "autostart"],
     },
     {
         "section": "DisplayAudio",
@@ -34,14 +49,42 @@ _EDITABLE_SCHEMA: list[dict[str, Any]] = [
     {
         "section": "CloudInit",
         "fields": ["ciuser", "cipassword", "sshkeys", "ipconfig0", "ipconfig1", "nameserver", "searchdomain", "citype", "ciupgrade", "cicustom"],
+        "patterns": [r"^ipconfig\d+$"],
     },
     {
         "section": "Devices",
-        "patterns": [r"^(virtio|ide|sata|scsi)\d+$", r"^net\d+$", r"^usb\d+$", r"^hostpci\d+$", r"^serial\d+$", r"^parallel\d+$", r"^rng\d+$", r"^tpmstate\d+$", r"^efidisk\d+$", r"^virtiofs\d+$"],
+        "fields": ["smbios1"],
+        "patterns": [
+            r"^(virtio|ide|sata|scsi)\d+$",
+            r"^net\d+$",
+            r"^usb\d+$",
+            r"^hostpci\d+$",
+            r"^serial\d+$",
+            r"^parallel\d+$",
+            r"^rng\d+$",
+            r"^tpmstate\d+$",
+            r"^efidisk\d+$",
+            r"^virtiofs\d+$",
+            r"^unused\d+$",
+            r"^numa\d+$",
+        ],
     },
     {
         "section": "Advanced",
-        "fields": ["args", "hookscript", "vmgenid", "vmstatestorage", "watchdog", "ivshmem", "amd-sev", "intel-tdx", "hotplug"],
+        "fields": [
+            "args",
+            "hookscript",
+            "vmgenid",
+            "vmstatestorage",
+            "watchdog",
+            "ivshmem",
+            "amd-sev",
+            "intel-tdx",
+            "hotplug",
+            "migrate_downtime",
+            "migrate_speed",
+            "lock",
+        ],
     },
 ]
 
@@ -65,7 +108,23 @@ _INT_RANGES = {
     "up": (0, 86400),
     "down": (0, 86400),
 }
-_BOOL_KEYS = {"protection", "template", "numa", "tablet", "acpi", "kvm", "localtime", "reboot", "onboot", "ciupgrade", "keephugepages"}
+_BOOL_KEYS = {
+    "allow-ksm",
+    "autostart",
+    "ciupgrade",
+    "freeze",
+    "keephugepages",
+    "kvm",
+    "localtime",
+    "numa",
+    "onboot",
+    "protection",
+    "reboot",
+    "tablet",
+    "tdf",
+    "template",
+    "acpi",
+}
 
 
 class VmConfigEditorService:

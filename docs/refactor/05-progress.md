@@ -7781,6 +7781,34 @@ WireGuard-Fix weiterhin nicht stabil; der Launcher hing im Pairing-/Register-Pfa
   Launch `status_code="200"`, Video `1920x1080x60`, SDL-Audio via `pulseaudio`,
   erste Video- und Audio-Pakete empfangen.
 
+## 2026-05-17 — VM-Detail Config-Seite neu aufgebaut
+
+**Scope**: Web-UI `/#panel=inventory&vmid=100&detail=config`.
+
+**Umsetzung**:
+- `website/ui/vm_config_editor.js` komplett neu strukturiert: General, CPU/RAM,
+  System/Boot, Display, Cloud-Init, Advanced sowie dynamische Hardwarebereiche
+  fuer Disks, NICs, EFI/TPM, PCI/USB, RNG, Serial und VirtioFS.
+- Device-Editoren koennen bestehende Hardwarewerte strukturiert bearbeiten,
+  neue Slots wie `net1`/`scsiN` anlegen und vorhandene Keys ueber den
+  validierten `delete`-Payload entfernen.
+- Sensitive Cloud-Init-Passwoerter werden nicht vorausgefuellt; leere
+  Passwortfelder erzeugen keine Aenderung.
+- `beagle-host/services/vm_config_editor.py` erweitert die erlaubten
+  Beagle-Config-Keys ohne neue Provider-Kopplung.
+- `website/styles/panels/_virtualization.css` ergaenzt responsive Styles fuer
+  die neue Config-Arbeitsflaeche.
+
+**Verifikation**:
+- Lokal: `node --check website/ui/vm_config_editor.js`.
+- Lokal: `python3 -m pytest tests/unit/test_vm_config_editor.py tests/unit/test_vm_mutation_surface.py tests/unit/test_vm_actions_ui_regressions.py -q` -> `31 passed`.
+- `srv1`: Dateien nach `/opt/beagle` ausgerollt, `beagle-control-plane`
+  erfolgreich neu gestartet, Runtime-Schema validiert (`schema-ok 9 68`).
+- `srv1` Browser-Smoke gegen
+  `https://srv1.beagle-os.com/#panel=inventory&vmid=100&detail=config`:
+  Editor rendert, Hardwarebereiche sichtbar, Device-Add erzeugt `net1`,
+  Change-Console zaehlt Aenderungen, keine Console-Warnungen/-Fehler.
+
 ## 2026-05-16 — Live-/Install-USB Standard-Boot auf toram umgestellt
 
 **Scope**: Der manuell gepatchte Live-Stick fand das Medium wieder, zeigte aber

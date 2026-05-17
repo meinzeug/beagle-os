@@ -1,5 +1,11 @@
 # Changelog
 
+## v8.2.0 - 2026-05-17
+
+- Rebuilt the Web Console VM detail Config page with grouped Beagle-native VM settings, structured hardware editors and Proxmox-near option coverage without adding Proxmox provider coupling.
+- Extended the VM config editor API whitelist for additional CPU, memory, boot, Cloud-Init, firmware and passthrough keys while keeping unknown options rejected.
+- Fixed project validation drift in browser assets by restoring valid BeagleStream access identifiers and marking `website/` as an ES module package.
+
 ## v8.0.9 - 2026-05-02
 
 - Fixed the GitHub release workflow so release-version bumps are committed back into `main` together with the synced repo metadata (`VERSION`, extension manifest, kiosk metadata and WebUI cache-busters) instead of drifting ahead only in the published release tag.

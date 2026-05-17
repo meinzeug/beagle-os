@@ -1,6 +1,23 @@
 # Security Findings
 
-Stand: 2026-05-16 (ergaenzt: S-052 WireGuard-Pflicht ohne Public-Stream-Fallback)
+Stand: 2026-05-17 (ergaenzt: VM Config UI Sensitive Fields)
+
+## Security Note (2026-05-17) - VM Config UI Sensitive Fields
+
+- Status: umgesetzt, kein neuer offener Finding
+- Betroffene Dateien:
+  - `website/ui/vm_config_editor.js`
+  - `beagle-host/services/vm_config_editor.py`
+- Beschreibung:
+  - Die neu aufgebaute VM-Config-Seite bietet Cloud-Init-`cipassword` weiter als
+    bewusstes Admin-Feld an, fuellt vorhandene Werte im Browser aber nicht vor.
+  - Ein leeres Passwortfeld wird beim Speichern ignoriert und erzeugt keine
+    erneute Secret-Uebertragung.
+  - Die serverseitige Config-Whitelist bleibt explizit; unbekannte oder unsichere
+    Keys werden weiter abgewiesen.
+- Rest:
+  - Kein Secret wurde in Repo-Dateien, Defaults, Tests oder Dokumentation
+    geschrieben.
 
 ## S-052 — Thinclient konnte bei fehlender WireGuard-Konfig auf Public-Stream-Host fallen (PATCHED)
 

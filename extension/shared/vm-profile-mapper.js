@@ -76,8 +76,8 @@
     var meta = parseDescriptionMeta(config.description || "");
     var guestIp = firstGuestIpv4(options.guestInterfaces);
     var streamHost = controlPlaneProfile && controlPlaneProfile.stream_host || meta["beagle-stream-client-host"] || meta["beagle-stream-server-ip"] || meta["beagle-stream-server-host"] || guestIp || "";
-    var beagle-stream-clientPort = controlPlaneProfile && controlPlaneProfile.beagle_stream_client_port || meta["beagle-stream-client-port"] || meta["beagle-public-beagle-stream-client-port"] || "";
-    var beagle-stream-serverApiUrl = controlPlaneProfile && controlPlaneProfile.beagle_stream_server_api_url || meta["beagle-stream-server-api-url"] || (streamHost ? "https://" + streamHost + ":" + (beagle-stream-clientPort ? String(Number(beagle-stream-clientPort) + 1) : "47990") : "");
+    var beagleStreamClientPort = controlPlaneProfile && controlPlaneProfile.beagle_stream_client_port || meta["beagle-stream-client-port"] || meta["beagle-public-beagle-stream-client-port"] || "";
+    var beagleStreamServerApiUrl = controlPlaneProfile && controlPlaneProfile.beagle_stream_server_api_url || meta["beagle-stream-server-api-url"] || (streamHost ? "https://" + streamHost + ":" + (beagleStreamClientPort ? String(Number(beagleStreamClientPort) + 1) : "47990") : "");
     var controlPlaneHealthUrl = options.controlPlaneHealthUrl || "";
     var managerUrl = options.managerUrl || "";
     var resource = findVmResource(options.resources, ctx);
@@ -93,8 +93,8 @@
       meta: meta,
       guestIp: guestIp,
       streamHost: streamHost,
-      beagle-stream-clientPort: beagle-stream-clientPort,
-      beagle-stream-serverApiUrl: beagle-stream-serverApiUrl,
+      beagleStreamClientPort: beagleStreamClientPort,
+      beagleStreamServerApiUrl: beagleStreamServerApiUrl,
       controlPlaneHealthUrl: controlPlaneHealthUrl,
       managerUrl: managerUrl,
       resource: resource
@@ -115,10 +115,10 @@
       status: commonData.resource.status || "unknown",
       guestIp: commonData.guestIp,
       streamHost: commonData.streamHost,
-      beagle-stream-clientPort: commonData.beagle-stream-clientPort,
-      beagle-stream-serverApiUrl: commonData.beagle-stream-serverApiUrl,
-      beagle-stream-serverUsername: credentials && credentials.beagle_stream_server_username || "",
-      beagle-stream-serverPassword: credentials && credentials.beagle_stream_server_password || "",
+      beagleStreamClientPort: commonData.beagleStreamClientPort,
+      beagleStreamServerApiUrl: commonData.beagleStreamServerApiUrl,
+      beagleStreamServerUsername: credentials && credentials.beagle_stream_server_username || "",
+      beagleStreamServerPassword: credentials && credentials.beagle_stream_server_password || "",
       thinclientUsername: credentials && credentials.thinclient_username || "thinclient",
       thinclientPassword: credentials && credentials.thinclient_password || "",
       guestUser: controlPlaneProfile && controlPlaneProfile.guest_user || commonData.meta["beagle-stream-server-guest-user"] || "beagle",
@@ -174,10 +174,10 @@
       status: commonData.resource.status || "unknown",
       guestIp: commonData.guestIp,
       streamHost: commonData.streamHost,
-      beagle-stream-clientPort: commonData.beagle-stream-clientPort,
-      beagle-stream-serverApiUrl: commonData.beagle-stream-serverApiUrl,
-      beagle-stream-serverUsername: controlPlaneProfile && controlPlaneProfile.beagle_stream_server_username || commonData.meta["beagle-stream-server-user"] || "",
-      beagle-stream-serverPassword: commonData.meta["beagle-stream-server-password"] || "",
+      beagleStreamClientPort: commonData.beagleStreamClientPort,
+      beagleStreamServerApiUrl: commonData.beagleStreamServerApiUrl,
+      beagleStreamServerUsername: controlPlaneProfile && controlPlaneProfile.beagle_stream_server_username || commonData.meta["beagle-stream-server-user"] || "",
+      beagleStreamServerPassword: commonData.meta["beagle-stream-server-password"] || "",
       app: controlPlaneProfile && controlPlaneProfile.beagle_stream_client_app || commonData.meta["beagle-stream-client-app"] || commonData.meta["beagle-stream-server-app"] || "Desktop",
       resolution: controlPlaneProfile && controlPlaneProfile.beagle_stream_client_resolution || commonData.meta["beagle-stream-client-resolution"] || "auto",
       fps: controlPlaneProfile && controlPlaneProfile.beagle_stream_client_fps || commonData.meta["beagle-stream-client-fps"] || "60",

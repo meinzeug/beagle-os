@@ -90,8 +90,11 @@
     return usbApi.apiGetVmCredentials(vmid);
   }
 
-  function createBeagle Stream ServerAccess(vmid) {
-    return usbApi.apiCreateBeagle Stream ServerAccess(vmid);
+  function createBeagleStreamServerAccess(vmid) {
+    if (typeof usbApi.apiCreateBeagleStreamServerAccess === "function") {
+      return usbApi.apiCreateBeagleStreamServerAccess(vmid);
+    }
+    return apiClient.apiPostBeagleJson("/beagle-api/api/v1/vms/" + encodeURIComponent(String(vmid)) + "/beagle-stream-server-access", {});
   }
 
   function fetchVmUsbState(vmid) {
@@ -149,7 +152,7 @@
     fetchInstallerPreparation: fetchInstallerPreparation,
     prepareInstallerTarget: prepareInstallerTarget,
     fetchVmCredentials: fetchVmCredentials,
-    createBeagle Stream ServerAccess: createBeagle Stream ServerAccess,
+    createBeagleStreamServerAccess: createBeagleStreamServerAccess,
     fetchVmUsbState: fetchVmUsbState,
     refreshVmUsb: refreshVmUsb,
     attachUsb: attachUsb,

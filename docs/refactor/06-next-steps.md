@@ -1702,6 +1702,18 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 4. **Plan 02 live validieren**: Lock-Screen, Wipe und Runtime-Telemetrie weiter gegen echte Thin-Client-Hardware/X11-/Wayland-Sessions abnehmen.
 5. **Plan 07 live validieren**: Fleet-Alerts und Predictive-Maintenance gegen echte Runtime-Events provozieren und Webhook-/UI-Reaktion prüfen.
 
+## Naechster Schritt (2026-05-17, VM Config UI)
+
+1. Nach dem GitHub-Push bestaetigen, dass der Repo-Auto-Update-Pfad auf `srv1`
+   denselben Commit nachzieht und die lokal getesteten `/opt/beagle`-Dateien
+   nicht als dauerhafter Live-Hotfix divergieren.
+2. Mit eingeloggter Operator-Session in der echten VM-100-Detailseite einen
+   nicht-destruktiven Save-Smoke fahren, z.B. nur `description`/`tags`, und
+   danach API-Config + Browser-Reload vergleichen.
+3. Fuer die neue Config-Seite einen Playwright-Smoke mit authentifiziertem
+   Fixture ergaenzen, sobald ein stabiler Test-Login/Token fuer die WebUI-Smokes
+   vorhanden ist.
+
 ## Stand (2026-04-28, GoEnterprise Plan 04/09 green-window follow-up)
 
 **Zuletzt erledigt**:

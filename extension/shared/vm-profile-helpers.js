@@ -31,7 +31,7 @@
 
     lines.push(
       "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST=\"" + (profile.streamHost || "") + "\"",
-      "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT=\"" + (profile.beagle-stream-clientPort || "") + "\"",
+      "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PORT=\"" + (profile.beagleStreamClientPort || "") + "\"",
       "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP=\"" + (profile.app || "Desktop") + "\"",
       "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION=\"" + (profile.resolution || "auto") + "\"",
       "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS=\"" + (profile.fps || "60") + "\"",
@@ -39,9 +39,9 @@
       "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC=\"" + (profile.codec || "H.264") + "\"",
       "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER=\"" + (profile.decoder || "auto") + "\"",
       "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG=\"" + (profile.audio || "stereo") + "\"",
-      "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL=\"" + (profile.beagle-stream-serverApiUrl || "") + "\"",
-      "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME=\"" + (profile.beagle-stream-serverUsername || "") + "\"",
-      "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD=\"" + (profile.beagle-stream-serverPassword || "") + "\""
+      "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL=\"" + (profile.beagleStreamServerApiUrl || "") + "\"",
+      "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME=\"" + (profile.beagleStreamServerUsername || "") + "\"",
+      "PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD=\"" + (profile.beagleStreamServerPassword || "") + "\""
     );
 
     return lines.join("\n") + "\n";
@@ -54,10 +54,10 @@
     if (!profile.streamHost) {
       notes.push("Kein Beagle Stream Client-/Beagle Stream Server-Ziel in der VM-Metadatenbeschreibung gefunden.");
     }
-    if (!profile.beagle-stream-serverApiUrl) {
+    if (!profile.beagleStreamServerApiUrl) {
       notes.push("Keine Beagle Stream Server API URL gesetzt. Pairing und Healthchecks koennen nicht vorab validiert werden.");
     }
-    if (!profile.beagle-stream-serverPassword) {
+    if (!profile.beagleStreamServerPassword) {
       notes.push("Kein Beagle Stream Server-Passwort hinterlegt. Fuer direkte API-Aktionen ist dann ein vorregistriertes Zertifikat oder manuelles Pairing noetig.");
     }
     if (!profile.guestIp) {

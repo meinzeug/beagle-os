@@ -157,7 +157,7 @@
     return unwrapInstallerPrep(await response.json());
   }
 
-  async function createBeagle Stream ServerAccess(vmid) {
+  async function createBeagleStreamServerAccess(vmid) {
     var url = await resolveBeagleApiUrl("/api/v1/vms/" + encodeURIComponent(String(vmid || "")) + "/beagle-stream-server-access");
     var response = await fetch(url, {
       credentials: "include",
@@ -234,7 +234,7 @@
   window.BeagleExtensionPlatformService = {
     apiGetBeagleJson: apiGetBeagleJson,
     buildBeagleApiHeaders: buildBeagleApiHeaders,
-    createBeagle Stream ServerAccess: createBeagle Stream ServerAccess,
+    createBeagleStreamServerAccess: createBeagleStreamServerAccess,
     downloadUrl: downloadUrl,
     fetchInstallerPreparation: fetchInstallerPreparation,
     fetchInstallerTargetEligibility: fetchInstallerTargetEligibility,

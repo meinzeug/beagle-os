@@ -406,6 +406,17 @@
 - [x] Expose Live-USB creator download action in Beagle Web Console endpoint detail flow.
 - [x] Harden provisioning catalog bridge default fallback to discovered bridge inventory.
 - [x] Rebuild server installer ISO artifact in current workspace (2026-04-19 run).
+- [x] WebUI VM-Detail Config-Seite modernisieren und Proxmox-nahe VM-Optionen
+  provider-neutral ueber die Beagle-Config-API abbilden.
+  - Umsetzung 2026-05-17: kompletter Neuaufbau von
+    `website/ui/vm_config_editor.js` mit strukturierten Bereichen fuer
+    General, CPU/RAM, System/Boot, Display, Cloud-Init, Advanced und dynamische
+    Hardware-Devices.
+  - Backend 2026-05-17: `VmConfigEditorService`-Whitelist fuer zusaetzliche
+    Beagle-Config-Keys, erweiterte `ipconfigN`-Slots, `unusedN`, `numaN`,
+    `virtiofsN` und `smbios1` erweitert.
+  - Validierung: lokal 31 gezielte Tests gruen; `srv1` Runtime-Schema und
+    Browser-Smoke gegen `/#panel=inventory&vmid=100&detail=config` gruen.
 - [x] Validate stream persistence across full reboot without manual firewall/route intervention.
 	- Umsetzung 2026-04-29: neues Smoke-Skript `scripts/test-stream-persistence-reboot-smoke.sh` erstellt; prueft VM-Profilkonsistenz (`egress_mode`/`egress_type`), Beagle Stream Server-API-Erreichbarkeit vor und nach Reboot, fuehrt VM-Reboot ueber Provider-Pfad aus und validiert Recovery ohne manuelle Firewall-/Route-Operationen.
 	- Robustheit: Skript exportiert `PYTHONPATH` fuer Provider-Helper und nutzt fuer Beagle Stream Server-Checks einen Fallback von Public-URL auf private Guest-URL (`beagle_stream_client_local_host`) fuer Host-interne Validierung.

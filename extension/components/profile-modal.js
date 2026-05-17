@@ -23,9 +23,9 @@
         name: profile.name,
         status: profile.status,
         stream_host: profile.streamHost,
-        beagle_stream_server_api_url: profile.beagle-stream-serverApiUrl,
-        beagle_stream_server_username: profile.beagle-stream-serverUsername,
-        beagle_stream_server_password_configured: Boolean(profile.beagle-stream-serverPassword),
+        beagle_stream_server_api_url: profile.beagleStreamServerApiUrl,
+        beagle_stream_server_username: profile.beagleStreamServerUsername,
+        beagle_stream_server_password_configured: Boolean(profile.beagleStreamServerPassword),
         beagle_stream_client_app: profile.app,
         beagle_stream_client_resolution: profile.resolution,
         beagle_stream_client_fps: profile.fps,
@@ -89,8 +89,8 @@
             </div></section>\
             <section class="beagle-card"><h3>Streaming</h3><div class="beagle-kv">\
               ' + kvRow("Stream Host", escapeHtml(profile.streamHost || "")) + '\
-              ' + kvRow("Beagle Stream Client Port", escapeHtml(profile.beagle-stream-clientPort || "default")) + '\
-              ' + kvRow("Beagle Stream Server API", escapeHtml(profile.beagle-stream-serverApiUrl || "")) + '\
+              ' + kvRow("Beagle Stream Client Port", escapeHtml(profile.beagleStreamClientPort || "default")) + '\
+              ' + kvRow("Beagle Stream Server API", escapeHtml(profile.beagleStreamServerApiUrl || "")) + '\
               ' + kvRow("App", escapeHtml(profile.app)) + '\
               ' + kvRow("Manager", escapeHtml(profile.managerUrl || "")) + '\
               ' + kvRow("Assigned Target", escapeHtml(profile.assignedTarget ? profile.assignedTarget.name + " (#" + profile.assignedTarget.vmid + ")" : "")) + '\
@@ -110,9 +110,9 @@
               ' + kvRow("Audio", escapeHtml(profile.audio)) + '\
             </div></section>\
             <section class="beagle-card"><h3>Pairing</h3><div class="beagle-kv">\
-              ' + kvRow("Beagle Stream Server User", escapeHtml(profile.beagle-stream-serverUsername || "")) + '\
-              ' + kvRow("Beagle Stream Server Password", escapeHtml(maskSecret(profile.beagle-stream-serverPassword))) + '\
-              ' + kvRow("Pairing PIN", escapeHtml(profile.beagle-stream-serverPin || "")) + '\
+              ' + kvRow("Beagle Stream Server User", escapeHtml(profile.beagleStreamServerUsername || "")) + '\
+              ' + kvRow("Beagle Stream Server Password", escapeHtml(maskSecret(profile.beagleStreamServerPassword))) + '\
+              ' + kvRow("Pairing PIN", escapeHtml(profile.beagleStreamServerPin || "")) + '\
             </div></section>\
             <section class="beagle-card"><h3>Endpoint State</h3><div class="beagle-kv">\
               ' + kvRow("Compliance", escapeHtml(profile.compliance && profile.compliance.status || "")) + '\
@@ -231,8 +231,8 @@
           break;
         case "open-beagle-stream-server":
           try {
-            var access = await platformService.createBeagle Stream ServerAccess(profile.vmid);
-            window.open(access && access.url || profile.beagle-stream-serverApiUrl, "_blank", "noopener,noreferrer");
+            var access = await platformService.createBeagleStreamServerAccess(profile.vmid);
+            window.open(access && access.url || profile.beagleStreamServerApiUrl, "_blank", "noopener,noreferrer");
           } catch (error3) {
             window.alert("Beagle Stream Server Web UI konnte nicht geoeffnet werden: " + (error3 && error3.message || error3));
           }
