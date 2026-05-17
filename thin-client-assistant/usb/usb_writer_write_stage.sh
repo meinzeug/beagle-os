@@ -506,12 +506,12 @@ menuentry 'Beagle OS Installer' {
 }
 
 menuentry 'Beagle OS Installer (compatibility mode)' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ${installer_boot_media_args} ${installer_boot_safe_args} systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ${installer_boot_media_args} ${installer_boot_safe_args} toram systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /pve-thin-client/live/initrd.img
 }
 
 menuentry 'Beagle OS Installer (legacy IRQ mode)' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ${installer_boot_media_args} ${installer_boot_legacy_args} systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ${installer_boot_media_args} ${installer_boot_legacy_args} toram systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /pve-thin-client/live/initrd.img
 }
 
