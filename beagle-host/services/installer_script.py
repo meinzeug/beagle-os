@@ -147,7 +147,7 @@ class InstallerScriptService:
             beagle_realm=beagle_realm,
             beagle_verify_tls=beagle_verify_tls,
             beagle_manager_url=self._public_manager_url,
-            beagle_stream_client_host="",
+            beagle_stream_client_host=beagle_stream_client_host,
             beagle_stream_client_local_host=beagle_stream_client_local_host,
             beagle_stream_client_app=str(profile.get("beagle_stream_client_app", "Desktop") or "Desktop"),
             beagle_stream_client_bin=meta.get("beagle-stream-client-bin", "beagle-stream"),

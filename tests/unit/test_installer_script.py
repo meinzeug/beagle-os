@@ -20,6 +20,63 @@ from installer_template_patch import InstallerTemplatePatchService
 
 
 class InstallerScriptServiceTests(unittest.TestCase):
+    def test_build_preset_keeps_stream_host_for_default_mode(self):
+        service = InstallerScriptService(
+            build_profile=lambda vm: {
+                "stream_host": "stream.example",
+                "beagle_stream_server_api_url": "https://stream.example/api",
+            },
+            ensure_vm_secret=lambda vm: {
+                "beagle_stream_server_username": "sun-user",
+                "beagle_stream_server_password": "sun-pass",
+                "beagle_stream_server_pin": "1234",
+            },
+            fetch_beagle_stream_server_identity=lambda vm, guest_user: {},
+            get_vm_config=lambda node, vmid: {"name": f"vm-{vmid}", "description": ""},
+            hosted_installer_iso_file=Path("/tmp/missing.iso"),
+            hosted_installer_template_file=Path("/tmp/missing-installer.sh"),
+            hosted_live_usb_template_file=Path("/tmp/missing-live.sh"),
+            issue_enrollment_token=lambda vm: (
+                "token-123",
+                {"thinclient_password": "thin-pass"},
+            ),
+            issue_installer_log_context=lambda **kwargs: {
+                "token": "log-token",
+                "session_id": "log-session",
+            },
+            manager_pinned_pubkey="manager-pubkey",
+            parse_description_meta=lambda text: {},
+            patch_installer_defaults=InstallerTemplatePatchService().patch_installer_defaults,
+            patch_windows_installer_defaults=InstallerTemplatePatchService().patch_windows_installer_defaults,
+            public_bootstrap_latest_download_url=lambda: "https://downloads.example/bootstrap.tar.gz",
+            public_installer_iso_url=lambda: "https://downloads.example/beagle-os-installer-amd64.iso",
+            public_manager_url="https://manager.example/beagle-api",
+            public_payload_latest_download_url=lambda: "https://downloads.example/payload.tar.gz",
+            public_server_name="srv1.beagle-os.com",
+            raw_shell_installer_template_file=Path("/tmp/missing-raw.sh"),
+            raw_windows_installer_template_file=Path("/tmp/missing-raw.ps1"),
+            safe_hostname=lambda name, vmid: f"vm-{vmid}",
+            beagle_stream_server_guest_user=lambda vm, config: "beagle",
+        )
+        vm = SimpleNamespace(vmid=100, node="srv1", name="VM 100", status="running")
+
+        preset = service.build_preset(
+            vm,
+            {
+                "expected_profile_name": "vm-100",
+                "stream_host": "stream.example",
+                "beagle_stream_server_api_url": "https://stream.example/api",
+            },
+            {"name": "VM 100", "description": ""},
+            enrollment_token="token-123",
+            thinclient_password="thin-pass",
+        )
+
+        self.assertEqual(preset["PVE_THIN_CLIENT_PRESET_DEFAULT_MODE"], "BEAGLE_STREAM_CLIENT")
+        self.assertEqual(preset["PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_HOST"], "stream.example")
+        self.assertEqual(preset["PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_USERNAME"], "sun-user")
+        self.assertEqual(preset["PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PASSWORD"], "sun-pass")
+
     def test_patch_service_injects_log_defaults_into_stale_hosted_shell_template(self):
         stale_template = "\n".join(
             [

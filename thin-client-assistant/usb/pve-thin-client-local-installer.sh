@@ -61,6 +61,10 @@ source "$LIVE_MEDIUM_HELPERS"
 # shellcheck disable=SC1090
 source "$INSTALL_PAYLOAD_HELPERS"
 
+MODE_EXPLICIT_OVERRIDE="0"
+if [[ -v MODE ]]; then
+  MODE_EXPLICIT_OVERRIDE="1"
+fi
 MODE="${MODE:-BEAGLE_STREAM_CLIENT}"
 CONNECTION_METHOD=""
 PROFILE_NAME="default"
@@ -1375,7 +1379,7 @@ mode_is_available() {
       [[ -n "${PVE_THIN_CLIENT_PRESET_DCV_URL:-}" ]]
       ;;
     BEAGLE_STREAM_CLIENT)
-      [[ -n "${PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_HOST:-}" ]] && \
+      [[ -n "${PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_HOST:-}" || -n "${PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_CLIENT_HOST:-}" ]] && \
       [[ -n "${PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_USERNAME:-}" ]] && \
       [[ -n "${PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PASSWORD:-}" ]]
       ;;
@@ -1753,7 +1757,7 @@ apply_preset_mode() {
 
 load_install_profile() {
   if [[ "$PRESET_ACTIVE" == "1" ]]; then
-    if [[ -n "$MODE" ]]; then
+    if [[ "$MODE_EXPLICIT_OVERRIDE" == "1" && -n "$MODE" ]]; then
       mode_is_available "$MODE" || {
         echo "Requested mode '$MODE' is not available in the bundled preset." >&2
         exit 1
