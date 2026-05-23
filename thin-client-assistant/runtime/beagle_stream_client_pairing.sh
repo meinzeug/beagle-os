@@ -114,12 +114,21 @@ beagle_stream_client_stream_ready() {
 }
 
 ensure_paired() {
-  local bin host port paired_ok attempt target pairing_token retry_sleep
+  local bin host port paired_ok attempt target pairing_token retry_sleep connection_method
 
   bin="$(beagle_stream_client_bin)"
   host="$(beagle_stream_client_connect_host)"
   port="$(beagle_stream_client_port)"
   target="$(beagle_stream_client_target "$host" "$port")"
+  connection_method="$(beagle_stream_connection_method 2>/dev/null || true)"
+
+  # In broker mode the manager already controls stream admission and target
+  # selection. A strict local pair-check can fail with transient 4xx/5xx API
+  # responses even though the stream itself is immediately launchable.
+  if [[ "$connection_method" == "broker" ]]; then
+    beagle_stream_client_pair_log "pairing gate bypassed in broker mode"
+    return 0
+  fi
 
   if beagle_stream_client_stream_ready; then
     return 0
