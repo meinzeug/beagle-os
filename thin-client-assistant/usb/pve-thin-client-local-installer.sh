@@ -1037,6 +1037,7 @@ print_target_disks_json() {
 
   python3 - "$live_disk" <<'PY'
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -1044,7 +1045,7 @@ import sys
 live_disk = sys.argv[1]
 result = []
 output = subprocess.check_output(
-    ["lsblk", "-dn", "-P", "-o", "NAME,SIZE,MODEL,TYPE,RM,TRAN"], text=True
+  ["lsblk", "-dn", "-P", "-o", "NAME,SIZE,MODEL,TYPE,RM,RO,TRAN"], text=True
 )
 
 for line in output.splitlines():
@@ -1059,12 +1060,17 @@ for line in output.splitlines():
         continue
     if any(device.startswith(prefix) for prefix in ("/dev/loop", "/dev/sr", "/dev/ram", "/dev/zram")):
         continue
+    if re.match(r"^/dev/mmcblk\d+(boot\d+|rpmb)$", device):
+      continue
+    if str(entry.get("RO", "0")) == "1":
+      continue
     result.append(
         {
             "device": device,
             "size": entry.get("SIZE", "unknown"),
             "model": entry.get("MODEL", "disk"),
             "removable": entry.get("RM", "0"),
+        "read_only": entry.get("RO", "0"),
             "transport": entry.get("TRAN", ""),
         }
     )

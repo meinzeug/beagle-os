@@ -994,7 +994,7 @@ install_from_bundled_preset() {
     return 1
   fi
 
-  log_msg "bundled preset detected, starting non-interactive preset-based install"
+  log_msg "bundled preset detected, starting preset-based install with explicit target-disk selection"
   configure_network_access || {
     LAST_INSTALL_EXIT_CODE=1
     sync_logs_to_medium
@@ -1003,18 +1003,8 @@ install_from_bundled_preset() {
   AUTO_INSTALL_ACTIVE=1
   run_installer_as_root --cache-bundled-preset >/dev/null 2>&1 || true
 
-  local target_disk=""
-  target_disk="$(resolve_auto_target_disk || true)"
-  if [[ -z "$target_disk" ]]; then
-    log_msg "failed to resolve auto target disk for bundled preset install"
-    LAST_INSTALL_EXIT_CODE=1
-    sync_logs_to_medium
-    return 1
-  fi
-  log_msg "resolved bundled preset install target disk: $target_disk"
-
   set +e
-  run_installer_as_root --target-disk "$target_disk" --yes --auto-install
+  run_installer_as_root --auto-install
   LAST_INSTALL_EXIT_CODE=$?
   set -e
   sync_logs_to_medium
