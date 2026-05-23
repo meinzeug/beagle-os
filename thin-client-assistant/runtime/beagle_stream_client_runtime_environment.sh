@@ -38,7 +38,15 @@ ensure_beagle_stream_client_runtime_dir() {
 }
 
 configure_graphics_runtime() {
-  export XDG_RUNTIME_DIR="$(ensure_beagle_stream_client_runtime_dir)"
+  if [[ -z "${XDG_RUNTIME_DIR:-}" ]]; then
+    export XDG_RUNTIME_DIR="$(ensure_beagle_stream_client_runtime_dir)"
+  else
+    # Keep preconfigured runtime dir (audio stack/socket selection may already
+    # depend on it) and only recover when it is unusable.
+    if [[ ! -d "$XDG_RUNTIME_DIR" || ! -w "$XDG_RUNTIME_DIR" || ! -x "$XDG_RUNTIME_DIR" ]]; then
+      export XDG_RUNTIME_DIR="$(ensure_beagle_stream_client_runtime_dir)"
+    fi
+  fi
   export DISPLAY="${DISPLAY:-:0}"
   export HOME="${HOME:-/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}}"
   export XAUTHORITY="$(select_xauthority)"
@@ -71,6 +79,8 @@ configure_audio_runtime() {
 
   pulse_socket="${runtime_dir}/pulse/native"
   if [[ -S "$pulse_socket" ]]; then
-    export PULSE_SERVER="${PULSE_SERVER:-unix:${pulse_socket}}"
+    export PULSE_SERVER="unix:${pulse_socket}"
+  else
+    unset PULSE_SERVER 2>/dev/null || true
   fi
 }

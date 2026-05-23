@@ -602,7 +602,7 @@ main() {
   connect_host="$(beagle_stream_client_connect_host)"
 
   if command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
-    if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_INIT_MODE:-async}" == "sync" ]]; then
+    if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_INIT_MODE:-sync}" == "sync" ]]; then
       /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1 || true
     fi
     if ! pgrep -f '^bash /usr/local/bin/pve-thin-client-audio-init --watch' >/dev/null 2>&1; then
@@ -631,6 +631,9 @@ main() {
   fi
 
   configure_graphics_runtime
+  # configure_graphics_runtime may recover runtime dirs during early boot.
+  # Re-run audio binding so PULSE_SERVER points to the final active socket.
+  configure_audio_runtime
   record_decoder_choice "$(beagle_stream_client_video_decoder)"
   beagle_stream_startup_status_step "3" "Grafik und Decoder konfigurieren" "X11, Renderer und Decoder pruefen"
 

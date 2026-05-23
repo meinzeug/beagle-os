@@ -45,6 +45,40 @@ start_wireplumber_session() {
     >>"$log_file" 2>&1 </dev/null &
 }
 
+pulse_health_ready() {
+  command -v pactl >/dev/null 2>&1 || return 0
+  timeout 5 env XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" \
+    PULSE_SERVER="unix:${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse/native" \
+    pactl info >/dev/null 2>&1
+}
+
+restart_audio_stack() {
+  local runtime_dir
+
+  runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+  pkill -u "$(id -u)" -x wireplumber >/dev/null 2>&1 || true
+  pkill -u "$(id -u)" -x pipewire-pulse >/dev/null 2>&1 || true
+  pkill -u "$(id -u)" -x pipewire >/dev/null 2>&1 || true
+
+  rm -f "${runtime_dir}/pulse/native" \
+        "${runtime_dir}/pipewire-0.lock" \
+        "${runtime_dir}/pipewire-0-manager.lock" >/dev/null 2>&1 || true
+
+  sleep 1
+
+  start_background_process pipewire pipewire.log pipewire
+  sleep 1
+  if command -v pipewire-pulse >/dev/null 2>&1; then
+    start_background_process pipewire-pulse pipewire-pulse.log pipewire-pulse
+    sleep 1
+  fi
+  if command -v wireplumber >/dev/null 2>&1; then
+    start_wireplumber_session
+    sleep 1
+  fi
+}
+
 ensure_audio_stack() {
   export HOME="${HOME:-/home/thinclient}"
   export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
@@ -71,6 +105,12 @@ ensure_audio_stack() {
   if command -v wireplumber >/dev/null 2>&1 && ! pgrep -u "$(id -u)" -x wireplumber >/dev/null 2>&1; then
     start_wireplumber_session
     sleep 1
+  fi
+
+  # Long-lived live sessions can keep stale sockets/processes around. If the
+  # Pulse endpoint does not answer, recycle the local audio stack once.
+  if ! pulse_health_ready; then
+    restart_audio_stack
   fi
 }
 
