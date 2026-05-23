@@ -1,5 +1,12 @@
 # Changelog
 
+## v8.3.0 - 2026-05-23
+
+- Stabilized BeagleStream endpoint pairing in broker mode by adding manager-side pin-compat fallback when token-native pairing is not available on the stream server.
+- Fixed thinclient runtime recovery so unpaired stream failures trigger automated repair even after clean client exits, reducing endless relaunch loops.
+- Hardened thinclient audio startup for live/runtime sessions: launcher now binds to a stable Pulse socket path, re-applies audio runtime env after graphics setup, runs synchronous audio init by default, and recovers stale pipewire/pipewire-pulse endpoints.
+- Synced release metadata to `8.3.0` across repo runtime version, extension manifest, kiosk package metadata and website cache-busting assets for reproducible payload-based installer results.
+
 ## v8.2.0 - 2026-05-17
 
 - Rebuilt the Web Console VM detail Config page with grouped Beagle-native VM settings, structured hardware editors and Proxmox-near option coverage without adding Proxmox provider coupling.
