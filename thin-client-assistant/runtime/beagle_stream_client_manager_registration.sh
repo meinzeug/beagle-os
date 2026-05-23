@@ -113,6 +113,27 @@ print(expires_at)
 PY
 }
 
+parse_beagle_stream_client_pair_exchange_response() {
+  local response_file="${1:-}"
+
+  python3 - "$response_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if not isinstance(payload, dict):
+    raise SystemExit(1)
+if not bool(payload.get("ok")):
+    raise SystemExit(1)
+pairing = payload.get("pairing") if isinstance(payload.get("pairing"), dict) else {}
+mode = str(pairing.get("mode") or "").strip()
+pin = str(pairing.get("pin") or "").strip()
+print(mode)
+print(pin)
+PY
+}
+
 register_beagle_stream_client_via_manager() {
   local manager_url manager_token manager_pin manager_ca_cert device_name client_cert response_file payload_file http_status register_timeout
   local curl_bin
@@ -235,7 +256,7 @@ exchange_beagle_stream_client_pairing_token_via_manager() {
   local pairing_token="${1:-}"
   local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status
   local curl_bin
-  local -a curl_args tls_args
+  local -a curl_args tls_args parsed
 
   [[ -n "$pairing_token" ]] || return 1
   manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
@@ -255,6 +276,16 @@ exchange_beagle_stream_client_pairing_token_via_manager() {
 
   build_beagle_stream_client_pair_exchange_payload "$pairing_token" >"$payload_file"
   http_status="$("${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-exchange" || true)"
+
+  unset PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_COMPAT_PIN
+
+  if [[ "$http_status" == "200" ]]; then
+    if mapfile -t parsed < <(parse_beagle_stream_client_pair_exchange_response "$response_file"); then
+      if [[ "${#parsed[@]}" -ge 2 && "${parsed[0]:-}" == "pin-compat" && -n "${parsed[1]:-}" ]]; then
+        export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_COMPAT_PIN="${parsed[1]}"
+      fi
+    fi
+  fi
 
   rm -f "$payload_file" "$response_file"
   [[ "$http_status" == "200" ]]

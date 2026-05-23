@@ -72,7 +72,38 @@ PY
 }
 
 	submit_beagle_stream_server_pin() {
-	 submit_beagle_stream_server_pairing_token "$@"
+	local pin="${1:-}"
+	local api_url username password name response payload
+	local curl_bin
+	local -a curl_args tls_args
+
+	api_url="$(selected_beagle_stream_server_api_url)"
+	username="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME:-}"
+	password="${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PASSWORD:-}"
+	name="$(beagle_stream_client_device_name)"
+
+	[[ -n "$api_url" && -n "$username" && -n "$password" && -n "$pin" ]] || return 1
+
+	curl_bin="$(beagle_stream_client_curl_bin)"
+	curl_args=("$curl_bin" -fsS --connect-timeout 2 --max-time 4 --user "${username}:${password}" -H 'Content-Type: application/json')
+	mapfile -t tls_args < <(beagle_curl_tls_args "$api_url" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PINNED_PUBKEY:-}" "${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_CA_CERT:-}")
+	curl_args+=("${tls_args[@]}")
+	payload="$(
+		python3 - "$pin" "$name" <<'PY'
+import json
+import sys
+
+pin = sys.argv[1]
+name = sys.argv[2]
+print(json.dumps({"pin": pin, "name": name}, separators=(",", ":")))
+PY
+	)"
+
+	response="$("${curl_args[@]}" \
+			--data "$payload" \
+		 "${api_url%/}/api/pin" 2>/dev/null)" || return 1
+
+	[[ "$(json_bool "$response")" == "1" ]]
 	}
 
 beagle_stream_server_apps_json() {

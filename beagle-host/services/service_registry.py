@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import socket
@@ -2496,6 +2497,14 @@ def rotate_beagle_stream_server_token(vm: VmSummary, *, grace_seconds: int | Non
 def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: dict[str, Any], device_name: str) -> dict[str, Any]:
     endpoint_id = str(endpoint_identity.get("endpoint_id", "") or "").strip()
     hostname = str(endpoint_identity.get("hostname", "") or "").strip()
+    vm_secret = ensure_vm_secret(vm)
+    pairing_secret = str(vm_secret.get("beagle_stream_server_token", "") or "").strip()
+    if not pairing_secret:
+        rotated = rotate_beagle_stream_server_token(vm)
+        pairing_secret = str(rotated.get("token", "") or "").strip()
+    if not pairing_secret:
+        return {"ok": False, "error": "beagle-stream-server token unavailable"}
+
     token = pairing_service().issue_token(
         {
             "scope": "beagle-stream-client.pair",
@@ -2504,11 +2513,10 @@ def issue_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity: d
             "endpoint_id": endpoint_id,
             "hostname": hostname,
             "device_name": str(device_name or "").strip(),
-            "pairing_secret": "",
+            "pairing_secret": pairing_secret,
         }
     )
     payload = pairing_service().validate_token(token) or {}
-    pairing_secret = str(token or "").strip()
     return {
         "ok": True,
         "token": token,
@@ -2547,6 +2555,21 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
         request_headers={"Content-Type": "application/json", "Accept": "application/json"},
     )
     if int(status) >= 400:
+        response_payload: dict[str, Any]
+        try:
+            response_payload = json.loads((body or b"{}").decode("utf-8", errors="replace"))
+        except json.JSONDecodeError:
+            response_payload = {}
+        response_error = str((response_payload or {}).get("error", "") or "").strip()
+
+        # Compatibility fallback for hosts where token-native pairing is not yet
+        # enabled in beagle-stream-server. We still need an automated path.
+        if "requires BEAGLE_INTEGRATION" in response_error:
+            digest = hashlib.sha256(pairing_token.encode("utf-8")).hexdigest()
+            pin = str(int(digest[:8], 16) % 10000).zfill(4)
+            pairing_service().consume_token(pairing_token)
+            return {"ok": True, "mode": "pin-compat", "pin": pin}
+
         return {"ok": False, "error": f"beagle-stream-server token exchange failed with HTTP {int(status)}"}
 
     try:

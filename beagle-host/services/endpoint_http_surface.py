@@ -530,7 +530,15 @@ class EndpointHttpSurfaceService:
                 HTTPStatus.OK,
                 {
                     "ok": True,
-                    **self._envelope(vmid=vm.vmid, node=vm.node, paired=True),
+                    **self._envelope(
+                        vmid=vm.vmid,
+                        node=vm.node,
+                        paired=True,
+                        pairing={
+                            "mode": str(exchanged.get("mode", "token") or "token"),
+                            "pin": str(exchanged.get("pin", "") or ""),
+                        },
+                    ),
                 },
             )
 
