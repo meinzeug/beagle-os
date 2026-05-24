@@ -7,7 +7,8 @@
 # transfer issues (UVC webcams use isoc URBs which are unreliable over TCP).
 #
 # Configuration (via /etc/pve-thin-client/thinclient.conf):
-#   PVE_THIN_CLIENT_BEAGLE_CAMERA_STREAM_PORT  — TCP listen port (default: 8091)
+#   PVE_THIN_CLIENT_BEAGLE_CAMERA_LOCAL_STREAM_PORT — local TCP listen port (default: 8091)
+#   PVE_THIN_CLIENT_BEAGLE_CAMERA_STREAM_PORT       — remote VM tunnel port (ssh -R target)
 #   PVE_THIN_CLIENT_BEAGLE_CAMERA_DEVICE       — V4L2 device  (default: /dev/video0)
 #   PVE_THIN_CLIENT_BEAGLE_CAMERA_SIZE         — WxH          (default: 640x480)
 #   PVE_THIN_CLIENT_BEAGLE_CAMERA_FPS          — framerate    (default: 15)
@@ -18,7 +19,7 @@ set -uo pipefail
 CONF_FILE="${PVE_THIN_CLIENT_CONF:-/etc/pve-thin-client/thinclient.conf}"
 [[ -r "$CONF_FILE" ]] && source "$CONF_FILE"
 
-STREAM_PORT="${PVE_THIN_CLIENT_BEAGLE_CAMERA_STREAM_PORT:-8091}"
+STREAM_PORT="${PVE_THIN_CLIENT_BEAGLE_CAMERA_LOCAL_STREAM_PORT:-8091}"
 CAMERA_DEV="${PVE_THIN_CLIENT_BEAGLE_CAMERA_DEVICE:-/dev/video0}"
 CAMERA_SIZE="${PVE_THIN_CLIENT_BEAGLE_CAMERA_SIZE:-640x480}"
 CAMERA_FPS="${PVE_THIN_CLIENT_BEAGLE_CAMERA_FPS:-15}"

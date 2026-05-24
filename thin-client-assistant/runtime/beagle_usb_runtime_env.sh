@@ -42,10 +42,20 @@ usb_auto_bind() {
   printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_USB_AUTO_BIND:-1}"
 }
 
-camera_stream_port() {
-  # TCP port on which beagle-camera-stream listens on the TC (forwarded via SSH
-  # reverse tunnel so VMs can connect to usb_attach_host:camera_stream_port).
+camera_tunnel_port() {
+  # TCP port exposed on usb_attach_host via SSH reverse tunnel for VM-side
+  # camera receive (per-VM from enrollment when available).
   printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_CAMERA_STREAM_PORT:-8091}"
+}
+
+camera_local_stream_port() {
+  # TCP port used by local beagle-camera-stream on the endpoint.
+  printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_CAMERA_LOCAL_STREAM_PORT:-8091}"
+}
+
+camera_stream_port() {
+  # Backward-compatible alias used by older callers.
+  camera_tunnel_port
 }
 
 require_enabled() {

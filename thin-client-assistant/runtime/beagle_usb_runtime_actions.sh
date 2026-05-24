@@ -104,7 +104,7 @@ run_usb_tunnel_daemon() {
       -o StrictHostKeyChecking=yes \
       -o UserKnownHostsFile="$(usb_known_hosts_file)" \
       -i "$(usb_key_file)" \
-      -R "$(usb_attach_host):$(camera_stream_port):127.0.0.1:$(camera_stream_port)" \
+      -R "$(usb_attach_host):$(camera_tunnel_port):127.0.0.1:$(camera_local_stream_port)" \
       "$(usb_user)@$(usb_host)" >/dev/null 2>&1 &
     camera_pid="$!"
     trap '[[ -n "$camera_pid" ]] && kill "$camera_pid" >/dev/null 2>&1 || true' EXIT INT TERM
