@@ -1326,9 +1326,9 @@ systemctl enable --now beagle-stream-server-guardian.service >/dev/null 2>&1 || 
 
 # ── USB/IP auto-attach: forward thin-client USB devices into the VM ──────────
 # Install canonical assets from scripts/lib and keep service always enabled.
-printf '%s' "$BEAGLE_USB_ATTACH_SCRIPT_B64" | base64 -d > /usr/local/bin/beagle-usb-attach
+printf '%s' "\$BEAGLE_USB_ATTACH_SCRIPT_B64" | base64 -d > /usr/local/bin/beagle-usb-attach
 chmod 0755 /usr/local/bin/beagle-usb-attach
-printf '%s' "$BEAGLE_USB_ATTACH_SERVICE_B64" | base64 -d > /etc/systemd/system/beagle-usb-attach.service
+printf '%s' "\$BEAGLE_USB_ATTACH_SERVICE_B64" | base64 -d > /etc/systemd/system/beagle-usb-attach.service
 chmod 0644 /etc/systemd/system/beagle-usb-attach.service
 
 systemctl daemon-reload >/dev/null 2>&1 || true
