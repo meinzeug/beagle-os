@@ -96,6 +96,8 @@ run_usb_tunnel_daemon() {
   # Keep camera forwarding optional so a busy remote camera port does not break
   # USB passthrough for microphones or other attached USB peripherals.
   if [[ "${PVE_THIN_CLIENT_BEAGLE_USB_CAMERA_TUNNEL_ENABLED:-1}" == "1" ]]; then
+    local camera_remote_port="${PVE_THIN_CLIENT_BEAGLE_CAMERA_STREAM_PORT:-8091}"
+    local camera_local_port="${PVE_THIN_CLIENT_BEAGLE_CAMERA_LOCAL_STREAM_PORT:-8091}"
     "$ssh_cmd" -N \
       -o BatchMode=yes \
       -o ExitOnForwardFailure=no \
@@ -104,7 +106,7 @@ run_usb_tunnel_daemon() {
       -o StrictHostKeyChecking=yes \
       -o UserKnownHostsFile="$(usb_known_hosts_file)" \
       -i "$(usb_key_file)" \
-      -R "$(usb_attach_host):$(camera_tunnel_port):127.0.0.1:$(camera_local_stream_port)" \
+      -R "$(usb_attach_host):${camera_remote_port}:127.0.0.1:${camera_local_port}" \
       "$(usb_user)@$(usb_host)" >/dev/null 2>&1 &
     camera_pid="$!"
     trap '[[ -n "$camera_pid" ]] && kill "$camera_pid" >/dev/null 2>&1 || true' EXIT INT TERM
