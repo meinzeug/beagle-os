@@ -83,7 +83,7 @@ usb_status_json() {
 }
 
 run_usb_tunnel_daemon() {
-  local ssh_cmd
+  local ssh_cmd camera_pid=""
 
   require_enabled
   [[ -n "$(usb_host)" && -n "$(usb_port)" && -n "$(usb_user)" ]] || exit 0
@@ -92,6 +92,24 @@ run_usb_tunnel_daemon() {
   # Auto-bind all eligible USB devices before syncing manually-bound list.
   auto_bind_eligible_devices || true
   sync_bound_devices
+
+  # Keep camera forwarding optional so a busy remote camera port does not break
+  # USB passthrough for microphones or other attached USB peripherals.
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_USB_CAMERA_TUNNEL_ENABLED:-1}" == "1" ]]; then
+    "$ssh_cmd" -N \
+      -o BatchMode=yes \
+      -o ExitOnForwardFailure=no \
+      -o ServerAliveInterval=20 \
+      -o ServerAliveCountMax=3 \
+      -o StrictHostKeyChecking=yes \
+      -o UserKnownHostsFile="$(usb_known_hosts_file)" \
+      -i "$(usb_key_file)" \
+      -R "$(usb_attach_host):$(camera_stream_port):127.0.0.1:$(camera_stream_port)" \
+      "$(usb_user)@$(usb_host)" >/dev/null 2>&1 &
+    camera_pid="$!"
+    trap '[[ -n "$camera_pid" ]] && kill "$camera_pid" >/dev/null 2>&1 || true' EXIT INT TERM
+  fi
+
   exec "$ssh_cmd" -N \
     -o BatchMode=yes \
     -o ExitOnForwardFailure=yes \
@@ -101,6 +119,5 @@ run_usb_tunnel_daemon() {
     -o UserKnownHostsFile="$(usb_known_hosts_file)" \
     -i "$(usb_key_file)" \
     -R "$(usb_attach_host):$(usb_port):127.0.0.1:3240" \
-    -R "$(usb_attach_host):$(camera_stream_port):127.0.0.1:$(camera_stream_port)" \
     "$(usb_user)@$(usb_host)"
 }
