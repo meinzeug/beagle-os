@@ -491,6 +491,7 @@ PY
 
 main() {
   local guest_script guest_ip install_mode native_artifact_dir native_source_archive native_deps_archive
+  local usb_attach_script_b64 usb_attach_service_b64
 
   require_tool ssh
   require_tool python3
@@ -498,6 +499,17 @@ main() {
 
   parse_args "$@"
   install_mode="$(resolve_beagle_stream_server_install_mode)"
+
+  [[ -f "$SCRIPT_DIR/lib/beagle-usb-attach" ]] || {
+    echo "Missing required asset: $SCRIPT_DIR/lib/beagle-usb-attach" >&2
+    exit 1
+  }
+  [[ -f "$SCRIPT_DIR/lib/beagle-usb-attach.service" ]] || {
+    echo "Missing required asset: $SCRIPT_DIR/lib/beagle-usb-attach.service" >&2
+    exit 1
+  }
+  usb_attach_script_b64="$(base64 -w0 "$SCRIPT_DIR/lib/beagle-usb-attach")"
+  usb_attach_service_b64="$(base64 -w0 "$SCRIPT_DIR/lib/beagle-usb-attach.service")"
 
   [[ -n "$VMID" ]] || {
     echo "--vmid is required" >&2
@@ -564,6 +576,8 @@ BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC='${BEAGLE_STREAM_SERVER_HEALTHCHEC
 BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC='${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC}'
 BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC='${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC}'
 BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD='${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD}'
+BEAGLE_USB_ATTACH_SCRIPT_B64='${usb_attach_script_b64}'
+BEAGLE_USB_ATTACH_SERVICE_B64='${usb_attach_service_b64}'
 
 configure_system_locale() {
   local locale="\${IDENTITY_LOCALE:-de_DE.UTF-8}"
@@ -1308,54 +1322,15 @@ systemctl enable --now beagle-stream-server-guardian.service >/dev/null 2>&1 || 
 /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1 || true
 
 # ── USB/IP auto-attach: forward thin-client USB devices into the VM ──────────
-# Install the beagle-usb-attach daemon which polls the SSH reverse tunnel
-# (default: 192.168.123.1:43100) and attaches all exported devices.
-install -D -m 0755 /usr/local/bin/beagle-usb-attach /usr/local/bin/beagle-usb-attach 2>/dev/null || true
-cat > /usr/local/bin/beagle-usb-attach << 'USBATTACH_EOF'
-#!/usr/bin/env bash
-set -uo pipefail
-USB_ATTACH_HOST="\${BEAGLE_USB_ATTACH_HOST:-192.168.123.1}"
-USB_ATTACH_PORT="\${BEAGLE_USB_ATTACH_PORT:-43100}"
-POLL_INTERVAL="\${BEAGLE_USB_ATTACH_POLL:-5}"
-[[ -r /etc/beagle/usb-attach.env ]] && source /etc/beagle/usb-attach.env
-modprobe vhci-hcd 2>/dev/null || true
-already_attached() { usbip port 2>/dev/null | grep -qF "\$1"; }
-attach_all() {
-  local out busid
-  out="\$(usbip --tcp-port "\$USB_ATTACH_PORT" list -r "\$USB_ATTACH_HOST" 2>/dev/null)" || return 0
-  while IFS= read -r line; do
-    [[ "\$line" =~ ^[[:space:]]+([0-9]+-[0-9]+(\.[0-9]+)*): ]] || continue
-    busid="\${BASH_REMATCH[1]}"
-    already_attached "\$busid" && continue
-    usbip --tcp-port "\$USB_ATTACH_PORT" attach -r "\$USB_ATTACH_HOST" -b "\$busid" 2>/dev/null && \
-      echo "beagle-usb-attach: attached \$busid from \${USB_ATTACH_HOST}:\${USB_ATTACH_PORT}" || true
-  done <<< "\$out"
-}
-while true; do attach_all || true; sleep "\$POLL_INTERVAL"; done
-USBATTACH_EOF
+# Install canonical assets from scripts/lib and keep service always enabled.
+printf '%s' "$BEAGLE_USB_ATTACH_SCRIPT_B64" | base64 -d > /usr/local/bin/beagle-usb-attach
 chmod 0755 /usr/local/bin/beagle-usb-attach
-
-cat > /etc/systemd/system/beagle-usb-attach.service << 'USBSVC_EOF'
-[Unit]
-Description=Beagle USB/IP Auto-Attach (thin-client device forwarding)
-After=network.target
-Wants=network.target
-
-[Service]
-Type=simple
-EnvironmentFile=-/etc/beagle/usb-attach.env
-ExecStart=/usr/local/bin/beagle-usb-attach
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-USBSVC_EOF
+printf '%s' "$BEAGLE_USB_ATTACH_SERVICE_B64" | base64 -d > /etc/systemd/system/beagle-usb-attach.service
+chmod 0644 /etc/systemd/system/beagle-usb-attach.service
 
 systemctl daemon-reload >/dev/null 2>&1 || true
-systemctl enable --now beagle-usb-attach.service >/dev/null 2>&1 || true
+systemctl enable beagle-usb-attach.service >/dev/null 2>&1 || true
+systemctl restart beagle-usb-attach.service >/dev/null 2>&1 || true
 echo "[beagle] USB/IP auto-attach service enabled"
 
 # ── usbipd (USB/IP daemon): export TC-side devices to VM ─────────────────────
