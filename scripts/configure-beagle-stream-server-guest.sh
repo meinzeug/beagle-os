@@ -720,7 +720,6 @@ apt-get install -y \
   pulseaudio-utils \
   xdg-utils \
   usbutils \
-  usbip-utils \
   linux-tools-generic \
   build-essential \
   cmake \
@@ -739,6 +738,9 @@ apt-get install -y \
   libwayland-dev \
   wayland-protocols \
   libx11-dev
+if ! apt-get install -y --no-install-recommends usbip-utils >/dev/null 2>&1; then
+  apt-get install -y --no-install-recommends usbip >/dev/null 2>&1 || true
+fi
 if [[ -n "\$DESKTOP_PACKAGES" ]]; then
   apt-get install -y \$DESKTOP_PACKAGES
 fi
