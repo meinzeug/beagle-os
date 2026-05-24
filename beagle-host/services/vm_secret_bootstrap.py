@@ -71,6 +71,16 @@ class VmSecretBootstrapService:
             return candidate
         return 43000 + (int(vmid) % 20000)
 
+    def default_usb_camera_stream_port(self, vmid: int, usb_tunnel_port: int | None = None) -> int:
+        base_port = int(usb_tunnel_port or 0)
+        if base_port <= 0:
+            base_port = self.default_usb_tunnel_port(vmid)
+        candidate = base_port + 10000
+        if 1024 <= candidate <= 65535:
+            return candidate
+        # Fallback into high, non-privileged range while keeping VM-scoped spread.
+        return 53000 + (int(vmid) % 1000)
+
     def generate_ssh_keypair(self, comment: str) -> tuple[str, str]:
         if self._keypair_factory is not None:
             return self._keypair_factory(comment)
@@ -126,9 +136,21 @@ class VmSecretBootstrapService:
     def usb_tunnel_authorized_key_line(self, vm: Any, secret: dict[str, Any]) -> str:
         public_key = str(secret.get("usb_tunnel_public_key", "")).strip()
         port = int(secret.get("usb_tunnel_port", 0) or 0)
+        camera_port = int(secret.get("usb_tunnel_camera_port", 0) or 0)
+        permitlisten: list[str] = []
+        if port > 0:
+            permitlisten.append(f'permitlisten="{self._usb_tunnel_attach_host}:{port}"')
+        if camera_port > 0 and camera_port != port:
+            permitlisten.append(f'permitlisten="{self._usb_tunnel_attach_host}:{camera_port}"')
+        permitlisten_clause = ",".join(permitlisten)
+        base_options = (
+            f'command="{self._session_script_path.as_posix()}",'
+            "no-agent-forwarding,no-pty,no-user-rc,no-X11-forwarding"
+        )
+        if permitlisten_clause:
+            base_options = f"{base_options},{permitlisten_clause}"
         return (
-            f'command="{self._session_script_path.as_posix()}",no-agent-forwarding,no-pty,no-user-rc,no-X11-forwarding,'
-            f'permitlisten="{self._usb_tunnel_attach_host}:{port}" '
+            f"{base_options} "
             f"{public_key}"
         )
 
@@ -262,6 +284,12 @@ class VmSecretBootstrapService:
             if int(existing.get("usb_tunnel_port", 0) or 0) <= 0:
                 existing["usb_tunnel_port"] = self.default_usb_tunnel_port(vm.vmid)
                 changed = True
+            if int(existing.get("usb_tunnel_camera_port", 0) or 0) <= 0:
+                existing["usb_tunnel_camera_port"] = self.default_usb_camera_stream_port(
+                    vm.vmid,
+                    int(existing.get("usb_tunnel_port", 0) or 0),
+                )
+                changed = True
             secret = self._save_vm_secret(vm.node, vm.vmid, existing) if changed else existing
             secret = self.ensure_vm_beagle_stream_server_pinned_pubkey(vm, secret)
             secret = self.ensure_vm_beagle_stream_server_token(vm, secret)
@@ -280,6 +308,7 @@ class VmSecretBootstrapService:
                 "thinclient_password": self._random_secret(22),
                 "beagle_stream_server_pinned_pubkey": "",
                 "usb_tunnel_port": self.default_usb_tunnel_port(vm.vmid),
+                "usb_tunnel_camera_port": self.default_usb_camera_stream_port(vm.vmid),
                 "usb_tunnel_private_key": private_key,
                 "usb_tunnel_public_key": public_key,
             },

@@ -166,6 +166,7 @@ class EndpointEnrollmentService:
             "usb_tunnel_host": self._public_server_name,
             "usb_tunnel_user": self._usb_tunnel_user,
             "usb_tunnel_port": int(secret.get("usb_tunnel_port", 0) or 0),
+            "usb_camera_stream_port": int(secret.get("usb_tunnel_camera_port", 0) or 0),
             "usb_tunnel_attach_host": self._usb_tunnel_attach_host,
             "usb_tunnel_private_key": str(secret.get("usb_tunnel_private_key", "")),
             "usb_tunnel_known_host": self._usb_tunnel_known_host_line(),

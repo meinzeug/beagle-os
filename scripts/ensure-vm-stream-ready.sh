@@ -345,7 +345,7 @@ run_public_stream_reconcile() {
 }
 
 main() {
-  local stream_port beagle_stream_server_user beagle_stream_server_password beagle_stream_server_token beagle_stream_server_pinned_pubkey guest_user guest_password beagle_stream_server_status_raw beagle_stream_server_status_json desktop_smoke_raw desktop_smoke_json public_api_url direct_api_url guest_ip installer_guest_ip extra_json verify_extra_json
+  local stream_port beagle_camera_stream_port beagle_stream_server_user beagle_stream_server_password beagle_stream_server_token beagle_stream_server_pinned_pubkey guest_user guest_password beagle_stream_server_status_raw beagle_stream_server_status_json desktop_smoke_raw desktop_smoke_json public_api_url direct_api_url guest_ip installer_guest_ip extra_json verify_extra_json
 
   parse_args "$@"
   [[ -n "$VMID" && -n "$NODE" ]] || { usage; exit 1; }
@@ -359,6 +359,7 @@ main() {
   beagle_stream_server_password="$(vm_secret_get beagle_stream_server_password)"
   beagle_stream_server_token="$(vm_secret_get beagle_stream_server_token)"
   beagle_stream_server_pinned_pubkey="$(vm_secret_get beagle_stream_server_pinned_pubkey)"
+  beagle_camera_stream_port="$(vm_secret_get usb_tunnel_camera_port)"
   if [[ -z "$beagle_stream_server_user" ]]; then
     beagle_stream_server_user="$(meta_get beagle-stream-server-user)"
   fi
@@ -388,6 +389,7 @@ main() {
   [[ -n "$beagle_stream_server_user" ]] || beagle_stream_server_user="beagle-stream-server-vm${VMID}"
   [[ -n "$beagle_stream_server_password" ]] || beagle_stream_server_password="beagle-vm${VMID}-beagle-stream-server"
   [[ -n "$beagle_stream_server_token" ]] || { echo "Beagle Stream Server token missing for VM ${VMID}" >&2; exit 1; }
+  [[ -n "$beagle_camera_stream_port" ]] || beagle_camera_stream_port="8091"
   [[ -n "$guest_user" ]] || guest_user="$BEAGLE_STREAM_SERVER_DEFAULT_GUEST_USER"
   installer_guest_ip="$(meta_get beagle-stream-server-ip)"
   if [[ -z "$installer_guest_ip" ]]; then
@@ -510,6 +512,7 @@ PY
       --beagle-stream-server-password "$beagle_stream_server_password"
       --beagle-stream-server-token "$beagle_stream_server_token"
       --beagle-stream-server-port "$stream_port"
+      --beagle-camera-stream-port "$beagle_camera_stream_port"
       --public-stream-host "$PUBLIC_STREAM_HOST"
       --no-reboot
     )

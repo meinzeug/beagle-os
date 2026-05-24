@@ -46,6 +46,7 @@ BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHEC
 BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC:-20}"
 BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"
 BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"
+BEAGLE_CAMERA_STREAM_PORT="${BEAGLE_CAMERA_STREAM_PORT:-8091}"
 PUBLIC_STREAM_HOST_RAW="${PUBLIC_STREAM_HOST:-}"
 UPDATE_METADATA="${UPDATE_METADATA:-1}"
 VM_REBOOT="${VM_REBOOT:-1}"
@@ -219,6 +220,7 @@ parse_args() {
       --beagle-stream-server-password) BEAGLE_STREAM_SERVER_PASSWORD="$2"; shift 2 ;;
       --beagle-stream-server-token) BEAGLE_STREAM_SERVER_TOKEN="$2"; shift 2 ;;
       --beagle-stream-server-port) BEAGLE_STREAM_SERVER_PORT="$2"; shift 2 ;;
+      --beagle-camera-stream-port) BEAGLE_CAMERA_STREAM_PORT="$2"; shift 2 ;;
       --beagle-stream-server-url) BEAGLE_STREAM_SERVER_URL="$2"; shift 2 ;;
       --beagle-stream-server-origin-web-ui-allowed) BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED="$2"; shift 2 ;;
       --beagle-stream-server-allowed-cidrs) BEAGLE_STREAM_SERVER_ALLOWED_CIDRS="$2"; shift 2 ;;
@@ -576,6 +578,7 @@ BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC='${BEAGLE_STREAM_SERVER_HEALTHCHEC
 BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC='${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC}'
 BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC='${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC}'
 BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD='${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD}'
+BEAGLE_CAMERA_STREAM_PORT='${BEAGLE_CAMERA_STREAM_PORT}'
 BEAGLE_USB_ATTACH_SCRIPT_B64='${usb_attach_script_b64}'
 BEAGLE_USB_ATTACH_SERVICE_B64='${usb_attach_service_b64}'
 
@@ -1366,7 +1369,7 @@ fi
 
 # ── Camera stream receive: TC webcam via ffmpeg + v4l2loopback ────────────────
 # UVC webcams forwarded via USB/IP fail with isoc transfer errors.  Instead the
-# TC streams the camera via ffmpeg (TCP:8091) and the VM receives it through a
+# TC streams the camera via ffmpeg (TCP:BEAGLE_CAMERA_STREAM_PORT) and the VM receives it through a
 # v4l2loopback virtual device so browsers see a normal /dev/video10 camera.
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   ffmpeg v4l2loopback-dkms 2>/dev/null || true
@@ -1380,7 +1383,7 @@ set -uo pipefail
 ENV_FILE="/etc/beagle/camera-receive.env"
 [[ -r "\$ENV_FILE" ]] && source "\$ENV_FILE"
 STREAM_HOST="\${BEAGLE_CAMERA_STREAM_HOST:-192.168.123.1}"
-STREAM_PORT="\${BEAGLE_CAMERA_STREAM_PORT:-8091}"
+STREAM_PORT="\${BEAGLE_CAMERA_STREAM_PORT:-${BEAGLE_CAMERA_STREAM_PORT}}"
 LOOPBACK_NR="\${BEAGLE_CAMERA_LOOPBACK_DEV:-10}"
 CAMERA_W="\${BEAGLE_CAMERA_WIDTH:-640}"
 CAMERA_H="\${BEAGLE_CAMERA_HEIGHT:-480}"
@@ -1428,6 +1431,16 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target
 CAMSVCC_EOF
+
+cat > /etc/beagle/camera-receive.env <<CAMENV_EOF
+BEAGLE_CAMERA_STREAM_HOST=192.168.123.1
+BEAGLE_CAMERA_STREAM_PORT=\${BEAGLE_CAMERA_STREAM_PORT}
+BEAGLE_CAMERA_LOOPBACK_DEV=10
+BEAGLE_CAMERA_WIDTH=640
+BEAGLE_CAMERA_HEIGHT=480
+BEAGLE_CAMERA_FPS=15
+BEAGLE_CAMERA_GROUP=video
+CAMENV_EOF
 
 systemctl daemon-reload >/dev/null 2>&1 || true
 systemctl enable --now beagle-camera-receive.service >/dev/null 2>&1 || true
