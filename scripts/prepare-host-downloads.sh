@@ -255,12 +255,83 @@ refresh_live_rootfs_from_repo() {
   eval "$cleanup_cmd"
 }
 
+local_live_assets_complete() {
+  local live_dir="$1"
+
+  [[ -f "$live_dir/vmlinuz" ]] || return 1
+  [[ -f "$live_dir/initrd.img" ]] || return 1
+  [[ -f "$live_dir/filesystem.squashfs" ]] || return 1
+  [[ -f "$live_dir/SHA256SUMS" ]] || return 1
+}
+
+rebuild_packaged_payload_from_live_assets() {
+  local reason="${1:-local live assets}"
+  local live_src="$DIST_DIR/pve-thin-client-installer/live"
+  local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
+  local payload_latest="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
+  local bootstrap_versioned="$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
+  local bootstrap_latest="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
+  local tmpstage cleanup_cmd live_dir
+
+  local_live_assets_complete "$live_src" || return 1
+  command -v rsync >/dev/null 2>&1 || {
+    echo "rsync not found; cannot rebuild USB payload from local live assets" >&2
+    return 1
+  }
+
+  echo "Rebuilding USB payload tarball from local live assets: $reason"
+
+  tmpstage="$(mktemp -d)"
+  live_dir="$tmpstage/dist/pve-thin-client-installer/live"
+  cleanup_cmd="$(printf 'rm -rf %q' "$tmpstage")"
+  trap "$cleanup_cmd" RETURN
+
+  install -d -m 0755 "$live_dir"
+  rsync -a --delete "$live_src/" "$live_dir/"
+  (
+    cd "$live_dir"
+    sha256sum vmlinuz initrd.img filesystem.squashfs > SHA256SUMS
+    sha256sum -c SHA256SUMS >/dev/null
+  )
+
+  (
+    cd /
+    tar -czf "$payload_versioned" \
+      -C "$ROOT_DIR" thin-client-assistant \
+      -C "$ROOT_DIR" scripts \
+      -C "$ROOT_DIR" README.md \
+      -C "$ROOT_DIR" LICENSE \
+      -C "$ROOT_DIR" CHANGELOG.md \
+      -C "$ROOT_DIR" VERSION \
+      -C "$tmpstage" "dist/pve-thin-client-installer/live"
+  )
+
+  install -m 0644 "$payload_versioned" "$payload_latest"
+  ln -f "$payload_versioned" "$bootstrap_versioned"
+  ln -f "$payload_latest" "$bootstrap_latest"
+
+  echo "USB payload tarball rebuilt from local live assets: $payload_latest"
+  trap - RETURN
+  eval "$cleanup_cmd"
+}
+
 # Build the canonical payload tarball from an already-present installer ISO
 # (e.g. deployed via rsync without running the full thin-client live-build).
 # Called automatically when the payload tarball is missing but the ISO exists.
 ensure_bootstrap_from_deployed_iso() {
   local iso="$DIST_DIR/beagle-os-installer-amd64.iso"
   local packaged_payload="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
+  local live_src="$DIST_DIR/pve-thin-client-installer/live"
+
+  # If a local live-build output exists, it is the freshest source for the
+  # hosted USB payload. Do not let an older deployed ISO or public mirror
+  # fallback replace it with stale live assets.
+  if local_live_assets_complete "$live_src"; then
+    if [[ ! -f "$packaged_payload" ]]; then
+      rebuild_packaged_payload_from_live_assets "local live assets before ISO fallback" || return 1
+    fi
+    return 0
+  fi
 
   # Nothing to do if the payload is already present and up-to-date
   if [[ -f "$packaged_payload" ]] && [[ "$packaged_payload" -nt "$iso" ]]; then
@@ -549,6 +620,7 @@ ensure_current_packaged_artifacts() {
       "$ROOT_DIR/scripts/package.sh"; then
       echo "Local package build failed; attempting to hydrate required artifacts from public release mirror." >&2
       hydrate_packaged_artifacts_from_public_release
+      rebuild_packaged_payload_from_live_assets "local package build fallback after mirror hydration" || true
       recover_packaged_artifacts_from_existing_builds
     fi
   fi

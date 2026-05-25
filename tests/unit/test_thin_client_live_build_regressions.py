@@ -305,6 +305,19 @@ def test_beaglestream_launcher_waits_for_manager_registration_before_stream_exec
     assert 'awk -F= \'$1 == "control_plane"' in manager_registration_text
 
 
+def test_prepare_host_downloads_rebuilds_payload_after_public_mirror_fallback() -> None:
+    prepare_text = PREPARE_HOST_DOWNLOADS.read_text(encoding="utf-8")
+
+    assert "local_live_assets_complete()" in prepare_text
+    assert "rebuild_packaged_payload_from_live_assets()" in prepare_text
+    assert 'rebuild_packaged_payload_from_live_assets "local package build fallback after mirror hydration" || true' in prepare_text
+    assert prepare_text.index("hydrate_packaged_artifacts_from_public_release") < prepare_text.index('rebuild_packaged_payload_from_live_assets "local package build fallback after mirror hydration" || true')
+    assert 'ln -f "$payload_versioned" "$bootstrap_versioned"' in prepare_text
+    assert 'ln -f "$payload_latest" "$bootstrap_latest"' in prepare_text
+    assert 'local live assets before ISO fallback' in prepare_text
+    assert 'if [[ ! -f "$packaged_payload" ]]; then' in prepare_text
+
+
 def test_beaglestream_launcher_restores_wireguard_peer_without_truncating_base64_padding() -> None:
     launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
     prepare_text = PREPARE_RUNTIME.read_text(encoding="utf-8")

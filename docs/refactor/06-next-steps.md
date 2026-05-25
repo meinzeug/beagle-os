@@ -1,18 +1,21 @@
 # Next Steps
 
-## Stand (2026-05-25, frischer TC: Payload-Stale-Befund und erneuter Hotfix)
+## Stand (2026-05-25, frischer TC: Payload-Stale-Befund geschlossen)
 
 **Zuletzt erledigt**:
 - TC-Platte und angeschlossener Intenso-Installer-USB wurden geprueft: beide enthielten noch Live-Build `20260525T131348Z` ohne den `d80951c`-Fix.
 - Der laufende TC wurde erneut hot gepatcht; danach kam `beagle-stream-client.registered` vor `beagle-stream-client.exec` und der Desktop-Stream lief.
 - USB/IP bindet die Aukey-Kamera, haelt den Installer-USB aber lokal als `/dev/sda`/`BEAGLEOS`.
 - Mass-Storage ist im Repo jetzt generell vom USB/IP-Autobind ausgeschlossen, auch wenn das `toram`-Installermedium nicht mehr gemountet ist.
+- Hosted Payload, interne `BEAGLEROOT` und angeschlossener Installer-USB wurden mit dem aktuellen Live-Payload aktualisiert und per `SHA256SUMS` sowie SquashFS-Markercheck verifiziert.
+- Cold Boot ohne Hotpatch ist belegt: aktive Runtime enthaelt die Fixes, `beagle-stream-client.registered` erscheint vor `beagle-stream-client.exec`, VM100 meldet `CLIENT CONNECTED`.
+- `prepare-host-downloads.sh` repackt nach Public-Mirror-Fallback aus lokalen Live-Assets, damit ein fehlgeschlagener Package-Lauf kein stale `latest`-Payload zurueckveroeffentlicht.
 
 **Naechste konkrete Schritte**:
 
-1. Neues Thinclient-Live-Payload-Artefakt aus aktuellem Repo erzeugen und auf `srv1` bereitstellen.
-2. Angeschlossenen Installer-USB und interne `BEAGLEROOT`-Live-Slots mit diesem Payload aktualisieren.
-3. Danach TC kalt neu booten und ohne Hotpatch belegen: `beagle-stream-client.registered` vor `beagle-stream-client.exec`, USB-Kamera gebunden, Installer-USB nicht gebunden.
+1. Beim naechsten echten Neu-Install vom aktualisierten Installer-USB erneut pruefen, dass der TC direkt aus dem Payload streamt, ohne nachtraegliche Disk-Aktualisierung.
+2. Audio-Bridge-Mikrofontest in VM100 mit `beagle_tc_microphone` wiederholen und Aufnahmequalitaet gegen die vorher zerkratzte USB/IP-Aufnahme vergleichen.
+3. Den vorbestehenden Hostless-Test-Fund `/api/pin` separat bereinigen, damit der breite Hostless-Regressionslauf wieder komplett gruen wird.
 
 ---
 

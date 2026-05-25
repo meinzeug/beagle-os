@@ -12,6 +12,7 @@
 - Fixed fresh thin-client boot regressions by resolving `usbip`/`usbipd` from `/usr/sbin`, auto-binding useful composite USB devices while leaving pure USB audio local for the audio bridge, and waiting for manager registration before the first BeagleStream launch.
 - Hardened fresh thin-client BeagleStream startup further by deriving the manager URL from enrollment `control_plane`, bootstrapping the BeagleStream client config/certificate before registration waits, and allowing camera-like class-EF USB devices without interface child files to auto-bind.
 - Kept installer and other USB mass-storage devices local during thin-client USB/IP auto-bind, preventing `toram` live media from being exported after it is no longer mounted.
+- Rebuilt hosted thin-client payloads from local live assets after public-mirror fallback so failed package runs cannot republish stale USB payload/bootstrap bundles as `latest`.
 
 ## v8.3.0 - 2026-05-23
 

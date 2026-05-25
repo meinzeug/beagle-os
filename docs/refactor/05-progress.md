@@ -49,6 +49,14 @@
   - TC streamt wieder zu VM100 (`beagle-stream ... 192.168.123.114:50000 Desktop`).
   - VM100 sieht BeagleStream-Server aktiv auf `:50000`, die importierte Kamera `1bcf:0215` und `/dev/video0`/`/dev/video1`.
   - Fokussierte Regressionen fuer Registration-Gate und USB-Autobind bleiben gruen.
+  - Nach Repack/Refresh des hosted Payloads wurden interne `BEAGLEROOT` (`/live/a`) und der angeschlossene Installer-USB (`BEAGLEOS`) direkt auf dem TC aus dem geprueften Payload aktualisiert; beide `SHA256SUMS`-Checks sind gruen.
+  - Cold Boot von `ubuntu-beagle-100` ohne Hotpatch: Boot-Cmdline nutzt `live-media=/dev/disk/by-uuid/375c2089-ff6d-4601-83d5-92b2bfaf4a06 live-media-path=/live/current toram`, aktive Runtime und beide SquashFS-Dateien enthalten `beagle_stream_client_manager_url`, `bootstrap_beagle_stream_client` und `_usb_device_has_storage_interface`.
+  - Frischer Runtime-Log: `beagle-stream-client.registered ... attempt=2/30` vor `beagle-stream-client.exec ... connect_host=192.168.123.114 port=50000 app=Desktop`; VM100 loggt `CLIENT CONNECTED` und eine aktive Streaming-Session.
+  - USB nach Cold Boot: Aukey-Kamera `1-2.1.3` ist an `usbip-host`, SC420-Mikrofon bleibt lokal bei `snd-usb-audio`, Intenso-Installer-USB `2-2.2` bleibt lokal bei `usb-storage`.
+
+- **Artifact-Pipeline-Fix**:
+  - `prepare-host-downloads.sh` repackt den USB-Payload nach Public-Mirror-Fallback aus vorhandenen lokalen Live-Assets, damit ein fehlgeschlagener Package-Lauf nicht wieder ein stale Mirror-Payload als `latest` veroeffentlicht.
+  - Payload- und Bootstrap-Tarballs werden dabei gemeinsam aus demselben lokalen Live-Asset-Satz aktualisiert.
 
 ---
 
