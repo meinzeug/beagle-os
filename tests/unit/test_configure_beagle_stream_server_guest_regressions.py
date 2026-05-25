@@ -92,6 +92,9 @@ def test_configure_beagle_stream_server_guest_normalizes_usb_microphones() -> No
 
     assert 'BEAGLE_USB_MICROPHONE_VOLUME="${BEAGLE_USB_MICROPHONE_VOLUME:-250%}"' in content
     assert 'cat > /usr/local/bin/beagle-normalize-usb-microphones <<\'MICNORM\'' in content
+    assert 'bridge_source="\\$(pactl list short sources' in content
+    assert '$2 == "beagle_tc_microphone"' in content
+    assert 'pactl set-default-source "\\$bridge_source"' in content
     assert "^alsa_input\\.usb-" in content
     assert 'pactl set-default-source "\\$source_name"' in content
     assert 'pactl set-source-mute "\\$source_name" 0' in content

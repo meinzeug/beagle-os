@@ -1355,6 +1355,14 @@ if ! command -v pactl >/dev/null 2>&1; then
   exit 0
 fi
 
+bridge_source="\$(pactl list short sources 2>/dev/null | awk '\$2 == "beagle_tc_microphone" {print \$2; exit}')"
+if [[ -n "\$bridge_source" ]]; then
+  pactl set-default-source "\$bridge_source" >/dev/null 2>&1 || true
+  pactl set-source-mute "\$bridge_source" 0 >/dev/null 2>&1 || true
+  pactl set-source-volume "\$bridge_source" 100% >/dev/null 2>&1 || true
+  exit 0
+fi
+
 source_name="\$(pactl list short sources 2>/dev/null | awk '\$2 ~ /^alsa_input\.usb-/ && \$2 !~ /\.monitor$/ {print \$2; exit}')"
 if [[ -z "\$source_name" ]]; then
   exit 0

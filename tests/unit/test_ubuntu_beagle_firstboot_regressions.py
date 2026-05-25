@@ -73,6 +73,9 @@ def test_firstboot_normalizes_usb_microphone_defaults() -> None:
 
     assert 'BEAGLE_USB_MICROPHONE_VOLUME="${BEAGLE_USB_MICROPHONE_VOLUME:-250%}"' in script
     assert "cat > /usr/local/bin/beagle-normalize-usb-microphones <<'EOF'" in script
+    assert 'bridge_source="$(pactl list short sources' in script
+    assert '$2 == "beagle_tc_microphone"' in script
+    assert 'pactl set-default-source "$bridge_source"' in script
     assert "^alsa_input\\.usb-" in script
     assert 'pactl set-default-source "$source_name"' in script
     assert 'pactl set-source-mute "$source_name" 0' in script
