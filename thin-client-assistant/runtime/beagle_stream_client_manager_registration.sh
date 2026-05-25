@@ -61,13 +61,26 @@ print(json.dumps({
 PY
 }
 
+beagle_stream_client_manager_url() {
+  local manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
+  local enrollment_conf="${BEAGLE_STREAM_ENROLLMENT_CONF:-/etc/beagle/enrollment.conf}"
+
+  if [[ -z "$manager_url" ]] && declare -F beagle_stream_enrollment_value >/dev/null 2>&1; then
+    manager_url="$(beagle_stream_enrollment_value control_plane 2>/dev/null || true)"
+  fi
+  if [[ -z "$manager_url" && -r "$enrollment_conf" ]]; then
+    manager_url="$(awk -F= '$1 == "control_plane" { value = substr($0, index($0, "=") + 1); gsub(/^"/, "", value); gsub(/"$/, "", value); gsub(/^'\''/, "", value); gsub(/'\''$/, "", value); print value; exit }' "$enrollment_conf" 2>/dev/null || true)"
+  fi
+  printf '%s\n' "${manager_url%/}"
+}
+
 fetch_beagle_stream_client_current_session_via_manager() {
   local response_file="${1:-}"
   local manager_url manager_token manager_pin manager_ca_cert curl_bin session_id vmid url http_status
   local -a curl_args tls_args
 
   [[ -n "$response_file" ]] || return 1
-  manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
+  manager_url="$(beagle_stream_client_manager_url)"
   manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
   manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
   manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
@@ -139,7 +152,7 @@ register_beagle_stream_client_via_manager() {
   local curl_bin
   local -a curl_args tls_args
 
-  manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
+  manager_url="$(beagle_stream_client_manager_url)"
   manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
   manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
   manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
@@ -189,7 +202,7 @@ prepare_beagle_stream_client_stream_via_manager() {
   [[ -n "$resolution" ]] || return 1
   [[ "$resolution" =~ ^[0-9]{3,5}x[0-9]{3,5}$ ]] || return 1
 
-  manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
+  manager_url="$(beagle_stream_client_manager_url)"
   manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
   manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
   manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
@@ -217,7 +230,7 @@ request_beagle_stream_client_pairing_token_via_manager() {
   local curl_bin device_name
   local -a curl_args tls_args parsed
 
-  manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
+  manager_url="$(beagle_stream_client_manager_url)"
   manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
   manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
   manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
@@ -259,7 +272,7 @@ exchange_beagle_stream_client_pairing_token_via_manager() {
   local -a curl_args tls_args parsed
 
   [[ -n "$pairing_token" ]] || return 1
-  manager_url="${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}"
+  manager_url="$(beagle_stream_client_manager_url)"
   manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
   manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
   manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"

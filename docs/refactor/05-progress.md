@@ -6,17 +6,23 @@
   - Der normale `thinclient`-User fand `usbip` nicht, weil `/usr/sbin` nicht im User-PATH lag.
   - Die neue Audio-Bridge-Ausschlusslogik war zu breit und blockierte komplette Composite-Geraete, sobald ein Audio-Interface vorhanden war.
   - Der Hostless-Fast-Launch konnte den Streamprozess starten, bevor die Manager-Registrierung des BeagleStream-Client-Zertifikats fertig propagiert war.
+  - Nach frischem TC-Boot lag die Manager-URL nur als `control_plane` in `/etc/beagle/enrollment.conf`, nicht als `PVE_THIN_CLIENT_BEAGLE_MANAGER_URL`; dadurch konnte das neue Registration-Gate nie erfolgreich registrieren.
+  - Im Fast-Launch existierte noch keine BeagleStream-Client-Konfig und damit kein Client-Zertifikat; die Registrierung wartete dadurch auf ein Artefakt, das erst durch einen Bootstrap-List-Probe entsteht.
+  - Die Aukey-Kamera (`1bcf:0215`, `bDeviceClass=ef`) zeigte in diesem Boot keine `bInterfaceClass`-Kinder, wurde dadurch trotz Kamera-Produktstring nicht als forwardbares Composite-Geraet erkannt.
 
 - **Repo-Fix**:
   - USB-Runtime loest `usbip`, `usbipd` und `modprobe` robust ueber `command -v` oder `/usr/sbin/*` auf.
   - USB/IP-Autobind scannt Composite-Interfaces weiter: pure USB-Audio/HID/Bluetooth bleiben lokal, aber Video/Storage/Serial/Vendor-Composite-Geraete bleiben fuer VM-Forwarding erlaubt.
   - Auto-gebundene USB-Busids werden im TC-Status persistiert.
   - `launch-beagle-stream-client.sh` wartet vor dem Stream-Exec bounded auf erfolgreiche Manager-Registrierung und bricht sauber ab, statt zu frueh in den unpaired Streamzustand zu laufen.
+  - Manager-Registration nutzt jetzt als Fallback den Enrollment-`control_plane`, und das Registration-Gate bootstrapped bei fehlendem Client-Zertifikat die lokale BeagleStream-Konfig.
+  - USB/IP erlaubt class-EF-Geraete ohne Interface-Kinder, wenn Produkt/Hersteller klar nach Kamera/Webcam/Video aussieht; reine Audio-/HID-/Bluetooth-Pfade bleiben lokal.
 
 - **Live-Status**:
   - Fresh TC `ubuntu-beagle-100` wurde hot gepatcht; `beagle-usb-tunnel.service` laeuft mit USB/IP `43100`, Audio-Bridge `43200` und Kamera-Tunnel `53100`.
   - VM100 sieht die per USB/IP importierte Kamera `1bcf:0215` ueber `usbip://192.168.123.1:43100/1-2.1.3` und `/dev/video0`/`/dev/video1`.
   - TC-Status zeigt 7 lokale USB-Geraete und `bound_count=1` fuer `1-2.1.3`.
+  - Nach Hotfix erschien `beagle-stream-client.registered` vor `beagle-stream-client.exec`; VM100/Sunshine loggte anschliessend aktive Stream-Encoding-Ausgabe.
 
 - **Verifikation**:
   - `bash -n` fuer alle geaenderten TC-Runtime-Skripte.

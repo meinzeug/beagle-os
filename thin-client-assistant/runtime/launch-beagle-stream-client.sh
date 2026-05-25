@@ -581,11 +581,16 @@ wait_for_beagle_stream_client_manager_registration() {
 
   host="$(beagle_stream_client_connect_host)"
   port="$(beagle_stream_client_port)"
-  [[ -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}" && -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}" ]] || return 0
+  [[ -n "$(beagle_stream_client_manager_url 2>/dev/null || true)" && -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}" ]] || return 0
   max_attempts="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_ATTEMPTS:-30}"
   retry_sleep="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_SLEEP:-2}"
   attempt=1
   while [[ "$attempt" -le "$max_attempts" ]]; do
+    if ! extract_beagle_stream_client_certificate_pem >/dev/null 2>&1; then
+      bootstrap_beagle_stream_client >/dev/null 2>&1 || true
+      seed_beagle_stream_client_host_from_runtime_config >/dev/null 2>&1 || true
+      retarget_beagle_stream_client_host_from_runtime_config >/dev/null 2>&1 || true
+    fi
     if register_beagle_stream_client_via_manager; then
       beagle_log_event "beagle-stream-client.registered" "host=${host} port=${port:-default} attempt=${attempt}/${max_attempts}"
       return 0

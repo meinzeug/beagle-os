@@ -22,6 +22,18 @@ audio_input_bridge_enabled() {
   [[ "${PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_BRIDGE_ENABLED:-1}" == "1" ]]
 }
 
+_usb_device_identity_has_camera_hint() {
+  local busid="$1"
+  local devpath="/sys/bus/usb/devices/$busid"
+  local text=""
+
+  for field in product manufacturer; do
+    [[ -r "$devpath/$field" ]] || continue
+    text+=" $(tr '[:upper:]' '[:lower:]' < "$devpath/$field" 2>/dev/null || true)"
+  done
+  grep -Eq '(camera|webcam|video|uvc|cam)' <<<"$text"
+}
+
 have_exportable_devices() {
   local output usbip_cmd
   usbip_cmd="$(usbip_bin)"
@@ -75,7 +87,10 @@ _is_eligible_for_autobind() {
           01|06|07|08|0a|0b|0e|ff) has_useful=1 ;;
         esac
       done
-      [[ "$has_interface" == "1" ]] || return 1
+      if [[ "$has_interface" != "1" ]]; then
+        [[ "$class" == "ef" ]] && _usb_device_identity_has_camera_hint "$busid" && return 0
+        return 1
+      fi
       [[ "$has_useful" == "1" ]] || return 1
       ;;
   esac
@@ -124,8 +139,11 @@ auto_bind_eligible_devices() {
     # Only top-level devices: digits, dash, digits, optional dot-digits (1-2.1.3)
     [[ "$busid" =~ ^[0-9]+-[0-9]+(\.[0-9]+)*$ ]] || continue
     _is_eligible_for_autobind "$busid" || continue
-    # Skip if already bound to usbip-host
-    is_bound_to_usbip_host "$busid" && continue
+    # Skip if already bound to usbip-host, but keep status state accurate.
+    if is_bound_to_usbip_host "$busid"; then
+      bound_add "$busid" >/dev/null 2>&1 || true
+      continue
+    fi
     "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1 || true
     if "$usbip_cmd" bind -b "$busid" >/dev/null 2>&1; then
       bound_add "$busid" >/dev/null 2>&1 || true

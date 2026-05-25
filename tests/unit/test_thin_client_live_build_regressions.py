@@ -289,14 +289,20 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
 
 def test_beaglestream_launcher_waits_for_manager_registration_before_stream_exec() -> None:
     launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+    manager_registration_text = (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_manager_registration.sh").read_text(encoding="utf-8")
 
     assert 'wait_for_beagle_stream_client_manager_registration()' in launcher_text
-    assert 'PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-' in launcher_text
+    assert 'beagle_stream_client_manager_url 2>/dev/null || true' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-' in launcher_text
+    assert 'extract_beagle_stream_client_certificate_pem >/dev/null 2>&1' in launcher_text
+    assert 'bootstrap_beagle_stream_client >/dev/null 2>&1 || true' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_ATTEMPTS:-30' in launcher_text
     assert 'beagle-stream-client.register-wait' in launcher_text
     assert 'beagle-stream-client.register-wait-timeout' in launcher_text
     assert launcher_text.index('wait_for_beagle_stream_client_manager_registration || {') < launcher_text.index('beagle-stream-client.exec')
+    assert 'beagle_stream_client_manager_url()' in manager_registration_text
+    assert 'beagle_stream_enrollment_value control_plane' in manager_registration_text
+    assert 'awk -F= \'$1 == "control_plane"' in manager_registration_text
 
 
 def test_beaglestream_launcher_restores_wireguard_peer_without_truncating_base64_padding() -> None:
@@ -343,7 +349,10 @@ def test_usbip_autobind_keeps_usb_audio_local_for_mic_bridge() -> None:
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_BRIDGE_ENABLED:-1' in usbipd_text
     assert '01) audio_input_bridge_enabled && continue ;;' in usbipd_text
     assert 'has_interface=1' in usbipd_text
-    assert '[[ "$has_interface" == "1" ]] || return 1' in usbipd_text
+    assert '_usb_device_identity_has_camera_hint()' in usbipd_text
+    assert 'grep -Eq \'(camera|webcam|video|uvc|cam)\'' in usbipd_text
+    assert '[[ "$class" == "ef" ]] && _usb_device_identity_has_camera_hint "$busid" && return 0' in usbipd_text
+    assert 'bound_add "$busid" >/dev/null 2>&1 || true' in usbipd_text
     assert 'printf \'%s\\n\' "/usr/sbin/usbip"' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_runtime_env.sh").read_text(encoding="utf-8")
     assert 'printf \'%s\\n\' "/usr/sbin/usbipd"' in actions_text
     assert 'beagle_audio_input_bridge.py' in actions_text
