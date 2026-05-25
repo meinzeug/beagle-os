@@ -1140,15 +1140,15 @@ is_api_ready() {
 has_rtsp_port_conflict() {
   local listeners sunshine_count
 
-  listeners="$(ss -lntp 2>/dev/null | awk -v p=":${rtsp_port}" '$4 ~ p"$" {print $0}')"
-  [[ -n "$listeners" ]] || return 1
+  listeners="\$(ss -lntp 2>/dev/null | awk -v p=":\${rtsp_port}" '\$4 ~ p"\$" {print \$0}')"
+  [[ -n "\$listeners" ]] || return 1
 
-  sunshine_count="$(pgrep -x sunshine 2>/dev/null | wc -l | tr -d ' ')"
-  if [[ "${sunshine_count:-0}" -gt 1 ]]; then
+  sunshine_count="\$(pgrep -x sunshine 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ "\${sunshine_count:-0}" -gt 1 ]]; then
     return 0
   fi
 
-  if printf '%s\n' "$listeners" | grep -q "sunshine"; then
+  if printf '%s\n' "\$listeners" | grep -q "sunshine"; then
     return 1
   fi
   return 0
