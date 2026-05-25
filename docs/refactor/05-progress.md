@@ -39,6 +39,22 @@
 
 ---
 
+## Update (2026-05-25, Browser-Mikrofontest mit Logfile)
+
+**Scope**: Fuer VM100 wurde ein kleines Werkzeug benoetigt, mit dem der Nutzer direkt aufnehmen, abspielen und wir parallel Browser-/Recorder-/Playback-Ereignisse in Logfiles auswerten koennen.
+
+- **Repo-Fix**:
+  - Neues Tool `tools/audio-mic-test.html` fuer Aufnahme, Stop, Wiedergabe, Geraeteauswahl, Live-RMS/Peak und Wellenform.
+  - Neuer Server `tools/audio-mic-test-server.py` serviert das Tool lokal und schreibt Browser-Events als JSONL nach `audio-mic-test.log`.
+  - Das Tool bevorzugt automatisch SC420/USB-Mikrofone statt des mehrdeutigen Chrome-Defaults `Standard`.
+
+- **Live-Status VM100**:
+  - Tool laeuft unter `http://127.0.0.1:8787/audio-mic-test.html`.
+  - Logfile: `/home/beagle/.local/state/beagle/audio-mic-test.log`.
+  - Startlog bestaetigt `selectedLabel: SC420 USB Microphone Analoges Stereo`.
+
+---
+
 ## Update (2026-05-25, `/opt/beagle` als Git-faehiger Runtime-Pfad)
 
 **Scope**: Live-Rollouts auf `srv1` zeigten, dass `/opt/beagle` zwar den aktuellen Runtime-Tree enthaelt, aber kein Git-Checkout ist. Dadurch mussten Hotfixes per SCP/Install kopiert werden, obwohl `repo-auto-update` intern bereits einen Git-Cache nutzt.

@@ -265,10 +265,32 @@
     const logEl = document.getElementById('log');
     const canvas = document.getElementById('waveform');
     const canvasContext = canvas.getContext('2d');
+    const sessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+    let logSequence = 0;
+
+    function postLog(payload) {
+      const entry = {
+        sessionId,
+        sequence: ++logSequence,
+        pageTime: new Date().toISOString(),
+        status: statusEl.textContent,
+        rms: Number(state.rms.toFixed(4)),
+        peak: Number(state.peak.toFixed(4)),
+        userAgent: navigator.userAgent,
+        ...payload,
+      };
+      fetch('/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+        keepalive: true,
+      }).catch(() => {});
+    }
 
     function log(message) {
       const stamp = new Date().toLocaleTimeString();
       logEl.textContent = `[${stamp}] ${message}\n${logEl.textContent}`;
+      postLog({ type: 'ui-log', message });
     }
 
     function setStatus(text, stateName = 'idle') {
@@ -285,6 +307,7 @@
     }
 
     async function loadDevices() {
+      const previousValue = deviceSelect.value;
       const devices = await navigator.mediaDevices.enumerateDevices();
       const inputs = devices.filter((device) => device.kind === 'audioinput');
       deviceSelect.replaceChildren();
@@ -294,7 +317,22 @@
         option.textContent = device.label || `Microphone ${index + 1}`;
         deviceSelect.append(option);
       });
+      const preferred = [...deviceSelect.options].find((option) => /sc420|usb microphone|usb/i.test(option.textContent));
+      if (previousValue && [...deviceSelect.options].some((option) => option.value === previousValue)) {
+        deviceSelect.value = previousValue;
+      } else if (preferred) {
+        deviceSelect.value = preferred.value;
+      }
       log(`microphones=${inputs.length}`);
+      postLog({
+        type: 'devices',
+        selectedLabel: deviceSelect.selectedOptions[0]?.textContent || '',
+        audioInputs: inputs.map((device) => ({
+          label: device.label,
+          deviceId: device.deviceId ? 'present' : '',
+          groupId: device.groupId ? 'present' : '',
+        })),
+      });
     }
 
     function drawMeter() {
@@ -357,6 +395,15 @@
       state.stream = await navigator.mediaDevices.getUserMedia(constraints);
       await loadDevices();
 
+      const track = state.stream.getAudioTracks()[0];
+      postLog({
+        type: 'stream-opened',
+        selectedDeviceLabel: deviceSelect.selectedOptions[0]?.textContent || 'default',
+        trackLabel: track?.label || '',
+        trackSettings: track?.getSettings?.() || {},
+        trackConstraints: track?.getConstraints?.() || {},
+      });
+
       state.audioContext = new AudioContext();
       const source = state.audioContext.createMediaStreamSource(state.stream);
       state.analyser = state.audioContext.createAnalyser();
@@ -365,9 +412,11 @@
 
       state.recorder = new MediaRecorder(state.stream, { audioBitsPerSecond: 128000 });
       state.recorder.ondataavailable = (event) => {
+        postLog({ type: 'dataavailable', size: event.data.size, mimeType: event.data.type });
         if (event.data.size > 0) state.chunks.push(event.data);
       };
       state.recorder.onstop = finalizeRecording;
+      state.recorder.onerror = (event) => postLog({ type: 'recorder-error', message: event.error?.message || String(event) });
       state.startedAt = performance.now();
       state.recorder.start(250);
       drawMeter();
@@ -376,7 +425,7 @@
       stopButton.disabled = false;
       playButton.disabled = true;
       setStatus('recording', 'recording');
-      log(`recording device=${deviceSelect.selectedOptions[0]?.textContent || 'default'}`);
+      log(`recording device=${deviceSelect.selectedOptions[0]?.textContent || 'default'} mime=${state.recorder.mimeType || 'default'}`);
     }
 
     async function stopStream() {
@@ -397,6 +446,7 @@
 
     async function stopRecording() {
       if (state.recorder && state.recorder.state !== 'inactive') {
+        postLog({ type: 'stop-requested', recorderState: state.recorder.state });
         state.recorder.stop();
       } else {
         await stopStream();
@@ -415,7 +465,14 @@
       recordButton.disabled = false;
       playButton.disabled = blob.size === 0;
       setStatus('ready', 'ready');
-      log(`recorded seconds=${duration.toFixed(1)} bytes=${blob.size} rms=${state.rms.toFixed(3)} peak=${state.peak.toFixed(3)}`);
+      log(`recorded seconds=${duration.toFixed(1)} chunks=${state.chunks.length} bytes=${blob.size} type=${blob.type} rms=${state.rms.toFixed(3)} peak=${state.peak.toFixed(3)}`);
+      postLog({
+        type: 'recording-finalized',
+        seconds: Number(duration.toFixed(2)),
+        chunks: state.chunks.length,
+        bytes: blob.size,
+        blobType: blob.type,
+      });
     }
 
     recordButton.addEventListener('click', () => {
@@ -433,10 +490,37 @@
 
     playButton.addEventListener('click', () => {
       player.currentTime = 0;
-      player.play().catch((error) => log(`${error.name}: ${error.message}`));
+      player.muted = false;
+      player.volume = 1;
+      postLog({ type: 'play-click', src: player.currentSrc || player.src, readyState: player.readyState, networkState: player.networkState });
+      player.play()
+        .then(() => log('playback started'))
+        .catch((error) => {
+          log(`playback ${error.name}: ${error.message}`);
+          postLog({ type: 'playback-error', name: error.name, message: error.message, readyState: player.readyState, networkState: player.networkState });
+        });
+    });
+
+    ['loadstart', 'loadedmetadata', 'canplay', 'play', 'playing', 'pause', 'ended', 'waiting', 'stalled', 'suspend', 'error'].forEach((eventName) => {
+      player.addEventListener(eventName, () => {
+        postLog({
+          type: 'audio-element-event',
+          eventName,
+          currentTime: Number(player.currentTime.toFixed(3)),
+          duration: Number.isFinite(player.duration) ? Number(player.duration.toFixed(3)) : null,
+          readyState: player.readyState,
+          networkState: player.networkState,
+          error: player.error ? { code: player.error.code, message: player.error.message } : null,
+        });
+      });
     });
 
     navigator.mediaDevices?.addEventListener?.('devicechange', loadDevices);
+    postLog({
+      type: 'page-loaded',
+      mediaRecorder: typeof MediaRecorder !== 'undefined',
+      supportsWebmOpus: typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus'),
+    });
     loadDevices().catch((error) => log(`${error.name}: ${error.message}`));
   </script>
 </body>
