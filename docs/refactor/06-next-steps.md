@@ -1,5 +1,21 @@
 # Next Steps
 
+## Stand (2026-05-25, frischer TC: Payload-Stale-Befund und erneuter Hotfix)
+
+**Zuletzt erledigt**:
+- TC-Platte und angeschlossener Intenso-Installer-USB wurden geprueft: beide enthielten noch Live-Build `20260525T131348Z` ohne den `d80951c`-Fix.
+- Der laufende TC wurde erneut hot gepatcht; danach kam `beagle-stream-client.registered` vor `beagle-stream-client.exec` und der Desktop-Stream lief.
+- USB/IP bindet die Aukey-Kamera, haelt den Installer-USB aber lokal als `/dev/sda`/`BEAGLEOS`.
+- Mass-Storage ist im Repo jetzt generell vom USB/IP-Autobind ausgeschlossen, auch wenn das `toram`-Installermedium nicht mehr gemountet ist.
+
+**Naechste konkrete Schritte**:
+
+1. Neues Thinclient-Live-Payload-Artefakt aus aktuellem Repo erzeugen und auf `srv1` bereitstellen.
+2. Angeschlossenen Installer-USB und interne `BEAGLEROOT`-Live-Slots mit diesem Payload aktualisieren.
+3. Danach TC kalt neu booten und ohne Hotpatch belegen: `beagle-stream-client.registered` vor `beagle-stream-client.exec`, USB-Kamera gebunden, Installer-USB nicht gebunden.
+
+---
+
 ## Stand (2026-05-25, frischer TC: USB/IP und Start-Race gefixt)
 
 **Zuletzt erledigt**:

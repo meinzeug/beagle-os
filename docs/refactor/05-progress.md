@@ -12,11 +12,12 @@
 
 - **Repo-Fix**:
   - USB-Runtime loest `usbip`, `usbipd` und `modprobe` robust ueber `command -v` oder `/usr/sbin/*` auf.
-  - USB/IP-Autobind scannt Composite-Interfaces weiter: pure USB-Audio/HID/Bluetooth bleiben lokal, aber Video/Storage/Serial/Vendor-Composite-Geraete bleiben fuer VM-Forwarding erlaubt.
+  - USB/IP-Autobind scannt Composite-Interfaces weiter: pure USB-Audio/HID/Bluetooth und Mass-Storage bleiben lokal, aber Video/Serial/Vendor-Composite-Geraete bleiben fuer VM-Forwarding erlaubt.
   - Auto-gebundene USB-Busids werden im TC-Status persistiert.
   - `launch-beagle-stream-client.sh` wartet vor dem Stream-Exec bounded auf erfolgreiche Manager-Registrierung und bricht sauber ab, statt zu frueh in den unpaired Streamzustand zu laufen.
   - Manager-Registration nutzt jetzt als Fallback den Enrollment-`control_plane`, und das Registration-Gate bootstrapped bei fehlendem Client-Zertifikat die lokale BeagleStream-Konfig.
   - USB/IP erlaubt class-EF-Geraete ohne Interface-Kinder, wenn Produkt/Hersteller klar nach Kamera/Webcam/Video aussieht; reine Audio-/HID-/Bluetooth-Pfade bleiben lokal.
+  - USB/IP schliesst USB-Mass-Storage jetzt auch dann vom Auto-Bind aus, wenn das Installermedium nach `toram` nicht mehr gemountet ist.
 
 - **Live-Status**:
   - Fresh TC `ubuntu-beagle-100` wurde hot gepatcht; `beagle-usb-tunnel.service` laeuft mit USB/IP `43100`, Audio-Bridge `43200` und Kamera-Tunnel `53100`.
@@ -28,6 +29,26 @@
   - `bash -n` fuer alle geaenderten TC-Runtime-Skripte.
   - Fokussierte Regressionen: USB-Audio/Composite-Autobind und Launcher-Registrierungs-Gate gruen.
   - Der breite Hostless-Regressions-Test hat weiterhin einen vorbestehenden `/api/pin`-Fund und wurde nicht als Abschlusskriterium fuer diesen Fix gewertet.
+
+### Nachtest: Payload auf TC-Platte und Installer-USB war noch alt
+
+- **Befund**:
+  - Der frisch gebootete TC lief aus einem `toram`-Live-Overlay von `BEAGLEROOT` (`/live/current`) statt aus einem klassischen installierten Root.
+  - Interne `BEAGLEROOT` und der angeschlossene Intenso-Installer-USB enthielten denselben alten Live-Build `20260525T131348Z`; weder das SquashFS noch die USB-Integration-Dateien enthielten die Manager-URL-/Bootstrap-Fixes.
+  - Der Installer-USB war nach `toram` zunaechst als Mass-Storage dekonfiguriert; nach erneuter USB-Konfiguration erschien er wieder als lokales `/dev/sda` mit `BEAGLEOS`-Partition.
+
+- **Live-Fix**:
+  - Aktive TC-Runtime erneut in `/usr/local/lib/pve-thin-client/runtime` und `/run/pve-thin-client/runtime` hot gepatcht.
+  - Autologin-Runtimepfad (`getty@tty1`) neu gestartet; danach erschien `beagle-stream-client.registered` vor `beagle-stream-client.exec`.
+  - USB/IP bindet nur die Aukey-Kamera (`1-2.1.3`); der Installer-USB (`2-2.2`) bleibt lokal und sichtbar.
+
+- **Repo-Fix**:
+  - USB/IP-Autobind schliesst Mass-Storage jetzt unabhaengig vom Mountstatus aus, damit `toram`-Installermedien nicht als VM-USB-Geraete behandelt werden.
+
+- **Verifikation**:
+  - TC streamt wieder zu VM100 (`beagle-stream ... 192.168.123.114:50000 Desktop`).
+  - VM100 sieht BeagleStream-Server aktiv auf `:50000`, die importierte Kamera `1bcf:0215` und `/dev/video0`/`/dev/video1`.
+  - Fokussierte Regressionen fuer Registration-Gate und USB-Autobind bleiben gruen.
 
 ---
 

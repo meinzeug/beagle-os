@@ -34,6 +34,34 @@ _usb_device_identity_has_camera_hint() {
   grep -Eq '(camera|webcam|video|uvc|cam)' <<<"$text"
 }
 
+_usb_device_has_storage_interface() {
+  local busid="$1"
+  local iface_class_file iface_class
+
+  for iface_class_file in /sys/bus/usb/devices/${busid}:*/bInterfaceClass; do
+    [[ -f "$iface_class_file" ]] || continue
+    iface_class="$(tr '[:upper:]' '[:lower:]' < "$iface_class_file" 2>/dev/null | tr -d '[:space:]')"
+    [[ "$iface_class" == "08" ]] && return 0
+  done
+  return 1
+}
+
+_usb_device_has_block_child() {
+  local busid="$1"
+  local devpath="/sys/bus/usb/devices/$busid"
+  local block_dir node part
+
+  for block_dir in "$devpath"/*/block/* "$devpath"/block/*; do
+    [[ -d "$block_dir" ]] || continue
+    for node in "$block_dir" "$block_dir"/*; do
+      [[ -e "$node" ]] || continue
+      part="$(basename "$node")"
+      [[ -b "/dev/$part" ]] && return 0
+    done
+  done
+  return 1
+}
+
 have_exportable_devices() {
   local output usbip_cmd
   usbip_cmd="$(usbip_bin)"
@@ -60,6 +88,8 @@ _is_eligible_for_autobind() {
   local class iface_class_file iface_class has_useful has_interface
 
   [[ -f "$devpath/bDeviceClass" ]] || return 1
+  _usb_device_has_block_child "$busid" && return 1
+  _usb_device_has_storage_interface "$busid" && return 1
   _usb_device_has_mounted_block_child "$busid" && return 1
   class="$(tr '[:upper:]' '[:lower:]' < "$devpath/bDeviceClass" 2>/dev/null | tr -d '[:space:]')"
 
@@ -81,10 +111,10 @@ _is_eligible_for_autobind() {
           03) continue ;;  # Ignore HID sub-interfaces on composite devices.
           e0) return 1 ;;  # Bluetooth controllers must stay local.
         esac
-        # Audio(01), Video(0e), Storage(08), Printer(07), Imaging(06),
+        # Audio(01), Video(0e), Printer(07), Imaging(06),
         # CDC(0a/0b), Vendor(ff)
         case "$iface_class" in
-          01|06|07|08|0a|0b|0e|ff) has_useful=1 ;;
+          01|06|07|0a|0b|0e|ff) has_useful=1 ;;
         esac
       done
       if [[ "$has_interface" != "1" ]]; then
