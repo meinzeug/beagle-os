@@ -213,8 +213,9 @@ class VmSecretBootstrapService:
             tunnel_uid = tunnel_pw.pw_uid
             tunnel_gid = tunnel_pw.pw_gid
             tunnel_home = Path(tunnel_pw.pw_dir)
-            # Primary path: set group to tunnel user, mode 0640 so privsep child can read.
-            os.chown(authorized_keys, -1, tunnel_gid)
+            # Primary path: file must be owned by root or target user for sshd
+            # StrictModes. Use tunnel user ownership to keep access explicit.
+            os.chown(authorized_keys, tunnel_uid, tunnel_gid)
             os.chmod(authorized_keys, 0o640)
             # Mirror path: ~/.ssh/authorized_keys owned by tunnel user.
             ssh_dir = tunnel_home / ".ssh"
