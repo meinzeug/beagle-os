@@ -6,7 +6,13 @@ BEAGLE_USB_RUNTIME_USBIPD_SH="${BEAGLE_USB_RUNTIME_USBIPD_SH:-$SCRIPT_DIR/beagle
 source "$BEAGLE_USB_RUNTIME_USBIPD_SH"
 
 usbipd_bin() {
-  printf '%s\n' "${BEAGLE_USBIPD_BIN:-usbipd}"
+  if [[ -n "${BEAGLE_USBIPD_BIN:-}" ]]; then
+    printf '%s\n' "$BEAGLE_USBIPD_BIN"
+  elif command -v usbipd >/dev/null 2>&1; then
+    command -v usbipd
+  else
+    printf '%s\n' "/usr/sbin/usbipd"
+  fi
 }
 
 pkill_bin() {
@@ -14,7 +20,13 @@ pkill_bin() {
 }
 
 modprobe_bin() {
-  printf '%s\n' "${BEAGLE_MODPROBE_BIN:-modprobe}"
+  if [[ -n "${BEAGLE_MODPROBE_BIN:-}" ]]; then
+    printf '%s\n' "$BEAGLE_MODPROBE_BIN"
+  elif command -v modprobe >/dev/null 2>&1; then
+    command -v modprobe
+  else
+    printf '%s\n' "/usr/sbin/modprobe"
+  fi
 }
 
 systemctl_bin() {

@@ -287,6 +287,18 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'if beagle_stream_broker_connection; then' in targeting_text
 
 
+def test_beaglestream_launcher_waits_for_manager_registration_before_stream_exec() -> None:
+    launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+
+    assert 'wait_for_beagle_stream_client_manager_registration()' in launcher_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-' in launcher_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-' in launcher_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_ATTEMPTS:-30' in launcher_text
+    assert 'beagle-stream-client.register-wait' in launcher_text
+    assert 'beagle-stream-client.register-wait-timeout' in launcher_text
+    assert launcher_text.index('wait_for_beagle_stream_client_manager_registration || {') < launcher_text.index('beagle-stream-client.exec')
+
+
 def test_beaglestream_launcher_restores_wireguard_peer_without_truncating_base64_padding() -> None:
     launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
     prepare_text = PREPARE_RUNTIME.read_text(encoding="utf-8")
@@ -329,7 +341,11 @@ def test_usbip_autobind_keeps_usb_audio_local_for_mic_bridge() -> None:
     defaults_text = (ROOT / "thin-client-assistant" / "installer" / "env-defaults.json").read_text(encoding="utf-8")
 
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_BRIDGE_ENABLED:-1' in usbipd_text
-    assert '01) audio_input_bridge_enabled && return 1 ;;' in usbipd_text
+    assert '01) audio_input_bridge_enabled && continue ;;' in usbipd_text
+    assert 'has_interface=1' in usbipd_text
+    assert '[[ "$has_interface" == "1" ]] || return 1' in usbipd_text
+    assert 'printf \'%s\\n\' "/usr/sbin/usbip"' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_runtime_env.sh").read_text(encoding="utf-8")
+    assert 'printf \'%s\\n\' "/usr/sbin/usbipd"' in actions_text
     assert 'beagle_audio_input_bridge.py' in actions_text
     assert '$(usb_attach_host):$(audio_input_remote_port):127.0.0.1:$(audio_input_local_port)' in actions_text
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT:-43200' in actions_text

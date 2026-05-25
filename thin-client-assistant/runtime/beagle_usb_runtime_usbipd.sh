@@ -45,7 +45,7 @@ ensure_usbipd() {
 _is_eligible_for_autobind() {
   local busid="$1"
   local devpath="/sys/bus/usb/devices/$busid"
-  local class iface_class_file iface_class has_useful
+  local class iface_class_file iface_class has_useful has_interface
 
   [[ -f "$devpath/bDeviceClass" ]] || return 1
   _usb_device_has_mounted_block_child "$busid" && return 1
@@ -59,11 +59,13 @@ _is_eligible_for_autobind() {
       # Class EF (IAD composite, e.g. webcams/microphones) also requires
       # interface inspection.
       has_useful=0
+      has_interface=0
       for iface_class_file in /sys/bus/usb/devices/${busid}:*/bInterfaceClass; do
         [[ -f "$iface_class_file" ]] || continue
+        has_interface=1
         iface_class="$(tr '[:upper:]' '[:lower:]' < "$iface_class_file" 2>/dev/null | tr -d '[:space:]')"
         case "$iface_class" in
-          01) audio_input_bridge_enabled && return 1 ;;  # USB audio stays local for realtime microphone streaming.
+          01) audio_input_bridge_enabled && continue ;;  # USB audio stays local unless the device also has another useful interface.
           03) continue ;;  # Ignore HID sub-interfaces on composite devices.
           e0) return 1 ;;  # Bluetooth controllers must stay local.
         esac
@@ -73,6 +75,7 @@ _is_eligible_for_autobind() {
           01|06|07|08|0a|0b|0e|ff) has_useful=1 ;;
         esac
       done
+      [[ "$has_interface" == "1" ]] || return 1
       [[ "$has_useful" == "1" ]] || return 1
       ;;
   esac
@@ -124,8 +127,10 @@ auto_bind_eligible_devices() {
     # Skip if already bound to usbip-host
     is_bound_to_usbip_host "$busid" && continue
     "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1 || true
-    "$usbip_cmd" bind   -b "$busid" >/dev/null 2>&1 && \
-      echo "beagle-usb: auto-bound $busid" >&2 || true
+    if "$usbip_cmd" bind -b "$busid" >/dev/null 2>&1; then
+      bound_add "$busid" >/dev/null 2>&1 || true
+      echo "beagle-usb: auto-bound $busid" >&2
+    fi
   done
 }
 
@@ -141,8 +146,10 @@ autobind_hotplug_device() {
   usbip_cmd="$(usbip_bin)"
   ensure_usbipd
   "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1 || true
-  "$usbip_cmd" bind   -b "$busid" >/dev/null 2>&1 && \
-    echo "beagle-usb: hotplug-bound $busid" >&2 || true
+  if "$usbip_cmd" bind -b "$busid" >/dev/null 2>&1; then
+    bound_add "$busid" >/dev/null 2>&1 || true
+    echo "beagle-usb: hotplug-bound $busid" >&2
+  fi
 }
 
 sync_bound_devices() {

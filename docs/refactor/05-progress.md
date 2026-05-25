@@ -1,3 +1,30 @@
+## Update (2026-05-25, frischer TC: USB/IP-Autobind und erster Stream-Start)
+
+**Scope**: Nach frischer Thinclient-Installation hing der erste Start bei "establishing connection to pc" bis der Launcher neu gestartet wurde; parallel kamen keine USB-Geraete in VM100 an.
+
+- **Root-Cause**:
+  - Der normale `thinclient`-User fand `usbip` nicht, weil `/usr/sbin` nicht im User-PATH lag.
+  - Die neue Audio-Bridge-Ausschlusslogik war zu breit und blockierte komplette Composite-Geraete, sobald ein Audio-Interface vorhanden war.
+  - Der Hostless-Fast-Launch konnte den Streamprozess starten, bevor die Manager-Registrierung des BeagleStream-Client-Zertifikats fertig propagiert war.
+
+- **Repo-Fix**:
+  - USB-Runtime loest `usbip`, `usbipd` und `modprobe` robust ueber `command -v` oder `/usr/sbin/*` auf.
+  - USB/IP-Autobind scannt Composite-Interfaces weiter: pure USB-Audio/HID/Bluetooth bleiben lokal, aber Video/Storage/Serial/Vendor-Composite-Geraete bleiben fuer VM-Forwarding erlaubt.
+  - Auto-gebundene USB-Busids werden im TC-Status persistiert.
+  - `launch-beagle-stream-client.sh` wartet vor dem Stream-Exec bounded auf erfolgreiche Manager-Registrierung und bricht sauber ab, statt zu frueh in den unpaired Streamzustand zu laufen.
+
+- **Live-Status**:
+  - Fresh TC `ubuntu-beagle-100` wurde hot gepatcht; `beagle-usb-tunnel.service` laeuft mit USB/IP `43100`, Audio-Bridge `43200` und Kamera-Tunnel `53100`.
+  - VM100 sieht die per USB/IP importierte Kamera `1bcf:0215` ueber `usbip://192.168.123.1:43100/1-2.1.3` und `/dev/video0`/`/dev/video1`.
+  - TC-Status zeigt 7 lokale USB-Geraete und `bound_count=1` fuer `1-2.1.3`.
+
+- **Verifikation**:
+  - `bash -n` fuer alle geaenderten TC-Runtime-Skripte.
+  - Fokussierte Regressionen: USB-Audio/Composite-Autobind und Launcher-Registrierungs-Gate gruen.
+  - Der breite Hostless-Regressions-Test hat weiterhin einen vorbestehenden `/api/pin`-Fund und wurde nicht als Abschlusskriterium fuer diesen Fix gewertet.
+
+---
+
 ## Update (2026-05-25, USB-Mikrofon von USB/IP auf Audio-Bridge umgestellt)
 
 **Scope**: VM100-Aufnahmen waren nach Pegel-Fix weiterhin stark zerkratzt/verzerrt. Der Befund zeigte auf USB/IP-Jitter bei USB-Audio statt auf Browser- oder Gain-Routing.

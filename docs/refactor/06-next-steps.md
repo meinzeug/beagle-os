@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-25, frischer TC: USB/IP und Start-Race gefixt)
+
+**Zuletzt erledigt**:
+- Fresh TC `ubuntu-beagle-100` wurde hot gepatcht und die Fixes liegen reproduzierbar im Repo.
+- VM100 sieht die USB/IP-Kamera wieder als importiertes Geraet und `/dev/video0`/`/dev/video1`.
+- Der Launcher wartet jetzt vor dem ersten Stream-Exec auf Manager-Registrierung, damit der erste Boot nicht in den unpaired/establishing-Zustand startet.
+
+**Naechste konkrete Schritte**:
+
+1. Beim naechsten frischen TC-Boot im Journal bestaetigen, dass `beagle-stream-client.registered` vor `beagle-stream-client.exec` erscheint.
+2. Danach im Browser/ChatGPT den Audio-Bridge-Mikrofontest wiederholen, um die verzerrte USB/IP-Mic-Aufnahme gegen `beagle_tc_microphone` abzugleichen.
+3. Den vorbestehenden Hostless-Test-Fund `/api/pin` separat bereinigen, damit `test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host` wieder komplett gruen wird.
+
+---
+
 ## Stand (2026-05-25, USB-Mikrofon Audio-Bridge)
 
 **Zuletzt erledigt**:

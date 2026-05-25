@@ -576,6 +576,28 @@ stop_stale_beagle_stream_processes() {
   fi
 }
 
+wait_for_beagle_stream_client_manager_registration() {
+  local attempt max_attempts retry_sleep host port
+
+  host="$(beagle_stream_client_connect_host)"
+  port="$(beagle_stream_client_port)"
+  [[ -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}" && -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}" ]] || return 0
+  max_attempts="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_ATTEMPTS:-30}"
+  retry_sleep="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_SLEEP:-2}"
+  attempt=1
+  while [[ "$attempt" -le "$max_attempts" ]]; do
+    if register_beagle_stream_client_via_manager; then
+      beagle_log_event "beagle-stream-client.registered" "host=${host} port=${port:-default} attempt=${attempt}/${max_attempts}"
+      return 0
+    fi
+    beagle_stream_client_stream_ready >/dev/null 2>&1 || true
+    beagle_log_event "beagle-stream-client.register-wait" "host=${host} port=${port:-default} attempt=${attempt}/${max_attempts}"
+    sleep "$retry_sleep"
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
 main() {
   local bin host connect_host app resolved_app audio_driver port
   local hostless_beagle_stream=0
@@ -765,6 +787,11 @@ main() {
         exit 1
       }
     fi
+    wait_for_beagle_stream_client_manager_registration || {
+      beagle_log_event "beagle-stream-client.register-wait-timeout" "host=${host} port=${port:-default}"
+      echo "Beagle Stream Client registration did not become ready for host '$host'." >&2
+      exit 1
+    }
   else
     beagle_stream_startup_status_step "5" "Hostless-Konfiguration synchronisieren" "Broker-Ziel lokal zwischenspeichern"
     if [[ -n "${host:-}" ]]; then
@@ -820,6 +847,11 @@ main() {
           exit 1
         }
       fi
+      wait_for_beagle_stream_client_manager_registration || {
+        beagle_log_event "beagle-stream-client.register-wait-timeout" "mode=hostless host=${host} port=${port:-default} fast_launch=${hostless_fast_launch}"
+        echo "Beagle Stream Client registration did not become ready for host '$host'." >&2
+        exit 1
+      }
     fi
     beagle_log_event "beagle-stream-client.beagle-stream-hostless" "app=${app} enrollment=$(beagle_stream_enrollment_config)"
   fi

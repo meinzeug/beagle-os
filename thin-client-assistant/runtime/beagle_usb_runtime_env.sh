@@ -29,7 +29,13 @@ usb_known_hosts_file() {
 }
 
 usbip_bin() {
-  printf '%s\n' "${BEAGLE_USBIP_BIN:-usbip}"
+  if [[ -n "${BEAGLE_USBIP_BIN:-}" ]]; then
+    printf '%s\n' "$BEAGLE_USBIP_BIN"
+  elif command -v usbip >/dev/null 2>&1; then
+    command -v usbip
+  else
+    printf '%s\n' "/usr/sbin/usbip"
+  fi
 }
 
 pgrep_bin() {

@@ -9,6 +9,7 @@
 - Added automatic USB microphone normalization for Ubuntu Beagle stream guests so USB/IP microphones become the default input, are unmuted, and receive a usable software gain instead of appearing present but effectively silent.
 - Added a standalone browser-based microphone test tool with record, stop, playback, USB microphone preference, waveform, live RMS/peak meters, and logfile-backed recorder/playback diagnostics for VM audio troubleshooting.
 - Added a dedicated thin-client microphone audio bridge that keeps USB Audio devices local by default, streams 48 kHz mono PCM over the existing SSH reverse tunnel, and exposes it in Ubuntu Beagle guests as a virtual PipeWire/Pulse source instead of relying on timing-sensitive USB/IP microphone forwarding.
+- Fixed fresh thin-client boot regressions by resolving `usbip`/`usbipd` from `/usr/sbin`, auto-binding useful composite USB devices while leaving pure USB audio local for the audio bridge, and waiting for manager registration before the first BeagleStream launch.
 
 ## v8.3.0 - 2026-05-23
 
