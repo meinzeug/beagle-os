@@ -48,6 +48,14 @@ def test_repo_auto_update_prefers_runtime_git_checkout_before_archive_rsync() ->
     assert 'initialize_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)' in script
 
 
+def test_repo_auto_update_migrates_existing_hosts_to_git_checkout_when_current() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    current_block = script.split("if current_commit and same_commit(current_commit, remote_commit):", 1)[1]
+    current_block = current_block.split('payload["state"] = "updating"', 1)[0]
+    assert 'initialize_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)' in current_block
+
+
 def test_repo_auto_update_marks_repo_healthy_before_artifact_refresh_finishes() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
 

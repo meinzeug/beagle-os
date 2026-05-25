@@ -445,6 +445,7 @@ if remote_version_proc.returncode == 0:
     payload["remote_version"] = (remote_version_proc.stdout or "").strip()
 
 if current_commit and same_commit(current_commit, remote_commit):
+    initialize_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)
     payload["state"] = "healthy"
     payload["reaction"] = "no_update"
     payload["message"] = "Installierter Repo-Stand ist aktuell."

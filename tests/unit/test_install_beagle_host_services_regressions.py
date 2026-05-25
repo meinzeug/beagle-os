@@ -77,6 +77,7 @@ def test_host_install_initializes_opt_beagle_as_git_checkout_when_source_is_git(
     script = HOST_INSTALL_SCRIPT.read_text(encoding="utf-8")
 
     assert "ensure_install_dir_git_checkout()" in script
+    assert '"$INSTALL_DIR/.beagle-installed-commit"' in script
     assert 'git -C "$INSTALL_DIR" init' in script
     assert 'git -C "$INSTALL_DIR" fetch --prune origin "$branch"' in script
     assert 'git -C "$INSTALL_DIR" reset --hard "$target"' in script

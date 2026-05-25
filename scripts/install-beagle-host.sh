@@ -233,7 +233,13 @@ source_repo_branch() {
 }
 
 source_repo_commit() {
-  git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || true
+  local commit=""
+
+  commit="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -z "$commit" && -f "$INSTALL_DIR/.beagle-installed-commit" ]]; then
+    commit="$(tr -d ' \n\r' < "$INSTALL_DIR/.beagle-installed-commit" 2>/dev/null || true)"
+  fi
+  printf '%s\n' "$commit"
 }
 
 remove_install_git_metadata() {
