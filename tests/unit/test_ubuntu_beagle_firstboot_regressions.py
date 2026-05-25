@@ -68,6 +68,22 @@ def test_firstboot_detects_beagle_stream_server_exec_path_dynamically() -> None:
     assert "ExecStart=/usr/local/bin/beagle-stream-server\n" not in script
 
 
+def test_firstboot_normalizes_usb_microphone_defaults() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_USB_MICROPHONE_VOLUME="${BEAGLE_USB_MICROPHONE_VOLUME:-250%}"' in script
+    assert "cat > /usr/local/bin/beagle-normalize-usb-microphones <<'EOF'" in script
+    assert "^alsa_input\\.usb-" in script
+    assert 'pactl set-default-source "$source_name"' in script
+    assert 'pactl set-source-mute "$source_name" 0' in script
+    assert 'pactl set-source-volume "$source_name" "$volume"' in script
+    assert 'beagle-usb-microphone-normalize.service' in script
+    assert 'beagle-usb-microphone-normalize.timer' in script
+    assert 'OnUnitActiveSec=30s' in script
+    assert 'install_usb_microphone_normalizer' in script
+    assert script.index('install_usb_microphone_normalizer') < script.index('systemctl enable --now beagle-stream-server.service')
+
+
 def test_firstboot_writes_beaglestream_config_before_sunshine_compat_copy() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 

@@ -24,6 +24,7 @@ BEAGLE_STREAM_SERVER_TOKEN="__BEAGLE_STREAM_SERVER_TOKEN__"
 BEAGLE_STREAM_SERVER_PORT="__BEAGLE_STREAM_SERVER_PORT__"
 BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"
 BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"
+BEAGLE_USB_MICROPHONE_VOLUME="${BEAGLE_USB_MICROPHONE_VOLUME:-250%}"
 BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED="__BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED__"
 CALLBACK_URL="__CALLBACK_URL__"
 CALLBACK_PINNED_PUBKEY="__CALLBACK_PINNED_PUBKEY__"
@@ -2194,6 +2195,61 @@ EOF
     nft -f /etc/beagle/beagle-stream-guest-guard.nft >/dev/null 2>&1 || true
   }
 
+  install_usb_microphone_normalizer() {
+    cat > /usr/local/bin/beagle-normalize-usb-microphones <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+volume="${BEAGLE_USB_MICROPHONE_VOLUME:-250%}"
+if ! command -v pactl >/dev/null 2>&1; then
+  exit 0
+fi
+
+source_name="$(pactl list short sources 2>/dev/null | awk '$2 ~ /^alsa_input\.usb-/ && $2 !~ /\.monitor$/ {print $2; exit}')"
+if [[ -z "$source_name" ]]; then
+  exit 0
+fi
+
+pactl set-default-source "$source_name" >/dev/null 2>&1 || true
+pactl set-source-mute "$source_name" 0 >/dev/null 2>&1 || true
+pactl set-source-volume "$source_name" "$volume" >/dev/null 2>&1 || true
+EOF
+    chmod 0755 /usr/local/bin/beagle-normalize-usb-microphones
+
+    cat > /etc/systemd/system/beagle-usb-microphone-normalize.service <<EOF
+[Unit]
+Description=Normalize Beagle USB microphone defaults
+After=display-manager.service
+Wants=display-manager.service
+
+[Service]
+Type=oneshot
+User=${GUEST_USER}
+Environment=HOME=/home/${GUEST_USER}
+Environment=XDG_RUNTIME_DIR=/run/user/${GUEST_UID}
+Environment=BEAGLE_USB_MICROPHONE_VOLUME=${BEAGLE_USB_MICROPHONE_VOLUME}
+ExecStart=/usr/local/bin/beagle-normalize-usb-microphones
+EOF
+
+    cat > /etc/systemd/system/beagle-usb-microphone-normalize.timer <<'EOF'
+[Unit]
+Description=Periodically normalize Beagle USB microphone defaults
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=beagle-usb-microphone-normalize.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl enable --now beagle-usb-microphone-normalize.timer >/dev/null 2>&1 || true
+    systemctl start beagle-usb-microphone-normalize.service >/dev/null 2>&1 || true
+  }
+
   # x11vnc: capture X11 display :0 so noVNC shows actual desktop (not QEMU VGA/TTY1)
   cat > /etc/systemd/system/beagle-x11vnc.service <<EOF
 [Unit]
@@ -2245,6 +2301,7 @@ EOF
     sleep 1
   done
   configure_stream_port_guard
+  install_usb_microphone_normalizer
   systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true
   systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
   systemctl enable beagle-x11vnc.service >/dev/null 2>&1 || true

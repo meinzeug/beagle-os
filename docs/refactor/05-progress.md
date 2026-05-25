@@ -18,6 +18,27 @@
 
 ---
 
+## Update (2026-05-25, VM100 USB-Mikrofon zu leise statt falsch geroutet)
+
+**Scope**: ChatGPT-Aufnahmen in VM100 wurden nach dem Absenden verworfen, obwohl das TC-USB-Mikrofon in der VM sichtbar war.
+
+- **Diagnose**:
+  - Chrome nahm beim ersten beobachteten Versuch korrekt von `alsa_input.usb-SC420_USB_Microphone...` auf, nicht vom Sunshine-Monitor.
+  - `chatgpt.com` hatte in Chrome die Mikrofonberechtigung (`setting=1`).
+  - Chrome-Log zeigte beim Verwerfen `DrainAsBlobDataHandle`, waehrend spaetere Versuche keinen neuen PipeWire-Capture-Event mehr oeffneten.
+  - Korrigierter PipeWire-Pegeltest ergab bei Standard-Gain praktisch Stille; bei 250 Prozent Software-Gain wurde ein verwertbarer Pegel erreicht (`rms=0.0115`, `peak=0.0940`, Status `ok`).
+
+- **Live-Fix auf VM100**:
+  - SC420 als Default-Source gesetzt.
+  - SC420 entmutet und auf 250 Prozent Input-Gain gesetzt.
+
+- **Repo-Fix**:
+  - Stream-Guest-Reconfigure und Ubuntu-Beagle-Firstboot installieren jetzt `/usr/local/bin/beagle-normalize-usb-microphones`.
+  - Ein systemd-Timer setzt USB-Mikrofone automatisch als Default-Input, entmutet sie und normalisiert den Pegel wiederkehrend, damit USB/IP-Spaetattach abgedeckt ist.
+  - Regressionstests decken beide Provisioning-Pfade ab.
+
+---
+
 ## Update (2026-05-25, `/opt/beagle` als Git-faehiger Runtime-Pfad)
 
 **Scope**: Live-Rollouts auf `srv1` zeigten, dass `/opt/beagle` zwar den aktuellen Runtime-Tree enthaelt, aber kein Git-Checkout ist. Dadurch mussten Hotfixes per SCP/Install kopiert werden, obwohl `repo-auto-update` intern bereits einen Git-Cache nutzt.

@@ -46,6 +46,7 @@ BEAGLE_STREAM_SERVER_HEALTHCHECK_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHEC
 BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_BOOT_DELAY_SEC:-20}"
 BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"
 BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"
+BEAGLE_USB_MICROPHONE_VOLUME="${BEAGLE_USB_MICROPHONE_VOLUME:-250%}"
 BEAGLE_CAMERA_STREAM_PORT="${BEAGLE_CAMERA_STREAM_PORT:-8091}"
 PUBLIC_STREAM_HOST_RAW="${PUBLIC_STREAM_HOST:-}"
 UPDATE_METADATA="${UPDATE_METADATA:-1}"
@@ -1331,6 +1332,61 @@ NFTGUARD
   nft -f /etc/beagle/beagle-stream-guest-guard.nft >/dev/null 2>&1 || true
 }
 
+install_usb_microphone_normalizer() {
+  cat > /usr/local/bin/beagle-normalize-usb-microphones <<'MICNORM'
+#!/usr/bin/env bash
+set -euo pipefail
+
+volume="\${BEAGLE_USB_MICROPHONE_VOLUME:-250%}"
+if ! command -v pactl >/dev/null 2>&1; then
+  exit 0
+fi
+
+source_name="\$(pactl list short sources 2>/dev/null | awk '\$2 ~ /^alsa_input\.usb-/ && \$2 !~ /\.monitor$/ {print \$2; exit}')"
+if [[ -z "\$source_name" ]]; then
+  exit 0
+fi
+
+pactl set-default-source "\$source_name" >/dev/null 2>&1 || true
+pactl set-source-mute "\$source_name" 0 >/dev/null 2>&1 || true
+pactl set-source-volume "\$source_name" "\$volume" >/dev/null 2>&1 || true
+MICNORM
+  chmod 0755 /usr/local/bin/beagle-normalize-usb-microphones
+
+  cat > /etc/systemd/system/beagle-usb-microphone-normalize.service <<MICNORMSVC
+[Unit]
+Description=Normalize Beagle USB microphone defaults
+After=display-manager.service
+Wants=display-manager.service
+
+[Service]
+Type=oneshot
+User=\$GUEST_USER
+Environment=HOME=/home/\$GUEST_USER
+Environment=XDG_RUNTIME_DIR=/run/user/\$GUEST_UID
+Environment=BEAGLE_USB_MICROPHONE_VOLUME=${BEAGLE_USB_MICROPHONE_VOLUME}
+ExecStart=/usr/local/bin/beagle-normalize-usb-microphones
+MICNORMSVC
+
+  cat > /etc/systemd/system/beagle-usb-microphone-normalize.timer <<'MICNORMTIMER'
+[Unit]
+Description=Periodically normalize Beagle USB microphone defaults
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=beagle-usb-microphone-normalize.service
+
+[Install]
+WantedBy=timers.target
+MICNORMTIMER
+
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl enable --now beagle-usb-microphone-normalize.timer >/dev/null 2>&1 || true
+  systemctl start beagle-usb-microphone-normalize.service >/dev/null 2>&1 || true
+}
+
 systemctl disable beagle-stream-server >/dev/null 2>&1 || true
 systemctl stop beagle-stream-server >/dev/null 2>&1 || true
 systemctl disable --now beagle-sunshine.service >/dev/null 2>&1 || true
@@ -1357,6 +1413,7 @@ for _ in {1..60}; do
   sleep 1
 done
 configure_stream_port_guard
+install_usb_microphone_normalizer
 
 # Activate WireGuard interface for VPN access from thinclient
 activate_wireguard_stream_endpoint() {

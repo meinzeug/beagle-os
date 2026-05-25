@@ -87,6 +87,21 @@ def test_configure_beagle_stream_server_guest_keeps_beagle_plasma_default() -> N
     assert 'cat > /etc/lightdm/lightdm.conf.d/60-pve-thin-client.conf <<GUESTCFG' not in content
 
 
+def test_configure_beagle_stream_server_guest_normalizes_usb_microphones() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_USB_MICROPHONE_VOLUME="${BEAGLE_USB_MICROPHONE_VOLUME:-250%}"' in content
+    assert 'cat > /usr/local/bin/beagle-normalize-usb-microphones <<\'MICNORM\'' in content
+    assert "^alsa_input\\.usb-" in content
+    assert 'pactl set-default-source "\\$source_name"' in content
+    assert 'pactl set-source-mute "\\$source_name" 0' in content
+    assert 'pactl set-source-volume "\\$source_name" "\\$volume"' in content
+    assert 'beagle-usb-microphone-normalize.service' in content
+    assert 'beagle-usb-microphone-normalize.timer' in content
+    assert 'OnUnitActiveSec=30s' in content
+    assert 'install_usb_microphone_normalizer' in content
+
+
 def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_baseline() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 

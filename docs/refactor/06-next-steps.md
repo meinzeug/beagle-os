@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-25, VM100 USB-Mikrofon-Normalisierung)
+
+**Zuletzt erledigt**:
+- VM100-Mikrofonrouting eingegrenzt: Chrome nahm korrekt vom SC420-USB-Mikrofon auf; das Problem war ein praktisch stummer Input-Pegel.
+- Live-Test mit 250 Prozent PipeWire-Gain ergab verwertbaren Pegel (`rms=0.0115`, `peak=0.0940`).
+- Stream-Guest-Reconfigure und Firstboot-Template installieren nun einen systemd-Timer, der USB-Mikrofone automatisch als Default-Input setzt, entmutet und mit brauchbarem Gain normalisiert.
+
+**Naechste konkrete Schritte**:
+
+1. Auf VM100 nach dem ausgerollten Timer ChatGPT-Sprachaufnahme erneut testen und pruefen, ob der Clip nicht mehr als leer verworfen wird.
+2. Den Timerstatus auf VM100 pruefen: `systemctl status beagle-usb-microphone-normalize.timer` und `pactl get-source-volume @DEFAULT_SOURCE@`.
+3. Beim naechsten frischen Ubuntu-Beagle-Guest pruefen, dass USB/IP-Mikrofone nach Spaetattach ohne manuellen Eingriff Default-Input und brauchbaren Pegel haben.
+
+---
+
 ## Stand (2026-05-25, `/opt/beagle` Git-Runtime-Pfad)
 
 **Zuletzt erledigt**:
