@@ -52,6 +52,13 @@ pulse_health_ready() {
     pactl info >/dev/null 2>&1
 }
 
+pactl_safe() {
+  local timeout_secs
+  timeout_secs="${PVE_THIN_CLIENT_AUDIO_PACTL_TIMEOUT_SECS:-3}"
+  command -v pactl >/dev/null 2>&1 || return 127
+  timeout "$timeout_secs" pactl "$@"
+}
+
 restart_audio_stack() {
   local runtime_dir
 
@@ -80,8 +87,25 @@ restart_audio_stack() {
 }
 
 ensure_audio_stack() {
+  local lock_file lock_wait
+
   export HOME="${HOME:-/home/thinclient}"
   export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  lock_file="${XDG_RUNTIME_DIR}/pve-thin-client-audio-init.lock"
+  lock_wait="${PVE_THIN_CLIENT_AUDIO_LOCK_WAIT_SECS:-15}"
+
+  if command -v flock >/dev/null 2>&1; then
+    {
+      flock -w "$lock_wait" 9 || return 0
+      _ensure_audio_stack_unlocked
+    } 9>"$lock_file"
+    return 0
+  fi
+
+  _ensure_audio_stack_unlocked
+}
+
+_ensure_audio_stack_unlocked() {
   # On live/stateless boots systemd-logind may not create /run/user/<uid>.
   # Use the privileged helper when the directory is missing.
   if [[ ! -d "$XDG_RUNTIME_DIR" ]]; then
@@ -227,7 +251,7 @@ configure_alsa() {
 sink_exists() {
   local sink_name="${1:-}"
   [[ -n "$sink_name" ]] || return 1
-  pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -Fxq "$sink_name"
+  pactl_safe list short sinks 2>/dev/null | awk '{print $2}' | grep -Fxq "$sink_name"
 }
 
 select_sink() {
@@ -249,37 +273,37 @@ select_sink() {
   # First try: RUNNING PCI/onboard sink.
   while IFS= read -r candidate; do
     [[ "${candidate,,}" =~ (^|[._-])pci- ]] && { printf '%s\n' "$candidate"; return 0; }
-  done < <(pactl list short sinks 2>/dev/null | awk '$5 == "RUNNING" {print $2}')
+  done < <(pactl_safe list short sinks 2>/dev/null | awk '$5 == "RUNNING" {print $2}')
 
   # Second try: RUNNING non-USB sink.
   while IFS= read -r candidate; do
     is_usb_sink "$candidate" || { printf '%s\n' "$candidate"; return 0; }
-  done < <(pactl list short sinks 2>/dev/null | awk '$5 == "RUNNING" {print $2}')
+  done < <(pactl_safe list short sinks 2>/dev/null | awk '$5 == "RUNNING" {print $2}')
 
   # Third try: any PCI/onboard sink.
   while IFS= read -r candidate; do
     [[ "${candidate,,}" =~ (^|[._-])pci- ]] && { printf '%s\n' "$candidate"; return 0; }
-  done < <(pactl list short sinks 2>/dev/null | awk '{print $2}')
+  done < <(pactl_safe list short sinks 2>/dev/null | awk '{print $2}')
 
   # Fourth try: any analog-stereo sink that is not USB.
   while IFS= read -r candidate; do
     is_usb_sink "$candidate" || { printf '%s\n' "$candidate"; return 0; }
-  done < <(pactl list short sinks 2>/dev/null | awk '/analog-stereo/ {print $2}')
+  done < <(pactl_safe list short sinks 2>/dev/null | awk '/analog-stereo/ {print $2}')
 
   # Fifth try: first available sink that is not USB.
   while IFS= read -r candidate; do
     is_usb_sink "$candidate" || { printf '%s\n' "$candidate"; return 0; }
-  done < <(pactl list short sinks 2>/dev/null | awk '{print $2}')
+  done < <(pactl_safe list short sinks 2>/dev/null | awk '{print $2}')
 
   # Last resort: first sink regardless of type
-  pactl list short sinks 2>/dev/null | awk 'NR==1 {print $2; exit}'
+  pactl_safe list short sinks 2>/dev/null | awk 'NR==1 {print $2; exit}'
 }
 
 sink_active_port() {
   local sink="${1:-}"
   [[ -n "$sink" ]] || return 1
 
-  pactl list sinks 2>/dev/null | awk -v sink="$sink" '
+  pactl_safe list sinks 2>/dev/null | awk -v sink="$sink" '
     $1=="Name:" { in_sink=($2==sink) }
     in_sink && $1=="Active" && $2=="Port:" { print $3; exit }
   '
@@ -290,7 +314,7 @@ sink_port_state() {
   local port="${2:-}"
   [[ -n "$sink" && -n "$port" ]] || return 1
 
-  pactl list sinks 2>/dev/null | awk -v sink="$sink" -v port="$port" '
+  pactl_safe list sinks 2>/dev/null | awk -v sink="$sink" -v port="$port" '
     $1=="Name:" { in_sink=($2==sink) }
     in_sink && $1==(port ":") {
       line=$0
@@ -347,23 +371,23 @@ configure_pulse() {
   local sink active_port target_port
 
   command -v pactl >/dev/null 2>&1 || return 0
-  pactl info >/dev/null 2>&1 || return 0
+  pactl_safe info >/dev/null 2>&1 || return 0
 
   sink="$(select_sink)"
   [[ -n "$sink" ]] || return 0
 
-  pactl set-default-sink "$sink" >/dev/null 2>&1 || true
-  pactl set-sink-mute "$sink" 0 >/dev/null 2>&1 || true
-  pactl set-sink-volume "$sink" 100% >/dev/null 2>&1 || true
+  pactl_safe set-default-sink "$sink" >/dev/null 2>&1 || true
+  pactl_safe set-sink-mute "$sink" 0 >/dev/null 2>&1 || true
+  pactl_safe set-sink-volume "$sink" 100% >/dev/null 2>&1 || true
   target_port="$(select_sink_port "$sink" || true)"
   active_port="$(sink_active_port "$sink" || true)"
   if [[ -n "$target_port" ]] && [[ "$target_port" != "$active_port" ]]; then
-    pactl set-sink-port "$sink" "$target_port" >/dev/null 2>&1 || true
+    pactl_safe set-sink-port "$sink" "$target_port" >/dev/null 2>&1 || true
   fi
 
-  pactl list short sink-inputs 2>/dev/null | while read -r input_id _; do
+  pactl_safe list short sink-inputs 2>/dev/null | while read -r input_id _; do
     [[ -n "${input_id:-}" ]] || continue
-    pactl move-sink-input "$input_id" "$sink" >/dev/null 2>&1 || true
+    pactl_safe move-sink-input "$input_id" "$sink" >/dev/null 2>&1 || true
   done
 }
 
@@ -372,7 +396,7 @@ wait_for_pulse() {
   local i
 
   for i in $(seq 1 "$tries"); do
-    if pactl info >/dev/null 2>&1; then
+    if pactl_safe info >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
@@ -386,7 +410,7 @@ wait_for_sinks() {
   local i
 
   for i in $(seq 1 "$tries"); do
-    if pactl list short sinks 2>/dev/null | grep -q .; then
+    if pactl_safe list short sinks 2>/dev/null | grep -q .; then
       return 0
     fi
     sleep 1

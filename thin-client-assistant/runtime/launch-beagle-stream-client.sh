@@ -602,7 +602,9 @@ main() {
   connect_host="$(beagle_stream_client_connect_host)"
 
   if command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
-    if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_INIT_MODE:-sync}" == "sync" ]]; then
+    if pgrep -f '^bash /usr/local/bin/pve-thin-client-audio-init --watch' >/dev/null 2>&1; then
+      beagle_log_event "beagle-stream-client.audio-init" "mode=skip-sync reason=watcher-active"
+    elif [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_INIT_MODE:-sync}" == "sync" ]]; then
       /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1 || true
     fi
     if ! pgrep -f '^bash /usr/local/bin/pve-thin-client-audio-init --watch' >/dev/null 2>&1; then
@@ -982,7 +984,11 @@ main() {
       if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi "Failed to open audio device|Couldn't open audio device: Host is down"; then
         if [[ "$stream_audio_repair_attempted" -eq 0 ]] && command -v /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1; then
           beagle_log_event "beagle-stream-client.repair" "attempt=${stream_attempt}/${max_attempts} action=audio-runtime-reinit reason=audio-device-host-down"
-          /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1 || true
+          if pgrep -f '^bash /usr/local/bin/pve-thin-client-audio-init --watch' >/dev/null 2>&1; then
+            beagle_log_event "beagle-stream-client.audio-init" "mode=skip-sync reason=watcher-active attempt=${stream_attempt}/${max_attempts}"
+          else
+            /usr/local/bin/pve-thin-client-audio-init >/dev/null 2>&1 || true
+          fi
           if ! pgrep -f '^bash /usr/local/bin/pve-thin-client-audio-init --watch' >/dev/null 2>&1; then
             /usr/local/bin/pve-thin-client-audio-init --watch "${PVE_THIN_CLIENT_AUDIO_WATCH_LOOPS:-0}" >/dev/null 2>&1 &
           fi
