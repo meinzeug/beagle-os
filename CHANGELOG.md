@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added automatic BeagleStream/Sunshine RTSP port-conflict self-healing for Ubuntu guest runtime provisioning: a new `beagle-stream-server-preflight` now runs before service start, clears stale Sunshine instances, attempts RTSP port cleanup, and fails fast when the port remains blocked.
+- Extended BeagleStream guest healthchecks to detect duplicate Sunshine processes and non-Sunshine listeners on the configured RTSP port, then trigger an automatic service repair cycle instead of requiring manual operator cleanup.
+
 ## v8.3.0 - 2026-05-23
 
 - Stabilized BeagleStream endpoint pairing in broker mode by adding manager-side pin-compat fallback when token-native pairing is not available on the stream server.

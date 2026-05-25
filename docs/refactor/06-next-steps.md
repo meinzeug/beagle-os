@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-25, Sunshine-RTSP-Self-Heal ausgerollt)
+
+**Zuletzt erledigt**:
+- VM-Gast-Provisioning schreibt jetzt `beagle-stream-server-preflight` und fuehrt ihn vor jedem BeagleStream/Sunshine-Start aus.
+- Der Healthcheck erkennt und repariert RTSP-Portkonflikte (doppelte Sunshine-Prozesse, falscher Listener auf RTSP-Port) automatisch.
+- Der identische Fix ist sowohl im laufenden Guest-Konfig-Skript als auch im Firstboot-Template hinterlegt.
+
+**Naechste konkrete Schritte**:
+
+1. Auf `srv1` den Guest-Konfig-Run fuer VM100 erneut ausfuehren und verifizieren, dass `ExecStartPre=/usr/local/bin/beagle-stream-server-preflight` in `beagle-stream-server.service` aktiv ist.
+2. Negativtest fahren: absichtlich einen zweiten Sunshine-Prozess/RTSP-Portkonflikt erzeugen und belegen, dass Preflight+Healthcheck ohne manuelle SSH-Eingriffe wieder in einen stabilen Single-Instance-Zustand kommen.
+3. Danach den Nachweis in `docs/lasthope/04-validation-matrix.md` bzw. passender Checklist als reproduzierbaren D2-Runtime-Guard eintragen.
+
+---
+
 ## Stand (2026-05-17, WebUI 429-Bursts)
 
 **Zuletzt erledigt**:

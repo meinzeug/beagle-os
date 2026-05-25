@@ -1,3 +1,24 @@
+## Update (2026-05-25, Sunshine/RTSP-Portkonflikt automatisch self-heal)
+
+**Scope**: Der VM100-Audioausfall durch doppelte Sunshine-Prozesse und belegten RTSP-Port (`50021`) wurde von manuellem Incident-Fix auf reproduzierbare Runtime-Automatik umgestellt.
+
+- **Root-Cause**:
+  - Sunshine lief teilweise doppelt (Hauptprozess + zusaetzlicher Prozess), wodurch der RTSP-Port blockiert blieb.
+  - Bei Portkollision startete Sunshine nur teilweise; `sink-sunshine-*` Endpunkte fehlten und Audio-Routing brach sichtbar weg.
+
+- **Repo-Fix**:
+  - `scripts/configure-beagle-stream-server-guest.sh` schreibt jetzt `/usr/local/bin/beagle-stream-server-preflight` in den Gast.
+  - `beagle-stream-server.service` fuehrt den Preflight als `ExecStartPre` aus, bevor Sunshine startet.
+  - Preflight raeumt stale Sunshine-Prozesse auf, versucht RTSP-Port-Freigabe per `fuser -k` und bricht bei weiter belegtem Port kontrolliert ab.
+  - `beagle-stream-server-healthcheck` erkennt jetzt zusaetzlich RTSP-Konflikte (mehrere Sunshine-Prozesse oder Listener auf RTSP-Port ohne Sunshine) und triggert automatischen Service-Restart.
+  - `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl` wurde identisch nachgezogen, damit frisch provisionierte Ubuntu-Beagle-Gaeste denselben Self-Heal-Pfad erhalten.
+
+- **Betriebswirkung**:
+  - Port-/Prozesskonflikte werden beim naechsten Service-Start und zyklisch ueber den Healthcheck automatisch bereinigt.
+  - Der bekannte manuelle Incident-Runbook-Schritt "Sunshine-Portkonflikt per Hand killen" wird fuer Standardfaelle ersetzt.
+
+---
+
 ## Update (2026-05-17, WebUI 429-Bursts reduziert)
 
 **Scope**: Nach dem VM-Config-Smoke tauchten `429 Too Many Requests`-Warnungen

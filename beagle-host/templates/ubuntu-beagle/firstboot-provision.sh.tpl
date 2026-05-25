@@ -1957,6 +1957,7 @@ Environment=XDG_RUNTIME_DIR=/run/user/${GUEST_UID}
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${GUEST_UID}/bus
 Environment=PULSE_SERVER=unix:/run/user/${GUEST_UID}/pulse/native
 EnvironmentFile=-/etc/beagle/stream-server.env
+ExecStartPre=/usr/local/bin/beagle-stream-server-preflight
 ExecStartPre=/bin/bash -lc 'pulse_socket="/run/user/${GUEST_UID}/pulse/native"; for _ in {1..180}; do if [[ -S /tmp/.X11-unix/X0 && -s /home/${GUEST_USER}/.Xauthority && -d /run/user/${GUEST_UID} && -S /run/user/${GUEST_UID}/bus && -S "\$pulse_socket" ]] && DISPLAY=:0 XAUTHORITY=/home/${GUEST_USER}/.Xauthority xrandr --query >/dev/null 2>&1; then sleep 5; exit 0; fi; sleep 1; done; echo "Timed out waiting for an active graphical/audio session on :0" >&2; exit 1'
 ExecStart=${BEAGLE_STREAM_SERVER_EXEC}
 Restart=always
@@ -1978,6 +1979,32 @@ GUEST_UID=${GUEST_UID}
 EOF
   chmod 0600 /etc/beagle/beagle-stream-server-healthcheck.env
 
+  cat > /usr/local/bin/beagle-stream-server-preflight <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+stream_port="${BEAGLE_STREAM_SERVER_PORT:-50000}"
+if ! [[ "$stream_port" =~ ^[0-9]+$ ]]; then
+  stream_port="50000"
+fi
+rtsp_port="$((stream_port + 21))"
+
+# Sunshine can leave stale helper instances that keep RTSP bound.
+pkill -x sunshine >/dev/null 2>&1 || true
+sleep 1
+
+# Best-effort cleanup for any remaining listener before start.
+if command -v fuser >/dev/null 2>&1; then
+  fuser -k "${rtsp_port}/tcp" >/dev/null 2>&1 || true
+fi
+
+if ss -H -ltn "( sport = :${rtsp_port} )" 2>/dev/null | grep -q .; then
+  echo "beagle-stream-server-preflight: RTSP port ${rtsp_port} still busy" >&2
+  exit 1
+fi
+EOF
+  chmod 0755 /usr/local/bin/beagle-stream-server-preflight
+
   cat > /usr/local/bin/beagle-stream-server-healthcheck <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -1997,6 +2024,10 @@ repair="${1:-}"
 api_port=47990
 if [[ -n "$BEAGLE_STREAM_SERVER_PORT" ]]; then
   api_port="$((BEAGLE_STREAM_SERVER_PORT + 1))"
+fi
+rtsp_port=50021
+if [[ -n "$BEAGLE_STREAM_SERVER_PORT" && "$BEAGLE_STREAM_SERVER_PORT" =~ ^[0-9]+$ ]]; then
+  rtsp_port="$((BEAGLE_STREAM_SERVER_PORT + 21))"
 fi
 
 ensure_runtime() {
@@ -2030,6 +2061,23 @@ is_api_ready() {
     "https://127.0.0.1:${api_port}/api/apps" >/dev/null
 }
 
+has_rtsp_port_conflict() {
+  local listeners sunshine_count
+
+  listeners="$(ss -lntp 2>/dev/null | awk -v p=":${rtsp_port}" '$4 ~ p"$" {print $0}')"
+  [[ -n "$listeners" ]] || return 1
+
+  sunshine_count="$(pgrep -x sunshine 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ "${sunshine_count:-0}" -gt 1 ]]; then
+    return 0
+  fi
+
+  if printf '%s\n' "$listeners" | grep -q "sunshine"; then
+    return 1
+  fi
+  return 0
+}
+
 ensure_timer
 
 if [[ "$repair" == "--repair-only" ]]; then
@@ -2043,6 +2091,11 @@ if ! systemctl is-active --quiet beagle-stream-server.service; then
 fi
 
 if ! pgrep -x sunshine >/dev/null 2>&1; then
+  restart_stack
+  exit 0
+fi
+
+if has_rtsp_port_conflict; then
   restart_stack
   exit 0
 fi
