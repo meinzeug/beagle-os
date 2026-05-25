@@ -20,7 +20,7 @@
   - [x] `app/beagle/BeagleVPN.cpp` (WireGuard-Integration)
   - [x] Beagle-Branding (Name, Icons, About)
   - [x] In Thin-Client-OS-Image gebundelt: Build versucht standardmaessig `meinzeug/beagle-stream-client` Release `beagle-phase-a` und kann per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL` ueberschrieben werden; Runtime startet bei Enrollment ohne statischen Host hostless gegen den Broker.
-  - [ ] CLI/UI auf Pairing-Token statt PIN umbenennen; Beagle-Runtime darf keine neue PIN-Benennung einfuehren.
+  - [x] CLI/UI auf Pairing-Token statt PIN umbenennen; Beagle-Runtime darf keine neue PIN-Benennung einfuehren.
   - [x] Beide Forks: versionierte Release-Artefakte mit Commit-SHA, Checksummen und Beagle-Integrationstest; Beagle OS pinnt diese Artefakte explizit im Build.
   - [x] Broker-Start nutzt explizit `host:port app`, wenn der Manager ein Ziel geliefert hat; stale lokale Hosteintraege duerfen nicht gewinnen. Live-Hotfix/Abnahme 2026-05-04: lokaler Thinclient `ubuntu-beagle-100` meldet `broker_allocation_reachable=1`, `beagle_stream_client_target_reachable=1`, `update_state=current`.
   - [x] Manager-Ziel gewinnt immer gegen stale lokale Config; Pairing/UI/CLI spricht von Token, nicht PIN.
