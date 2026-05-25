@@ -7,6 +7,7 @@
 - Made host installs git-aware: fresh `/opt/beagle` runtime trees are initialized as managed Git checkouts when the source commit is available, and repo auto-update now prefers `git fetch` plus `git reset --hard` before falling back to archive/rsync deployment.
 - Prevented BeagleStream guest reconfiguration from downgrading Ubuntu Beagle desktops to XFCE by default; the script now defaults to the Beagle Plasma desktop and removes the legacy `60-pve-thin-client.conf` LightDM override.
 - Added automatic USB microphone normalization for Ubuntu Beagle stream guests so USB/IP microphones become the default input, are unmuted, and receive a usable software gain instead of appearing present but effectively silent.
+- Added a standalone browser-based microphone test tool with record, stop, playback, device selection, waveform, and live RMS/peak meters for VM audio diagnostics.
 
 ## v8.3.0 - 2026-05-23
 

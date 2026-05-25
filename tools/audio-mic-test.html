@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beagle Audio Mic Test</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #121416;
+      --panel: #1c2126;
+      --panel-2: #252b31;
+      --text: #eef2f4;
+      --muted: #a8b2bb;
+      --line: #3a424a;
+      --accent: #30d39c;
+      --warn: #ffcc66;
+      --danger: #ff6b6b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(920px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .status {
+      min-width: 180px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--muted);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .status[data-state="recording"] {
+      color: var(--danger);
+      border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+    }
+
+    .status[data-state="ready"] {
+      color: var(--accent);
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+    }
+
+    .surface {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 14px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 14px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) auto auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    select,
+    button {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--text);
+      font: inherit;
+    }
+
+    select {
+      width: 100%;
+      padding: 0 10px;
+    }
+
+    button {
+      min-width: 104px;
+      padding: 0 14px;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+      background: #173a31;
+      color: #f4fffb;
+    }
+
+    button.stop {
+      border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+      background: #3c2024;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.48;
+    }
+
+    .meters {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 132px 132px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .bar {
+      height: 28px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #0c0f11;
+    }
+
+    .bar > div {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--warn), var(--danger));
+      transition: width 80ms linear;
+    }
+
+    .readout {
+      min-height: 54px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--muted);
+    }
+
+    .readout strong {
+      display: block;
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    audio {
+      width: 100%;
+      display: block;
+      margin-top: 10px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 160px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #0c0f11;
+    }
+
+    .log {
+      height: 150px;
+      overflow: auto;
+      white-space: pre-wrap;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    @media (max-width: 760px) {
+      header,
+      .controls,
+      .meters {
+        grid-template-columns: 1fr;
+        display: grid;
+      }
+
+      .status {
+        text-align: left;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Beagle Audio Mic Test</h1>
+      <div id="status" class="status" data-state="idle">idle</div>
+    </header>
+
+    <section class="surface">
+      <div class="panel controls">
+        <select id="deviceSelect" aria-label="Microphone"></select>
+        <button id="recordButton" class="primary" type="button">Record</button>
+        <button id="stopButton" class="stop" type="button" disabled>Stop</button>
+        <button id="playButton" type="button" disabled>Play</button>
+      </div>
+
+      <div class="panel meters">
+        <div class="bar" aria-label="Input level"><div id="levelBar"></div></div>
+        <div class="readout"><strong id="rmsValue">0.000</strong>RMS</div>
+        <div class="readout"><strong id="peakValue">0.000</strong>Peak</div>
+      </div>
+
+      <div class="panel">
+        <canvas id="waveform" width="1200" height="240"></canvas>
+        <audio id="player" controls></audio>
+      </div>
+
+      <div class="panel log" id="log"></div>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      stream: null,
+      recorder: null,
+      chunks: [],
+      audioContext: null,
+      analyser: null,
+      animationFrame: 0,
+      lastBlobUrl: '',
+      startedAt: 0,
+      rms: 0,
+      peak: 0,
+    };
+
+    const deviceSelect = document.getElementById('deviceSelect');
+    const recordButton = document.getElementById('recordButton');
+    const stopButton = document.getElementById('stopButton');
+    const playButton = document.getElementById('playButton');
+    const player = document.getElementById('player');
+    const statusEl = document.getElementById('status');
+    const levelBar = document.getElementById('levelBar');
+    const rmsValue = document.getElementById('rmsValue');
+    const peakValue = document.getElementById('peakValue');
+    const logEl = document.getElementById('log');
+    const canvas = document.getElementById('waveform');
+    const canvasContext = canvas.getContext('2d');
+
+    function log(message) {
+      const stamp = new Date().toLocaleTimeString();
+      logEl.textContent = `[${stamp}] ${message}\n${logEl.textContent}`;
+    }
+
+    function setStatus(text, stateName = 'idle') {
+      statusEl.textContent = text;
+      statusEl.dataset.state = stateName;
+    }
+
+    function resetMeter() {
+      state.rms = 0;
+      state.peak = 0;
+      levelBar.style.width = '0%';
+      rmsValue.textContent = '0.000';
+      peakValue.textContent = '0.000';
+    }
+
+    async function loadDevices() {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((device) => device.kind === 'audioinput');
+      deviceSelect.replaceChildren();
+      inputs.forEach((device, index) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.textContent = device.label || `Microphone ${index + 1}`;
+        deviceSelect.append(option);
+      });
+      log(`microphones=${inputs.length}`);
+    }
+
+    function drawMeter() {
+      if (!state.analyser) {
+        return;
+      }
+      const samples = new Float32Array(state.analyser.fftSize);
+      state.analyser.getFloatTimeDomainData(samples);
+      let sum = 0;
+      let peak = 0;
+      for (const sample of samples) {
+        const abs = Math.abs(sample);
+        sum += sample * sample;
+        if (abs > peak) peak = abs;
+      }
+      const rms = Math.sqrt(sum / samples.length);
+      state.rms = Math.max(state.rms * 0.88, rms);
+      state.peak = Math.max(state.peak * 0.92, peak);
+      rmsValue.textContent = state.rms.toFixed(3);
+      peakValue.textContent = state.peak.toFixed(3);
+      levelBar.style.width = `${Math.min(100, Math.round(state.peak * 140))}%`;
+
+      canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+      canvasContext.strokeStyle = '#30d39c';
+      canvasContext.lineWidth = 2;
+      canvasContext.beginPath();
+      const middle = canvas.height / 2;
+      for (let index = 0; index < samples.length; index += 1) {
+        const x = (index / (samples.length - 1)) * canvas.width;
+        const y = middle + samples[index] * middle * 0.9;
+        if (index === 0) canvasContext.moveTo(x, y);
+        else canvasContext.lineTo(x, y);
+      }
+      canvasContext.stroke();
+      state.animationFrame = requestAnimationFrame(drawMeter);
+    }
+
+    async function startRecording() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus('media unavailable');
+        log('getUserMedia is not available');
+        return;
+      }
+
+      await stopStream();
+      resetMeter();
+      state.chunks = [];
+      const deviceId = deviceSelect.value;
+      const constraints = {
+        audio: {
+          deviceId: deviceId ? { exact: deviceId } : undefined,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 1,
+        },
+        video: false,
+      };
+
+      state.stream = await navigator.mediaDevices.getUserMedia(constraints);
+      await loadDevices();
+
+      state.audioContext = new AudioContext();
+      const source = state.audioContext.createMediaStreamSource(state.stream);
+      state.analyser = state.audioContext.createAnalyser();
+      state.analyser.fftSize = 2048;
+      source.connect(state.analyser);
+
+      state.recorder = new MediaRecorder(state.stream, { audioBitsPerSecond: 128000 });
+      state.recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) state.chunks.push(event.data);
+      };
+      state.recorder.onstop = finalizeRecording;
+      state.startedAt = performance.now();
+      state.recorder.start(250);
+      drawMeter();
+
+      recordButton.disabled = true;
+      stopButton.disabled = false;
+      playButton.disabled = true;
+      setStatus('recording', 'recording');
+      log(`recording device=${deviceSelect.selectedOptions[0]?.textContent || 'default'}`);
+    }
+
+    async function stopStream() {
+      if (state.animationFrame) {
+        cancelAnimationFrame(state.animationFrame);
+        state.animationFrame = 0;
+      }
+      if (state.stream) {
+        state.stream.getTracks().forEach((track) => track.stop());
+        state.stream = null;
+      }
+      if (state.audioContext) {
+        await state.audioContext.close().catch(() => {});
+        state.audioContext = null;
+      }
+      state.analyser = null;
+    }
+
+    async function stopRecording() {
+      if (state.recorder && state.recorder.state !== 'inactive') {
+        state.recorder.stop();
+      } else {
+        await stopStream();
+      }
+      stopButton.disabled = true;
+      setStatus('processing');
+    }
+
+    async function finalizeRecording() {
+      await stopStream();
+      const duration = (performance.now() - state.startedAt) / 1000;
+      const blob = new Blob(state.chunks, { type: state.recorder?.mimeType || 'audio/webm' });
+      if (state.lastBlobUrl) URL.revokeObjectURL(state.lastBlobUrl);
+      state.lastBlobUrl = URL.createObjectURL(blob);
+      player.src = state.lastBlobUrl;
+      recordButton.disabled = false;
+      playButton.disabled = blob.size === 0;
+      setStatus('ready', 'ready');
+      log(`recorded seconds=${duration.toFixed(1)} bytes=${blob.size} rms=${state.rms.toFixed(3)} peak=${state.peak.toFixed(3)}`);
+    }
+
+    recordButton.addEventListener('click', () => {
+      startRecording().catch((error) => {
+        recordButton.disabled = false;
+        stopButton.disabled = true;
+        setStatus('error');
+        log(`${error.name}: ${error.message}`);
+      });
+    });
+
+    stopButton.addEventListener('click', () => {
+      stopRecording().catch((error) => log(`${error.name}: ${error.message}`));
+    });
+
+    playButton.addEventListener('click', () => {
+      player.currentTime = 0;
+      player.play().catch((error) => log(`${error.name}: ${error.message}`));
+    });
+
+    navigator.mediaDevices?.addEventListener?.('devicechange', loadDevices);
+    loadDevices().catch((error) => log(`${error.name}: ${error.message}`));
+  </script>
+</body>
+</html>
