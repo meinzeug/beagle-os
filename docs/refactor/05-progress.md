@@ -1,3 +1,23 @@
+## Update (2026-05-25, VM100 Beagle-Desktop nach Stream-Reconfigure wiederhergestellt)
+
+**Scope**: Nach einem BeagleStream-Guest-Reconfigure zeigte VM100 XFCE statt des Beagle/Plasma-Desktops.
+
+- **Root-Cause**:
+  - `scripts/configure-beagle-stream-server-guest.sh` hatte als Default `DESKTOP_ID=xfce` und schrieb `/etc/lightdm/lightdm.conf.d/60-pve-thin-client.conf`.
+  - VM100 hatte bereits die korrekte `/etc/lightdm/lightdm.conf.d/60-beagle.conf` fuer `plasma`, aber die zusaetzliche `60-pve-thin-client.conf` gewann lexikografisch und setzte Autologin zurueck auf XFCE.
+
+- **Live-Fix auf VM100**:
+  - Legacy-LightDM-Override `60-pve-thin-client.conf` entfernt.
+  - `60-beagle.conf` auf `autologin-session=plasma` und `user-session=plasma` gesetzt.
+  - Display-Manager neu gestartet; aktive Prozesse danach: `ksmserver`, `kwin_x11`, `plasmashell`.
+
+- **Repo-Fix**:
+  - Guest-Reconfigure defaultet jetzt auf `plasma-cyberpunk`/`plasma` statt XFCE.
+  - Das Skript entfernt vor dem Schreiben die alte `60-pve-thin-client.conf` und schreibt nur noch `60-beagle.conf`.
+  - Regressionstest verhindert erneuten XFCE-Fallback im Stream-Reconfigure-Pfad.
+
+---
+
 ## Update (2026-05-25, `/opt/beagle` als Git-faehiger Runtime-Pfad)
 
 **Scope**: Live-Rollouts auf `srv1` zeigten, dass `/opt/beagle` zwar den aktuellen Runtime-Tree enthaelt, aber kein Git-Checkout ist. Dadurch mussten Hotfixes per SCP/Install kopiert werden, obwohl `repo-auto-update` intern bereits einen Git-Cache nutzt.

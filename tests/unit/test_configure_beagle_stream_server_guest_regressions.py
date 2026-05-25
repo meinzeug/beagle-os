@@ -73,6 +73,20 @@ def test_configure_beagle_stream_server_guest_detects_beagle_stream_server_exec_
     assert 'ExecStart=/usr/local/bin/beagle-stream-server\n' not in content
 
 
+def test_configure_beagle_stream_server_guest_keeps_beagle_plasma_default() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'DESKTOP_ID="${DESKTOP_ID:-plasma-cyberpunk}"' in content
+    assert 'DESKTOP_SESSION="${DESKTOP_SESSION:-}"' in content
+    assert 'case "${DESKTOP_ID:-plasma-cyberpunk}" in' in content
+    assert 'plasma|plasma-*|kde|kde-plasma)' in content
+    assert 'DESKTOP_LABEL="${DESKTOP_LABEL:-Beagle Desktop}"' in content
+    assert 'DESKTOP_SESSION="${DESKTOP_SESSION:-plasma}"' in content
+    assert 'rm -f /etc/lightdm/lightdm.conf.d/60-pve-thin-client.conf' in content
+    assert 'cat > /etc/lightdm/lightdm.conf.d/60-beagle.conf <<GUESTCFG' in content
+    assert 'cat > /etc/lightdm/lightdm.conf.d/60-pve-thin-client.conf <<GUESTCFG' not in content
+
+
 def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_baseline() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 

@@ -23,9 +23,9 @@ GUEST_PASSWORD="${GUEST_PASSWORD:-}"
 IDENTITY_LOCALE="${IDENTITY_LOCALE:-de_DE.UTF-8}"
 IDENTITY_LANGUAGE="${IDENTITY_LANGUAGE:-de_DE:de}"
 IDENTITY_KEYMAP="${IDENTITY_KEYMAP:-de}"
-DESKTOP_ID="${DESKTOP_ID:-xfce}"
-DESKTOP_LABEL="${DESKTOP_LABEL:-XFCE}"
-DESKTOP_SESSION="${DESKTOP_SESSION:-xfce}"
+DESKTOP_ID="${DESKTOP_ID:-plasma-cyberpunk}"
+DESKTOP_LABEL="${DESKTOP_LABEL:-}"
+DESKTOP_SESSION="${DESKTOP_SESSION:-}"
 BEAGLE_USER="${BEAGLE_USER:-}"
 BEAGLE_PASSWORD="${BEAGLE_PASSWORD:-}"
 BEAGLE_TOKEN="${BEAGLE_TOKEN:-}"
@@ -135,7 +135,7 @@ EOF
 }
 
 apply_desktop_defaults() {
-  case "${DESKTOP_ID:-xfce}" in
+  case "${DESKTOP_ID:-plasma-cyberpunk}" in
     xfce)
       DESKTOP_LABEL="${DESKTOP_LABEL:-XFCE}"
       DESKTOP_SESSION="${DESKTOP_SESSION:-xfce}"
@@ -150,8 +150,8 @@ apply_desktop_defaults() {
         DESKTOP_PACKAGES=(ubuntu-desktop-minimal)
       fi
       ;;
-    plasma)
-      DESKTOP_LABEL="${DESKTOP_LABEL:-KDE Plasma}"
+    plasma|plasma-*|kde|kde-plasma)
+      DESKTOP_LABEL="${DESKTOP_LABEL:-Beagle Desktop}"
       DESKTOP_SESSION="${DESKTOP_SESSION:-plasma}"
       if [[ ${#DESKTOP_PACKAGES[@]} -eq 0 ]]; then
         DESKTOP_PACKAGES=(plasma-desktop kwin-x11 plasma-nm plasma-pa plasma-widgets-addons konsole dolphin)
@@ -800,7 +800,8 @@ configure_keyboard_layout
 install_google_chrome
 
 install -d -m 0755 /etc/lightdm/lightdm.conf.d
-cat > /etc/lightdm/lightdm.conf.d/60-pve-thin-client.conf <<GUESTCFG
+rm -f /etc/lightdm/lightdm.conf.d/60-pve-thin-client.conf
+cat > /etc/lightdm/lightdm.conf.d/60-beagle.conf <<GUESTCFG
 [Seat:*]
 autologin-user=${GUEST_USER}
 autologin-session=${DESKTOP_SESSION}
