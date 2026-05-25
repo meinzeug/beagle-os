@@ -2342,6 +2342,31 @@ def sync_usb_tunnel_authorized_key(vm: VmSummary, secret: dict[str, Any]) -> Non
     vm_secret_bootstrap_service().sync_usb_tunnel_authorized_key(vm, secret)
 
 
+def sync_usb_tunnel_authorized_key_for_endpoint(identity: dict[str, Any], public_key: str) -> bool:
+    key = str(public_key or "").strip()
+    if not key.startswith("ssh-"):
+        return False
+
+    vmid = int(identity.get("vmid", 0) or 0)
+    node = str(identity.get("node", "") or "").strip()
+    if vmid <= 0 or not node:
+        return False
+
+    vm = find_vm(vmid)
+    if vm is None or str(vm.node or "").strip() != node:
+        return False
+
+    secret = ensure_vm_secret(vm)
+    if str(secret.get("usb_tunnel_public_key", "") or "").strip() == key:
+        return False
+
+    updated = dict(secret)
+    updated["usb_tunnel_public_key"] = key
+    updated = save_vm_secret(vm.node, vm.vmid, updated)
+    sync_usb_tunnel_authorized_key(vm, updated)
+    return True
+
+
 def ensure_vm_secret(vm: VmSummary) -> dict[str, Any]:
     return vm_secret_bootstrap_service().ensure_vm_secret(vm)
 
@@ -3710,6 +3735,7 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
             fetch_beagle_stream_server_identity=fetch_beagle_stream_server_identity,
             find_vm=find_vm,
             issue_beagle_stream_client_pairing_token=issue_beagle_stream_client_pairing_token,
+            sync_usb_tunnel_authorized_key_for_endpoint=sync_usb_tunnel_authorized_key_for_endpoint,
             pool_manager_service=pool_manager_service(),
             prepare_virtual_display_on_vm=prepare_virtual_display_on_vm,
             register_beagle_stream_client_certificate_on_vm=register_beagle_stream_client_certificate_on_vm,

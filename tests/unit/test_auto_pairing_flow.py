@@ -122,6 +122,7 @@ def _make_surface(
         fetch_beagle_stream_server_identity=lambda vm, guest_user: {},
         find_vm=_find,
         issue_beagle_stream_client_pairing_token=issue_fn or _default_issue,
+        sync_usb_tunnel_authorized_key_for_endpoint=lambda endpoint_identity, public_key: False,
         pool_manager_service=type("PoolManagerStub", (), {"get_pool": staticmethod(lambda pool_id: None)})(),
         prepare_virtual_display_on_vm=lambda vm, res: {"ok": True, "resolution": res, "exitcode": 0, "stdout": "", "stderr": ""},
         register_beagle_stream_client_certificate_on_vm=lambda vm, cert, device_name: {"ok": True},

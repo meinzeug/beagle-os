@@ -19,7 +19,12 @@ class _Vm:
         self.node = node
 
 
-def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") -> EndpointHttpSurfaceService:
+def _service(
+    *,
+    prepare_ok: bool = True,
+    network_mode: str = "vpn_preferred",
+    usb_key_sync_hook=None,
+) -> EndpointHttpSurfaceService:
     vm = _Vm(100, "beagle-0")
     profiles = {
         100: {
@@ -194,6 +199,8 @@ def _service(*, prepare_ok: bool = True, network_mode: str = "vpn_preferred") ->
             "token": "valid-token",
             "expires_at": "2026-04-22T00:10:00Z",
         },
+        sync_usb_tunnel_authorized_key_for_endpoint=usb_key_sync_hook
+        or (lambda endpoint_identity, public_key: False),
         pool_manager_service=_PoolManager(),
         prepare_virtual_display_on_vm=_prepare,
         register_beagle_stream_client_certificate_on_vm=lambda vm, cert, device_name: {"ok": True},
@@ -413,6 +420,27 @@ def test_device_sync_route_persists_runtime_report() -> None:
     assert int(response["status"]) == 200
     assert response["payload"]["device"]["last_runtime_report"]["lock_active"] is True
     assert response["payload"]["device"]["last_runtime_report"]["lock_screen_backend"] == "zenity"
+
+
+def test_device_sync_route_calls_usb_tunnel_key_sync_hook() -> None:
+    calls: list[tuple[dict[str, object], str]] = []
+
+    def _hook(identity, public_key):
+        calls.append((dict(identity), str(public_key)))
+        return True
+
+    service = _service(usb_key_sync_hook=_hook)
+    response = service.route_post(
+        "/api/v1/endpoints/device/sync",
+        endpoint_identity={"endpoint_id": "endpoint-a", "vmid": 100, "node": "beagle-0", "hostname": "endpoint-a"},
+        query={},
+        json_payload={"usb_tunnel_public_key": "ssh-ed25519 AAAATEST endpoint-a"},
+    )
+
+    assert int(response["status"]) == 200
+    assert len(calls) == 1
+    assert calls[0][0]["vmid"] == 100
+    assert calls[0][1].startswith("ssh-ed25519 ")
 
 
 def test_device_sync_route_returns_policy_and_commands() -> None:

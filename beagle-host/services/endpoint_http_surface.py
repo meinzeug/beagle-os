@@ -21,6 +21,7 @@ class EndpointHttpSurfaceService:
         fetch_beagle_stream_server_identity: Callable[[Any, str], dict[str, Any]],
         find_vm: Callable[[int], Any | None],
         issue_beagle_stream_client_pairing_token: Callable[[Any, dict[str, Any], str], dict[str, Any]],
+        sync_usb_tunnel_authorized_key_for_endpoint: Callable[[dict[str, Any], str], bool] | None,
         pool_manager_service: Any,
         register_beagle_stream_client_certificate_on_vm: Callable[[Any, str], dict[str, Any]],
         service_name: str,
@@ -43,6 +44,7 @@ class EndpointHttpSurfaceService:
         self._fetch_beagle_stream_server_identity = fetch_beagle_stream_server_identity
         self._find_vm = find_vm
         self._issue_beagle_stream_client_pairing_token = issue_beagle_stream_client_pairing_token
+        self._sync_usb_tunnel_authorized_key_for_endpoint = sync_usb_tunnel_authorized_key_for_endpoint
         self._pool_manager = pool_manager_service
         self._register_beagle_stream_client_certificate_on_vm = register_beagle_stream_client_certificate_on_vm
         self._prepare_virtual_display_on_vm = prepare_virtual_display_on_vm
@@ -266,6 +268,7 @@ class EndpointHttpSurfaceService:
             wipe_report = reports.get("wipe") if isinstance(reports.get("wipe"), dict) else {}
             runtime_report = reports.get("runtime") if isinstance(reports.get("runtime"), dict) else {}
             metrics = payload.get("metrics") if isinstance(payload.get("metrics"), dict) else {}
+            usb_tunnel_public_key = str(payload.get("usb_tunnel_public_key") or "").strip()
 
             device = self._device_registry.register_or_update_device(
                 device_id,
@@ -282,6 +285,14 @@ class EndpointHttpSurfaceService:
                 device = self._device_registry.update_wipe_report(device_id, wipe_report)
             if runtime_report:
                 device = self._device_registry.update_runtime_report(device_id, runtime_report)
+
+            if usb_tunnel_public_key and callable(self._sync_usb_tunnel_authorized_key_for_endpoint):
+                try:
+                    self._sync_usb_tunnel_authorized_key_for_endpoint(identity, usb_tunnel_public_key)
+                except Exception:
+                    # Device sync should stay resilient even when USB tunnel key
+                    # self-healing fails due transient host-side errors.
+                    pass
 
             anomaly_reports = []
             fired_alerts = []

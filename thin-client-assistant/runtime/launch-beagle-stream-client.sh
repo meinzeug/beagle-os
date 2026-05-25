@@ -565,6 +565,17 @@ ensure_beagle_stream_wireguard_ready() {
   fi
 }
 
+stop_stale_beagle_stream_processes() {
+  if ! command -v pkill >/dev/null 2>&1; then
+    return 0
+  fi
+  # A stale process from a previous failed run can reconnect before the launcher
+  # reaches pairing checks. Kill only stream-mode client processes for this uid.
+  if pkill -u "$(id -u)" -f '^/opt/beagle-stream-client/usr/bin/beagle-stream stream ' >/dev/null 2>&1; then
+    beagle_log_event "beagle-stream-client.stale-process" "action=terminated"
+  fi
+}
+
 main() {
   local bin host connect_host app resolved_app audio_driver port
   local hostless_beagle_stream=0
@@ -586,6 +597,8 @@ main() {
     echo "Missing Beagle Stream Client host." >&2
     exit 1
   }
+
+  stop_stale_beagle_stream_processes
 
   beagle_stream_startup_status_start
   trap 'beagle_stream_startup_status_stop' EXIT

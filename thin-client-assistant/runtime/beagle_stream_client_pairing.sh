@@ -122,11 +122,10 @@ ensure_paired() {
   target="$(beagle_stream_client_target "$host" "$port")"
   connection_method="$(beagle_stream_connection_method 2>/dev/null || true)"
 
-  # In broker mode the manager already controls stream admission and target
-  # selection. A strict local pair-check can fail with transient 4xx/5xx API
-  # responses even though the stream itself is immediately launchable.
-  if [[ "$connection_method" == "broker" ]]; then
-    beagle_stream_client_pair_log "pairing gate bypassed in broker mode"
+  # Broker mode still requires a valid client certificate pairing for Sunshine.
+  # Keep an explicit emergency bypass for controlled debugging only.
+  if [[ "$connection_method" == "broker" && "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BROKER_PAIRING_BYPASS:-0}" == "1" ]]; then
+    beagle_stream_client_pair_log "pairing gate bypassed in broker mode (override=1)"
     return 0
   fi
 

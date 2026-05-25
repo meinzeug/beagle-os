@@ -208,6 +208,15 @@ print(total)
 PY
 }
 
+runtime_usb_tunnel_public_key() {
+  local key_path="${PVE_THIN_CLIENT_USB_TUNNEL_KEY_PATH:-/etc/pve-thin-client/usb-tunnel.key}"
+  if [[ ! -r "$key_path" ]] || ! command -v ssh-keygen >/dev/null 2>&1; then
+    printf '\n'
+    return 0
+  fi
+  ssh-keygen -y -f "$key_path" 2>/dev/null | head -n 1 | tr -d '\r' || true
+}
+
 runtime_wipe_report_file_path() {
   local state_dir
   state_dir="$(beagle_state_dir)"
@@ -401,7 +410,7 @@ runtime_device_sync_payload() {
   local wg_active="${4:-0}"
   local wg_ip="${5:-}"
   local wipe_report_json runtime_report_json interfaces_json cpu_model cpu_cores ram_gb gpu_model os_version
-  local uptime_hours reboot_count_7d cpu_temp_c network_errors
+  local uptime_hours reboot_count_7d cpu_temp_c network_errors usb_tunnel_public_key
 
   wipe_report_json="$(runtime_wipe_report_json)"
   runtime_report_json="$(runtime_report_json)"
@@ -415,8 +424,9 @@ runtime_device_sync_payload() {
   reboot_count_7d="$(runtime_boot_count_7d)"
   cpu_temp_c="$(runtime_cpu_temp_c)"
   network_errors="$(runtime_network_errors)"
+  usb_tunnel_public_key="$(runtime_usb_tunnel_public_key)"
 
-  python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" "$wipe_report_json" "$runtime_report_json" "$uptime_hours" "$reboot_count_7d" "$cpu_temp_c" "$network_errors" <<'PY'
+  python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" "$wipe_report_json" "$runtime_report_json" "$uptime_hours" "$reboot_count_7d" "$cpu_temp_c" "$network_errors" "$usb_tunnel_public_key" <<'PY'
 import json, sys
 runtime_report = json.loads(sys.argv[13] or "{}")
 stream_report = runtime_report.get("stream") if isinstance(runtime_report, dict) else {}
@@ -455,6 +465,7 @@ payload = {
         "wipe": json.loads(sys.argv[12] or "{}"),
       "runtime": runtime_report,
     },
+    "usb_tunnel_public_key": sys.argv[18],
 }
 print(json.dumps(payload))
 PY
