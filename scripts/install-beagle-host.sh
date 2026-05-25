@@ -204,12 +204,81 @@ prompt_install_endpoints() {
 }
 
 ensure_dependencies() {
-  if command -v rsync >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
+  if command -v rsync >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
     return 0
   fi
 
   apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y rsync curl
+  DEBIAN_FRONTEND=noninteractive apt-get install -y rsync curl git
+}
+
+source_repo_url() {
+  local url=""
+
+  url="${BEAGLE_REPO_AUTO_UPDATE_REPO_URL:-}"
+  if [[ -z "$url" ]] && git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    url="$(git -C "$ROOT_DIR" remote get-url origin 2>/dev/null || true)"
+  fi
+  printf '%s\n' "${url:-https://github.com/meinzeug/beagle-os.git}"
+}
+
+source_repo_branch() {
+  local branch=""
+
+  branch="${BEAGLE_REPO_AUTO_UPDATE_BRANCH:-}"
+  if [[ -z "$branch" ]] && git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    branch="$(git -C "$ROOT_DIR" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  fi
+  printf '%s\n' "${branch:-main}"
+}
+
+source_repo_commit() {
+  git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || true
+}
+
+remove_install_git_metadata() {
+  if [[ -d "$INSTALL_DIR/.git" && ! -L "$INSTALL_DIR/.git" ]]; then
+    rm -rf "$INSTALL_DIR/.git"
+    return 0
+  fi
+  rm -f "$INSTALL_DIR/.git" 2>/dev/null || true
+}
+
+ensure_install_dir_git_checkout() {
+  local repo_url branch commit target initialized=0
+
+  command -v git >/dev/null 2>&1 || return 0
+  commit="$(source_repo_commit)"
+  [[ -n "$commit" ]] || return 0
+  repo_url="$(source_repo_url)"
+  branch="$(source_repo_branch)"
+
+  if ! git -C "$INSTALL_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    remove_install_git_metadata
+    git -C "$INSTALL_DIR" init >/dev/null 2>&1 || return 0
+    initialized=1
+  fi
+
+  git -C "$INSTALL_DIR" remote remove origin >/dev/null 2>&1 || true
+  git -C "$INSTALL_DIR" remote add origin "$repo_url" >/dev/null 2>&1 || {
+    [[ "$initialized" == "1" ]] && remove_install_git_metadata
+    return 0
+  }
+  if ! git -C "$INSTALL_DIR" fetch --prune origin "$branch" >/dev/null 2>&1; then
+    [[ "$initialized" == "1" ]] && remove_install_git_metadata
+    return 0
+  fi
+
+  target="$commit"
+  if ! git -C "$INSTALL_DIR" cat-file -e "${target}^{commit}" >/dev/null 2>&1; then
+    target="FETCH_HEAD"
+  fi
+  if ! git -C "$INSTALL_DIR" reset --hard "$target" >/dev/null 2>&1; then
+    [[ "$initialized" == "1" ]] && remove_install_git_metadata
+    return 0
+  fi
+
+  git -C "$INSTALL_DIR" config --local beagle.runtime true >/dev/null 2>&1 || true
 }
 
 have_packaged_assets() {
@@ -321,6 +390,7 @@ rsync -a --delete \
   --exclude '.git' \
   --exclude '.build' \
   "$ROOT_DIR/" "$INSTALL_DIR/"
+ensure_install_dir_git_checkout
 python3 "$INSTALL_DIR/scripts/sync-web-ui-version.py" "$INSTALL_DIR/website/index.html" "$VERSION"
 chown -R root:root "$INSTALL_DIR"
 find "$INSTALL_DIR" -type d -exec chmod 0755 {} +

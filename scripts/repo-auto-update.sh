@@ -259,6 +259,74 @@ def read_running_build_commit(path: Path) -> str:
     return str(data.get("build_commit") or "").strip()
 
 
+def remove_runtime_git_metadata(install_dir: Path) -> None:
+    git_path = install_dir / ".git"
+    if git_path.is_dir() and not git_path.is_symlink():
+        shutil.rmtree(git_path)
+        return
+    try:
+        git_path.unlink()
+    except FileNotFoundError:
+        return
+    except OSError:
+        return
+
+
+def reset_runtime_git_checkout(install_dir: Path, repo_url: str, branch: str, commit: str) -> bool:
+    git_path = install_dir / ".git"
+    if not git_path.exists():
+        return False
+
+    inside = run(["git", "rev-parse", "--is-inside-work-tree"], cwd=install_dir, timeout=60)
+    if inside.returncode != 0:
+        remove_runtime_git_metadata(install_dir)
+        return False
+
+    remote_set = run(["git", "remote", "set-url", "origin", repo_url], cwd=install_dir, timeout=120)
+    if remote_set.returncode != 0:
+        remote_add = run(["git", "remote", "add", "origin", repo_url], cwd=install_dir, timeout=120)
+        if remote_add.returncode != 0:
+            remove_runtime_git_metadata(install_dir)
+            return False
+
+    fetch_runtime = run_git_network(["git", "fetch", "--prune", "origin", branch], cwd=install_dir, timeout=1800)
+    if fetch_runtime.returncode != 0:
+        remove_runtime_git_metadata(install_dir)
+        return False
+
+    reset = run(["git", "reset", "--hard", commit], cwd=install_dir, timeout=1800)
+    if reset.returncode != 0:
+        remove_runtime_git_metadata(install_dir)
+        return False
+
+    run(["git", "config", "--local", "beagle.runtime", "true"], cwd=install_dir, timeout=60)
+    return True
+
+
+def initialize_runtime_git_checkout(install_dir: Path, repo_url: str, branch: str, commit: str) -> bool:
+    if (install_dir / ".git").exists():
+        return reset_runtime_git_checkout(install_dir, repo_url, branch, commit)
+
+    init = run(["git", "init"], cwd=install_dir, timeout=120)
+    if init.returncode != 0:
+        remove_runtime_git_metadata(install_dir)
+        return False
+    remote_add = run(["git", "remote", "add", "origin", repo_url], cwd=install_dir, timeout=120)
+    if remote_add.returncode != 0:
+        remove_runtime_git_metadata(install_dir)
+        return False
+    fetch_runtime = run_git_network(["git", "fetch", "--prune", "origin", branch], cwd=install_dir, timeout=1800)
+    if fetch_runtime.returncode != 0:
+        remove_runtime_git_metadata(install_dir)
+        return False
+    reset = run(["git", "reset", "--hard", commit], cwd=install_dir, timeout=1800)
+    if reset.returncode != 0:
+        remove_runtime_git_metadata(install_dir)
+        return False
+    run(["git", "config", "--local", "beagle.runtime", "true"], cwd=install_dir, timeout=60)
+    return True
+
+
 settings = load_json(settings_path)
 status = load_json(status_path)
 config = {
@@ -392,10 +460,6 @@ payload["message"] = "Neuer Repo-Stand erkannt, Update wird eingespielt."
 payload["update_available"] = True
 write_status(payload)
 
-if staging_dir.exists():
-    shutil.rmtree(staging_dir)
-staging_dir.mkdir(parents=True, exist_ok=True)
-
 try:
     repair_runtime_tree(install_dir)
 except Exception as exc:
@@ -405,36 +469,45 @@ except Exception as exc:
     write_status(payload)
     raise SystemExit(1)
 
-archive_cmd = f"git -C {worktree_dir} archive {remote_commit} | tar -xf - -C {staging_dir}"
-archive = subprocess.run(["bash", "-lc", archive_cmd], capture_output=True, text=True, timeout=1800, check=False)
-if archive.returncode != 0:
-    payload["state"] = "error"
-    payload["reaction"] = "archive_failed"
-    payload["message"] = (archive.stderr or archive.stdout or "git archive failed").strip()[:400]
-    write_status(payload)
-    raise SystemExit(1)
+runtime_git_updated = reset_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)
 
-rsync = run(
-    [
-        "rsync",
-        "-a",
-        "--delete",
-        "--exclude", ".git/",
-        "--exclude", ".build/",
-        "--exclude", "dist/",
-        "--exclude", "__pycache__/",
-        "--exclude", "*.pyc",
-        f"{staging_dir}/",
-        f"{install_dir}/",
-    ],
-    timeout=1800,
-)
-if rsync.returncode != 0:
-    payload["state"] = "error"
-    payload["reaction"] = "rsync_failed"
-    payload["message"] = (rsync.stderr or rsync.stdout or "rsync failed").strip()[:400]
-    write_status(payload)
-    raise SystemExit(1)
+if not runtime_git_updated:
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    staging_dir.mkdir(parents=True, exist_ok=True)
+
+    archive_cmd = f"git -C {worktree_dir} archive {remote_commit} | tar -xf - -C {staging_dir}"
+    archive = subprocess.run(["bash", "-lc", archive_cmd], capture_output=True, text=True, timeout=1800, check=False)
+    if archive.returncode != 0:
+        payload["state"] = "error"
+        payload["reaction"] = "archive_failed"
+        payload["message"] = (archive.stderr or archive.stdout or "git archive failed").strip()[:400]
+        write_status(payload)
+        raise SystemExit(1)
+
+    rsync = run(
+        [
+            "rsync",
+            "-a",
+            "--delete",
+            "--exclude", ".git",
+            "--exclude", ".git/",
+            "--exclude", ".build/",
+            "--exclude", "dist/",
+            "--exclude", "__pycache__/",
+            "--exclude", "*.pyc",
+            f"{staging_dir}/",
+            f"{install_dir}/",
+        ],
+        timeout=1800,
+    )
+    if rsync.returncode != 0:
+        payload["state"] = "error"
+        payload["reaction"] = "rsync_failed"
+        payload["message"] = (rsync.stderr or rsync.stdout or "rsync failed").strip()[:400]
+        write_status(payload)
+        raise SystemExit(1)
+    initialize_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)
 
 sync_web_ui = run(
     [sys.executable, str(install_dir / "scripts" / "sync-web-ui-version.py"), str(install_dir / "website" / "index.html"), str(payload["installed_version"] or payload["remote_version"] or "")],

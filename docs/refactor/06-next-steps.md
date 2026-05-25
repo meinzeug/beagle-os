@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-05-25, `/opt/beagle` Git-Runtime-Pfad)
+
+**Zuletzt erledigt**:
+- Host-Installationen richten `/opt/beagle` nun best-effort als verwaltetes Git-Checkout ein.
+- `repo-auto-update` aktualisiert einen vorhandenen `/opt/beagle`-Checkout per `git fetch` + `git reset --hard` und faellt nur bei fehlenden/defekten Git-Metadaten auf archive/rsync zurueck.
+
+**Naechste konkrete Schritte**:
+
+1. Auf `srv1` nach Deploy einmal `git -C /opt/beagle rev-parse HEAD` gegen `/opt/beagle/.beagle-installed-commit` pruefen.
+2. `beagle-repo-auto-update.service` manuell starten und belegen, dass ein vorhandenes `/opt/beagle/.git` nicht geloescht wird.
+3. Beim naechsten frischen Server-Installimage pruefen, dass `/opt/beagle` direkt nach Installation ein Git-Checkout ist.
+
+---
+
 ## Stand (2026-05-25, Sunshine-RTSP-Self-Heal ausgerollt)
 
 **Zuletzt erledigt**:

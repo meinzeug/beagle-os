@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "install-beagle-host-services.sh"
+HOST_INSTALL_SCRIPT = ROOT / "scripts" / "install-beagle-host.sh"
 
 
 def test_legacy_host_runtime_dir_uses_underscore_alias() -> None:
@@ -70,6 +71,17 @@ def test_install_beagle_host_services_writes_installed_commit_stamp_when_git_che
     assert 'git -C "$ROOT_DIR" rev-parse HEAD' in script
     assert 'printf \'%s\\n\' "$commit" > "$INSTALLED_COMMIT_FILE"' in script
     assert 'write_installed_commit_stamp' in script
+
+
+def test_host_install_initializes_opt_beagle_as_git_checkout_when_source_is_git() -> None:
+    script = HOST_INSTALL_SCRIPT.read_text(encoding="utf-8")
+
+    assert "ensure_install_dir_git_checkout()" in script
+    assert 'git -C "$INSTALL_DIR" init' in script
+    assert 'git -C "$INSTALL_DIR" fetch --prune origin "$branch"' in script
+    assert 'git -C "$INSTALL_DIR" reset --hard "$target"' in script
+    assert 'git -C "$INSTALL_DIR" config --local beagle.runtime true' in script
+    assert "ensure_install_dir_git_checkout" in script.split('python3 "$INSTALL_DIR/scripts/sync-web-ui-version.py"', 1)[0]
 
 
 def test_firewall_baseline_is_enabled_by_default_without_libvirt_dependency() -> None:

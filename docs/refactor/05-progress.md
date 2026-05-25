@@ -1,3 +1,23 @@
+## Update (2026-05-25, `/opt/beagle` als Git-faehiger Runtime-Pfad)
+
+**Scope**: Live-Rollouts auf `srv1` zeigten, dass `/opt/beagle` zwar den aktuellen Runtime-Tree enthaelt, aber kein Git-Checkout ist. Dadurch mussten Hotfixes per SCP/Install kopiert werden, obwohl `repo-auto-update` intern bereits einen Git-Cache nutzt.
+
+- **Root-Cause**:
+  - `scripts/install-beagle-host.sh` synchronisierte den Quellbaum per `rsync --delete` nach `/opt/beagle` und schloss `.git` aus.
+  - `scripts/repo-auto-update.sh` klonte nach `/var/lib/beagle/repo-auto-update-cache/repo`, baute daraus ein Git-Archiv und rsyncte dieses wieder nach `/opt/beagle`.
+  - Ergebnis: Commit-Stand war ueber `.beagle-installed-commit` nachvollziehbar, aber `/opt/beagle` selbst war kein direkt bedienbarer Repo-Pfad.
+
+- **Repo-Fix**:
+  - Frische Host-Installationen initialisieren `/opt/beagle` best-effort als eigenes Git-Checkout, setzen `origin` und resetten auf den installierten Commit.
+  - `repo-auto-update` nutzt vorhandene `/opt/beagle/.git` bevorzugt via `git fetch` + `git reset --hard <remote_commit>`.
+  - Falls Git-Metadaten fehlen oder kaputt sind, bleibt der bisherige archive/rsync-Fallback aktiv und versucht anschliessend erneut, `/opt/beagle` als Git-Checkout einzurichten.
+
+- **Betriebswirkung**:
+  - Neue Server-Installationen sind direkt mit `git -C /opt/beagle ...` diagnostizierbar.
+  - Runtime-Updates bleiben deterministisch: keine normalen `git pull`-Merges, sondern harter Reset auf den freigegebenen Commit.
+
+---
+
 ## Update (2026-05-25, Sunshine/RTSP-Portkonflikt automatisch self-heal)
 
 **Scope**: Der VM100-Audioausfall durch doppelte Sunshine-Prozesse und belegten RTSP-Port (`50021`) wurde von manuellem Incident-Fix auf reproduzierbare Runtime-Automatik umgestellt.

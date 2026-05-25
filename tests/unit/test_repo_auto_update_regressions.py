@@ -37,6 +37,17 @@ def test_repo_auto_update_recovers_missing_commit_stamp_from_status_or_git() -> 
     assert 'current_commit = resolve_installed_commit(commit_file, status, install_dir)' in script
 
 
+def test_repo_auto_update_prefers_runtime_git_checkout_before_archive_rsync() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert "def reset_runtime_git_checkout(install_dir: Path, repo_url: str, branch: str, commit: str) -> bool:" in script
+    assert '["git", "reset", "--hard", commit]' in script
+    assert 'runtime_git_updated = reset_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)' in script
+    assert "if not runtime_git_updated:" in script
+    assert '"--exclude", ".git",' in script
+    assert 'initialize_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)' in script
+
+
 def test_repo_auto_update_marks_repo_healthy_before_artifact_refresh_finishes() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
 
