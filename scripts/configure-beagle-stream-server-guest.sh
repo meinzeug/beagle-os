@@ -1067,11 +1067,11 @@ cat > /usr/local/bin/beagle-stream-server-preflight <<'PREFLIGHT'
 #!/usr/bin/env bash
 set -euo pipefail
 
-stream_port="${BEAGLE_STREAM_SERVER_PORT:-50000}"
-if ! [[ "$stream_port" =~ ^[0-9]+$ ]]; then
+stream_port="\${BEAGLE_STREAM_SERVER_PORT:-50000}"
+if ! [[ "\$stream_port" =~ ^[0-9]+$ ]]; then
   stream_port="50000"
 fi
-rtsp_port="$((stream_port + 21))"
+rtsp_port="\$((stream_port + 21))"
 
 # Sunshine can leave stale helper instances that keep RTSP bound.
 pkill -x sunshine >/dev/null 2>&1 || true
@@ -1079,11 +1079,11 @@ sleep 1
 
 # Best-effort cleanup for any remaining listener before start.
 if command -v fuser >/dev/null 2>&1; then
-  fuser -k "${rtsp_port}/tcp" >/dev/null 2>&1 || true
+  fuser -k "\${rtsp_port}/tcp" >/dev/null 2>&1 || true
 fi
 
-if ss -H -ltn "( sport = :${rtsp_port} )" 2>/dev/null | grep -q .; then
-  echo "beagle-stream-server-preflight: RTSP port ${rtsp_port} still busy" >&2
+if ss -H -ltn "( sport = :\${rtsp_port} )" 2>/dev/null | grep -q .; then
+  echo "beagle-stream-server-preflight: RTSP port \${rtsp_port} still busy" >&2
   exit 1
 fi
 PREFLIGHT
