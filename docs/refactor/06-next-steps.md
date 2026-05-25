@@ -1,5 +1,45 @@
 # Next Steps
 
+## Stable-Release-Strategie (2026-05-25, BeagleStream-Forks statt Hotfix-Glue)
+
+**Befund aus den aktuellen MDs und Live-Fixes**:
+- `docs/lasthope/05-diamond-plan.md` macht D2 zum sichtbaren Produktpfad: echter Thinclient, WireGuard/Broker und Desktop ohne manuelle PIN.
+- `docs/checklists/02-streaming-endpoint.md` und `docs/refactor/07-decisions.md` sagen bereits: `beagle-stream-server` und `beagle-stream-client` sind Produkt-Forks; PIN-/Sunshine-/Moonlight-Kompatibilitaet ist nur Bruecke.
+- Der aktuelle Cold-Boot-Fix ist reproduzierbar und gruen, aber die Fehlerklasse kam aus zu viel Shell-/Payload-/Wrapper-Glue: Manager-URL-Fallback, Bootstrap-Reihenfolge, stale Payload, USB/IP-Autobind, Client-Startreihenfolge.
+- Die Forks existieren lokal und remote auf `beagle/phase-a`; Restschuld fuer Stable liegt vor allem bei token-native Auth, TLS/Token-Transport, `/api/pin`-Isolierung und Beagle-OS-Artefaktbindung.
+
+**Release-Schnitt**:
+- Naechstes Ziel ist ein **Single-Host Stable RC**, nicht Enterprise-GA: D1 + D2 muessen gruen sein; D3/D4/D5 bleiben klar als Pilot-/Enterprise-Gates ausgewiesen.
+- Beagle OS wird fuer diesen Schnitt eingefroren als Orchestrator: Control Plane, Enrollment, WireGuard-Provisioning, VM-Lifecycle, Packaging, Payload-Integritaet, Runbooks.
+- Neue BeagleStream-Semantik kommt in die Forks, nicht mehr in Thinclient-Shell-Glue: Pairing/Auth, Broker-Allocate, Policy Enforcement, TLS-Verhalten, Stream-Events, Client/Server-Diagnostik.
+- Thinclient-Runtime darf bis Stable nur noch Bootstrap, Startreihenfolge, lokale Hardware-Erkennung und Self-Heal halten; keine neuen PIN-Shims, keine neuen TLS-Bypasses, keine neuen stale Host-Fallbacks.
+
+**Fork-Blocker vor Stable RC**:
+1. `beagle-stream-server`: Beagle-Build darf `nvhttp::pin(token, name)` nicht als Produktpfad nutzen; Beagle-Tokens muessen gegen Manager/Signatur/Expiry/One-Time-Use validiert oder als Compatibility-Fallback hart isoliert werden.
+2. `beagle-stream-server`: `/api/pin` im Beagle-Build deaktivieren oder auf klar markierte Upstream-Kompatibilitaet beschraenken; `/api/pair-token` wird Standard.
+3. `beagle-stream-server`: Tokens nicht als `access_token` in URLs transportieren; Control-Plane-Calls muessen Header/signierte Kurzzeitflows nutzen und Secrets nie loggen.
+4. `beagle-stream-client`: Broker-Pfad darf TLS-Fehler nicht pauschal ignorieren; Enrollment/Manager-Pinning oder System-CA muss den Normalpfad tragen.
+5. `beagle-stream-client`: Manager-Ziel `host:port app` gewinnt immer gegen stale lokale Config; Pairing/UI/CLI spricht von Token, nicht PIN.
+6. Beide Forks: versionierte Release-Artefakte mit Commit-SHA, Checksummen und Beagle-Integrationstest; Beagle OS pinnt diese Artefakte explizit im Build.
+
+**Beagle-OS-Gates fuer Stable RC**:
+1. Frischer Server-Clean-Install aus Release-Artefakten: WebUI erreichbar, `scripts/check-beagle-host.sh` gruen.
+2. Neue VM aus WebUI: Autoinstall, Firstboot, Reboot, Desktop und `beagle-stream-server.service` ohne SSH-Hotfix.
+3. Frischer TC/Installer-USB: Payload-SHA stimmt, SquashFS enthaelt Fork-Artefakt-Metadaten, Desktop-Stream startet nach Cold Boot ohne Hotpatch.
+4. VM100/TC E2E: `registered` vor `exec`, VM100 loggt `CLIENT CONNECTED`, USB-Kamera/Mikro/Installer-Stick bleiben im erwarteten Pfad.
+5. Artifact-Gate: `latest` darf nur zeigen, wenn Payload, Bootstrap, Status-JSON und SHA256SUMS denselben Repo-/Fork-Stand belegen.
+6. Minimaler Update-/Rollback-Smoke: Update aus Artefakt auf `srv1`, Rollback/Restore-Punkt dokumentiert. Voller D3-Backup/Restore bleibt naechstes Pilot-Gate.
+
+**Explizit nicht im ersten Stable RC**:
+- BeagleStream Native Protocol, WebRTC-Modus, Zwei-Host-Failover, vGPU/MDEV, externer Pentest und vollstaendige Enterprise-GA. Diese bleiben D4-D7/E3+.
+
+**Naechste konkrete Schritte**:
+1. In `beagle-stream-server` zuerst `BeagleAuth` und Token-Transport stabilisieren, dann Beagle-Build mit `/api/pair-token` als Standard bauen.
+2. In `beagle-stream-client` TLS-/Pinning-Verhalten und stale-Host-Ausschluss stabilisieren; uncommitted lokale Fork-Aenderungen vor Arbeit klaeren.
+3. Beagle OS Packaging auf explizite Fork-Tags/SHAs umstellen und Release-Metadaten um Fork-Commit/SHA erweitern.
+4. Danach einmal komplett neu bauen: Server-Artefakte, VM100-Reconfigure, Thinclient-Payload, frischer Installer-USB.
+5. Stable-RC-Abnahme in dieser Reihenfolge fahren: Clean-Install -> neue VM -> frischer TC -> VM100/TC E2E -> Update/Rollback-Smoke -> Checklistenstatus setzen.
+
 ## Stand (2026-05-25, frischer TC: Payload-Stale-Befund geschlossen)
 
 **Zuletzt erledigt**:

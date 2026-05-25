@@ -2,6 +2,56 @@
 
 Stand: 2026-05-07
 
+## D-065: Stable Release friert Beagle-OS-Glue ein und zieht BeagleStream-Produktlogik in die Forks (2026-05-25)
+
+Kontext: Die frischen TC-/VM100-Live-Fixes haben den sichtbaren Desktop-Stream
+wiederhergestellt, aber sie zeigen auch eine falsche Wartungsrichtung: zu viel
+Pairing-, Broker-, TLS-, Stream-Start- und Kompatibilitaetslogik liegt in
+Thinclient-Shell-Glue, Payload-Reparaturen und Guest-Provisioning. Gleichzeitig
+sind `meinzeug/beagle-stream-server` und `meinzeug/beagle-stream-client` bereits
+als Produkt-Forks vorhanden, aber noch nicht der harte Standardvertrag.
+
+Entscheidung:
+
+- Der naechste Stable-Release-Schnitt behandelt Beagle OS als Orchestrator und
+  Release-System, nicht als Ort fuer neue Stream-Protokoll-Sonderlogik.
+- Token-native Pairing-/Auth-Logik, `/api/pin`-Isolierung, Broker-Allocate,
+  TLS-Verhalten, WireGuard-Policy-Durchsetzung, Stream-Events und Client-/Server-
+  Diagnostik gehoeren in die Forks `beagle-stream-server` und
+  `beagle-stream-client`.
+- Beagle OS behaelt Control-Plane-APIs, Enrollment, VM-Lifecycle, WireGuard-
+  Provisioning, Artifact-/Payload-Erzeugung, Runbooks und Gate-Validierung.
+- Thinclient-/Guest-Shell bleibt fuer Bootstrap, Konfiguration, Startreihenfolge
+  und Self-Heal zustaendig, darf aber keine neue Produktsemantik wie PIN-Shims,
+  TLS-Bypass oder stale Host-Fallbacks einfuehren.
+- Stable heisst nicht Enterprise-GA: ein erster Stable-Release darf Single-Host
+  plus echten TC/VM100-Stream abdecken, muss aber klar als nicht abgeschlossenes
+  D3/D4/D5-Enterprise-Angebot markiert bleiben.
+
+Stable-Blocker fuer BeagleStream:
+
+- `beagle-stream-server` darf im Beagle-Build kein neues Pairing ueber
+  `nvhttp::pin(token, name)` als Produktpfad akzeptieren; Beagle-Tokens muessen
+  gegen Manager/Signatur/Expiry/One-Time-Use validiert oder eindeutig als
+  Compatibility-Fallback isoliert werden.
+- `/api/pin` darf im Beagle-Build nicht der Standardpfad sein.
+- Tokens duerfen nicht in URLs landen; Broker-/Config-Aufrufe nutzen Header oder
+  signierte Kurzzeit-Flows ohne Log-Leakage.
+- `beagle-stream-client` darf im Beagle-Broker-Pfad keine TLS-Fehler pauschal
+  ignorieren und keine stale lokalen Hosts gegen Manager-Ziele gewinnen lassen.
+- Beagle-OS-Artefakte muessen Fork-Repo, Commit/Tag, Payload-SHA und SquashFS-
+  Marker im Release-Nachweis eindeutig festhalten.
+
+Grund: Die letzten Hotfixes waren notwendig, aber die stabile Produktgrenze ist
+anders: Sicherheits- und Verbindungsverhalten gehoert in die Stream-Produkte
+selbst. Nur so sinkt die Hotfix-Flaeche im Thinclient und ein Release kann
+reproduzierbar statt hostweise repariert werden.
+
+Dateien/Scopes: `fork.md`, `docs/checklists/02-streaming-endpoint.md`,
+`docs/lasthope/05-diamond-plan.md`, Forks `meinzeug/beagle-stream-server`,
+`meinzeug/beagle-stream-client`, `scripts/prepare-host-downloads.sh`,
+`thin-client-assistant/runtime/*`.
+
 ## D-064: Beagle-VMs nutzen virtio-Video statt legacy VGA als Streaming-Basis (2026-05-07)
 
 Kontext: VM100 streamte zwar sichtbar, blieb aber auf `vga`/Bochs ohne Render-Node. Nach dem Live-Switch auf virtio-gpu bekam der Guest `virtio_gpu` und `/dev/dri/renderD128`; der alte vkms-Hack blockierte danach den Grafikstart und wurde fuer VM100 deaktiviert.
