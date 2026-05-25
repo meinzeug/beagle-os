@@ -37,6 +37,8 @@ DEVICE_SYNC = ROOT / "thin-client-assistant" / "runtime" / "device_sync.sh"
 USB_HOTPLUG = ROOT / "thin-client-assistant" / "runtime" / "beagle-usb-hotplug"
 USB_RUNTIME_ACTIONS = ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_runtime_actions.sh"
 USB_RUNTIME_USBIPD = ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_runtime_usbipd.sh"
+AUDIO_INPUT_BRIDGE = ROOT / "thin-client-assistant" / "runtime" / "beagle_audio_input_bridge.py"
+APPLY_ENROLLMENT_CONFIG = ROOT / "thin-client-assistant" / "runtime" / "apply_enrollment_config.py"
 ENSURE_XDG_RUNTIME_DIR = ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "usr" / "local" / "sbin" / "beagle-ensure-xdg-runtime-dir"
 
 
@@ -316,6 +318,28 @@ def test_usbip_autobind_keeps_local_hid_devices_off_usbip_host() -> None:
     assert 'autobind_hotplug_device "$BUSID" && is_bound_to_usbip_host "$BUSID"' in hotplug_text
     assert '_is_eligible_for_autobind "$busid" || {' in actions_text
     assert 'refusing to bind local input/reserved USB device' in actions_text
+
+
+def test_usbip_autobind_keeps_usb_audio_local_for_mic_bridge() -> None:
+    usbipd_text = USB_RUNTIME_USBIPD.read_text(encoding="utf-8")
+    actions_text = USB_RUNTIME_ACTIONS.read_text(encoding="utf-8")
+    bridge_text = AUDIO_INPUT_BRIDGE.read_text(encoding="utf-8")
+    apply_enrollment_text = APPLY_ENROLLMENT_CONFIG.read_text(encoding="utf-8")
+    write_config_text = (ROOT / "thin-client-assistant" / "installer" / "write-config.sh").read_text(encoding="utf-8")
+    defaults_text = (ROOT / "thin-client-assistant" / "installer" / "env-defaults.json").read_text(encoding="utf-8")
+
+    assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_BRIDGE_ENABLED:-1' in usbipd_text
+    assert '01) audio_input_bridge_enabled && return 1 ;;' in usbipd_text
+    assert 'beagle_audio_input_bridge.py' in actions_text
+    assert '$(usb_attach_host):$(audio_input_remote_port):127.0.0.1:$(audio_input_local_port)' in actions_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT:-43200' in actions_text
+    assert '"PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT", config.get("usb_audio_input_port", "")' in apply_enrollment_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT="$BEAGLE_AUDIO_INPUT_PORT"' in write_config_text
+    assert '"BEAGLE_AUDIO_INPUT_PORT": ""' in defaults_text
+    assert 'parec' in bridge_text
+    assert '--format=s16le' in bridge_text
+    assert '--rate={rate}' in bridge_text
+    assert '--channels={channels}' in bridge_text
 
 
 def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -> None:

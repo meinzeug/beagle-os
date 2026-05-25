@@ -1,5 +1,24 @@
 # Security Findings
 
+Stand: 2026-05-25 (ergaenzt: Thinclient-Mikrofon Audio-Bridge)
+
+## Security Note (2026-05-25) - Thinclient-Mikrofon Audio-Bridge
+
+- Status: umgesetzt, kein neuer offener Finding
+- Betroffene Dateien:
+  - `thin-client-assistant/runtime/beagle_usb_runtime_actions.sh`
+  - `thin-client-assistant/runtime/beagle_audio_input_bridge.py`
+  - `beagle-host/services/vm_secret_bootstrap.py`
+  - `beagle-host/services/endpoint_enrollment.py`
+- Beschreibung:
+  - Der neue Mikrofonpfad nutzt keinen offenen Public-Port. Der Thinclient lauscht lokal auf `127.0.0.1` und der VM-Zugriff erfolgt ueber den bereits vorhandenen SSH-Reverse-Tunnel.
+  - `authorized_keys` begrenzt den pro-VM-Tunnel explizit per `permitlisten` auf die VM-spezifischen Ports; fuer VM100 sind das USB/IP `43100`, Audio `43200` und Kamera `53100`.
+  - Es wurden keine Klartext-Secrets, Passwoerter oder privaten Keys in Repo-Dateien, Defaults, Tests oder Dokumentation geschrieben.
+- Rest:
+  - Nach Thinclient-Neubuild/Endpoint-Update muss live bestaetigt werden, dass `43200` nur auf `192.168.123.1` und nicht auf Public-Interfaces lauscht.
+
+---
+
 Stand: 2026-05-17 (ergaenzt: VM Config UI Sensitive Fields)
 
 ## Security Note (2026-05-17) - VM Config UI Sensitive Fields

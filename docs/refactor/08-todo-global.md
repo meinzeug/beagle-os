@@ -14,6 +14,7 @@
 - [x] WebUI-429-Bursts reduzieren: versteckte Panel-Renderer laden keine Fleet-/Energy-/Cost-/Scheduler-Daten mehr und API-Rate-Limit-Default passt zur aktuellen WebUI-Read-Last (2026-05-17).
 
 - [ ] BeagleStream hostless live gegen echten VM100-USB-Stick auf `srv1` abnehmen: frischen Live-Stick bauen, booten, Enrollment/WireGuard/Broker-Allocate pruefen und Legacy-Direct-Stream-State fuer VM-Sticks entfernen. Live-USB-Reboot-Hotfix fuer Broker-Host-Fallback plus WireGuard-Pflicht-Fix (kein Public-Host-Fallback bei `egress_type=wireguard`) vor dem finalen Abnahmelauf mitziehen.
+- [ ] VM100-Mikrofon-Bridge live vollstaendig abnehmen: neuen Thinclient-Runtime-Stand booten/ausrollen, `192.168.123.1:43200` Reverse-Listener pruefen und Browser-Aufnahme gegen `beagle_tc_microphone` ohne USB/IP-Zerkratzen verifizieren.
 
 - [x] Thinclient-Startup fuer VM100 sichtbar und schneller machen: Kiosk-Loader mit Wallpaper, 10-Schritte-Statusliste, Hostless-Fast-Path, async Audio-Init und gecachtem Auto-Quality live auf TC `192.168.178.30` bis `Received first video packet after 0 ms` validiert (2026-05-13).
 

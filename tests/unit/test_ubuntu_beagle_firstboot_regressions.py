@@ -84,6 +84,21 @@ def test_firstboot_normalizes_usb_microphone_defaults() -> None:
     assert script.index('install_usb_microphone_normalizer') < script.index('systemctl enable --now beagle-stream-server.service')
 
 
+def test_firstboot_installs_thinclient_microphone_bridge() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'install_thinclient_microphone_bridge()' in script
+    assert '/usr/local/bin/beagle-tc-mic-bridge' in script
+    assert 'source_name="$SOURCE_NAME"' in script
+    assert 'file="$FIFO_PATH"' in script
+    assert 'local mic_bridge_port="$((43000 + VMID + 100))"' in script
+    assert 'Environment=BEAGLE_TC_MIC_BRIDGE_HOST=192.168.123.1' in script
+    assert 'Environment=BEAGLE_TC_MIC_BRIDGE_PORT=${mic_bridge_port}' in script
+    assert 'systemctl enable --now beagle-tc-mic-bridge.service' in script
+    assert script.index('install_usb_microphone_normalizer') < script.index('install_thinclient_microphone_bridge')
+    assert script.index('install_thinclient_microphone_bridge') < script.index('systemctl enable --now beagle-stream-server.service')
+
+
 def test_firstboot_writes_beaglestream_config_before_sunshine_compat_copy() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 

@@ -1,3 +1,29 @@
+## Update (2026-05-25, USB-Mikrofon von USB/IP auf Audio-Bridge umgestellt)
+
+**Scope**: VM100-Aufnahmen waren nach Pegel-Fix weiterhin stark zerkratzt/verzerrt. Der Befund zeigte auf USB/IP-Jitter bei USB-Audio statt auf Browser- oder Gain-Routing.
+
+- **Root-Cause**:
+  - Der Thinclient band USB-Audio-Interfaces (`bInterfaceClass=01`) automatisch an `usbip-host`.
+  - USB/IP transportiert rohe USB-Transfers ueber TCP; fuer Echtzeit-Mikrofone ist dieser Pfad empfindlich gegen Timing/Jitter und kann ein sichtbares, aber unbrauchbar verzerrtes Mikrofon erzeugen.
+
+- **Repo-Fix**:
+  - USB-Audio wird bei aktiviertem Audio-Bridge-Pfad nicht mehr automatisch per USB/IP exportiert.
+  - Thinclient-Runtime startet `beagle_audio_input_bridge.py`, waehlt lokal das USB-/SC420-Mikrofon und stellt einen lokalen PCM-TCP-Stream (`s16le`, 48 kHz, mono) bereit.
+  - Der bestehende SSH-USB-Tunnel bekommt einen zusaetzlichen Reverse-Port fuer den Mikrofon-PCM-Stream.
+  - Ubuntu-Beagle-Gaeste installieren `beagle-tc-mic-bridge`, laden `module-pipe-source` als `beagle_tc_microphone` und setzen diese virtuelle Quelle als Default-Input.
+  - VM-Secrets/Endpoint-Enrollment verwalten jetzt einen eigenen `usb_tunnel_audio_input_port`, fuer VM100 live `43200` neben USB/IP `43100` und Kamera `53100`.
+
+- **Live-Status**:
+  - VM100-Seite ist installiert und `beagle_tc_microphone` erscheint in `pactl list short sources`.
+  - `srv1` erlaubt den neuen VM100-Reverse-Port `192.168.123.1:43200` im verwalteten Tunnel-Key.
+  - Der aktive Thinclient laeuft noch mit altem Runtime-Skript und ist per direktem SSH nicht erreichbar; der TC-seitige Bridge-Prozess greift nach Neubuild/Endpoint-Update der Runtime.
+
+- **Verifikation**:
+  - Syntax: `python3 -m py_compile` fuer geaenderte Python-Module und `bash -n` fuer geaenderte Shell-Skripte.
+  - Regression: fokussierte Tests fuer USB-Audio-Autobind, Guest-/Firstboot-Bridge und Tunnel-Authorized-Key-Port sind gruen.
+
+---
+
 ## Update (2026-05-25, VM100 Beagle-Desktop nach Stream-Reconfigure wiederhergestellt)
 
 **Scope**: Nach einem BeagleStream-Guest-Reconfigure zeigte VM100 XFCE statt des Beagle/Plasma-Desktops.

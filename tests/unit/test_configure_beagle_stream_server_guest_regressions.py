@@ -102,6 +102,20 @@ def test_configure_beagle_stream_server_guest_normalizes_usb_microphones() -> No
     assert 'install_usb_microphone_normalizer' in content
 
 
+def test_configure_beagle_stream_server_guest_installs_thinclient_microphone_bridge() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'beagle-tc-mic-bridge' in content
+    assert 'BEAGLE_TC_MIC_BRIDGE_SCRIPT_B64' in content
+    assert 'BEAGLE_TC_MIC_BRIDGE_SERVICE_B64' in content
+    assert 'BEAGLE_TC_MIC_BRIDGE_PORT="\\${BEAGLE_TC_MIC_BRIDGE_PORT:-\\$((43000 + VMID + 100))}"' in content
+    assert '/usr/local/bin/beagle-tc-mic-bridge' in content
+    assert '/etc/systemd/system/beagle-tc-mic-bridge.service' in content
+    assert 'Environment=XDG_RUNTIME_DIR=/run/user/\\$GUEST_UID' in content
+    assert 'Environment=BEAGLE_TC_MIC_BRIDGE_PORT=\\$BEAGLE_TC_MIC_BRIDGE_PORT' in content
+    assert 'systemctl enable --now beagle-tc-mic-bridge.service' in content
+
+
 def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_baseline() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 

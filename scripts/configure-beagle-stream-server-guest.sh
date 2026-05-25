@@ -494,7 +494,7 @@ PY
 
 main() {
   local guest_script guest_ip install_mode native_artifact_dir native_source_archive native_deps_archive
-  local usb_attach_script_b64 usb_attach_service_b64
+  local usb_attach_script_b64 usb_attach_service_b64 mic_bridge_script_b64 mic_bridge_service_b64
 
   require_tool ssh
   require_tool python3
@@ -511,8 +511,18 @@ main() {
     echo "Missing required asset: $SCRIPT_DIR/lib/beagle-usb-attach.service" >&2
     exit 1
   }
+  [[ -f "$SCRIPT_DIR/lib/beagle-tc-mic-bridge" ]] || {
+    echo "Missing required asset: $SCRIPT_DIR/lib/beagle-tc-mic-bridge" >&2
+    exit 1
+  }
+  [[ -f "$SCRIPT_DIR/lib/beagle-tc-mic-bridge.service" ]] || {
+    echo "Missing required asset: $SCRIPT_DIR/lib/beagle-tc-mic-bridge.service" >&2
+    exit 1
+  }
   usb_attach_script_b64="$(base64 -w0 "$SCRIPT_DIR/lib/beagle-usb-attach")"
   usb_attach_service_b64="$(base64 -w0 "$SCRIPT_DIR/lib/beagle-usb-attach.service")"
+  mic_bridge_script_b64="$(base64 -w0 "$SCRIPT_DIR/lib/beagle-tc-mic-bridge")"
+  mic_bridge_service_b64="$(base64 -w0 "$SCRIPT_DIR/lib/beagle-tc-mic-bridge.service")"
 
   [[ -n "$VMID" ]] || {
     echo "--vmid is required" >&2
@@ -582,6 +592,9 @@ BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD='${BEAGLE_STREAM_SERVER_GUARD_REBOOT
 BEAGLE_CAMERA_STREAM_PORT='${BEAGLE_CAMERA_STREAM_PORT}'
 BEAGLE_USB_ATTACH_SCRIPT_B64='${usb_attach_script_b64}'
 BEAGLE_USB_ATTACH_SERVICE_B64='${usb_attach_service_b64}'
+BEAGLE_TC_MIC_BRIDGE_SCRIPT_B64='${mic_bridge_script_b64}'
+BEAGLE_TC_MIC_BRIDGE_SERVICE_B64='${mic_bridge_service_b64}'
+BEAGLE_TC_MIC_BRIDGE_PORT="\${BEAGLE_TC_MIC_BRIDGE_PORT:-\$((43000 + VMID + 100))}"
 
 configure_system_locale() {
   local locale="\${IDENTITY_LOCALE:-de_DE.UTF-8}"
@@ -1448,6 +1461,23 @@ systemctl daemon-reload >/dev/null 2>&1 || true
 systemctl enable beagle-usb-attach.service >/dev/null 2>&1 || true
 systemctl restart beagle-usb-attach.service >/dev/null 2>&1 || true
 echo "[beagle] USB/IP auto-attach service enabled"
+
+# Audio-class USB devices are latency sensitive and can crackle over USB/IP.
+# Receive a dedicated PCM microphone stream from the thin client instead and
+# expose it as a virtual PipeWire/Pulse source for browsers inside the VM.
+printf '%s' "\$BEAGLE_TC_MIC_BRIDGE_SCRIPT_B64" | base64 -d > /usr/local/bin/beagle-tc-mic-bridge
+chmod 0755 /usr/local/bin/beagle-tc-mic-bridge
+printf '%s' "\$BEAGLE_TC_MIC_BRIDGE_SERVICE_B64" | base64 -d > /etc/systemd/system/beagle-tc-mic-bridge.service
+sed -i \
+  -e "s/^User=.*/User=\$GUEST_USER/" \
+  -e "s#^Environment=HOME=.*#Environment=HOME=/home/\$GUEST_USER#" \
+  -e "s#^Environment=XDG_RUNTIME_DIR=.*#Environment=XDG_RUNTIME_DIR=/run/user/\$GUEST_UID#" \
+  -e "s/^Environment=BEAGLE_TC_MIC_BRIDGE_PORT=.*/Environment=BEAGLE_TC_MIC_BRIDGE_PORT=\$BEAGLE_TC_MIC_BRIDGE_PORT/" \
+  /etc/systemd/system/beagle-tc-mic-bridge.service
+chmod 0644 /etc/systemd/system/beagle-tc-mic-bridge.service
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable --now beagle-tc-mic-bridge.service >/dev/null 2>&1 || true
+echo "[beagle] Thin-client microphone audio bridge enabled"
 
 # ── usbipd (USB/IP daemon): export TC-side devices to VM ─────────────────────
 # usbipd must run on the TC side (handled by beagle-usb-tunnel service).

@@ -119,6 +119,7 @@ def apply_enrollment_config(
         ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_USER", config.get("usb_tunnel_user", "beagle")),
         ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PORT", config.get("usb_tunnel_port", "")),
         ("PVE_THIN_CLIENT_BEAGLE_CAMERA_STREAM_PORT", config.get("usb_camera_stream_port", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT", config.get("usb_audio_input_port", "")),
         ("PVE_THIN_CLIENT_BEAGLE_USB_ATTACH_HOST", config.get("usb_tunnel_attach_host", "")),
         ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PRIVATE_KEY_FILE", str(config_path.parent / "usb-tunnel.key")),
         ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_KNOWN_HOSTS_FILE", str(config_path.parent / "usb-tunnel-known_hosts")),

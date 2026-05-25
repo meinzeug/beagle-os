@@ -29,12 +29,47 @@ sleep_bin() {
   printf '%s\n' "${BEAGLE_SLEEP_BIN:-sleep}"
 }
 
+python3_bin() {
+  printf '%s\n' "${BEAGLE_PYTHON3_BIN:-python3}"
+}
+
 usb_tunnel_service_name() {
   printf '%s\n' "${BEAGLE_USB_TUNNEL_SERVICE:-beagle-usb-tunnel.service}"
 }
 
 usb_tunnel_state() {
   is_tunnel_running && printf 'up\n' || printf 'down\n'
+}
+
+audio_input_bridge_enabled() {
+  [[ "${PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_BRIDGE_ENABLED:-1}" == "1" ]]
+}
+
+audio_input_local_port() {
+  printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_LOCAL_PORT:-43200}"
+}
+
+audio_input_remote_port() {
+  printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT:-43200}"
+}
+
+start_audio_input_bridge() {
+  local python_cmd log_dir log_file bridge_script
+
+  audio_input_bridge_enabled || return 0
+  python_cmd="$(python3_bin)"
+  bridge_script="$SCRIPT_DIR/beagle_audio_input_bridge.py"
+  [[ -r "$bridge_script" ]] || return 0
+  if pgrep -f "beagle_audio_input_bridge.py" >/dev/null 2>&1; then
+    return 0
+  fi
+  log_dir="${PVE_THIN_CLIENT_LOG_DIR:-/var/log/beagle}"
+  mkdir -p "$log_dir" >/dev/null 2>&1 || true
+  log_file="$log_dir/audio-input-bridge.log"
+  nohup "$python_cmd" "$bridge_script" \
+    --host 127.0.0.1 \
+    --port "$(audio_input_local_port)" \
+    >>"$log_file" 2>&1 </dev/null &
 }
 
 usb_list_json() {
@@ -84,6 +119,7 @@ usb_status_json() {
 
 run_usb_tunnel_daemon() {
   local ssh_cmd camera_pid=""
+  local -a reverse_forwards=()
 
   require_enabled
   [[ -n "$(usb_host)" && -n "$(usb_port)" && -n "$(usb_user)" ]] || exit 0
@@ -92,6 +128,11 @@ run_usb_tunnel_daemon() {
   # Auto-bind all eligible USB devices before syncing manually-bound list.
   auto_bind_eligible_devices || true
   sync_bound_devices
+  start_audio_input_bridge || true
+  reverse_forwards+=("-R" "$(usb_attach_host):$(usb_port):127.0.0.1:3240")
+  if audio_input_bridge_enabled; then
+    reverse_forwards+=("-R" "$(usb_attach_host):$(audio_input_remote_port):127.0.0.1:$(audio_input_local_port)")
+  fi
 
   # Keep camera forwarding optional so a busy remote camera port does not break
   # USB passthrough for microphones or other attached USB peripherals.
@@ -120,6 +161,6 @@ run_usb_tunnel_daemon() {
     -o StrictHostKeyChecking=yes \
     -o UserKnownHostsFile="$(usb_known_hosts_file)" \
     -i "$(usb_key_file)" \
-    -R "$(usb_attach_host):$(usb_port):127.0.0.1:3240" \
+    "${reverse_forwards[@]}" \
     "$(usb_user)@$(usb_host)"
 }

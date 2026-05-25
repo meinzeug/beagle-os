@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-25, USB-Mikrofon Audio-Bridge)
+
+**Zuletzt erledigt**:
+- USB-Audio wird nicht mehr standardmaessig per USB/IP auto-bound, wenn die Audio-Bridge aktiv ist.
+- Thinclient- und VM-seitige Bridge-Komponenten sind im Repo und in Guest-Reconfigure/Firstboot verdrahtet.
+- VM100 hat die virtuelle Quelle `beagle_tc_microphone`; srv1 erlaubt den neuen Audio-Reverse-Port `43200` im VM100-Tunnel-Key.
+
+**Naechste konkrete Schritte**:
+
+1. Neues Thinclient-/Live-USB-Artefakt oder Endpoint-Update mit dem neuen Runtime-Skript ausrollen.
+2. Danach auf srv1 pruefen: `ss -tnlp | grep 43200` muss einen beagle-tunnel Reverse-Listener auf `192.168.123.1:43200` zeigen.
+3. Auf VM100 erneut mit `tools/audio-mic-test.html` aufnehmen und bestaetigen, dass die Aufnahme nicht mehr zerkratzt ist.
+
+---
+
 ## Stand (2026-05-25, VM100 USB-Mikrofon-Normalisierung)
 
 **Zuletzt erledigt**:

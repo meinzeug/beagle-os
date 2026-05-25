@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BRIDGE_HOST="${BEAGLE_TC_MIC_BRIDGE_HOST:-192.168.123.1}"
+BRIDGE_PORT="${BEAGLE_TC_MIC_BRIDGE_PORT:-43200}"
+SOURCE_NAME="${BEAGLE_TC_MIC_SOURCE_NAME:-beagle_tc_microphone}"
+SOURCE_DESCRIPTION="${BEAGLE_TC_MIC_SOURCE_DESCRIPTION:-Beagle Thin Client Microphone}"
+FIFO_PATH="${BEAGLE_TC_MIC_FIFO:-/run/beagle/tc-mic.raw}"
+RATE="${BEAGLE_TC_MIC_RATE:-48000}"
+CHANNELS="${BEAGLE_TC_MIC_CHANNELS:-1}"
+RECONNECT_DELAY="${BEAGLE_TC_MIC_RECONNECT_DELAY:-1}"
+
+log() {
+  printf '%s beagle-tc-mic-bridge: %s\n' "$(date -Is)" "$*" >&2
+}
+
+ensure_fifo() {
+  install -d -m 0755 "$(dirname "$FIFO_PATH")"
+  if [[ -e "$FIFO_PATH" && ! -p "$FIFO_PATH" ]]; then
+    rm -f "$FIFO_PATH"
+  fi
+  [[ -p "$FIFO_PATH" ]] || mkfifo "$FIFO_PATH"
+  chmod 0660 "$FIFO_PATH" 2>/dev/null || true
+}
+
+source_exists() {
+  pactl list short sources 2>/dev/null | awk '{print $2}' | grep -Fxq "$SOURCE_NAME"
+}
+
+load_pipe_source() {
+  local filler_pid=""
+  source_exists && return 0
+
+  # module-pipe-source opens the FIFO while loading. Keep a short-lived writer
+  # present so module load cannot block when the network stream is not connected yet.
+  (while true; do printf '\0\0' >"$FIFO_PATH" 2>/dev/null || true; sleep 0.05; done) &
+  filler_pid="$!"
+  pactl load-module module-pipe-source \
+    source_name="$SOURCE_NAME" \
+    file="$FIFO_PATH" \
+    format=s16le \
+    rate="$RATE" \
+    channels="$CHANNELS" \
+    source_properties="device.description=$SOURCE_DESCRIPTION" >/dev/null
+  kill "$filler_pid" >/dev/null 2>&1 || true
+  wait "$filler_pid" 2>/dev/null || true
+}
+
+normalize_source() {
+  pactl set-default-source "$SOURCE_NAME" >/dev/null 2>&1 || true
+  pactl set-source-mute "$SOURCE_NAME" 0 >/dev/null 2>&1 || true
+  pactl set-source-volume "$SOURCE_NAME" 100% >/dev/null 2>&1 || true
+}
+
+stream_once() {
+  python3 - "$BRIDGE_HOST" "$BRIDGE_PORT" "$FIFO_PATH" <<'PY'
+import socket
+import sys
+
+host = sys.argv[1]
+port = int(sys.argv[2])
+fifo = sys.argv[3]
+
+with socket.create_connection((host, port), timeout=10) as sock:
+    sock.settimeout(None)
+    with open(fifo, "wb", buffering=0) as handle:
+        while True:
+            data = sock.recv(4096)
+            if not data:
+                break
+            handle.write(data)
+PY
+}
+
+ensure_fifo
+load_pipe_source
+normalize_source
+log "ready host=$BRIDGE_HOST port=$BRIDGE_PORT source=$SOURCE_NAME fifo=$FIFO_PATH"
+
+while true; do
+  if stream_once; then
+    log "stream ended; reconnecting"
+  else
+    log "stream unavailable; retrying"
+  fi
+  sleep "$RECONNECT_DELAY"
+done

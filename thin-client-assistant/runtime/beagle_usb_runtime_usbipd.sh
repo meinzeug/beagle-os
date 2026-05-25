@@ -18,6 +18,10 @@ restart_usbipd() {
   "$sleep_cmd" 1
 }
 
+audio_input_bridge_enabled() {
+  [[ "${PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_BRIDGE_ENABLED:-1}" == "1" ]]
+}
+
 have_exportable_devices() {
   local output usbip_cmd
   usbip_cmd="$(usbip_bin)"
@@ -49,7 +53,7 @@ _is_eligible_for_autobind() {
 
   case "$class" in
     09|e0) return 1 ;;  # Hub, Wireless/BT: always skip
-    03)    return 1 ;;  # Pure HID (keyboard, mouse): skip
+    03) return 1 ;;  # Any HID interface can be keyboard/mouse: keep local.
     00|ef)
       # Class 00 = look at interface classes
       # Class EF (IAD composite, e.g. webcams/microphones) also requires
@@ -59,6 +63,7 @@ _is_eligible_for_autobind() {
         [[ -f "$iface_class_file" ]] || continue
         iface_class="$(tr '[:upper:]' '[:lower:]' < "$iface_class_file" 2>/dev/null | tr -d '[:space:]')"
         case "$iface_class" in
+          01) audio_input_bridge_enabled && return 1 ;;  # USB audio stays local for realtime microphone streaming.
           03) continue ;;  # Ignore HID sub-interfaces on composite devices.
           e0) return 1 ;;  # Bluetooth controllers must stay local.
         esac

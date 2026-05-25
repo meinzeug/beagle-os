@@ -8,6 +8,7 @@
 - Prevented BeagleStream guest reconfiguration from downgrading Ubuntu Beagle desktops to XFCE by default; the script now defaults to the Beagle Plasma desktop and removes the legacy `60-pve-thin-client.conf` LightDM override.
 - Added automatic USB microphone normalization for Ubuntu Beagle stream guests so USB/IP microphones become the default input, are unmuted, and receive a usable software gain instead of appearing present but effectively silent.
 - Added a standalone browser-based microphone test tool with record, stop, playback, USB microphone preference, waveform, live RMS/peak meters, and logfile-backed recorder/playback diagnostics for VM audio troubleshooting.
+- Added a dedicated thin-client microphone audio bridge that keeps USB Audio devices local by default, streams 48 kHz mono PCM over the existing SSH reverse tunnel, and exposes it in Ubuntu Beagle guests as a virtual PipeWire/Pulse source instead of relying on timing-sensitive USB/IP microphone forwarding.
 
 ## v8.3.0 - 2026-05-23
 
