@@ -206,6 +206,33 @@ def test_update_feed_prefers_server_profile_channel_over_endpoint_query() -> Non
     assert feed["available"] is True
 
 
+def test_update_feed_marks_ubuntu_desktops_as_migration_required() -> None:
+    service = UpdateFeedService(
+        downloads_status_file=ROOT / "does-not-exist.json",
+        load_json_file=lambda _path, _default: {"version": "8.3.3"},
+        update_payload_metadata=lambda version: {
+            "version": version,
+            "filename": f"pve-thin-client-usb-payload-v{version}.tar.gz",
+            "payload_url": "https://srv1/beagle-downloads/payload.tar.gz",
+            "payload_sha256": "abc",
+            "sha256sums_url": "https://srv1/beagle-downloads/SHA256SUMS",
+            "payload_pinned_pubkey": "",
+        },
+        public_update_sha256sums_url=lambda: "https://srv1/beagle-downloads/SHA256SUMS",
+    )
+
+    feed = service.build_update_feed(
+        {"beagle_role": "desktop", "os_family": "ubuntu", "update_channel": "rolling"},
+        installed_version="8.3.1",
+    )
+
+    assert feed["channel"] == "rolling"
+    assert feed["update_path"] == "migration_required"
+    assert feed["self_update_supported"] is False
+    assert feed["available"] is False
+    assert "ubuntu desktop" in feed["migration_reasons"][0]
+
+
 class _Vm:
     vmid = 100
     node = "beagle-0"

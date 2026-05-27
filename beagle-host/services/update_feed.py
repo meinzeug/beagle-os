@@ -84,6 +84,12 @@ class UpdateFeedService:
         migration_reasons = endpoint_compatibility.get("migration_reasons", [])
         if not isinstance(migration_reasons, list):
             migration_reasons = []
+        if str(profile.get("beagle_role", "")).strip().lower() == "desktop" and str(profile.get("os_family", "")).strip().lower() == "ubuntu":
+            forced_migration = True
+            migration_reasons = [
+                *[str(item) for item in migration_reasons],
+                "ubuntu desktop endpoints do not include the live self-update client",
+            ]
         if installed and minimum_self_update_version and _version_lt(installed, minimum_self_update_version):
             forced_reinstall = True
             reinstall_reasons = [

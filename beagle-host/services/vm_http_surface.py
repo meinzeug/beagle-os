@@ -213,6 +213,12 @@ class VmHttpSurfaceService:
         migration_reasons = endpoint_compatibility.get("migration_reasons", [])
         if not isinstance(migration_reasons, list):
             migration_reasons = []
+        if str(profile.get("beagle_role", "")).strip().lower() == "desktop" and str(profile.get("os_family", "")).strip().lower() == "ubuntu":
+            migration_required = True
+            migration_reasons = [
+                *[str(item) for item in migration_reasons],
+                "Ubuntu-Desktop-VMs enthalten keinen Live-Self-Update-Client.",
+            ]
         if current_version and minimum_self_update_version and _version_lt(current_version, minimum_self_update_version):
             reinstall_required = True
             reinstall_reasons = [
