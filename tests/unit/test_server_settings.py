@@ -772,8 +772,25 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertEqual(settings["repo_auto_update_channel"], "rolling")
         self.assertEqual(settings["repo_auto_update_interval_minutes"], 1)
 
+    def test_update_repo_auto_update_channel_save_does_not_reapply_unchanged_timer(self):
+        service = self.make_service()
+        service._save_settings({"repo_auto_update_enabled": True})
+
+        with mock.patch.object(service, "get_repo_auto_update", return_value={"config": {"enabled": True}}), \
+             mock.patch.object(MODULE, "_run_systemctl_privileged", side_effect=AssertionError("timer should not be touched")):
+            result = service.update_repo_auto_update({
+                "enabled": True,
+                "channel": "rolling",
+            })
+
+        self.assertTrue(result["ok"], result)
+        settings = MODULE.json.loads(service._settings_path.read_text(encoding="utf-8"))
+        self.assertTrue(settings["repo_auto_update_enabled"])
+        self.assertEqual(settings["repo_auto_update_channel"], "rolling")
+
     def test_update_repo_auto_update_enable_also_enables_system_updates_timer(self):
         service = self.make_service()
+        service._save_settings({"repo_auto_update_enabled": False})
         proc = mock.Mock()
         proc.returncode = 0
         proc.stderr = ""

@@ -875,6 +875,7 @@ class ServerSettingsService:
     def update_repo_auto_update(self, payload: dict[str, Any]) -> dict[str, Any]:
         settings = self._load_settings()
         errors: list[str] = []
+        previous_enabled = bool(settings.get("repo_auto_update_enabled", _DEFAULT_REPO_AUTO_UPDATE_ENABLED))
         requested_enabled: bool | None = None
 
         enabled = payload.get("enabled")
@@ -921,7 +922,7 @@ class ServerSettingsService:
             return {"ok": False, "errors": errors}
 
         self._save_settings(settings)
-        if requested_enabled is not None:
+        if requested_enabled is not None and requested_enabled != previous_enabled:
             timer_result = self._set_repo_auto_update_timer(requested_enabled)
             if timer_result.returncode != 0:
                 return {

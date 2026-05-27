@@ -1,3 +1,21 @@
+## Update (2026-05-27, srv1 Update-Kanal-Save und VM-Update-Policy repariert)
+
+**Scope**: Nach Release `v8.3.3` lieferten zwei Save-Aktionen auf `srv1` Fehler: Server-Update Stable/Rolling mit `400 permission denied` und VM-Details Update-Kanal mit `503 vm config editor not available`.
+
+- **Root-Cause**:
+  - Der Server-Update-Save sendete `enabled` mit. Das Backend startete dadurch auch bei unveraendertem Zustand privilegierte systemd-Timer-Operationen und konnte an Polkit/Rechten scheitern.
+  - Die Runtime-Factory fuer `VmMutationSurfaceService` hatte keinen `update_vm_config`-Hook injiziert, obwohl der VM-Update-Policy-Pfad diesen Editor benoetigt.
+
+- **Repo-Fix**:
+  - `ServerSettingsService.update_repo_auto_update` ruft Timer-Operationen nur noch auf, wenn sich `enabled` wirklich aendert.
+  - `service_registry.vm_mutation_surface_service()` injiziert jetzt `vm_config_editor_service().update_vm_config`.
+  - Neue Regressionstests sichern Kanal-Save ohne Timer-Reapply und die Registry-Injection ab.
+
+- **Verifikation**:
+  - Lokal: `PYTHONPATH=. pytest -q tests/unit/test_server_settings.py tests/unit/test_vm_mutation_surface.py tests/unit/test_service_registry_vm_config_editor_wiring.py` -> `67 passed`.
+  - Hot auf `srv1`: Patch nach `/opt/beagle` kopiert und `beagle-control-plane` neu gestartet.
+  - Live-API auf `srv1`: `PUT /api/v1/settings/updates/repo-auto` -> `200`, `PUT /api/v1/vms/100/update-policy` -> `200`.
+
 ## Update (2026-05-27, BeagleStream-Forks: Managed Client und native Server-Status-API)
 
 **Scope**: Auffaelligkeiten aus dem frisch installierten TC `192.168.178.30` wurden in die BeagleStream-Forks uebernommen, statt weiter im Thinclient-Glue zu wachsen.
