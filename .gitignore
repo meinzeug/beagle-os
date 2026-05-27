@@ -20,4 +20,5 @@ beagle-kiosk/kiosk.conf
 .env
 .env.*
 .artifacts/
+.beagle-artifacts.lock
 terraform-provider-beagle/terraform-provider-beagle
