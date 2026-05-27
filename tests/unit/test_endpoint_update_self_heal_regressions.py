@@ -179,6 +179,33 @@ def test_update_feed_can_require_reinstall_for_old_foundation() -> None:
     assert feed["update_path"] == "reinstall_required"
 
 
+def test_update_feed_prefers_server_profile_channel_over_endpoint_query() -> None:
+    service = UpdateFeedService(
+        downloads_status_file=ROOT / "does-not-exist.json",
+        load_json_file=lambda _path, _default: {"version": "8.3.3"},
+        update_payload_metadata=lambda version: {
+            "version": version,
+            "filename": f"pve-thin-client-usb-payload-v{version}.tar.gz",
+            "payload_url": "https://srv1/beagle-downloads/payload.tar.gz",
+            "payload_sha256": "abc",
+            "sha256sums_url": "https://srv1/beagle-downloads/SHA256SUMS",
+            "payload_pinned_pubkey": "",
+        },
+        public_update_sha256sums_url=lambda: "https://srv1/beagle-downloads/SHA256SUMS",
+    )
+
+    feed = service.build_update_feed(
+        {"update_channel": "rolling", "update_behavior": "auto", "update_enabled": True},
+        installed_version="8.3.1",
+        channel="stable",
+    )
+
+    assert feed["channel"] == "rolling"
+    assert feed["behavior"] == "auto"
+    assert feed["latest_version"] == "8.3.3"
+    assert feed["available"] is True
+
+
 class _Vm:
     vmid = 100
     node = "beagle-0"

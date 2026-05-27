@@ -43,3 +43,31 @@ def test_download_metadata_keeps_non_default_https_port_in_hosted_urls() -> None
     service = make_service(port=9443)
 
     assert service.public_installer_iso_url() == "https://srv1.beagle-os.com/beagle-updates/beagle-os-installer-amd64.iso"
+
+
+def test_update_payload_metadata_prefers_published_latest_payload_url() -> None:
+    service = DownloadMetadataService(
+        cache_get=None,
+        cache_put=None,
+        dist_sha256sums_file=ROOT_DIR / "dist" / "missing-SHA256SUMS",
+        downloads_status_file=ROOT_DIR / "dist" / "beagle-downloads-status.json",
+        load_json_file=lambda _path, default: {
+            "version": "8.3.3",
+            "payload_url": "https://srv1.beagle-os.com/beagle-downloads/pve-thin-client-usb-payload-v8.3.3.tar.gz",
+            "payload_filename": "pve-thin-client-usb-payload-v8.3.3.tar.gz",
+            "payload_sha256": "abc123",
+        },
+        manager_pinned_pubkey="",
+        public_downloads_path="/beagle-downloads",
+        public_downloads_port=443,
+        public_manager_url="https://srv1.beagle-os.com/beagle-api",
+        public_server_name="srv1.beagle-os.com",
+        public_update_base_url="https://beagle-os.com/beagle-updates",
+        version="test",
+    )
+
+    payload = service.update_payload_metadata("8.3.3")
+
+    assert payload["filename"] == "pve-thin-client-usb-payload-v8.3.3.tar.gz"
+    assert payload["payload_url"] == "https://srv1.beagle-os.com/beagle-downloads/pve-thin-client-usb-payload-v8.3.3.tar.gz"
+    assert payload["payload_sha256"] == "abc123"

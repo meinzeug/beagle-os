@@ -175,6 +175,21 @@ class VmProfileService:
     def build_profile(self, vm: Any, *, allow_assignment: bool = True) -> dict[str, Any]:
         config = self._get_vm_config(vm.node, vm.vmid)
         meta = self._parse_description_meta(config.get("description", ""))
+        for key in (
+            "beagle-update-enabled",
+            "beagle-update-channel",
+            "beagle-update-behavior",
+            "beagle-update-feed-url",
+            "beagle-update-version-pin",
+            "beagle-update-enabled-override",
+            "beagle-update-channel-override",
+            "beagle-update-behavior-override",
+        ):
+            value = config.get(key)
+            if value is None:
+                value = config.get(key.replace("-", "_"))
+            if value is not None and str(value).strip():
+                meta[key] = str(value).strip()
         matched_policy = self.resolve_policy_for_vm(vm, meta) if allow_assignment else None
         policy_profile = matched_policy.get("profile", {}) if isinstance(matched_policy, dict) and isinstance(matched_policy.get("profile"), dict) else {}
         desktop_hint = str(

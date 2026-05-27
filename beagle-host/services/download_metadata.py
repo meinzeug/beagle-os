@@ -117,6 +117,9 @@ class DownloadMetadataService:
         latest_version = str(downloads_status.get("version", "")).strip()
         filename = "pve-thin-client-usb-payload-latest.tar.gz"
         payload_url = self.public_versioned_payload_url(version)
+        if version == latest_version:
+            payload_url = str(downloads_status.get("payload_url") or payload_url).strip()
+            filename = str(downloads_status.get("payload_filename") or filename).strip()
         payload_sha256 = self.checksum_for_dist_filename(filename)
         if not payload_sha256 and version == latest_version:
             payload_sha256 = str(downloads_status.get("payload_sha256", "")).strip()

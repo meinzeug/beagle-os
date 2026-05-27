@@ -535,7 +535,7 @@ class BeagleHostProvider:
                 continue
             if option_name.startswith("--"):
                 option_name = option_name[2:]
-            normalized[option_name.replace("-", "_")] = value
+            normalized[option_name if option_name.startswith("beagle-") else option_name.replace("-", "_")] = value
         return normalized
 
     def _find_vm(self, vmid: int) -> dict[str, Any] | None:
@@ -1245,6 +1245,7 @@ class BeagleHostProvider:
             normalized_name = str(name or "").strip()
             if not normalized_name:
                 continue
+            config.pop(normalized_name, None)
             config.pop(normalized_name.replace("-", "_"), None)
         self._write_vm_config(node, vmid, config)
 

@@ -56,7 +56,7 @@ class UpdateFeedService:
             if isinstance(downloads_status.get("endpoint_compatibility"), dict)
             else {}
         )
-        configured_channel = _normalize_channel(str(channel or profile.get("update_channel", "stable") or "stable"))
+        configured_channel = _normalize_channel(str(profile.get("update_channel") or channel or "stable"))
         configured_behavior = str(profile.get("update_behavior", "prompt") or "prompt").strip() or "prompt"
         configured_version_pin = str(version_pin or profile.get("update_version_pin", "") or "").strip()
         enabled = bool(profile.get("update_enabled", True))

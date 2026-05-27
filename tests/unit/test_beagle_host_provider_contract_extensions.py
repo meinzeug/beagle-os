@@ -58,6 +58,22 @@ class BeagleHostProviderContractExtensionsTests(unittest.TestCase):
         cfg = self.provider.get_vm_config("beagle-0", 202)
         self.assertEqual(cfg.get("name"), "vm-202-clone")
 
+    def test_set_vm_options_preserves_beagle_metadata_keys(self):
+        self.provider.set_vm_options(
+            101,
+            {
+                "beagle-update-channel-override": "rolling",
+                "beagle-update-enabled-override": "1",
+                "allow-ksm": "1",
+            },
+        )
+
+        cfg = self.provider.get_vm_config("beagle-0", 101)
+        self.assertEqual(cfg.get("beagle-update-channel-override"), "rolling")
+        self.assertEqual(cfg.get("beagle-update-enabled-override"), "1")
+        self.assertNotIn("beagle_update_channel_override", cfg)
+        self.assertEqual(cfg.get("allow_ksm"), "1")
+
     def test_get_console_proxy_returns_unavailable_without_libvirt(self):
         payload = self.provider.get_console_proxy(101)
         self.assertEqual(payload.get("provider"), "beagle")
