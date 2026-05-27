@@ -86,6 +86,7 @@ class UbuntuBeagleProvisioningService:
         ubuntu_beagle_software_presets: dict[str, dict[str, Any]],
         ubuntu_beagle_stream_server_url: str,
         ubuntu_beagle_beagle_stream_server_url: str,
+        ubuntu_beagle_stream_server_sha256: str,
         ubuntu_beagle_tokens_dir: Callable[[], Path],
         utcnow: Callable[[], str],
         validate_linux_username: Callable[[str, str], str],
@@ -158,6 +159,7 @@ class UbuntuBeagleProvisioningService:
         ]
         self._ubuntu_beagle_stream_server_url = str(ubuntu_beagle_stream_server_url or "")
         self._ubuntu_beagle_beagle_stream_server_url = str(ubuntu_beagle_beagle_stream_server_url or "")
+        self._ubuntu_beagle_stream_server_sha256 = str(ubuntu_beagle_stream_server_sha256 or "")
         self._ubuntu_beagle_tokens_dir = ubuntu_beagle_tokens_dir
         self._utcnow = utcnow
         self._validate_linux_username = validate_linux_username
@@ -717,8 +719,8 @@ class UbuntuBeagleProvisioningService:
                 "__BEAGLE_STREAM_SERVER_PASSWORD__": beagle_stream_server_password,
                 "__BEAGLE_STREAM_SERVER_TOKEN__": beagle_stream_server_token,
                 "__BEAGLE_STREAM_SERVER_PORT__": str(int(beagle_stream_server_port)) if beagle_stream_server_port else "",
-                "__BEAGLE_STREAM_SERVER_URL__": self._ubuntu_beagle_stream_server_url,
                 "__BEAGLE_STREAM_SERVER_URL__": self._ubuntu_beagle_beagle_stream_server_url,
+                "__BEAGLE_STREAM_SERVER_SHA256__": self._ubuntu_beagle_stream_server_sha256,
                 "__BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED__": "wan",
                 "__IDENTITY_LOCALE__": identity_locale,
                 "__IDENTITY_LANGUAGE__": self.locale_language(identity_locale),

@@ -17,7 +17,7 @@
 - [ ] VM100-Mikrofon-Bridge live vollstaendig abnehmen: neuen Thinclient-Runtime-Stand booten/ausrollen, `192.168.123.1:43200` Reverse-Listener pruefen und Browser-Aufnahme gegen `beagle_tc_microphone` ohne USB/IP-Zerkratzen verifizieren.
 - [ ] BeagleStream-Integration weiter kanonisieren: `beagle_stream_server_integration.py` und Folgepfade sollen Beagle-Dateinamen bevorzugen; Sunshine bleibt nur Fallback und muss in Live-Validierung weiter reduziert werden.
 - [x] Frisch installierten TC `192.168.178.30` nach aktuellem Payload prüfen: Desktop-Stream ok, Update-Client-`tmpfs`-/`unknown`-Versionsfehler reproduzierbar im Repo gepatcht und live hot verifiziert (2026-05-27).
-- [x] BeagleStream-Forks Phase-A-Stabilitaet weitergezogen: Client-Managed-Mode fuer Updatecheck-/WoL-Suppression plus strukturierte Stream-Events (`6210928b`) und Server-Status-API `/api/beagle/v1/status` plus Broker-Tokenvalidierung (`1418ef35`) gebaut auf `srv1` und gepusht (2026-05-27).
+- [x] BeagleStream-Forks Phase-A-Stabilitaet weitergezogen: Client-Managed-Mode fuer Updatecheck-/WoL-Suppression plus strukturierte Stream-Events (`6210928b`) und Server-Status-API `/api/beagle/v1/status` plus Broker-Tokenvalidierung (`1418ef35`) gebaut auf `srv1`, als Fork-Release-Artefakte veroeffentlicht und in Beagle-OS per URL+SHA gepinnt (2026-05-27).
 
 - [x] Thinclient-Startup fuer VM100 sichtbar und schneller machen: Kiosk-Loader mit Wallpaper, 10-Schritte-Statusliste, Hostless-Fast-Path, async Audio-Init und gecachtem Auto-Quality live auf TC `192.168.178.30` bis `Received first video packet after 0 ms` validiert (2026-05-13).
 

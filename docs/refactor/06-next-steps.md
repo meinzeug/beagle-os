@@ -6,12 +6,13 @@
 - `beagle-stream-client` hat jetzt einen Beagle-Managed-Mode fuer Updatecheck-/WoL-Suppression und strukturierte Stream-Events (`6210928b`, Branch `beagle/phase-a`).
 - `beagle-stream-server` hat eine native `/api/beagle/v1/status`-API und kapselt Pairing-Token-Validierung im Broker-Client (`1418ef35`, Branch `beagle/phase-a`).
 - Beide Forks wurden auf `srv1` gebaut; CMake fuer den Server lief remote und nicht lokal.
+- Die Fork-Release-Assets wurden erzeugt und Beagle-OS pinnt jetzt `BeagleStream-beagle-6210928-x86_64.AppImage` sowie `beagle-stream-server-1418ef3-ubuntu-24.04-amd64.deb` mit SHA256-Pruefung.
 
 **Naechste konkrete Schritte**:
 
-1. Beagle-OS-Packaging auf die neuen Fork-Commits/Release-Artefakte pinnen und Checksummen im Build erzwingen.
-2. Aus den beiden Fork-Commits versionierte Artefakte erzeugen und in den Beagle-OS-Payload aufnehmen.
-3. Danach frischen TC-/VM100-E2E-Smoke fahren: `/api/beagle/v1/status` statt `/serverinfo` pruefen und `BEAGLE_STREAM_EVENT`-Logs in Manager-/TC-Diagnose uebernehmen.
+1. Neues Beagle-OS-/Thinclient-Payload-Artefakt aus den gepinnten Fork-Binaries bauen.
+2. Danach frischen TC-/VM100-E2E-Smoke fahren: `/api/beagle/v1/status` statt `/serverinfo` pruefen und `BEAGLE_STREAM_EVENT`-Logs in Manager-/TC-Diagnose uebernehmen.
+3. Wenn der E2E-Smoke gruen ist, die alten `/serverinfo`-/GFE-Kompatibilitaetschecks in den Beagle-Diagnosepfaden weiter zurueckstufen.
 
 ## Stable-Release-Strategie (2026-05-25, BeagleStream-Forks statt Hotfix-Glue)
 

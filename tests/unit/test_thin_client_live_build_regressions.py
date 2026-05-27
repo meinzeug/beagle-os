@@ -419,7 +419,8 @@ def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
     build_text = BUILD_THIN_CLIENT.read_text(encoding="utf-8")
 
     assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in build_text
-    assert "BeagleStream-latest-x86_64.AppImage" in build_text
+    assert "BeagleStream-beagle-6210928-x86_64.AppImage" in build_text
+    assert "61cdd24b5d44fd967ee80c2b6d5a3b22a3bbf5463f5c66b7d70cfce803b509cf" in build_text
     assert "validate_beagle_stream_client_bundle" in build_text
     assert "LD_LIBRARY_PATH=\"$appdir/usr/lib" in build_text
     assert "BeagleStream AppImage has unresolved runtime library dependencies" in build_text
@@ -442,11 +443,13 @@ def test_live_and_raw_image_builds_default_to_beaglestream_client() -> None:
     live_hook_text = LIVE_HOOK.read_text(encoding="utf-8")
 
     assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in raw_build_text
-    assert "BeagleStream-latest-x86_64.AppImage" in raw_build_text
+    assert "BeagleStream-beagle-6210928-x86_64.AppImage" in raw_build_text
+    assert "61cdd24b5d44fd967ee80c2b6d5a3b22a3bbf5463f5c66b7d70cfce803b509cf" in raw_build_text
     assert "BEAGLE_STREAM_CLIENT_FALLBACK_URL" not in raw_build_text
     assert "BeagleStream.AppImage" in raw_build_text
     assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in live_hook_text
-    assert "BeagleStream-latest-x86_64.AppImage" in live_hook_text
+    assert "BeagleStream-beagle-6210928-x86_64.AppImage" in live_hook_text
+    assert "61cdd24b5d44fd967ee80c2b6d5a3b22a3bbf5463f5c66b7d70cfce803b509cf" in live_hook_text
     assert "BEAGLE_STREAM_CLIENT_FALLBACK_URL" not in live_hook_text
     assert "BeagleStream.AppImage" in live_hook_text
     assert 'find "${TARGET_DIR}" -type d -exec chmod 0755 {} +' in live_hook_text

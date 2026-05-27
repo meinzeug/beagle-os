@@ -41,11 +41,14 @@ def test_firstboot_prefers_beaglestream_server_package() -> None:
     assert 'STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"' in script
     assert 'write_stream_runtime_status() {' in script
     assert 'BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"' in script
-    assert 'curl -fsSLo "$TMPDIR_WORK/beagle-stream-server.deb" "$BEAGLE_STREAM_SERVER_URL"' in script
+    assert 'BEAGLE_STREAM_SERVER_SHA256="__BEAGLE_STREAM_SERVER_SHA256__"' in script
+    assert '8ef1c03cbb5502c5429484129f60a7ff02fd57a4d37513382a22dc7e2bf2788d' in script
+    assert '-o "$TMPDIR_WORK/beagle-stream-server.deb" \\' in script
+    assert '"$BEAGLE_STREAM_SERVER_URL"' in script
     assert 'stream_runtime_variant="beagle-stream-server"' in script
     assert 'stream_runtime_variant="beagle-stream-server-fallback"' not in script
     assert 'write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"' in script
-    assert 'curl -fsSLo "$TMPDIR_WORK/beagle-stream-server.deb" "$BEAGLE_STREAM_SERVER_URL"' in script
+    assert 'Checksum mismatch for beagle-stream-server package' in script
 
 
 def test_firstboot_bootstraps_vscode_repository() -> None:

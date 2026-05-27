@@ -18,6 +18,8 @@
 - **Verifikation**:
   - Client-Fork auf `srv1` gebaut: `/tmp/beagle-stream-client-build/app/beagle-stream`.
   - Server-Fork auf `srv1` gebaut: `/tmp/beagle-stream-server-build/sunshine` mit `-DBEAGLE_INTEGRATION=ON -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DSUNSHINE_ENABLE_CUDA=OFF`.
+  - Fork-Release-Workflows sind gruen; `beagle-phase-a` enthaelt `BeagleStream-beagle-6210928-x86_64.AppImage` und `beagle-stream-server-1418ef3-ubuntu-24.04-amd64.deb`.
+  - Beagle-OS-Build-/Provisioning-Defaults pinnen diese Artefakte jetzt per commit-spezifischer URL plus SHA256 (`61cdd24b...509cf`, `8ef1c03c...788d`).
   - Binär-Stringcheck bestaetigt `/api/beagle/v1/status`, `/api/v1/streams/validate-token`, Managed-Mode-Updatecheck-Suppression und WoL-Suppression.
 
 ## Update (2026-05-25, frischer TC: USB/IP-Autobind und erster Stream-Start)

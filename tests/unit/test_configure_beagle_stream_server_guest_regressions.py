@@ -43,14 +43,17 @@ def test_configure_beagle_stream_server_guest_prefers_beaglestream_server_packag
     assert 'STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"' in content
     assert 'write_stream_runtime_status() {' in content
     assert "BEAGLE_STREAM_SERVER_DEFAULT_URL" in content
-    assert "beagle-stream-server-latest-ubuntu-24.04-amd64.deb" in content
+    assert "beagle-stream-server-1418ef3-ubuntu-24.04-amd64.deb" in content
+    assert "8ef1c03cbb5502c5429484129f60a7ff02fd57a4d37513382a22dc7e2bf2788d" in content
     assert "BeagleStream server package unavailable" not in content
     assert 'stream_runtime_variant="beagle-stream-server"' in content
     assert 'stream_runtime_variant="beagle-stream-server-fallback"' not in content
     assert 'cat > /etc/beagle/stream-runtime.env <<RUNTIMEENV' in content
     assert 'BEAGLE_STREAM_RUNTIME_VARIANT=\\${stream_runtime_variant}' in content
     assert 'BEAGLE_STREAM_RUNTIME_PACKAGE_URL=\\${stream_runtime_package_url}' in content
-    assert 'curl -fsSLo "\\$tmpdir/beagle-stream-server.deb" "\\$BEAGLE_STREAM_SERVER_URL"' in content
+    assert '-o "\\$tmpdir/beagle-stream-server.deb" \\' in content
+    assert '"\\$BEAGLE_STREAM_SERVER_URL"' in content
+    assert "Checksum mismatch for beagle-stream-server package" in content
 
 
 def test_configure_beagle_stream_server_guest_bootstraps_vscode_repository() -> None:
