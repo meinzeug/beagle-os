@@ -118,6 +118,96 @@ function computeArtifactHealth(payload, running, missingCount) {
   return 'stabil';
 }
 
+function pushArtifactStatusMessage(rows, tone, label, message, meta) {
+  const textValue = String(message || '').trim();
+  if (!textValue) {
+    return;
+  }
+  rows.push({
+    tone: tone || 'info',
+    label: label || 'Status',
+    message: textValue,
+    meta: String(meta || '').trim()
+  });
+}
+
+function renderArtifactStatusFeed(context) {
+  const node = qs('artifact-status-feed');
+  if (!node) {
+    return;
+  }
+  const rows = [];
+  const data = context.data || {};
+  const primaryStatus = context.primaryStatus || {};
+  const refreshStatus = context.refreshStatus || {};
+  const watchdogStatus = context.watchdogStatus || {};
+  const watchdogConfig = context.watchdogConfig || {};
+  const publishGate = context.publishGate || {};
+  const preflight = context.preflight || {};
+  const missing = context.missing || [];
+  const runningRefresh = Boolean(context.runningRefresh);
+  const missingRequired = context.missingRequired || [];
+  const missingOptional = context.missingOptional || [];
+  const missingLatest = context.missingLatest || [];
+  const missingVersioned = context.missingVersioned || [];
+
+  pushArtifactStatusMessage(
+    rows,
+    primaryStatus.severity === 'warn' ? 'warn' : 'good',
+    String(primaryStatus.label || (data.ready ? 'Bereit' : 'Status')),
+    String(primaryStatus.message || (data.ready ? 'Alle benoetigten Downloads sind vorhanden.' : 'Artefaktstatus wird geprueft.'))
+  );
+
+  if (runningRefresh) {
+    pushArtifactStatusMessage(rows, 'info', 'Build aktiv', String((context.buildActivity || {}).detail || refreshStatus.message || 'Artefakte werden gerade aktualisiert.'), String(refreshStatus.step || ''));
+  } else if (String(refreshStatus.status || '').toLowerCase() === 'ok' || String(refreshStatus.last_result || '').toLowerCase() === 'ok') {
+    pushArtifactStatusMessage(rows, 'good', 'Letzter Build', String(refreshStatus.message || 'Abgeschlossen. Es laeuft gerade kein Build.'), formatDate(refreshStatus.finished_at || refreshStatus.updated_at || ''));
+  } else if (String(refreshStatus.status || '').toLowerCase() === 'failed') {
+    pushArtifactStatusMessage(rows, 'warn', 'Letzter Build', String(refreshStatus.message || refreshStatus.error_excerpt || 'Der letzte Build ist fehlgeschlagen.'), formatDate(refreshStatus.updated_at || ''));
+  } else {
+    pushArtifactStatusMessage(rows, 'muted', 'Build', 'Kein Build aktiv. Der naechste Refresh startet manuell oder per Automatik.');
+  }
+
+  if (watchdogStatus.state === 'repairing') {
+    pushArtifactStatusMessage(rows, 'info', 'Watchdog', String(watchdogStatus.message || 'Automatische Reparatur laeuft.'), formatDate(watchdogStatus.checked_at || ''));
+  } else if (watchdogStatus.state === 'healthy') {
+    pushArtifactStatusMessage(rows, 'good', 'Watchdog', String(watchdogStatus.message || 'Alle Pflichtartefakte sind vorhanden und aktuell.'), watchdogConfig.auto_repair ? 'Automatik aktiv' : 'Nur Ueberwachung');
+  } else if (!watchdogConfig.enabled) {
+    pushArtifactStatusMessage(rows, 'muted', 'Watchdog', 'Die Download-Ueberwachung ist deaktiviert.');
+  } else {
+    pushArtifactStatusMessage(rows, 'muted', 'Watchdog', String(watchdogStatus.message || 'Noch keine Watchdog-Pruefung gelaufen.'));
+  }
+
+  if (missingRequired.length || !preflight.service_unit_present) {
+    pushArtifactStatusMessage(rows, 'warn', 'Preflight', missingRequired.length ? ('Fehlende Pflicht-Tools: ' + missingRequired.join(', ')) : 'Die systemd-Unit beagle-artifacts-refresh.service fehlt.');
+  } else if (missingOptional.length) {
+    pushArtifactStatusMessage(rows, 'muted', 'Preflight', 'Optionale Build-Tools fehlen: ' + missingOptional.join(', '));
+  } else {
+    pushArtifactStatusMessage(rows, 'good', 'Preflight', 'Host ist fuer Artifact-Refresh bereit.');
+  }
+
+  if (publishGate.public_ready) {
+    pushArtifactStatusMessage(rows, 'good', 'Public Downloads', 'Latest-Payload und versionierte Installer sind vorhanden.');
+  } else {
+    const missingText = [];
+    if (missingLatest.length) missingText.push('Latest: ' + missingLatest.join(', '));
+    if (missingVersioned.length) missingText.push('Versionierte Installer: ' + missingVersioned.join(', '));
+    pushArtifactStatusMessage(rows, 'warn', 'Public Downloads', missingText.join(' | ') || 'Public-Gate wartet auf Artefakte.');
+  }
+
+  if (missing.length && !runningRefresh) {
+    pushArtifactStatusMessage(rows, 'warn', 'Fehlende Dateien', missing.join(', '));
+  }
+
+  node.innerHTML = rows.slice(0, 6).map((item) => {
+    const meta = item.meta ? '<em>' + escapeHtml(item.meta) + '</em>' : '';
+    return '<div class="artifact-status-feed-item is-' + escapeHtml(item.tone) + '">' +
+      '<span>' + escapeHtml(item.label) + meta + '</span>' +
+      '<strong>' + escapeHtml(item.message) + '</strong>' +
+      '</div>';
+  }).join('');
+}
+
 function eventMatchesArtifactFilter(item) {
   const mode = String(artifactLiveFilter || 'all');
   if (mode === 'all') {
@@ -1050,31 +1140,35 @@ function renderArtifactStatus(data) {
   const missingOptional = Array.isArray(preflight.missing_optional_build_tools) ? preflight.missing_optional_build_tools : [];
   const missingLatest = Array.isArray(publishGate.missing_latest) ? publishGate.missing_latest : [];
   const missingVersioned = Array.isArray(publishGate.missing_versioned) ? publishGate.missing_versioned : [];
+  const refreshState = String(refreshStatus.status || '').toLowerCase();
+  const refreshResult = String(refreshStatus.last_result || refreshStatus.status || '').toLowerCase();
+  const completedRefresh = !runningRefresh && (refreshState === 'ok' || refreshResult === 'ok');
 
   text('artifact-ready', runningRefresh ? 'Nach Build' : (data && data.ready ? 'Ja' : 'Nein'));
   text('artifact-missing-count', runningRefresh && missing.length ? 'wird gebaut' : String(missing.length));
   text('artifact-refresh-service', String((data && data.services && data.services['beagle-artifacts-refresh.service']) || 'unknown'));
   text('artifact-refresh-timer', String((data && data.services && data.services['beagle-artifacts-refresh.timer']) || 'unknown'));
-  text('artifact-refresh-step', String(refreshStatus.step || '—'));
+  text('artifact-refresh-step', runningRefresh ? String(refreshStatus.step || '—') : 'kein Build aktiv');
   const visibleProgress = buildActivity && buildActivity.progress != null
     ? Number(buildActivity.progress)
     : Number(refreshStatus.progress);
-  text('artifact-refresh-progress', Number.isFinite(visibleProgress) ? (String(Math.max(0, Math.min(100, Math.round(visibleProgress)))) + '%') : '—');
+  text('artifact-refresh-progress', runningRefresh && Number.isFinite(visibleProgress) ? (String(Math.max(0, Math.min(100, Math.round(visibleProgress)))) + '%') : '—');
   text('artifact-refresh-updated', formatDate(refreshStatus.updated_at || refreshStatus.finished_at || refreshStatus.started_at || ''));
-  text('artifact-refresh-result', String(refreshStatus.last_result || refreshStatus.status || '—'));
-  text('artifact-build-phase', String((buildActivity && buildActivity.label) || (runningRefresh ? 'Build laeuft' : 'wartet')));
-  text('artifact-build-detail', String((buildActivity && buildActivity.detail) || (runningRefresh ? 'Der Server baut gerade Artefakte. Die Details werden live aktualisiert.' : 'Wenn ein Build laeuft, zeigt diese Karte die aktuelle Phase und erklaert, warum sie dauern kann.')));
-  text('artifact-build-hint', String((buildActivity && buildActivity.hint) || 'Lange ISO-/SquashFS-Builds koennen mehrere Minuten dauern.'));
-  text('artifact-build-elapsed', formatDurationCompact(buildActivity && buildActivity.elapsed_seconds != null ? buildActivity.elapsed_seconds : refreshStatus.duration_seconds));
+  text('artifact-refresh-result', runningRefresh ? String(refreshStatus.status || 'aktiv') : (completedRefresh ? 'abgeschlossen' : String(refreshStatus.last_result || refreshStatus.status || '—')));
+  text('artifact-build-label', runningRefresh ? 'Live-Build' : 'Build-Status');
+  text('artifact-build-phase', String((runningRefresh && buildActivity && buildActivity.label) || (runningRefresh ? 'Build laeuft' : 'kein Build aktiv')));
+  text('artifact-build-detail', String((runningRefresh && buildActivity && buildActivity.detail) || (runningRefresh ? 'Der Server baut gerade Artefakte. Die Details werden live aktualisiert.' : (completedRefresh ? 'Letzter Build abgeschlossen. Es laufen aktuell keine Build-Prozesse.' : 'Bereit fuer den naechsten manuellen oder automatischen Refresh.'))));
+  text('artifact-build-hint', String((runningRefresh && buildActivity && buildActivity.hint) || (runningRefresh ? 'Lange ISO-/SquashFS-Builds koennen mehrere Minuten dauern.' : 'Automatische Reparatur bedeutet Bereitschaft, nicht dass gerade ein Build laeuft.')));
+  text('artifact-build-elapsed', runningRefresh ? formatDurationCompact(buildActivity && buildActivity.elapsed_seconds != null ? buildActivity.elapsed_seconds : refreshStatus.duration_seconds) : '—');
   const activeProcesses = Array.isArray(buildActivity && buildActivity.active_processes) ? buildActivity.active_processes : [];
-  text('artifact-build-process-count', String(activeProcesses.length) + (activeProcesses.length === 1 ? ' Prozess' : ' Prozesse'));
+  text('artifact-build-process-count', runningRefresh ? (String(activeProcesses.length) + (activeProcesses.length === 1 ? ' Prozess' : ' Prozesse')) : '0 Prozesse');
   const buildActivityNode = qs('artifact-build-activity');
   if (buildActivityNode) {
     buildActivityNode.classList.toggle('is-running', runningRefresh);
   }
   const buildProgressBar = qs('artifact-build-progress-bar');
   if (buildProgressBar) {
-    const width = Number.isFinite(visibleProgress) ? Math.max(0, Math.min(100, Math.round(visibleProgress))) : 0;
+    const width = runningRefresh && Number.isFinite(visibleProgress) ? Math.max(0, Math.min(100, Math.round(visibleProgress))) : 0;
     buildProgressBar.style.width = String(width) + '%';
   }
   text('artifact-preflight-free', formatBytesCompact(preflight.free_bytes || 0));
@@ -1102,11 +1196,7 @@ function renderArtifactStatus(data) {
   setArtifactLink('artifact-status-link', links.status_json);
   setArtifactLink('artifact-downloads-link', links.downloads_index);
 
-  const refreshMessage = qs('artifact-refresh-message');
-  if (refreshMessage) {
-    refreshMessage.textContent = String((runningRefresh && buildActivity && buildActivity.detail) || refreshStatus.message || 'Noch kein Refresh aktiv.');
-    refreshMessage.className = 'banner ' + (refreshStatus.status === 'failed' ? 'warn' : runningRefresh ? 'info' : 'subtle');
-  }
+  renderArtifactStatusFeed({ data, primaryStatus, refreshStatus, buildActivity, watchdogStatus, watchdogConfig, preflight, publishGate, missing, missingRequired, missingOptional, missingLatest, missingVersioned, runningRefresh });
   const artifactSummaryMessage = qs('artifact-summary-message');
   if (artifactSummaryMessage) {
     if (primaryStatus.message) {
@@ -1144,10 +1234,10 @@ function renderArtifactStatus(data) {
   const gateMessage = qs('artifact-gate-message');
   if (gateMessage) {
     if (publishGate.public_ready) {
-      gateMessage.textContent = 'Installimage/Public-Release ist freigegeben: latest- und versionierte Thin-Client-Artefakte sind vorhanden.';
+      gateMessage.textContent = 'Installimage/Public-Release ist freigegeben: latest-Payload und versionierte Installer sind vorhanden.';
       gateMessage.className = 'banner info';
     } else if (runningRefresh) {
-      gateMessage.textContent = 'Public-Gate wartet auf den laufenden Build. Fehlende latest/versionierte Artefakte werden gerade erzeugt.';
+      gateMessage.textContent = 'Public-Gate wartet auf den laufenden Build. Fehlende latest-Payloads oder versionierte Installer werden gerade erzeugt.';
       gateMessage.className = 'banner subtle';
     } else {
       gateMessage.textContent = 'Public-Gate blockiert. Latest fehlt: ' +
@@ -1186,7 +1276,7 @@ function renderArtifactStatus(data) {
   } else if (watchdogStatus.state === 'drift') {
     setUpdateFlowStep('artifacts', 'warn', 'Drift');
   } else if (watchdogStatus.state === 'repairing') {
-    setUpdateFlowStep('artifacts', 'running', 'repariert');
+    setUpdateFlowStep('artifacts', 'running', 'Reparatur');
   } else if (data && data.ready) {
     setUpdateFlowStep('artifacts', 'good', 'bereit');
   } else {

@@ -2575,31 +2575,33 @@
                       <small>Maximal 6 Stunden alte Artefakte</small>
                     </span>
                   </label>
-                  <div class="settings-update-status-banner" id="artifact-summary-message">Der Artefaktstatus wird automatisch geladen.</div>
-                  <div class="settings-update-metrics">
-                    <div class="settings-update-metric is-primary"><span>Bereit</span><strong id="artifact-ready">—</strong></div>
-                    <div class="settings-update-metric"><span>Refresh</span><strong id="artifact-refresh-result">—</strong></div>
-                    <div class="settings-update-metric"><span>Fehlend</span><strong id="artifact-missing-count">—</strong></div>
-                    <div class="settings-update-metric"><span>Fortschritt</span><strong id="artifact-refresh-progress">—</strong></div>
-                  </div>
-                  <div class="settings-update-live">
-                    <span>Aktueller Schritt</span>
-                    <strong id="artifact-refresh-step">—</strong>
-                  </div>
-                  <div class="settings-build-activity" id="artifact-build-activity">
-                    <div class="settings-build-activity-head">
-                      <span>Live-Build</span>
-                      <strong id="artifact-build-phase">wartet</strong>
+                  <div class="artifact-status-hub">
+                    <div class="artifact-status-overview" aria-label="Artefakt-Ueberblick">
+                      <div class="artifact-status-pill is-primary"><span>Downloads</span><strong id="artifact-ready">—</strong></div>
+                      <div class="artifact-status-pill"><span>Build</span><strong id="artifact-refresh-result">—</strong></div>
+                      <div class="artifact-status-pill"><span>Fehlend</span><strong id="artifact-missing-count">—</strong></div>
+                      <div class="artifact-status-pill"><span>Fortschritt</span><strong id="artifact-refresh-progress">—</strong></div>
                     </div>
-                    <div class="settings-build-bar" aria-hidden="true"><span id="artifact-build-progress-bar"></span></div>
-                    <p id="artifact-build-detail">Wenn ein Build laeuft, zeigt diese Karte die aktuelle Phase und erklaert, warum sie dauern kann.</p>
-                    <div class="settings-build-meta">
-                      <span>Laufzeit: <strong id="artifact-build-elapsed">—</strong></span>
-                      <span>Aktiv: <strong id="artifact-build-process-count">0 Prozesse</strong></span>
+                    <div class="artifact-status-mainline">
+                      <div class="settings-build-activity" id="artifact-build-activity">
+                        <div class="settings-build-activity-head">
+                          <span id="artifact-build-label">Build-Status</span>
+                          <strong id="artifact-build-phase">wartet</strong>
+                        </div>
+                        <div class="settings-build-bar" aria-hidden="true"><span id="artifact-build-progress-bar"></span></div>
+                        <p id="artifact-build-detail">Wenn ein Build laeuft, zeigt diese Karte die aktuelle Phase und erklaert, warum sie dauern kann.</p>
+                        <div class="settings-build-meta">
+                          <span>Schritt: <strong id="artifact-refresh-step">—</strong></span>
+                          <span>Laufzeit: <strong id="artifact-build-elapsed">—</strong></span>
+                          <span>Aktiv: <strong id="artifact-build-process-count">0 Prozesse</strong></span>
+                        </div>
+                        <p class="settings-build-hint" id="artifact-build-hint">Lange ISO-/SquashFS-Builds koennen mehrere Minuten dauern.</p>
+                      </div>
+                      <div class="artifact-status-feed" id="artifact-status-feed" aria-live="polite">
+                        <div class="artifact-status-feed-item is-muted"><span>Status</span><strong>Artefaktstatus wird geladen.</strong></div>
+                      </div>
                     </div>
-                    <p class="settings-build-hint" id="artifact-build-hint">Lange ISO-/SquashFS-Builds koennen mehrere Minuten dauern.</p>
                   </div>
-                  <div class="settings-update-status-banner" id="artifact-refresh-message">Noch kein laufender Refresh.</div>
                   <div class="settings-update-unified-inline-actions">
                     <button class="button ghost" id="artifact-watchdog-save" type="button">Build-Automatik speichern</button>
                     <button class="button ghost" id="artifact-watchdog-check" type="button">Watchdog jetzt pruefen</button>
@@ -2618,16 +2620,12 @@
                       <div class="info-item"><span class="info-label">Service-Unit</span><span class="info-value" id="artifact-preflight-service-unit">—</span></div>
                       <div class="info-item"><span class="info-label">Start faehig</span><span class="info-value" id="artifact-preflight-start-capable">—</span></div>
                       <div class="info-item"><span class="info-label">Latest fehlt</span><span class="info-value" id="artifact-gate-missing-latest">—</span></div>
-                      <div class="info-item"><span class="info-label">Versioniert fehlt</span><span class="info-value" id="artifact-gate-missing-versioned">—</span></div>
+                      <div class="info-item"><span class="info-label">Versionierte Installer fehlen</span><span class="info-value" id="artifact-gate-missing-versioned">—</span></div>
                       <div class="info-item"><span class="info-label">Artefakt-Alter</span><span class="info-value" id="artifact-watchdog-age">—</span></div>
                       <div class="info-item"><span class="info-label">Watchdog Timer</span><span class="info-value" id="artifact-watchdog-timer">—</span></div>
                       <div class="info-item"><span class="info-label">Automatik aktiv</span><span class="info-value" id="artifact-watchdog-enabled-state">—</span></div>
                       <div class="info-item"><span class="info-label">Maximales Alter</span><span class="info-value" id="artifact-watchdog-max-age-state">—</span></div>
                     </div>
-                    <div class="banner subtle" id="artifact-watchdog-simple-message">Die Download-Automatik wird mit dem Artefaktstatus geladen.</div>
-                    <div class="banner subtle" id="artifact-watchdog-message">Watchdog wird mit dem Artefaktstatus geladen.</div>
-                    <div class="banner subtle" id="artifact-preflight-message">Preflight wird mit dem Status geladen.</div>
-                    <div class="banner subtle" id="artifact-gate-message">Noch keine Gate-Pruefung geladen.</div>
                     <div class="settings-inline-meta">
                       <a id="artifact-status-link" href="#" target="_blank" rel="noopener noreferrer">Status-JSON</a>
                       <a id="artifact-downloads-link" href="#" target="_blank" rel="noopener noreferrer">Downloads</a>

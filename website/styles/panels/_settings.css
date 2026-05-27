@@ -141,7 +141,7 @@
 }
 .settings-update-unified-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 .settings-update-unified-block {
@@ -351,6 +351,91 @@
   font-size: 0.84rem;
   line-height: 1.45;
 }
+.artifact-status-hub {
+  display: grid;
+  gap: 12px;
+}
+.artifact-status-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.artifact-status-pill {
+  min-height: 68px;
+  padding: 12px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(4, 7, 8, 0.34);
+}
+.artifact-status-pill span,
+.artifact-status-feed-item span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.artifact-status-pill strong {
+  display: block;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+.artifact-status-pill.is-primary strong {
+  color: var(--amber);
+  font-size: 1.3rem;
+}
+.artifact-status-mainline {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.95fr) minmax(320px, 1.35fr);
+  gap: 12px;
+  align-items: stretch;
+}
+.artifact-status-mainline .settings-build-activity {
+  margin: 0;
+}
+.artifact-status-feed {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 10px;
+  border: 1px solid rgba(125, 224, 255, 0.14);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(125, 224, 255, 0.06), rgba(255, 255, 255, 0.025));
+}
+.artifact-status-feed-item {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.18);
+}
+.artifact-status-feed-item span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.artifact-status-feed-item span em {
+  color: var(--text-secondary);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.artifact-status-feed-item strong {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+.artifact-status-feed-item.is-good { border-color: rgba(140, 226, 109, 0.22); }
+.artifact-status-feed-item.is-info { border-color: rgba(125, 224, 255, 0.22); }
+.artifact-status-feed-item.is-warn { border-color: rgba(255, 180, 84, 0.28); }
+.artifact-status-feed-item.is-muted { opacity: 0.86; }
 .settings-build-meta {
   display: flex;
   flex-wrap: wrap;
@@ -420,7 +505,10 @@ body.light-mode .settings-firewall-card {
 body.light-mode .settings-update-metric,
 body.light-mode .settings-update-switch,
 body.light-mode .settings-update-details,
-body.light-mode .settings-build-activity {
+body.light-mode .settings-build-activity,
+body.light-mode .artifact-status-pill,
+body.light-mode .artifact-status-feed,
+body.light-mode .artifact-status-feed-item {
   background: rgba(255, 255, 255, 0.52);
   border-color: rgba(92, 76, 49, 0.14);
 }
@@ -648,6 +736,7 @@ body.light-mode .settings-build-activity {
   .panel-section.settings-update-grid.panel-section-active { grid-template-columns: 1fr; }
   .settings-update-card { min-height: 0; }
   .settings-update-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .artifact-status-mainline { grid-template-columns: 1fr; }
   .settings-update-unified-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .settings-update-unified-grid { grid-template-columns: 1fr; }
   .settings-firewall-grid { grid-template-columns: 1fr; }
@@ -657,12 +746,14 @@ body.light-mode .settings-build-activity {
   .settings-update-card-head { grid-template-columns: auto minmax(0, 1fr); }
   .settings-update-card-pulse { grid-column: 1 / -1; justify-items: start; grid-template-columns: auto auto; align-items: center; min-width: 0; }
   .settings-update-metrics { grid-template-columns: 1fr 1fr; }
+  .artifact-status-overview { grid-template-columns: 1fr 1fr; }
   .settings-update-card .settings-update-actions .button { flex-basis: 100%; }
   .settings-update-unified-actions { grid-template-columns: 1fr; }
   .settings-firewall-metrics { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 520px) {
   .settings-update-metrics { grid-template-columns: 1fr; }
+  .artifact-status-overview { grid-template-columns: 1fr; }
   .settings-update-card-head { grid-template-columns: 1fr; }
   .settings-firewall-metrics { grid-template-columns: 1fr; }
 }
