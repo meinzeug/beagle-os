@@ -75,9 +75,11 @@ def test_update_vm_config_removes_legacy_beagle_metadata_aliases() -> None:
         "beagle_update_behavior_override": "prompt",
     }
     calls: list[tuple[int, dict]] = []
+    deletes: list[tuple[int, list[str]]] = []
     service = VmConfigEditorService(
         get_vm_config=lambda node, vmid: dict(current),
         set_vm_options=lambda vmid, options: calls.append((vmid, dict(options))) or "ok",
+        delete_vm_options=lambda vmid, keys: deletes.append((vmid, list(keys))),
         invalidate_vm_cache=lambda vmid, node: None,
     )
 
@@ -91,3 +93,4 @@ def test_update_vm_config_removes_legacy_beagle_metadata_aliases() -> None:
     assert result["config"]["beagle-update-behavior-override"] == "auto"
     assert "beagle_update_channel_override" not in result["config"]
     assert "beagle_update_behavior_override" not in calls[0][1]
+    assert deletes == [(100, ["beagle_update_channel_override", "beagle_update_behavior_override"])]

@@ -195,16 +195,19 @@ class VmConfigEditorService:
         vmid = int(getattr(vm, "vmid"))
         current = self._get_vm_config(node, vmid)
         next_config = dict(current if isinstance(current, dict) else {})
+        provider_delete_keys = list(delete_keys)
         for key in delete_keys:
             next_config.pop(key, None)
         for key in cleaned:
             if key.startswith("beagle-"):
-                next_config.pop(key.replace("-", "_"), None)
+                legacy_key = key.replace("-", "_")
+                next_config.pop(legacy_key, None)
+                provider_delete_keys.append(legacy_key)
         next_config.update(cleaned)
 
         provider_result = self._set_vm_options(vmid, {key: value for key, value in next_config.items() if key not in {"vmid", "node", "status"}})
-        if delete_keys and self._delete_vm_options is not None:
-            self._delete_vm_options(vmid, delete_keys)
+        if provider_delete_keys and self._delete_vm_options is not None:
+            self._delete_vm_options(vmid, provider_delete_keys)
         libvirt_result = self._apply_libvirt_common(vmid, cleaned)
         self._invalidate_vm_cache(vmid, node)
         return {
