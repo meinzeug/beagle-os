@@ -15,12 +15,14 @@ OVERLAY_DIR="$PROFILE_DIR/overlay"
 DEBIAN_RELEASE="${BEAGLE_OS_RELEASE:-trixie}"
 DEBIAN_ARCH="${BEAGLE_OS_ARCH:-amd64}"
 DEBIAN_MIRROR="${BEAGLE_OS_MIRROR:-https://deb.debian.org/debian}"
+DEBIAN_SECURITY_MIRROR="${BEAGLE_OS_SECURITY_MIRROR:-https://deb.debian.org/debian-security}"
 HOSTNAME_VALUE="${BEAGLE_OS_HOSTNAME:-beagle-os}"
 RUNTIME_USER="${BEAGLE_OS_USER:-thinclient}"
 IMAGE_SIZE_GB="${BEAGLE_OS_IMAGE_SIZE_GB:-8}"
 JOBS="${BEAGLE_OS_JOBS:-$(nproc)}"
 BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage"
 BEAGLE_STREAM_CLIENT_URL="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_URL:-$BEAGLE_STREAM_CLIENT_DEFAULT_URL}"
+BEAGLE_STREAM_CLIENT_SHA256="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_SHA256:-}"
 BEAGLE_STREAM_CLIENT_HOST="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_HOST:-}"
 BEAGLE_STREAM_CLIENT_PORT="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_PORT:-}"
 BEAGLE_STREAM_CLIENT_APP="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_APP:-Desktop}"
@@ -103,7 +105,21 @@ require_root() {
   if [[ "$EUID" -eq 0 ]]; then
     return
   fi
-  exec sudo --preserve-env=BEAGLE_OS_RELEASE,BEAGLE_OS_ARCH,BEAGLE_OS_MIRROR,BEAGLE_OS_KERNEL_VERSION,BEAGLE_OS_KERNEL_LOCALVERSION,BEAGLE_OS_KERNEL_DEB_PATH,BEAGLE_OS_SKIP_KERNEL_BUILD,BEAGLE_OS_HOSTNAME,BEAGLE_OS_USER,BEAGLE_OS_IMAGE_SIZE_GB,BEAGLE_OS_WORK_DIR,BEAGLE_OS_OUT_DIR,BEAGLE_OS_JOBS,BEAGLE_OS_PROFILE_DIR,BEAGLE_OS_BEAGLE_STREAM_CLIENT_URL,BEAGLE_OS_BEAGLE_STREAM_CLIENT_HOST,BEAGLE_OS_BEAGLE_STREAM_CLIENT_PORT,BEAGLE_OS_BEAGLE_STREAM_CLIENT_APP,BEAGLE_OS_BEAGLE_STREAM_CLIENT_RESOLUTION,BEAGLE_OS_BEAGLE_STREAM_CLIENT_FPS,BEAGLE_OS_BEAGLE_STREAM_CLIENT_BITRATE,BEAGLE_OS_BEAGLE_STREAM_SERVER_API_URL,BEAGLE_OS_BEAGLE_STREAM_SERVER_USERNAME,BEAGLE_OS_BEAGLE_STREAM_SERVER_PASSWORD,BEAGLE_OS_MANAGER_URL,BEAGLE_OS_MANAGER_TOKEN "$0" "$@"
+  exec sudo --preserve-env=BEAGLE_OS_RELEASE,BEAGLE_OS_ARCH,BEAGLE_OS_MIRROR,BEAGLE_OS_KERNEL_VERSION,BEAGLE_OS_KERNEL_LOCALVERSION,BEAGLE_OS_KERNEL_DEB_PATH,BEAGLE_OS_SKIP_KERNEL_BUILD,BEAGLE_OS_HOSTNAME,BEAGLE_OS_USER,BEAGLE_OS_IMAGE_SIZE_GB,BEAGLE_OS_WORK_DIR,BEAGLE_OS_OUT_DIR,BEAGLE_OS_JOBS,BEAGLE_OS_PROFILE_DIR,BEAGLE_OS_BEAGLE_STREAM_CLIENT_URL,BEAGLE_OS_BEAGLE_STREAM_CLIENT_SHA256,BEAGLE_OS_BEAGLE_STREAM_CLIENT_HOST,BEAGLE_OS_BEAGLE_STREAM_CLIENT_PORT,BEAGLE_OS_BEAGLE_STREAM_CLIENT_APP,BEAGLE_OS_BEAGLE_STREAM_CLIENT_RESOLUTION,BEAGLE_OS_BEAGLE_STREAM_CLIENT_FPS,BEAGLE_OS_BEAGLE_STREAM_CLIENT_BITRATE,BEAGLE_OS_BEAGLE_STREAM_SERVER_API_URL,BEAGLE_OS_BEAGLE_STREAM_SERVER_USERNAME,BEAGLE_OS_BEAGLE_STREAM_SERVER_PASSWORD,BEAGLE_OS_MANAGER_URL,BEAGLE_OS_MANAGER_TOKEN "$0" "$@"
+}
+
+verify_sha256() {
+  local file_path="$1"
+  local expected_sha="$2"
+  local label="$3"
+  local actual_sha=""
+
+  [[ -n "$expected_sha" ]] || return 0
+  actual_sha="$(sha256sum "$file_path" | awk '{print $1}')"
+  if [[ "$actual_sha" != "$expected_sha" ]]; then
+    echo "Checksum mismatch for ${label}: expected ${expected_sha}, got ${actual_sha}" >&2
+    return 1
+  fi
 }
 
 install_dependencies() {
@@ -181,6 +197,14 @@ mount_chroot_fs() {
 
 chroot_run_rootfs() {
   chroot "$ROOTFS_DIR" /usr/bin/env DEBIAN_FRONTEND=noninteractive bash -lc "$*"
+}
+
+write_rootfs_apt_sources() {
+  cat >"$ROOTFS_DIR/etc/apt/sources.list" <<EOF
+deb $DEBIAN_MIRROR $DEBIAN_RELEASE main contrib non-free non-free-firmware
+deb $DEBIAN_MIRROR ${DEBIAN_RELEASE}-updates main contrib non-free non-free-firmware
+deb $DEBIAN_SECURITY_MIRROR ${DEBIAN_RELEASE}-security main contrib non-free non-free-firmware
+EOF
 }
 
 host_preflight() {
@@ -302,6 +326,9 @@ prepare_rootfs() {
 
   mkdir -p "$ROOTFS_DIR"/{dev,dev/pts,proc,sys,run,tmp,boot/efi}
   chmod 1777 "$ROOTFS_DIR/tmp"
+
+  # Required for firmware packages from the profile package list.
+  write_rootfs_apt_sources
 
   mount_chroot_fs "$ROOTFS_DIR" ROOTFS_CHROOT_MOUNTS
 
@@ -457,11 +484,13 @@ install_beagle_stream_client_into_rootfs() {
     --retry 8 \
     --retry-delay 3 \
     --retry-connrefused \
+    --retry-all-errors \
     --continue-at - \
     --speed-limit 5000 \
     --speed-time 30 \
     -o "$work_dir/BeagleStream.AppImage" \
     "$appimage_url"
+  verify_sha256 "$work_dir/BeagleStream.AppImage" "$BEAGLE_STREAM_CLIENT_SHA256" "beagle-stream-client AppImage"
 
   chmod +x "$work_dir/BeagleStream.AppImage"
   (
@@ -504,6 +533,8 @@ KERNEL_LOCALVERSION=$KERNEL_LOCALVERSION
 HOSTNAME=$HOSTNAME_VALUE
 RUNTIME_USER=$RUNTIME_USER
 PROFILE_DIR=$PROFILE_DIR
+BEAGLE_STREAM_CLIENT_URL=$BEAGLE_STREAM_CLIENT_URL
+BEAGLE_STREAM_CLIENT_SHA256=${BEAGLE_STREAM_CLIENT_SHA256:-UNSET}
 EOF
 }
 

@@ -36,6 +36,7 @@ BEAGLE_STREAM_SERVER_TOKEN="${BEAGLE_STREAM_SERVER_TOKEN:-}"
 BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-50000}"
 BEAGLE_STREAM_SERVER_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb"
 BEAGLE_STREAM_SERVER_URL="${BEAGLE_STREAM_SERVER_URL:-$BEAGLE_STREAM_SERVER_DEFAULT_URL}"
+BEAGLE_STREAM_SERVER_SHA256="${BEAGLE_STREAM_SERVER_SHA256:-}"
 BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR_DEFAULT="/opt/beagle/forks/beagle-stream-server"
 BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR="${BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR:-$BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR_DEFAULT}"
 BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR="${BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR:-${BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR%/}/build-beagle/_deps}"
@@ -580,6 +581,7 @@ BEAGLE_STREAM_SERVER_PASSWORD='${BEAGLE_STREAM_SERVER_PASSWORD}'
 BEAGLE_STREAM_SERVER_TOKEN='${BEAGLE_STREAM_SERVER_TOKEN}'
 BEAGLE_STREAM_SERVER_PORT='${BEAGLE_STREAM_SERVER_PORT}'
 BEAGLE_STREAM_SERVER_URL='${BEAGLE_STREAM_SERVER_URL}'
+BEAGLE_STREAM_SERVER_SHA256='${BEAGLE_STREAM_SERVER_SHA256}'
 BEAGLE_STREAM_SERVER_INSTALL_MODE='${install_mode}'
 BEAGLE_STREAM_SERVER_NATIVE_SOURCE_ARCHIVE='${native_source_archive}'
 BEAGLE_STREAM_SERVER_NATIVE_DEPS_ARCHIVE='${native_deps_archive}'
@@ -787,7 +789,23 @@ if [[ "\${BEAGLE_STREAM_SERVER_INSTALL_MODE:-package}" == "native" ]]; then
   ninja -j"\$(nproc)" sunshine
   install -m 0755 sunshine /usr/local/bin/sunshine
 else
-  curl -fsSLo "\$tmpdir/beagle-stream-server.deb" "\$BEAGLE_STREAM_SERVER_URL"
+  curl -fL \
+    --retry 8 \
+    --retry-delay 3 \
+    --retry-connrefused \
+    --retry-all-errors \
+    --continue-at - \
+    --speed-limit 5000 \
+    --speed-time 30 \
+    -o "\$tmpdir/beagle-stream-server.deb" \
+    "\$BEAGLE_STREAM_SERVER_URL"
+  if [[ -n "\$BEAGLE_STREAM_SERVER_SHA256" ]]; then
+    actual_sha="\$(sha256sum "\$tmpdir/beagle-stream-server.deb" | awk '{print \$1}')"
+    if [[ "\$actual_sha" != "\$BEAGLE_STREAM_SERVER_SHA256" ]]; then
+      echo "Checksum mismatch for beagle-stream-server package: expected \$BEAGLE_STREAM_SERVER_SHA256, got \$actual_sha" >&2
+      exit 1
+    fi
+  fi
   apt-get install -y "\$tmpdir/beagle-stream-server.deb"
 fi
 install -d -m 0755 /etc/beagle

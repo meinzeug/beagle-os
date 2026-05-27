@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib.machinery
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -44,6 +46,45 @@ def test_update_client_preserves_live_usb_kernel_flags_when_rewriting_grub() -> 
     assert "pve_thin_client.live_usb=" in script
     assert "pve_thin_client.update_persistence=" in script
     assert "pve_thin_client.mode=runtime{extra_args}" in script
+
+
+def _load_update_client_module():
+    loader = importlib.machinery.SourceFileLoader("beagle_update_client_test", str(UPDATE_CLIENT))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def test_update_client_resolves_live_media_uuid_from_cmdline_when_root_is_tmpfs(monkeypatch) -> None:
+    module = _load_update_client_module()
+
+    def fake_check_output(args, **_kwargs):
+        if args[:3] == ["findmnt", "-nro", "SOURCE"]:
+            return "tmpfs\n"
+        raise AssertionError(f"unexpected command: {args}")
+
+    original_read_text = module.Path.read_text
+
+    def fake_read_text(path, *args, **kwargs):
+        if str(path) == "/proc/cmdline":
+            return "boot=live live-media=/dev/disk/by-uuid/8051f327-e67d-4ee2-9339-9ab140f0348d live-media-path=/live/current toram"
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(module.subprocess, "check_output", fake_check_output)
+    monkeypatch.setattr(module.Path, "read_text", fake_read_text)
+
+    assert module.root_uuid_for_medium(Path("/run/live/medium")) == "8051f327-e67d-4ee2-9339-9ab140f0348d"
+
+
+def test_update_client_ignores_unknown_manifest_version_for_build_info_fallback(monkeypatch) -> None:
+    module = _load_update_client_module()
+
+    monkeypatch.setattr(module, "read_install_manifest", lambda _medium: {"project_version": "unknown"})
+    monkeypatch.setattr(module, "read_env_file", lambda _path: {"PROJECT_VERSION": "8.3.1"})
+
+    assert module.current_version({}, Path("/run/live/medium")) == "8.3.1"
 
 
 def test_installed_thinclient_ab_update_path_keeps_two_slots_and_pending_manifest() -> None:

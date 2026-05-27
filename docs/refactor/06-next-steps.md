@@ -40,6 +40,29 @@
 4. Danach einmal komplett neu bauen: Server-Artefakte, VM100-Reconfigure, Thinclient-Payload, frischer Installer-USB.
 5. Stable-RC-Abnahme in dieser Reihenfolge fahren: Clean-Install -> neue VM -> frischer TC -> VM100/TC E2E -> Update/Rollback-Smoke -> Checklistenstatus setzen.
 
+## Stand (2026-05-25, Beagle-Canonical-Integration)
+
+**Zuletzt erledigt**:
+- Die VM-Gast-Integrationsschicht bevorzugt jetzt kanonische Beagle-Dateinamen fuer Stream-State und Konfiguration; Legacy-Sunshine-Dateien bleiben als Fallback erhalten.
+- Der Regressionstest fuer `beagle_stream_server_integration.py` prueft nun explizit Beagle-Default plus Sunshine-Fallback.
+
+**Naechste konkrete Schritte**:
+
+1. Den verbleibenden `beagle_stream_server_integration.py`-Pfad weiter vereinheitlichen, falls im naechsten Live-Trace noch ein legacy-namiger Nebenpfad auftaucht.
+2. Danach den naechsten echten VM100-/Thinclient-End-to-End-Lauf fortsetzen, damit die kanonische Namensfuehrung nicht nur im Unit-Test, sondern auch live greift.
+
+## Stand (2026-05-27, TC 192.168.178.30 Log-Nachtest)
+
+**Zuletzt erledigt**:
+- Frisch installierter TC streamt VM100 korrekt ueber WireGuard/Broker: erster Video-Packet nach `0 ms`, erster Audio-Packet nach `200 ms`.
+- Update-Client-Failed-Units wurden live reproduziert, im Repo gepatcht und auf dem TC hot verifiziert.
+
+**Naechste konkrete Schritte**:
+
+1. Den USB-Tunnel-Reconnect-Loop bei belegtem Reverse-Port `43100` weiter haerten, damit alte SSH-Forwarder nicht mehrere Restartzyklen erzeugen.
+2. BeagleStream-Client-Fork: WoL-Broadcasts, Legacy-Moonlight/GFE-Begriffe, Online-Update-Manifest und Decoder-Warnungen in einen Beagle-Managed-Modus ueberfuehren.
+3. BeagleStream-Server-Fork: native Beagle-Status-/Identity-API als Ersatz fuer `/serverinfo?uniqueid=0123456789ABCDEF` und GFE-Kompatibilitaetsfelder weiterziehen.
+
 ## Stand (2026-05-25, frischer TC: Payload-Stale-Befund geschlossen)
 
 **Zuletzt erledigt**:

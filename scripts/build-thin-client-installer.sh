@@ -17,6 +17,7 @@ OWNER_UID="${SUDO_UID:-$(id -u)}"
 OWNER_GID="${SUDO_GID:-$(id -g)}"
 BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage"
 BEAGLE_STREAM_CLIENT_URL="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL:-${BEAGLE_STREAM_CLIENT_URL:-$BEAGLE_STREAM_CLIENT_DEFAULT_URL}}"
+BEAGLE_STREAM_CLIENT_SHA256="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_SHA256:-${BEAGLE_STREAM_CLIENT_SHA256:-}}"
 GRUB_BACKGROUND_SRC="$ROOT_DIR/thin-client-assistant/usb/assets/grub-background.jpg"
 ROOTFS_STAGE_DIR="$BUILD_DIR/rootfs-stage"
 THINCLIENT_USER="thinclient"
@@ -41,7 +42,23 @@ ensure_root() {
     THINCLIENT_ARCH="$THINCLIENT_ARCH" \
     BEAGLE_THINCLIENT_MIN_BUILD_FREE_GIB="$THINCLIENT_MIN_BUILD_FREE_GIB" \
     BEAGLE_THINCLIENT_MIN_DIST_FREE_GIB="$THINCLIENT_MIN_DIST_FREE_GIB" \
+    PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL="$BEAGLE_STREAM_CLIENT_URL" \
+    PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_SHA256="$BEAGLE_STREAM_CLIENT_SHA256" \
     "$0" "$@"
+}
+
+verify_sha256() {
+  local file_path="$1"
+  local expected_sha="$2"
+  local label="$3"
+  local actual_sha=""
+
+  [[ -n "$expected_sha" ]] || return 0
+  actual_sha="$(sha256sum "$file_path" | awk '{print $1}')"
+  if [[ "$actual_sha" != "$expected_sha" ]]; then
+    echo "Checksum mismatch for ${label}: expected ${expected_sha}, got ${actual_sha}" >&2
+    return 1
+  fi
 }
 
 disable_beagle_enterprise_repo() {
@@ -463,11 +480,13 @@ stage_beagle_stream_client_assets() {
     --retry 8 \
     --retry-delay 3 \
     --retry-connrefused \
+    --retry-all-errors \
     --continue-at - \
     --speed-limit 5000 \
     --speed-time 30 \
     -o "$work_dir/BeagleStream.AppImage" \
     "$appimage_url"
+  verify_sha256 "$work_dir/BeagleStream.AppImage" "$BEAGLE_STREAM_CLIENT_SHA256" "thin-client beagle-stream-client AppImage"
 
   chmod +x "$work_dir/BeagleStream.AppImage"
   (

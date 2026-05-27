@@ -5,6 +5,7 @@ import json
 import os
 import pwd
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -289,18 +290,37 @@ def linked_slot(link_path: Path) -> str:
 
 
 def root_uuid_for_medium(medium: Path) -> str:
+    def _uuid_from_cmdline() -> str:
+        try:
+            cmdline = Path("/proc/cmdline").read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return ""
+        for item in shlex.split(cmdline):
+            if item.startswith("live-media=/dev/disk/by-uuid/"):
+                return item.rsplit("/", 1)[-1].strip()
+            if item.startswith("live-media=UUID="):
+                return item.split("=", 2)[-1].strip()
+        return ""
+
     source = subprocess.check_output(
         ["findmnt", "-nro", "SOURCE", str(medium)],
         text=True,
         stderr=subprocess.DEVNULL,
     ).strip()
     if not source:
+        uuid = _uuid_from_cmdline()
+        if uuid:
+            return uuid
         raise RuntimeError("could not resolve live medium block device")
-    uuid = subprocess.check_output(
-        ["blkid", "-s", "UUID", "-o", "value", source],
-        text=True,
-        stderr=subprocess.DEVNULL,
-    ).strip()
+    uuid = ""
+    if source.startswith("/dev/"):
+        uuid = subprocess.check_output(
+            ["blkid", "-s", "UUID", "-o", "value", source],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    if not uuid:
+        uuid = _uuid_from_cmdline()
     if not uuid:
         raise RuntimeError(f"could not resolve filesystem UUID for {source}")
     return uuid
@@ -471,13 +491,20 @@ def write_install_manifest(medium: Path, manifest: dict[str, object]) -> None:
         write_json_atomic(etc_dir / "install-manifest.json", manifest)
 
 
+def normalized_version(value: object) -> str:
+    version = str(value or "").strip()
+    if version.lower() in {"", "unknown", "unset", "none", "null"}:
+        return ""
+    return version
+
+
 def current_version(config: dict[str, str], medium: Path) -> str:
     manifest = read_install_manifest(medium)
-    version = str(manifest.get("project_version", "")).strip()
+    version = normalized_version(manifest.get("project_version", ""))
     if version:
         return version
     build_info = read_env_file(Path("/etc/beagle-os/build-info"))
-    version = str(build_info.get("PROJECT_VERSION", "")).strip()
+    version = normalized_version(build_info.get("PROJECT_VERSION", ""))
     if version:
         return version
     return ""

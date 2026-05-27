@@ -231,9 +231,9 @@ set -euo pipefail
 guest_user={guest_user!r}
 device_name={safe_device_name!r}
 state_dir="/home/{guest_user}/.config/beagle-stream-server"
-state_file="$state_dir/sunshine_state.json"
-if [[ ! -f "$state_file" && -f "$state_dir/beagle_stream_server_state.json" ]]; then
-    state_file="$state_dir/beagle_stream_server_state.json"
+state_file="$state_dir/beagle_stream_server_state.json"
+if [[ ! -f "$state_file" && -f "$state_dir/sunshine_state.json" ]]; then
+    state_file="$state_dir/sunshine_state.json"
 fi
 cert_file="$(mktemp /tmp/beagle-cert-XXXXXX.pem)"
 trap 'rm -f "$cert_file"' EXIT
@@ -308,15 +308,15 @@ sleep 2
         }
 
     def fetch_beagle_stream_server_identity(self, vm: Any, guest_user: str) -> dict[str, Any]:
-        state_file = f"/home/{guest_user}/.config/beagle-stream-server/sunshine_state.json"
+        state_file = f"/home/{guest_user}/.config/beagle-stream-server/beagle_stream_server_state.json"
         cert_file = f"/home/{guest_user}/.config/beagle-stream-server/credentials/cacert.pem"
         conf_file = f"/home/{guest_user}/.config/beagle-stream-server/beagle-stream-server.conf"
         state_script = f"""#!/usr/bin/env bash
 set -euo pipefail
 
 state_file={state_file!r}
-if [[ ! -f "$state_file" && -f "/home/{guest_user}/.config/beagle-stream-server/beagle_stream_server_state.json" ]]; then
-    state_file="/home/{guest_user}/.config/beagle-stream-server/beagle_stream_server_state.json"
+if [[ ! -f "$state_file" && -f "/home/{guest_user}/.config/beagle-stream-server/sunshine_state.json" ]]; then
+        state_file="/home/{guest_user}/.config/beagle-stream-server/sunshine_state.json"
 fi
 if [[ -f "$state_file" ]]; then
   cat "$state_file"

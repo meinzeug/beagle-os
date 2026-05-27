@@ -30,6 +30,40 @@
   - Fokussierte Regressionen: USB-Audio/Composite-Autobind und Launcher-Registrierungs-Gate gruen.
   - Der breite Hostless-Regressions-Test hat weiterhin einen vorbestehenden `/api/pin`-Fund und wurde nicht als Abschlusskriterium fuer diesen Fix gewertet.
 
+## Update (2026-05-25, BeagleStream-Integration bevorzugt Beagle-Namen)
+
+**Scope**: Die VM-Gast-Integrationsschicht bevorzugt jetzt die kanonischen Beagle-Dateinamen fuer Stream-State und Konfiguration; Sunshine bleibt nur noch Fallback.
+
+- **Repo-Fix**:
+  - `beagle-host/services/beagle_stream_server_integration.py` liest und schreibt zuerst `beagle_stream_server_state.json` und `beagle-stream-server.conf` und faellt nur bei fehlender Beagle-Datei auf `sunshine_state.json` bzw. `sunshine.conf` zurueck.
+  - Der Regressionstest deckt jetzt die Beagle-Default-Reihenfolge und die Legacy-Fallbacks gemeinsam ab.
+
+- **Verifikation**:
+  - `python3 -m pytest -q tests/unit/test_beagle_stream_server_integration.py` -> `8 passed`
+  - `python3 -m py_compile beagle-host/services/beagle_stream_server_integration.py tests/unit/test_beagle_stream_server_integration.py` -> gruen
+
+## Update (2026-05-27, frisch installierter TC: Update-Client Live-/tmpfs-Fix)
+
+**Scope**: Frisch installierter Thinclient `192.168.178.30` streamte den VM100-Desktop korrekt, hatte aber direkt nach Boot zwei failed Units: `beagle-update-confirm.service` und `beagle-update-scan.service`.
+
+- **Root-Cause**:
+  - Der Runtime-Boot nutzt `toram`; `/run/live/medium` liegt dadurch auf `tmpfs`.
+  - `beagle-update-client` nahm `findmnt SOURCE` als Blockdevice und rief `blkid tmpfs` auf.
+  - Nach dem ersten Fix versuchte der Scanner die aktuelle Version `8.3.1` erneut herunterzuladen, weil `install-manifest.json` `project_version=unknown` enthielt und dieser Platzhalter als echte Version galt.
+
+- **Repo-Fix**:
+  - `beagle-update-client` faellt bei nicht-blockgeraetigem Live-Medium auf `live-media=/dev/disk/by-uuid/...` aus `/proc/cmdline` zurueck.
+  - Platzhalter-Versionen wie `unknown`, `unset`, `none` und `null` werden ignoriert, sodass `/etc/beagle-os/build-info` als Current-Version gewinnt.
+
+- **Live-Status**:
+  - Hotpatch auf TC `192.168.178.30` ausgerollt.
+  - `beagle-update-confirm.service` und `beagle-update-scan.service` laufen danach ohne failed units.
+  - Update-State meldet `current_version=8.3.1`, `latest_version=8.3.1`, `state=idle`, `available=false`.
+
+- **Verifikation**:
+  - `python3 -m pytest -q tests/unit/test_endpoint_update_self_heal_regressions.py` -> `12 passed`
+  - `python3 -m py_compile beagle-os/overlay/usr/local/sbin/beagle-update-client tests/unit/test_endpoint_update_self_heal_regressions.py` -> gruen
+
 ### Nachtest: Payload auf TC-Platte und Installer-USB war noch alt
 
 - **Befund**:

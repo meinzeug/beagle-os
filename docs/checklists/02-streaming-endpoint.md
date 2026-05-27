@@ -15,6 +15,7 @@
   - [x] `/api/pin` in Beagle-Builds deaktivieren oder strikt als Upstream-Kompatibilitaet isolieren
   - [x] Server-Token-Rotation und Revocation gegen Beagle Manager verdrahten
   - [x] `.deb`-Paket `beagle-stream-server` ersetzt `beagle-stream-server.deb` in VM-Images
+  - [x] Beagle-VM-Integration bevorzugt kanonische `beagle_stream_server_state.json`/`beagle-stream-server.conf`; Sunshine-Dateinamen bleiben nur Rueckfallpfad.
 - [ ] **Phase A 8.0.x** — Fork `meinzeug/beagle-stream-client` → echtes BeagleStream-Client-Produkt abschliessen
   - [x] `app/beagle/BeagleBroker.cpp` (Broker-Discovery)
   - [x] `app/beagle/BeagleVPN.cpp` (WireGuard-Integration)

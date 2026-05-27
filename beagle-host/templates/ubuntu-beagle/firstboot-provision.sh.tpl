@@ -1698,7 +1698,24 @@ if [[ ! -f "$DONE_FILE" ]]; then
   TMPDIR_WORK="$(mktemp -d)"
   stream_runtime_variant="beagle-stream-server"
   stream_runtime_package_url="$BEAGLE_STREAM_SERVER_URL"
-  curl -fsSLo "$TMPDIR_WORK/beagle-stream-server.deb" "$BEAGLE_STREAM_SERVER_URL"
+  BEAGLE_STREAM_SERVER_SHA256="${BEAGLE_STREAM_SERVER_SHA256:-}"
+  curl -fL \
+    --retry 8 \
+    --retry-delay 3 \
+    --retry-connrefused \
+    --retry-all-errors \
+    --continue-at - \
+    --speed-limit 5000 \
+    --speed-time 30 \
+    -o "$TMPDIR_WORK/beagle-stream-server.deb" \
+    "$BEAGLE_STREAM_SERVER_URL"
+  if [[ -n "$BEAGLE_STREAM_SERVER_SHA256" ]]; then
+    actual_sha="$(sha256sum "$TMPDIR_WORK/beagle-stream-server.deb" | awk '{print $1}')"
+    if [[ "$actual_sha" != "$BEAGLE_STREAM_SERVER_SHA256" ]]; then
+      echo "Checksum mismatch for beagle-stream-server package: expected $BEAGLE_STREAM_SERVER_SHA256, got $actual_sha" >&2
+      exit 1
+    fi
+  fi
   apt_retry apt-get install -y --no-install-recommends "$TMPDIR_WORK/beagle-stream-server.deb"
   repair_interrupted_dpkg
   write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"

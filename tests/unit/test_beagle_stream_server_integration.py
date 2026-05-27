@@ -72,7 +72,7 @@ def test_guest_user_uses_latest_install_state_before_default() -> None:
         assert service.beagle_stream_server_guest_user(vm) == "dennis"
 
 
-def test_guest_user_detection_script_accepts_legacy_sunshine_paths() -> None:
+def test_guest_user_detection_script_prefers_beagle_paths_and_keeps_legacy_fallbacks() -> None:
     vm = SimpleNamespace(vmid=100, node="beagle-0", status="running")
     captured: dict[str, str] = {}
 
@@ -93,7 +93,9 @@ def test_guest_user_detection_script_accepts_legacy_sunshine_paths() -> None:
     )
 
     assert service.beagle_stream_server_guest_user(vm) == "dennis"
+    assert "beagle_stream_server_state.json" in captured["script"]
     assert "sunshine_state.json" in captured["script"]
+    assert "beagle-stream-server.conf" in captured["script"]
     assert "sunshine.conf" in captured["script"]
 
 
@@ -127,8 +129,8 @@ def test_register_certificate_script_restores_guest_ownership_and_uniqueid() -> 
 
     assert result["ok"] is True
     script = captured["script"]
-    assert 'state_file="$state_dir/sunshine_state.json"' in script
-    assert 'if [[ ! -f "$state_file" && -f "$state_dir/beagle_stream_server_state.json" ]]; then' in script
+    assert 'state_file="$state_dir/beagle_stream_server_state.json"' in script
+    assert 'if [[ ! -f "$state_file" && -f "$state_dir/sunshine_state.json" ]]; then' in script
     assert 'root["uniqueid"]' in script
     assert 'chown "$guest_user:$guest_user" "$state_file"' in script
     assert 'chmod 0600 "$state_file"' in script
