@@ -79,6 +79,11 @@ _CERTBOT_LOGS_DIR = _CERTBOT_BASE_DIR / "logs"
 _BEAGLE_TLS_DIR = Path("/etc/beagle/tls")
 _BEAGLE_TLS_CERT_PATH = _BEAGLE_TLS_DIR / "beagle-proxy.crt"
 _BEAGLE_TLS_KEY_PATH = _BEAGLE_TLS_DIR / "beagle-proxy.key"
+_NGINX_TLS_CONFIG_CANDIDATES = [
+    Path("/etc/nginx/sites-enabled/beagle-web-ui"),
+    Path("/etc/nginx/sites-enabled/beagle-proxy.conf"),
+    Path("/etc/nginx/sites-enabled/beagle-proxy"),
+]
 _NGINX_PID_CANDIDATES = [Path("/run/nginx.pid"), Path("/var/run/nginx.pid")]
 _ARTIFACT_WATCHDOG_STATUS_FILE = Path("/var/lib/beagle/artifact-watchdog-status.json")
 _ARTIFACT_BUILD_HISTORY_FILE = Path("/var/lib/beagle/artifact-build-history.json")
@@ -338,24 +343,38 @@ class ServerSettingsService:
         domain = settings.get("tls_domain", "")
         provider = settings.get("tls_provider", "self-signed")
 
-        cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem" if domain else ""
-        cert_exists = bool(cert_path and os.path.exists(cert_path))
+        certbot_paths = [
+            Path(f"/etc/letsencrypt/live/{domain}/fullchain.pem"),
+            _CERTBOT_CONFIG_DIR / "live" / domain / "fullchain.pem",
+        ] if domain else []
+        certbot_path = ""
+        for candidate in certbot_paths:
+            try:
+                if candidate.exists():
+                    certbot_path = str(candidate)
+                    break
+            except OSError:
+                continue
+
+        beagle_cert_exists = _BEAGLE_TLS_CERT_PATH.is_file()
+        beagle_key_exists = _BEAGLE_TLS_KEY_PATH.is_file()
+        cert_exists = bool(certbot_path or (beagle_cert_exists and beagle_key_exists))
+        active_cert_path = certbot_path or (str(_BEAGLE_TLS_CERT_PATH) if beagle_cert_exists else "")
         nginx_letsencrypt_active = False
 
         # Check nginx TLS config
         nginx_tls = False
-        for nginx_path in (
-            Path("/etc/nginx/sites-enabled/beagle-web-ui"),
-            Path("/etc/nginx/sites-enabled/beagle-proxy.conf"),
-            Path("/etc/nginx/sites-enabled/beagle-proxy"),
-        ):
+        for nginx_path in _NGINX_TLS_CONFIG_CANDIDATES:
             try:
                 nginx_conf = nginx_path.read_text()
             except OSError:
                 continue
             if "ssl_certificate" in nginx_conf:
                 nginx_tls = True
-            if cert_path and cert_path in nginx_conf:
+            if certbot_path and certbot_path in nginx_conf:
+                nginx_letsencrypt_active = True
+                break
+            if provider == "letsencrypt" and str(_BEAGLE_TLS_CERT_PATH) in nginx_conf and beagle_cert_exists:
                 nginx_letsencrypt_active = True
                 break
 
@@ -363,6 +382,9 @@ class ServerSettingsService:
             "domain": domain,
             "provider": provider,
             "certificate_exists": cert_exists,
+            "certificate_path": active_cert_path,
+            "beagle_tls_certificate_exists": beagle_cert_exists,
+            "beagle_tls_key_exists": beagle_key_exists,
             "nginx_tls_enabled": nginx_tls,
             "nginx_tls_uses_letsencrypt": nginx_letsencrypt_active,
             "email": settings.get("tls_email", ""),

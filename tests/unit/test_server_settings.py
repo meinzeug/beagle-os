@@ -112,6 +112,40 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
                 self.assertFalse(any(path.name.startswith(".beagle-proxy.") for path in target_dir.iterdir()))
                 kill.assert_called_once_with(4242, MODULE.signal.SIGHUP)
 
+    def test_get_tls_info_counts_installed_beagle_tls_copy(self):
+        domain = "srv1.beagle-os.com"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_root = Path(tmpdir)
+            data_dir = tmp_root / "data"
+            target_dir = tmp_root / "beagle-tls"
+            target_dir.mkdir()
+            cert_path = target_dir / "beagle-proxy.crt"
+            key_path = target_dir / "beagle-proxy.key"
+            cert_path.write_text("cert", encoding="utf-8")
+            key_path.write_text("key", encoding="utf-8")
+            nginx_conf = tmp_root / "beagle-proxy.conf"
+            nginx_conf.write_text(f"ssl_certificate {cert_path};\nssl_certificate_key {key_path};\n", encoding="utf-8")
+
+            service = ServerSettingsService(data_dir=data_dir)
+            settings = service._load_settings()
+            settings["tls_domain"] = domain
+            settings["tls_email"] = "ops@beagle-os.com"
+            settings["tls_provider"] = "letsencrypt"
+            service._save_settings(settings)
+
+            with mock.patch.object(MODULE, "_BEAGLE_TLS_CERT_PATH", cert_path), \
+                 mock.patch.object(MODULE, "_BEAGLE_TLS_KEY_PATH", key_path), \
+                 mock.patch.object(MODULE, "_NGINX_TLS_CONFIG_CANDIDATES", [nginx_conf]):
+                tls = service.get_tls_status()["tls"]
+
+        self.assertTrue(tls["certificate_exists"])
+        self.assertTrue(tls["beagle_tls_certificate_exists"])
+        self.assertTrue(tls["beagle_tls_key_exists"])
+        self.assertTrue(tls["nginx_tls_enabled"])
+        self.assertTrue(tls["nginx_tls_uses_letsencrypt"])
+        self.assertEqual(tls["certificate_path"], str(cert_path))
+
     def test_route_post_tls_letsencrypt_returns_bad_request_for_invalid_domain(self):
         service = self.make_service()
 
