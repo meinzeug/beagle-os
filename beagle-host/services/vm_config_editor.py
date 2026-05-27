@@ -197,6 +197,9 @@ class VmConfigEditorService:
         next_config = dict(current if isinstance(current, dict) else {})
         for key in delete_keys:
             next_config.pop(key, None)
+        for key in cleaned:
+            if key.startswith("beagle-"):
+                next_config.pop(key.replace("-", "_"), None)
         next_config.update(cleaned)
 
         provider_result = self._set_vm_options(vmid, {key: value for key, value in next_config.items() if key not in {"vmid", "node", "status"}})

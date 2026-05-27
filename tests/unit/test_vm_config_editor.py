@@ -65,3 +65,29 @@ def test_update_vm_config_accepts_hardware_patterns() -> None:
     assert result["ok"] is True
     assert calls[0][1]["virtio0"] == "local:vm-100-disk-0"
     assert calls[0][1]["net0"] == "virtio,bridge=br0"
+
+
+def test_update_vm_config_removes_legacy_beagle_metadata_aliases() -> None:
+    current = {
+        "vmid": 100,
+        "node": "node-a",
+        "beagle_update_channel_override": "stable",
+        "beagle_update_behavior_override": "prompt",
+    }
+    calls: list[tuple[int, dict]] = []
+    service = VmConfigEditorService(
+        get_vm_config=lambda node, vmid: dict(current),
+        set_vm_options=lambda vmid, options: calls.append((vmid, dict(options))) or "ok",
+        invalidate_vm_cache=lambda vmid, node: None,
+    )
+
+    result = service.update_vm_config(
+        _Vm(),
+        {"set": {"beagle-update-channel-override": "rolling", "beagle-update-behavior-override": "auto"}},
+    )
+
+    assert result["ok"] is True
+    assert result["config"]["beagle-update-channel-override"] == "rolling"
+    assert result["config"]["beagle-update-behavior-override"] == "auto"
+    assert "beagle_update_channel_override" not in result["config"]
+    assert "beagle_update_behavior_override" not in calls[0][1]
