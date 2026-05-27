@@ -1,3 +1,21 @@
+## Update (2026-05-27, Stable/Rolling-Istzustand sichtbar und Downgrade blockiert)
+
+**Scope**: Die Update-UI zeigte bei Stable/Rolling nicht klar, ob der installierte Stand vor oder hinter dem gewaehlten Ziel liegt. Beim Wechsel von Rolling zurueck auf Stable waere der letzte Stable-Tag technisch ein Downgrade-Ziel gewesen.
+
+- **Repo-Fix**:
+  - `repo-auto-update` publiziert jetzt getrennte Stable-, Rolling- und Ziel-Metadaten (`stable_ref`, `stable_commit`, `rolling_commit`, `target_commit`, `channel_position`).
+  - Wenn Stable gewaehlt ist, der installierte Stand aber durch vorheriges Rolling neuer als der letzte Stable-Tag ist, wird kein Downgrade ausgefuehrt. Der Status bleibt gesund, markiert aber `stable_channel_holding` und wartet auf ein neues echtes Release-Tag.
+  - `check-beagle-host.sh` akzeptiert diesen Halte-Zustand, statt `current_commit != remote_commit` faelschlich als Fehler zu melden.
+
+- **UI-Fix**:
+  - Update Center trennt jetzt `Installiert`, `Ziel` und `Lage`.
+  - Der Stable/Rolling-Schalter zeigt eine direkte Advisory-Meldung, wenn Stable gewaehlt ist, der Ist-Stand aber aus Rolling voraus ist.
+  - Die Repo-Karte zeigt Ist-Stand, Ziel und Position statt einer unklaren einzelnen Versionskachel.
+
+- **Verifikation**:
+  - Lokal: `PYTHONPATH=. pytest -q tests/unit/test_repo_auto_update_regressions.py tests/unit/test_settings_ui_regressions.py` -> `22 passed`.
+  - Lokal: `node --check website/ui/settings.js` und `bash -n scripts/repo-auto-update.sh scripts/check-beagle-host.sh` erfolgreich.
+
 ## Update (2026-05-27, srv1 Update-Kanal-Save und VM-Update-Policy repariert)
 
 **Scope**: Nach Release `v8.3.3` lieferten zwei Save-Aktionen auf `srv1` Fehler: Server-Update Stable/Rolling mit `400 permission denied` und VM-Details Update-Kanal mit `503 vm config editor not available`.

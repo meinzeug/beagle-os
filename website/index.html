@@ -2534,8 +2534,12 @@
                       <strong id="update-center-installed-version">—</strong>
                     </div>
                     <div class="settings-update-hero-chip">
-                      <span>Remote</span>
+                      <span>Ziel</span>
                       <strong id="update-center-remote-version">—</strong>
+                    </div>
+                    <div class="settings-update-hero-chip">
+                      <span>Lage</span>
+                      <strong id="update-center-position">—</strong>
                     </div>
                     <div class="settings-update-hero-chip settings-update-channel-chip">
                       <span>Kanal</span>
@@ -2544,6 +2548,7 @@
                         <button class="channel-toggle-btn is-active" type="button" data-repo-update-channel="stable">Stable</button>
                         <button class="channel-toggle-btn" type="button" data-repo-update-channel="rolling">Rolling</button>
                       </div>
+                      <small class="repo-channel-advisory" id="repo-update-channel-advisory">Stable folgt echten Release-Tags.</small>
                     </div>
                   </div>
                 </div>
@@ -2630,9 +2635,9 @@
                   <div class="settings-update-status-banner" id="repo-update-simple-message">Der GitHub-Status wird automatisch geladen.</div>
                   <div class="settings-update-metrics">
                     <div class="settings-update-metric is-primary"><span>Status</span><strong id="repo-update-state">—</strong></div>
-                    <div class="settings-update-metric"><span>Geprueft</span><strong id="repo-update-checked">—</strong></div>
-                    <div class="settings-update-metric"><span>Update</span><strong id="repo-update-available">—</strong></div>
-                    <div class="settings-update-metric"><span>Version</span><strong id="repo-update-current">—</strong></div>
+                    <div class="settings-update-metric"><span>Ist-Stand</span><strong id="repo-update-current">—</strong></div>
+                    <div class="settings-update-metric"><span>Ziel</span><strong id="repo-update-target">—</strong></div>
+                    <div class="settings-update-metric"><span>Lage</span><strong id="repo-update-position">—</strong></div>
                   </div>
                   <div class="settings-update-unified-inline-actions">
                     <button class="button ghost" id="repo-update-save" type="button">Repo-Automatik speichern</button>
@@ -2642,8 +2647,12 @@
                     <div class="settings-info-grid settings-info-grid-compact">
                       <div class="info-item"><span class="info-label">Installierter Commit</span><span class="info-value" id="repo-update-current-commit">—</span></div>
                       <div class="info-item"><span class="info-label">Kanal</span><span class="info-value" id="repo-update-channel-label">—</span></div>
+                      <div class="info-item"><span class="info-label">Update verfuegbar</span><span class="info-value" id="repo-update-available">—</span></div>
+                      <div class="info-item"><span class="info-label">Geprueft</span><span class="info-value" id="repo-update-checked">—</span></div>
                       <div class="info-item"><span class="info-label">Remote Version</span><span class="info-value" id="repo-update-remote-version">—</span></div>
                       <div class="info-item"><span class="info-label">Remote Commit</span><span class="info-value" id="repo-update-remote">—</span></div>
+                      <div class="info-item"><span class="info-label">Stable Release</span><span class="info-value" id="repo-update-stable-ref">—</span></div>
+                      <div class="info-item"><span class="info-label">Rolling Head</span><span class="info-value" id="repo-update-rolling-ref">—</span></div>
                       <div class="info-item"><span class="info-label">Letztes Update</span><span class="info-value" id="repo-update-last-update">—</span></div>
                       <div class="info-item"><span class="info-label">Service</span><span class="info-value" id="repo-update-service">—</span></div>
                       <div class="info-item"><span class="info-label">Timer</span><span class="info-value" id="repo-update-timer">—</span></div>

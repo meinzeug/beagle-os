@@ -327,6 +327,17 @@ def list_commit_chain(repo_dir: Path, current: str, remote: str) -> tuple[bool, 
     return True, commits, ""
 
 
+def is_ancestor(repo_dir: Path, ancestor: str, descendant: str) -> bool:
+    left = str(ancestor or "").strip()
+    right = str(descendant or "").strip()
+    if not left or not right:
+        return False
+    if same_commit(left, right):
+        return True
+    proc = run(["git", "merge-base", "--is-ancestor", left, right], cwd=repo_dir, timeout=60)
+    return proc.returncode == 0
+
+
 def remove_runtime_git_metadata(install_dir: Path) -> None:
     git_path = install_dir / ".git"
     if git_path.is_dir() and not git_path.is_symlink():
@@ -511,8 +522,23 @@ if tag_fetch.returncode != 0:
     raise SystemExit(1)
 
 remote_ref = f"origin/{config['branch']}"
+payload["rolling_ref"] = remote_ref
+rolling_commit_proc = run(["git", "rev-parse", remote_ref], cwd=worktree_dir, timeout=60)
+if rolling_commit_proc.returncode == 0:
+    payload["rolling_commit"] = (rolling_commit_proc.stdout or "").strip()
+rolling_version_proc = run(["git", "show", f"{remote_ref}:VERSION"], cwd=worktree_dir, timeout=60)
+if rolling_version_proc.returncode == 0:
+    payload["rolling_version"] = (rolling_version_proc.stdout or "").strip()
+
+stable_tag, stable_tag_error = latest_stable_tag(worktree_dir)
+if stable_tag:
+    payload["stable_ref"] = stable_tag
+    payload["stable_version"] = stable_tag_version(stable_tag)
+    stable_commit_proc = run(["git", "rev-parse", stable_tag], cwd=worktree_dir, timeout=60)
+    if stable_commit_proc.returncode == 0:
+        payload["stable_commit"] = (stable_commit_proc.stdout or "").strip()
+
 if config["channel"] == "stable":
-    stable_tag, stable_tag_error = latest_stable_tag(worktree_dir)
     if not stable_tag:
         payload["state"] = "error"
         payload["reaction"] = "stable_tag_not_found"
@@ -535,15 +561,28 @@ if remote_commit_proc.returncode != 0:
 
 remote_commit = (remote_commit_proc.stdout or "").strip()
 payload["remote_commit"] = remote_commit
+payload["target_ref"] = remote_ref
+payload["target_commit"] = remote_commit
+payload["target_version"] = payload.get("remote_version") or ""
 remote_version_proc = run(["git", "show", f"{remote_ref}:VERSION"], cwd=worktree_dir, timeout=60)
 if remote_version_proc.returncode == 0 and config["channel"] != "stable":
     payload["remote_version"] = (remote_version_proc.stdout or "").strip()
+    payload["target_version"] = payload["remote_version"]
 
 chain_ok, pending_commits, chain_error = list_commit_chain(worktree_dir, current_commit, remote_commit)
 if not chain_ok:
     if config["channel"] == "stable":
-        payload["stable_channel_rewind"] = True
-        pending_commits = [remote_commit]
+        payload["state"] = "healthy"
+        payload["reaction"] = "stable_channel_holds_newer_installed_commit"
+        payload["stable_channel_holding"] = True
+        payload["installed_ahead_of_target"] = is_ancestor(worktree_dir, remote_commit, current_commit)
+        payload["channel_position"] = "ahead_of_stable" if payload["installed_ahead_of_target"] else "diverged_from_stable"
+        payload["message"] = "Stable ist gewaehlt, aber der installierte Stand stammt aus Rolling und ist neuer als der letzte Stable-Release. Kein Downgrade wird ausgefuehrt; der Server wartet auf ein neues Stable-Tag."
+        payload["update_available"] = False
+        payload["pending_commits"] = []
+        payload["pending_commit_count"] = 0
+        write_status(payload)
+        raise SystemExit(0)
     else:
         payload["state"] = "error"
         payload["reaction"] = "non_fast_forward_update"
@@ -553,6 +592,7 @@ if not chain_ok:
         raise SystemExit(1)
 payload["pending_commits"] = pending_commits
 payload["pending_commit_count"] = len(pending_commits)
+payload["channel_position"] = "behind_target" if pending_commits else "at_target"
 
 if current_commit and same_commit(current_commit, remote_commit):
     initialize_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)

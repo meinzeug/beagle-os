@@ -43,13 +43,18 @@ def test_settings_updates_panel_shows_installed_and_remote_versions() -> None:
 
     assert "formatProductVersion(status.installed_version || '')" in js
     assert "formatProductVersion(status.remote_version || '')" in js
+    assert "formatProductVersion(status.target_version || status.remote_version || '')" in js
     assert 'id="repo-update-current"' in html
+    assert 'id="repo-update-target"' in html
+    assert 'id="repo-update-position"' in html
     assert 'id="update-center-installed-version"' in html
+    assert 'id="update-center-position"' in html
     assert 'id="repo-update-current-commit"' in html
     assert 'id="repo-update-remote-version"' in html
     assert 'id="update-center-remote-version"' in html
     assert "text('update-center-installed-version', installedVersion);" in js
-    assert "text('update-center-remote-version', remoteVersion);" in js
+    assert "text('update-center-remote-version', targetLabel);" in js
+    assert "text('update-center-position', position.shortLabel);" in js
 
 
 def test_settings_updates_panel_exposes_stable_rolling_channel_switch() -> None:
@@ -59,7 +64,10 @@ def test_settings_updates_panel_exposes_stable_rolling_channel_switch() -> None:
     assert 'id="repo-update-channel"' in html
     assert 'data-repo-update-channel="stable"' in html
     assert 'data-repo-update-channel="rolling"' in html
+    assert 'id="repo-update-channel-advisory"' in html
     assert "function setRepoUpdateChannel(channel)" in js
+    assert "function describeRepoUpdatePosition(config, status, installedVersion, targetVersion)" in js
+    assert "Kein Downgrade wird ausgefuehrt" in js
     assert "channel: normalizeUpdateChannel(qs('repo-update-channel')" in js
     assert "saveRepoAutoUpdate();" in js
 

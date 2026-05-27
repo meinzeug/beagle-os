@@ -332,6 +332,7 @@ def same_commit(left: str, right: str) -> bool:
 status = json.loads(status_path.read_text(encoding="utf-8"))
 version = version_path.read_text(encoding="utf-8").strip()
 installed_commit = commit_path.read_text(encoding="utf-8").strip() if commit_path.is_file() else ""
+stable_holding = bool(status.get("stable_channel_holding", False))
 
 errors = []
 if not status.get("enabled", False):
@@ -342,9 +343,9 @@ if bool(status.get("update_available", False)):
     errors.append("repo update still available")
 if str(status.get("installed_version") or "").strip() != version:
     errors.append("installed_version mismatch")
-if str(status.get("remote_version") or "").strip() != version:
+if not stable_holding and str(status.get("remote_version") or "").strip() != version:
     errors.append("remote_version mismatch")
-if not same_commit(str(status.get("current_commit") or ""), str(status.get("remote_commit") or "")):
+if not stable_holding and not same_commit(str(status.get("current_commit") or ""), str(status.get("remote_commit") or "")):
     errors.append("current_commit != remote_commit")
 if installed_commit and not same_commit(installed_commit, str(status.get("current_commit") or "")):
     errors.append("installed commit stamp != repo status current_commit")

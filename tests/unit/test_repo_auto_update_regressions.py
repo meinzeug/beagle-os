@@ -133,7 +133,9 @@ def test_repo_auto_update_supports_stable_tag_channel() -> None:
     assert 'if config["channel"] == "stable":' in script
     assert 'remote_ref = stable_tag' in script
     assert 'payload["remote_version"] = stable_tag_version(stable_tag)' in script
-    assert 'payload["stable_channel_rewind"] = True' in script
+    assert 'payload["stable_channel_holding"] = True' in script
+    assert 'payload["reaction"] = "stable_channel_holds_newer_installed_commit"' in script
+    assert 'Kein Downgrade wird ausgefuehrt' in script
 
 
 def test_host_check_validates_diamond_d0_repo_update_status() -> None:
@@ -145,6 +147,9 @@ def test_host_check_validates_diamond_d0_repo_update_status() -> None:
     assert '"installed_version mismatch"' in script
     assert '"remote_version mismatch"' in script
     assert '"current_commit != remote_commit"' in script
+    assert 'stable_holding = bool(status.get("stable_channel_holding", False))' in script
+    assert 'if not stable_holding and str(status.get("remote_version") or "").strip() != version:' in script
+    assert 'if not stable_holding and not same_commit(str(status.get("current_commit") or ""), str(status.get("remote_commit") or "")):' in script
     assert 'check_file "$REPO_AUTO_UPDATE_STATUS_FILE"' in script
 
 

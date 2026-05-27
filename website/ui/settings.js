@@ -68,11 +68,81 @@ function setRepoUpdateChannel(channel) {
     qs('repo-update-channel').value = normalized;
   }
   text('repo-update-channel-label', normalized === 'rolling' ? 'Rolling GitHub' : 'Stable Release');
+  const advisory = qs('repo-update-channel-advisory');
+  if (advisory) {
+    advisory.textContent = normalized === 'rolling' ? 'Rolling folgt dem aktuellen GitHub-Branch.' : 'Stable folgt echten Release-Tags.';
+    advisory.className = 'repo-channel-advisory';
+  }
   document.querySelectorAll('[data-repo-update-channel]').forEach((button) => {
     const active = String(button.getAttribute('data-repo-update-channel') || '').trim().toLowerCase() === normalized;
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
+}
+
+function describeRepoUpdatePosition(config, status, installedVersion, targetVersion) {
+  const channel = normalizeUpdateChannel((config && config.channel) || (status && status.channel) || 'stable');
+  const position = String((status && status.channel_position) || '').trim().toLowerCase();
+  const stableHolding = Boolean(status && status.stable_channel_holding);
+  const targetLabel = targetVersion || formatProductVersion((status && status.target_version) || (status && status.remote_version) || '') || shortCommit((status && status.target_commit) || (status && status.remote_commit));
+  if (channel === 'stable' && (stableHolding || position === 'ahead_of_stable')) {
+    return {
+      label: 'Voraus',
+      shortLabel: 'Stable wartet',
+      className: 'warn',
+      flow: 'Stable haelt',
+      message: 'Stable ist gewaehlt, aber der installierte Stand ist durch vorheriges Rolling neuer als ' + (targetLabel || 'das letzte Release') + '. Kein Downgrade wird ausgefuehrt; der Server wartet auf ein neues echtes Stable-Tag.',
+      advisory: 'Ist-Stand ist neuer als Stable. Kein Downgrade, bis ein neues Release diesen Stand erreicht.'
+    };
+  }
+  if (channel === 'stable' && position === 'diverged_from_stable') {
+    return {
+      label: 'Geschuetzt',
+      shortLabel: 'Kein Downgrade',
+      className: 'warn',
+      flow: 'Stable haelt',
+      message: 'Stable ist gewaehlt, aber der installierte Commit passt nicht sauber zum letzten Stable-Tag. Der Server bleibt auf dem aktuellen Stand, um keinen riskanten Ruecksprung auszufuehren.',
+      advisory: 'Stable wuerde zurueckspringen. Der Server haelt den aktuellen Stand.'
+    };
+  }
+  if (status && status.update_available) {
+    return {
+      label: 'Hinterher',
+      shortLabel: 'Update wartet',
+      className: 'warn',
+      flow: 'Update da',
+      message: 'Der installierte Stand liegt hinter dem Ziel fuer ' + (channel === 'rolling' ? 'Rolling' : 'Stable') + '. Ziel ist ' + (targetLabel || 'der neue Remote-Stand') + '.',
+      advisory: channel === 'rolling' ? 'Rolling hat neuere Commits im Branch.' : 'Stable hat ein neueres Release-Tag.'
+    };
+  }
+  if (position === 'behind_target') {
+    return {
+      label: 'Hinterher',
+      shortLabel: 'Update laeuft an',
+      className: 'warn',
+      flow: 'Update da',
+      message: 'Der Zielstand wurde erkannt und wird von der Automatik uebernommen.',
+      advisory: 'Zielstand ist neuer als installiert.'
+    };
+  }
+  if (position === 'at_target' || (status && String(status.state || '') === 'healthy')) {
+    return {
+      label: channel === 'rolling' ? 'Bei Rolling' : 'Bei Stable',
+      shortLabel: 'Im Ziel',
+      className: 'good',
+      flow: 'aktuell',
+      message: 'Der installierte Stand entspricht dem Ziel fuer ' + (channel === 'rolling' ? 'Rolling' : 'Stable') + '.',
+      advisory: channel === 'rolling' ? 'Rolling folgt dem aktuellen GitHub-Branch.' : 'Stable folgt dem neuesten echten Release-Tag.'
+    };
+  }
+  return {
+    label: installedVersion || 'Unklar',
+    shortLabel: 'Unklar',
+    className: 'subtle',
+    flow: 'wartet',
+    message: 'Der reale Repo-Stand wird gerade ermittelt.',
+    advisory: channel === 'rolling' ? 'Rolling folgt dem aktuellen GitHub-Branch.' : 'Stable folgt echten Release-Tags.'
+  };
 }
 
 function setOptionalLink(id, href) {
@@ -1045,8 +1115,12 @@ function renderRepoUpdateStatus(data) {
   const services = repoData.services || {};
   const enabled = Boolean(config.enabled);
   const healthy = String(status.state || '') === 'healthy';
+  const channel = normalizeUpdateChannel(config.channel || status.channel || 'stable');
   const installedVersion = formatProductVersion(status.installed_version || '');
   const remoteVersion = formatProductVersion(status.remote_version || '');
+  const targetVersion = formatProductVersion(status.target_version || status.remote_version || '');
+  const targetLabel = targetVersion || shortCommit(status.target_commit || status.remote_commit);
+  const position = describeRepoUpdatePosition(config, status, installedVersion, targetVersion);
   setUpdateAutoMode(enabled);
   text('repo-update-state', String(status.state || (config.enabled ? 'unknown' : 'disabled')));
   text('repo-update-checked', formatDate(status.checked_at || ''));
@@ -1054,12 +1128,22 @@ function renderRepoUpdateStatus(data) {
   text('repo-update-available', status.update_available ? 'Ja' : 'Nein');
   text('repo-update-current', installedVersion);
   text('update-center-installed-version', installedVersion);
+  text('repo-update-target', targetLabel);
+  text('repo-update-position', position.label);
+  text('update-center-position', position.shortLabel);
   text('repo-update-current-commit', shortCommit(status.current_commit));
   text('repo-update-remote-version', remoteVersion);
-  text('update-center-remote-version', remoteVersion);
+  text('update-center-remote-version', targetLabel);
   text('repo-update-remote', shortCommit(status.remote_commit));
+  text('repo-update-stable-ref', String(status.stable_ref || '—') + (status.stable_version ? ' / ' + formatProductVersion(status.stable_version) : ''));
+  text('repo-update-rolling-ref', shortCommit(status.rolling_commit) + (status.rolling_version ? ' / ' + formatProductVersion(status.rolling_version) : ''));
   text('repo-update-service', String(services['beagle-repo-auto-update.service'] || 'unknown'));
   text('repo-update-timer', String(services['beagle-repo-auto-update.timer'] || 'unknown'));
+  const advisory = qs('repo-update-channel-advisory');
+  if (advisory) {
+    advisory.textContent = position.advisory;
+    advisory.className = 'repo-channel-advisory is-' + String(position.className || 'subtle');
+  }
   const message = qs('repo-update-message');
   if (message) {
     message.textContent = String(status.message || (config.enabled ? 'Noch nicht geprueft.' : 'Repo-Auto-Update ist deaktiviert.'));
@@ -1075,14 +1159,17 @@ function renderRepoUpdateStatus(data) {
     if (!enabled) {
       simpleMessage.textContent = 'Automatische Beagle-Updates sind ausgeschaltet. Updates muessen dann manuell angestossen werden.';
       simpleMessage.className = 'banner subtle';
+    } else if (status.stable_channel_holding) {
+      simpleMessage.textContent = position.message;
+      simpleMessage.className = 'banner warn';
     } else if (healthy && !status.update_available) {
-      simpleMessage.textContent = 'Automatische Beagle-Updates sind aktiv. Dieser Server laeuft auf ' + installedVersion + ' und ist bereits auf dem neuesten Stand.';
+      simpleMessage.textContent = 'Automatische Beagle-Updates sind aktiv. Ist-Stand ' + installedVersion + ', Ziel ' + (targetLabel || '—') + ': ' + position.label + '.';
       simpleMessage.className = 'banner info';
     } else if (status.state === 'updating') {
       simpleMessage.textContent = 'Der Server verarbeitet gerade ein Beagle-Update aus GitHub.';
       simpleMessage.className = 'banner info';
     } else if (status.update_available) {
-      simpleMessage.textContent = 'Es ist ein neues Beagle-Update verfuegbar: ' + remoteVersion + ' wartet auf die Installation.';
+      simpleMessage.textContent = position.message;
       simpleMessage.className = 'banner warn';
     } else if (status.state === 'error') {
       simpleMessage.textContent = 'Die automatische GitHub-Pruefung braucht Aufmerksamkeit. Details stehen unten im Status.';
@@ -1096,8 +1183,10 @@ function renderRepoUpdateStatus(data) {
     setUpdateFlowStep('repo', 'error', 'Fehler');
   } else if (status.state === 'updating') {
     setUpdateFlowStep('repo', 'running', 'installiert');
+  } else if (status.stable_channel_holding) {
+    setUpdateFlowStep('repo', 'warn', position.flow);
   } else if (status.update_available) {
-    setUpdateFlowStep('repo', 'warn', 'Update da');
+    setUpdateFlowStep('repo', 'warn', position.flow);
   } else if (healthy) {
     setUpdateFlowStep('repo', 'good', 'aktuell');
   } else if (!enabled) {
@@ -1109,6 +1198,8 @@ function renderRepoUpdateStatus(data) {
   const artifactReady = String(qs('artifact-ready') ? qs('artifact-ready').textContent : '').toLowerCase() === 'ja';
   if (status.state === 'error') {
     setUpdateConsoleState('error', 'Automatik braucht Aufmerksamkeit', String(status.message || 'Der GitHub-Check ist fehlgeschlagen.'));
+  } else if (status.stable_channel_holding) {
+    setUpdateConsoleState('warn', 'Stable wartet auf Release', position.message);
   } else if (packageCount > 0 || status.update_available) {
     setUpdateConsoleState('warn', 'Updates verfuegbar', 'Ein Teil des Systems kann aktualisiert werden.');
   } else if (healthy && artifactReady) {
@@ -1125,7 +1216,11 @@ function renderRepoUpdateStatus(data) {
   if (qs('repo-update-branch')) {
     qs('repo-update-branch').value = String(config.branch || 'main');
   }
-  setRepoUpdateChannel(config.channel || status.channel || 'stable');
+  setRepoUpdateChannel(channel);
+  if (advisory) {
+    advisory.textContent = position.advisory;
+    advisory.className = 'repo-channel-advisory is-' + String(position.className || 'subtle');
+  }
   if (qs('repo-update-interval')) {
     qs('repo-update-interval').value = String(config.interval_minutes || 1);
   }
