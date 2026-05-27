@@ -27,6 +27,46 @@ EOF
   chmod 0644 "$STATUS_FILE"
 }
 
+mark_update_client_missing() {
+  local reason="beagle update client is not installed on this endpoint"
+  install -d -m 0755 "$STATE_DIR/update"
+  python3 - "$STATE_DIR/update/status.json" "$reason" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+path = Path(sys.argv[1])
+reason = sys.argv[2]
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        payload = {}
+except Exception:
+    payload = {}
+now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+payload.update(
+    {
+        "state": "unsupported",
+        "available": False,
+        "last_error": reason,
+        "last_error_at": now,
+        "last_scan_at": now,
+    }
+)
+path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+  chmod 0644 "$STATE_DIR/update/status.json" 2>/dev/null || true
+}
+
+run_update_client() {
+  if [[ ! -x /usr/local/sbin/beagle-update-client ]]; then
+    mark_update_client_missing
+    return 127
+  fi
+  /usr/local/sbin/beagle-update-client "$@" >/dev/null 2>&1
+}
+
 upload_support_bundle() {
   local action_id="$1"
   local local_artifact_path="$2"
@@ -192,24 +232,40 @@ while IFS= read -r action_json; do
       ;;
     os-update-scan)
       if [[ "$action_force" == "1" ]]; then
-        /usr/local/sbin/beagle-update-client scan --force >/dev/null 2>&1 || ok="0"
+        run_update_client scan --force >/dev/null 2>&1 || ok="0"
       else
-        /usr/local/sbin/beagle-update-client scan >/dev/null 2>&1 || ok="0"
+        run_update_client scan >/dev/null 2>&1 || ok="0"
       fi
-      message="os update scan completed"
+      if [[ "$ok" == "1" ]]; then
+        message="os update scan completed"
+      else
+        message="os update scan failed; beagle update client is not installed or returned an error"
+      fi
       ;;
     os-update-download)
-      /usr/local/sbin/beagle-update-client scan --force >/dev/null 2>&1 || ok="0"
-      message="os update payload downloaded and staged"
+      run_update_client scan --force >/dev/null 2>&1 || ok="0"
+      if [[ "$ok" == "1" ]]; then
+        message="os update payload downloaded and staged"
+      else
+        message="os update download failed; beagle update client is not installed or returned an error"
+      fi
       ;;
     os-update-apply)
-      /usr/local/sbin/beagle-update-client apply >/dev/null 2>&1 || ok="0"
-      message="os update prepared for reboot"
+      run_update_client apply >/dev/null 2>&1 || ok="0"
+      if [[ "$ok" == "1" ]]; then
+        message="os update prepared for reboot"
+      else
+        message="os update apply failed; beagle update client is not installed or returned an error"
+      fi
       [[ "$action_reboot" == "1" && "$ok" == "1" ]] && post_action_reboot="1"
       ;;
     os-update-rollback)
-      /usr/local/sbin/beagle-update-client rollback >/dev/null 2>&1 || ok="0"
-      message="os update rollback prepared for reboot"
+      run_update_client rollback >/dev/null 2>&1 || ok="0"
+      if [[ "$ok" == "1" ]]; then
+        message="os update rollback prepared for reboot"
+      else
+        message="os update rollback failed; beagle update client is not installed or returned an error"
+      fi
       [[ "$action_reboot" == "1" && "$ok" == "1" ]] && post_action_reboot="1"
       ;;
     *)
