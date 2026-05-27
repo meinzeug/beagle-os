@@ -1698,7 +1698,7 @@ if [[ ! -f "$DONE_FILE" ]]; then
   TMPDIR_WORK="$(mktemp -d)"
   stream_runtime_variant="beagle-stream-server"
   stream_runtime_package_url="$BEAGLE_STREAM_SERVER_URL"
-  BEAGLE_STREAM_SERVER_SHA256="${BEAGLE_STREAM_SERVER_SHA256:-8ef1c03cbb5502c5429484129f60a7ff02fd57a4d37513382a22dc7e2bf2788d}"
+  BEAGLE_STREAM_SERVER_SHA256="${BEAGLE_STREAM_SERVER_SHA256:-9209e231f7c26e75d8597e03223d123bd94248b010c69752417023afb664fa27}"
   curl -fL \
     --retry 8 \
     --retry-delay 3 \
@@ -1719,18 +1719,10 @@ if [[ ! -f "$DONE_FILE" ]]; then
   apt_retry apt-get install -y --no-install-recommends "$TMPDIR_WORK/beagle-stream-server.deb"
   repair_interrupted_dpkg
   write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"
-  # Detect the beagle-stream-server binary path across package layout changes.
-  BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
-  if [[ -x /usr/local/bin/sunshine || -n "$(command -v sunshine 2>/dev/null || true)" ]]; then
-    cat > /usr/local/bin/beagle-stream-server <<'EOF'
-#!/usr/bin/env bash
-if [[ -x /usr/local/bin/sunshine ]]; then
-  exec /usr/local/bin/sunshine "$@"
-fi
-exec "$(command -v sunshine)" "$@"
-EOF
-    chmod 0755 /usr/local/bin/beagle-stream-server
-    BEAGLE_STREAM_SERVER_EXEC="/usr/local/bin/beagle-stream-server"
+  BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || true)"
+  if [[ -z "$BEAGLE_STREAM_SERVER_EXEC" || ! -x "$BEAGLE_STREAM_SERVER_EXEC" ]]; then
+    echo "beagle-stream-server binary was not installed by stream runtime package" >&2
+    exit 1
   fi
   configure_system_locale
   configure_keyboard_layout
@@ -2007,8 +1999,9 @@ if ! [[ "$stream_port" =~ ^[0-9]+$ ]]; then
 fi
 rtsp_port="$((stream_port + 21))"
 
-# Sunshine can leave stale helper instances that keep RTSP bound.
+# Legacy Sunshine or BeagleStream helper instances can keep RTSP bound.
 pkill -x sunshine >/dev/null 2>&1 || true
+pkill -x beagle-stream-server >/dev/null 2>&1 || true
 sleep 1
 
 # Best-effort cleanup for any remaining listener before start.
@@ -2080,17 +2073,19 @@ is_api_ready() {
 }
 
 has_rtsp_port_conflict() {
-  local listeners sunshine_count
+  local listeners server_count sunshine_count total_count
 
   listeners="$(ss -lntp 2>/dev/null | awk -v p=":${rtsp_port}" '$4 ~ p"$" {print $0}')"
   [[ -n "$listeners" ]] || return 1
 
+  server_count="$(pgrep -x beagle-stream-server 2>/dev/null | wc -l | tr -d ' ')"
   sunshine_count="$(pgrep -x sunshine 2>/dev/null | wc -l | tr -d ' ')"
-  if [[ "${sunshine_count:-0}" -gt 1 ]]; then
+  total_count="$(( ${server_count:-0} + ${sunshine_count:-0} ))"
+  if [[ "${total_count:-0}" -gt 1 ]]; then
     return 0
   fi
 
-  if printf '%s\n' "$listeners" | grep -q "sunshine"; then
+  if printf '%s\n' "$listeners" | grep -Eq "sunshine|beagle-stream-server"; then
     return 1
   fi
   return 0
@@ -2108,7 +2103,7 @@ if ! systemctl is-active --quiet beagle-stream-server.service; then
   exit 0
 fi
 
-if ! pgrep -x sunshine >/dev/null 2>&1; then
+if ! pgrep -x beagle-stream-server >/dev/null 2>&1 && ! pgrep -x sunshine >/dev/null 2>&1; then
   restart_stack
   exit 0
 fi

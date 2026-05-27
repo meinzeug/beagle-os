@@ -6,7 +6,7 @@
 - `beagle-stream-client` hat jetzt einen Beagle-Managed-Mode fuer Updatecheck-/WoL-Suppression und strukturierte Stream-Events (`6210928b`, Branch `beagle/phase-a`).
 - `beagle-stream-server` hat eine native `/api/beagle/v1/status`-API und kapselt Pairing-Token-Validierung im Broker-Client (`1418ef35`, Branch `beagle/phase-a`).
 - Beide Forks wurden auf `srv1` gebaut; CMake fuer den Server lief remote und nicht lokal.
-- Die Fork-Release-Assets wurden erzeugt und Beagle-OS pinnt jetzt `BeagleStream-beagle-6210928-x86_64.AppImage` sowie `beagle-stream-server-1418ef3-ubuntu-24.04-amd64.deb` mit SHA256-Pruefung.
+- Die Fork-Release-Assets wurden erzeugt und Beagle-OS pinnt jetzt `BeagleStream-beagle-6210928-x86_64.AppImage` sowie `beagle-stream-server-71e32b3-ubuntu-24.04-amd64.deb` mit SHA256-Pruefung.
 
 **Naechste konkrete Schritte**:
 

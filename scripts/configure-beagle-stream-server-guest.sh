@@ -34,9 +34,9 @@ BEAGLE_STREAM_SERVER_USER="${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
 BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD:-}"
 BEAGLE_STREAM_SERVER_TOKEN="${BEAGLE_STREAM_SERVER_TOKEN:-}"
 BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-50000}"
-BEAGLE_STREAM_SERVER_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-1418ef3-ubuntu-24.04-amd64.deb"
+BEAGLE_STREAM_SERVER_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-71e32b3-ubuntu-24.04-amd64.deb"
 BEAGLE_STREAM_SERVER_URL="${BEAGLE_STREAM_SERVER_URL:-$BEAGLE_STREAM_SERVER_DEFAULT_URL}"
-BEAGLE_STREAM_SERVER_SHA256="${BEAGLE_STREAM_SERVER_SHA256:-8ef1c03cbb5502c5429484129f60a7ff02fd57a4d37513382a22dc7e2bf2788d}"
+BEAGLE_STREAM_SERVER_SHA256="${BEAGLE_STREAM_SERVER_SHA256:-9209e231f7c26e75d8597e03223d123bd94248b010c69752417023afb664fa27}"
 BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR_DEFAULT="/opt/beagle/forks/beagle-stream-server"
 BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR="${BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR:-$BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR_DEFAULT}"
 BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR="${BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR:-${BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR%/}/build-beagle/_deps}"
@@ -787,7 +787,7 @@ if [[ "\${BEAGLE_STREAM_SERVER_INSTALL_MODE:-package}" == "native" ]]; then
     -DFFMPEG_PREPARED_BINARIES=/opt/beagle-build/build-beagle-stream-server/_deps/ffmpeg \
     /opt/beagle-build/src/beagle-stream-server
   ninja -j"\$(nproc)" sunshine
-  install -m 0755 sunshine /usr/local/bin/sunshine
+  install -m 0755 beagle-stream-server /usr/local/bin/beagle-stream-server
 else
   curl -fL \
     --retry 8 \
@@ -815,17 +815,10 @@ BEAGLE_STREAM_RUNTIME_PACKAGE_URL=\${stream_runtime_package_url}
 BEAGLE_STREAM_RUNTIME_UPDATED_AT=\$(date -Iseconds)
 RUNTIMEENV
 chmod 0644 /etc/beagle/stream-runtime.env
-BEAGLE_STREAM_SERVER_EXEC="\$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"
-if [[ -x /usr/local/bin/sunshine || -n "\$(command -v sunshine 2>/dev/null || true)" ]]; then
-cat > /usr/local/bin/beagle-stream-server <<'BEAGLEWRAP'
-#!/usr/bin/env bash
-if [[ -x /usr/local/bin/sunshine ]]; then
-  exec /usr/local/bin/sunshine "\$@"
-fi
-exec "\$(command -v sunshine)" "\$@"
-BEAGLEWRAP
-chmod 0755 /usr/local/bin/beagle-stream-server
-BEAGLE_STREAM_SERVER_EXEC="/usr/local/bin/beagle-stream-server"
+BEAGLE_STREAM_SERVER_EXEC="\$(command -v beagle-stream-server 2>/dev/null || true)"
+if [[ -z "\$BEAGLE_STREAM_SERVER_EXEC" || ! -x "\$BEAGLE_STREAM_SERVER_EXEC" ]]; then
+  echo "beagle-stream-server binary was not installed by stream runtime package" >&2
+  exit 1
 fi
 configure_system_locale
 configure_keyboard_layout
@@ -1106,8 +1099,9 @@ if ! [[ "\$stream_port" =~ ^[0-9]+$ ]]; then
 fi
 rtsp_port="\$((stream_port + 21))"
 
-# Sunshine can leave stale helper instances that keep RTSP bound.
+# Legacy Sunshine or BeagleStream helper instances can keep RTSP bound.
 pkill -x sunshine >/dev/null 2>&1 || true
+pkill -x beagle-stream-server >/dev/null 2>&1 || true
 sleep 1
 
 # Best-effort cleanup for any remaining listener before start.
@@ -1171,17 +1165,19 @@ is_api_ready() {
 }
 
 has_rtsp_port_conflict() {
-  local listeners sunshine_count
+  local listeners server_count sunshine_count total_count
 
   listeners="\$(ss -lntp 2>/dev/null | awk -v p=":\${rtsp_port}" '\$4 ~ p"\$" {print \$0}')"
   [[ -n "\$listeners" ]] || return 1
 
+  server_count="\$(pgrep -x beagle-stream-server 2>/dev/null | wc -l | tr -d ' ')"
   sunshine_count="\$(pgrep -x sunshine 2>/dev/null | wc -l | tr -d ' ')"
-  if [[ "\${sunshine_count:-0}" -gt 1 ]]; then
+  total_count="\$((\${server_count:-0} + \${sunshine_count:-0}))"
+  if [[ "\${total_count:-0}" -gt 1 ]]; then
     return 0
   fi
 
-  if printf '%s\n' "\$listeners" | grep -q "sunshine"; then
+  if printf '%s\n' "\$listeners" | grep -Eq "sunshine|beagle-stream-server"; then
     return 1
   fi
   return 0
@@ -1199,7 +1195,7 @@ if ! systemctl is-active --quiet beagle-stream-server.service; then
   exit 0
 fi
 
-if ! pgrep -x sunshine >/dev/null 2>&1 && ! pgrep -x beagle-stream-server >/dev/null 2>&1; then
+if ! pgrep -x beagle-stream-server >/dev/null 2>&1 && ! pgrep -x sunshine >/dev/null 2>&1; then
   restart_stack
   exit 0
 fi

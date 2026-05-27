@@ -23,7 +23,7 @@
   - [x] Beagle-Branding (Name, Icons, About)
   - [x] In Thin-Client-OS-Image gebundelt: Build versucht standardmaessig `meinzeug/beagle-stream-client` Release `beagle-phase-a` und kann per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL` ueberschrieben werden; Runtime startet bei Enrollment ohne statischen Host hostless gegen den Broker.
   - [x] CLI/UI auf Pairing-Token statt PIN umbenennen; Beagle-Runtime darf keine neue PIN-Benennung einfuehren.
-  - [x] Beide Forks: versionierte Release-Artefakte mit Commit-SHA, Checksummen und Beagle-Integrationstest; Beagle OS pinnt diese Artefakte explizit im Build (`BeagleStream-beagle-6210928-x86_64.AppImage`, `beagle-stream-server-1418ef3-ubuntu-24.04-amd64.deb`).
+  - [x] Beide Forks: versionierte Release-Artefakte mit Commit-SHA, Checksummen und Beagle-Integrationstest; Beagle OS pinnt diese Artefakte explizit im Build (`BeagleStream-beagle-6210928-x86_64.AppImage`, `beagle-stream-server-71e32b3-ubuntu-24.04-amd64.deb`).
   - [x] Broker-Start nutzt explizit `host:port app`, wenn der Manager ein Ziel geliefert hat; stale lokale Hosteintraege duerfen nicht gewinnen. Live-Hotfix/Abnahme 2026-05-04: lokaler Thinclient `ubuntu-beagle-100` meldet `broker_allocation_reachable=1`, `beagle_stream_client_target_reachable=1`, `update_state=current`.
   - [x] Manager-Ziel gewinnt immer gegen stale lokale Config; Pairing/UI/CLI spricht von Token, nicht PIN.
   - [x] Beagle-Managed-Mode unterdrueckt Upstream-Updatecheck und WoL-Broadcasts und schreibt strukturierte `BEAGLE_STREAM_EVENT`-Logs (`meinzeug/beagle-stream-client@6210928b`, auf `srv1` gebaut).

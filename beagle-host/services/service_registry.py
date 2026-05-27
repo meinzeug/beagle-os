@@ -453,11 +453,11 @@ UBUNTU_BEAGLE_PROFILE_STREAMING = "BeagleStream"
 UBUNTU_BEAGLE_MIN_PASSWORD_LENGTH = int(os.environ.get("BEAGLE_UBUNTU_MIN_PASSWORD_LENGTH", "8"))
 UBUNTU_BEAGLE_STREAM_SERVER_URL = os.environ.get(
     "BEAGLE_UBUNTU_STREAM_SERVER_URL",
-    "https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-1418ef3-ubuntu-24.04-amd64.deb",
+    "https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-71e32b3-ubuntu-24.04-amd64.deb",
 ).strip()
 UBUNTU_BEAGLE_STREAM_SERVER_SHA256 = os.environ.get(
     "BEAGLE_UBUNTU_STREAM_SERVER_SHA256",
-    "8ef1c03cbb5502c5429484129f60a7ff02fd57a4d37513382a22dc7e2bf2788d",
+    "9209e231f7c26e75d8597e03223d123bd94248b010c69752417023afb664fa27",
 ).strip()
 UBUNTU_BEAGLE_STREAM_SERVER_URL = os.environ.get(
     "BEAGLE_UBUNTU_BEAGLE_STREAM_SERVER_URL",

@@ -43,8 +43,8 @@ def test_configure_beagle_stream_server_guest_prefers_beaglestream_server_packag
     assert 'STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"' in content
     assert 'write_stream_runtime_status() {' in content
     assert "BEAGLE_STREAM_SERVER_DEFAULT_URL" in content
-    assert "beagle-stream-server-1418ef3-ubuntu-24.04-amd64.deb" in content
-    assert "8ef1c03cbb5502c5429484129f60a7ff02fd57a4d37513382a22dc7e2bf2788d" in content
+    assert "beagle-stream-server-71e32b3-ubuntu-24.04-amd64.deb" in content
+    assert "9209e231f7c26e75d8597e03223d123bd94248b010c69752417023afb664fa27" in content
     assert "BeagleStream server package unavailable" not in content
     assert 'stream_runtime_variant="beagle-stream-server"' in content
     assert 'stream_runtime_variant="beagle-stream-server-fallback"' not in content
@@ -68,9 +68,12 @@ def test_configure_beagle_stream_server_guest_bootstraps_vscode_repository() -> 
 def test_configure_beagle_stream_server_guest_detects_beagle_stream_server_exec_path_dynamically() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 
-    # Binary path is detected at runtime — not hardcoded.
+    # Binary path is detected at runtime and must be a real BeagleStream binary.
     # The script generates a guest script via heredoc, so $ is escaped as \$.
-    assert 'BEAGLE_STREAM_SERVER_EXEC="\\$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"' in content
+    assert 'BEAGLE_STREAM_SERVER_EXEC="\\$(command -v beagle-stream-server 2>/dev/null || true)"' in content
+    assert "beagle-stream-server binary was not installed by stream runtime package" in content
+    assert "cat > /usr/local/bin/beagle-stream-server <<'BEAGLEWRAP'" not in content
+    assert 'exec /usr/local/bin/sunshine "\\$@"' not in content
     assert 'ExecStart=\\$BEAGLE_STREAM_SERVER_EXEC' in content
     assert 'ExecStart=/usr/bin/beagle-stream-server\n' not in content
     assert 'ExecStart=/usr/local/bin/beagle-stream-server\n' not in content

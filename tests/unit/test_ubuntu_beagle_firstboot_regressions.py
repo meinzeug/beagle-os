@@ -42,7 +42,7 @@ def test_firstboot_prefers_beaglestream_server_package() -> None:
     assert 'write_stream_runtime_status() {' in script
     assert 'BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"' in script
     assert 'BEAGLE_STREAM_SERVER_SHA256="__BEAGLE_STREAM_SERVER_SHA256__"' in script
-    assert '8ef1c03cbb5502c5429484129f60a7ff02fd57a4d37513382a22dc7e2bf2788d' in script
+    assert '9209e231f7c26e75d8597e03223d123bd94248b010c69752417023afb664fa27' in script
     assert '-o "$TMPDIR_WORK/beagle-stream-server.deb" \\' in script
     assert '"$BEAGLE_STREAM_SERVER_URL"' in script
     assert 'stream_runtime_variant="beagle-stream-server"' in script
@@ -63,9 +63,11 @@ def test_firstboot_bootstraps_vscode_repository() -> None:
 def test_firstboot_detects_beagle_stream_server_exec_path_dynamically() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 
-    # After deb install, the binary path is detected at runtime — not hardcoded.
-    # beagle-stream-server installs to /usr/bin/beagle-stream-server; the fallback deb to /usr/local/bin/beagle-stream-server.
-    assert 'BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || echo /usr/bin/beagle-stream-server)"' in script
+    # After deb install, the binary path is detected at runtime and must exist.
+    assert 'BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || true)"' in script
+    assert "beagle-stream-server binary was not installed by stream runtime package" in script
+    assert "cat > /usr/local/bin/beagle-stream-server <<'EOF'" not in script
+    assert 'exec /usr/local/bin/sunshine "$@"' not in script
     assert "ExecStart=${BEAGLE_STREAM_SERVER_EXEC}" in script
     assert "ExecStart=/usr/bin/beagle-stream-server\n" not in script
     assert "ExecStart=/usr/local/bin/beagle-stream-server\n" not in script
