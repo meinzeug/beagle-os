@@ -259,6 +259,39 @@ def read_running_build_commit(path: Path) -> str:
     return str(data.get("build_commit") or "").strip()
 
 
+def int_or_zero(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def list_commit_chain(repo_dir: Path, current: str, remote: str) -> tuple[bool, list[str], str]:
+    current = str(current or "").strip()
+    remote = str(remote or "").strip()
+    if not remote:
+        return False, [], "remote commit is empty"
+    if current and same_commit(current, remote):
+        return True, [], ""
+    if not current:
+        return True, [remote], ""
+    if current:
+        ancestor = run(["git", "merge-base", "--is-ancestor", current, remote], cwd=repo_dir, timeout=60)
+        if ancestor.returncode != 0:
+            detail = (ancestor.stderr or ancestor.stdout or "remote commit is not a descendant of installed commit").strip()
+            return False, [], detail[:400]
+        rev_range = f"{current}..{remote}"
+
+    rev_list = run(["git", "rev-list", "--reverse", rev_range], cwd=repo_dir, timeout=120)
+    if rev_list.returncode != 0:
+        detail = (rev_list.stderr or rev_list.stdout or "git rev-list failed").strip()
+        return False, [], detail[:400]
+    commits = [line.strip() for line in (rev_list.stdout or "").splitlines() if line.strip()]
+    if not commits and remote:
+        commits = [remote]
+    return True, commits, ""
+
+
 def remove_runtime_git_metadata(install_dir: Path) -> None:
     git_path = install_dir / ".git"
     if git_path.is_dir() and not git_path.is_symlink():
@@ -350,6 +383,10 @@ payload = {
     "remote_version": "",
     "current_commit": "",
     "remote_commit": "",
+    "pending_commits": [],
+    "pending_commit_count": 0,
+    "applied_commits": status.get("applied_commits") if isinstance(status.get("applied_commits"), list) else [],
+    "applied_commit_count": int_or_zero(status.get("applied_commit_count")),
     "update_available": False,
     "last_update_at": str(status.get("last_update_at") or ""),
 }
@@ -444,6 +481,17 @@ remote_version_proc = run(["git", "show", f"origin/{config['branch']}:VERSION"],
 if remote_version_proc.returncode == 0:
     payload["remote_version"] = (remote_version_proc.stdout or "").strip()
 
+chain_ok, pending_commits, chain_error = list_commit_chain(worktree_dir, current_commit, remote_commit)
+if not chain_ok:
+    payload["state"] = "error"
+    payload["reaction"] = "non_fast_forward_update"
+    payload["message"] = f"Remote-Repo ist kein Fast-Forward vom installierten Commit: {chain_error}"
+    payload["update_available"] = True
+    write_status(payload)
+    raise SystemExit(1)
+payload["pending_commits"] = pending_commits
+payload["pending_commit_count"] = len(pending_commits)
+
 if current_commit and same_commit(current_commit, remote_commit):
     initialize_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)
     payload["state"] = "healthy"
@@ -457,7 +505,7 @@ if current_commit and same_commit(current_commit, remote_commit):
 
 payload["state"] = "updating"
 payload["reaction"] = "start_update"
-payload["message"] = "Neuer Repo-Stand erkannt, Update wird eingespielt."
+payload["message"] = f"Neuer Repo-Stand erkannt, {len(pending_commits)} Commit(s) werden der Reihe nach uebernommen."
 payload["update_available"] = True
 write_status(payload)
 
@@ -576,6 +624,10 @@ else:
 payload["state"] = "healthy"
 payload["current_commit"] = remote_commit
 payload["remote_commit"] = remote_commit
+payload["applied_commits"] = pending_commits
+payload["applied_commit_count"] = len(pending_commits)
+payload["pending_commits"] = []
+payload["pending_commit_count"] = 0
 payload["update_available"] = False
 payload["last_update_at"] = utcnow().isoformat()
 commit_file.write_text(remote_commit + "\n", encoding="utf-8")

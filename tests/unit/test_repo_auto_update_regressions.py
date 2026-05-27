@@ -75,6 +75,19 @@ def test_repo_auto_update_restarts_stale_artifact_refresh_for_new_commit() -> No
     assert 'payload["reaction"] = "updated_artifact_refresh_restarted" if refresh_action == "restart" else "updated_artifact_refresh_started"' in script
 
 
+def test_repo_auto_update_verifies_and_records_full_commit_chain() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert "def list_commit_chain(repo_dir: Path, current: str, remote: str) -> tuple[bool, list[str], str]:" in script
+    assert '["git", "merge-base", "--is-ancestor", current, remote]' in script
+    assert '["git", "rev-list", "--reverse", rev_range]' in script
+    assert 'chain_ok, pending_commits, chain_error = list_commit_chain(worktree_dir, current_commit, remote_commit)' in script
+    assert 'payload["reaction"] = "non_fast_forward_update"' in script
+    assert 'payload["pending_commits"] = pending_commits' in script
+    assert 'payload["applied_commits"] = pending_commits' in script
+    assert 'payload["applied_commit_count"] = len(pending_commits)' in script
+
+
 def test_repo_auto_update_tracks_installed_and_remote_versions() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
 
