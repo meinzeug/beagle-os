@@ -515,6 +515,20 @@ if cache_reset.returncode != 0:
 
 fetch = run_git_network(["git", "fetch", "--prune", "origin", config["branch"]], cwd=worktree_dir, timeout=1800)
 if fetch.returncode != 0:
+    fallback_commit = current_commit or str(status.get("current_commit") or "").strip() or str(status.get("remote_commit") or "").strip()
+    if fallback_commit:
+        payload["state"] = "healthy"
+        payload["reaction"] = "remote_check_deferred"
+        payload["message"] = "Remote-Repo konnte gerade nicht geprueft werden; installierter Stand bleibt aktiv."
+        payload["current_commit"] = fallback_commit
+        payload["remote_commit"] = str(status.get("remote_commit") or fallback_commit).strip() or fallback_commit
+        payload["remote_version"] = str(status.get("remote_version") or payload.get("installed_version") or "").strip()
+        payload["target_commit"] = payload["remote_commit"]
+        payload["target_version"] = payload["remote_version"]
+        payload["channel_position"] = "remote_check_deferred"
+        payload["update_available"] = False
+        write_status(payload)
+        raise SystemExit(0)
     payload["state"] = "error"
     payload["reaction"] = "fetch_failed"
     payload["message"] = (fetch.stderr or fetch.stdout or "git fetch failed").strip()[:400]

@@ -81,6 +81,9 @@ def test_repo_auto_update_checks_remote_before_interval_skip() -> None:
     assert 'interval_recent = bool(' in script
     assert 'cache_reset = run(["git", "reset", "--hard"], cwd=worktree_dir, timeout=180)' in script
     assert 'fetch = run_git_network(["git", "fetch", "--prune", "origin", config["branch"]], cwd=worktree_dir, timeout=1800)' in script
+    assert 'fallback_commit = current_commit or str(status.get("current_commit") or "").strip() or str(status.get("remote_commit") or "").strip()' in script
+    assert 'payload["reaction"] = "remote_check_deferred"' in script
+    assert 'Remote-Repo konnte gerade nicht geprueft werden; installierter Stand bleibt aktiv.' in script
     current_block = script.split('if current_commit and same_commit(current_commit, remote_commit):', 1)[1]
     current_block = current_block.split('payload["state"] = "updating"', 1)[0]
     assert 'payload["reaction"] = "interval_skip" if interval_recent else "no_update"' in current_block
