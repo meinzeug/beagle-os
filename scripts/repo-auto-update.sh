@@ -505,6 +505,14 @@ if remote_set.returncode != 0:
     write_status(payload)
     raise SystemExit(1)
 
+cache_reset = run(["git", "reset", "--hard"], cwd=worktree_dir, timeout=180)
+if cache_reset.returncode != 0:
+    payload["state"] = "error"
+    payload["reaction"] = "cache_reset_failed"
+    payload["message"] = (cache_reset.stderr or cache_reset.stdout or "git cache reset failed").strip()[:400]
+    write_status(payload)
+    raise SystemExit(1)
+
 fetch = run_git_network(["git", "fetch", "--prune", "origin", config["branch"]], cwd=worktree_dir, timeout=1800)
 if fetch.returncode != 0:
     payload["state"] = "error"
@@ -513,8 +521,13 @@ if fetch.returncode != 0:
     write_status(payload)
     raise SystemExit(1)
 
-tag_fetch = run_git_network(["git", "fetch", "--tags", "--prune", "origin"], cwd=worktree_dir, timeout=1800)
-if tag_fetch.returncode != 0:
+tag_fetch = None
+if config["channel"] == "stable":
+    tag_fetch = run_git_network(["git", "fetch", "--tags", "--prune", "origin"], cwd=worktree_dir, timeout=1800)
+elif not run(["git", "tag", "--list", "v*"], cwd=worktree_dir, timeout=60).stdout.strip():
+    tag_fetch = run_git_network(["git", "fetch", "--tags", "--prune", "origin"], cwd=worktree_dir, timeout=180)
+
+if tag_fetch is not None and tag_fetch.returncode != 0:
     payload["state"] = "error"
     payload["reaction"] = "tag_fetch_failed"
     payload["message"] = (tag_fetch.stderr or tag_fetch.stdout or "git tag fetch failed").strip()[:400]
@@ -570,6 +583,7 @@ if remote_version_proc.returncode == 0 and config["channel"] != "stable":
     payload["target_version"] = payload["remote_version"]
 
 chain_ok, pending_commits, chain_error = list_commit_chain(worktree_dir, current_commit, remote_commit)
+rolling_rewrite_update = False
 if not chain_ok:
     if config["channel"] == "stable":
         payload["state"] = "healthy"
@@ -584,15 +598,14 @@ if not chain_ok:
         write_status(payload)
         raise SystemExit(0)
     else:
-        payload["state"] = "error"
-        payload["reaction"] = "non_fast_forward_update"
-        payload["message"] = f"Remote-Repo ist kein Fast-Forward vom installierten Commit: {chain_error}"
-        payload["update_available"] = True
-        write_status(payload)
-        raise SystemExit(1)
+        rolling_rewrite_update = True
+        pending_commits = [remote_commit] if remote_commit else []
+        payload["rolling_branch_rewrite"] = True
+        payload["channel_position"] = "diverged_from_rolling"
 payload["pending_commits"] = pending_commits
 payload["pending_commit_count"] = len(pending_commits)
-payload["channel_position"] = "behind_target" if pending_commits else "at_target"
+if not rolling_rewrite_update:
+    payload["channel_position"] = "behind_target" if pending_commits else "at_target"
 
 if current_commit and same_commit(current_commit, remote_commit):
     initialize_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)
@@ -606,8 +619,8 @@ if current_commit and same_commit(current_commit, remote_commit):
     raise SystemExit(0)
 
 payload["state"] = "updating"
-payload["reaction"] = "start_update"
-payload["message"] = f"Neuer Repo-Stand erkannt, {len(pending_commits)} Commit(s) werden der Reihe nach uebernommen."
+payload["reaction"] = "rolling_branch_rewrite_update" if rolling_rewrite_update else "start_update"
+payload["message"] = "Rolling-Branch wurde neu geschrieben; Ziel-Commit wird direkt installiert." if rolling_rewrite_update else f"Neuer Repo-Stand erkannt, {len(pending_commits)} Commit(s) werden der Reihe nach uebernommen."
 payload["update_available"] = True
 write_status(payload)
 

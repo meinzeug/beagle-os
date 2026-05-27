@@ -79,6 +79,7 @@ def test_repo_auto_update_checks_remote_before_interval_skip() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
 
     assert 'interval_recent = bool(' in script
+    assert 'cache_reset = run(["git", "reset", "--hard"], cwd=worktree_dir, timeout=180)' in script
     assert 'fetch = run_git_network(["git", "fetch", "--prune", "origin", config["branch"]], cwd=worktree_dir, timeout=1800)' in script
     current_block = script.split('if current_commit and same_commit(current_commit, remote_commit):', 1)[1]
     current_block = current_block.split('payload["state"] = "updating"', 1)[0]
@@ -106,7 +107,9 @@ def test_repo_auto_update_verifies_and_records_full_commit_chain() -> None:
     assert '["git", "merge-base", "--is-ancestor", current, remote]' in script
     assert '["git", "rev-list", "--reverse", rev_range]' in script
     assert 'chain_ok, pending_commits, chain_error = list_commit_chain(worktree_dir, current_commit, remote_commit)' in script
-    assert 'payload["reaction"] = "non_fast_forward_update"' in script
+    assert 'rolling_rewrite_update = True' in script
+    assert 'payload["reaction"] = "rolling_branch_rewrite_update" if rolling_rewrite_update else "start_update"' in script
+    assert 'payload["rolling_branch_rewrite"] = True' in script
     assert 'payload["pending_commits"] = pending_commits' in script
     assert 'payload["applied_commits"] = pending_commits' in script
     assert 'payload["applied_commit_count"] = len(pending_commits)' in script
@@ -129,7 +132,9 @@ def test_repo_auto_update_supports_stable_tag_channel() -> None:
     assert 'DEFAULT_CHANNEL="${BEAGLE_REPO_AUTO_UPDATE_CHANNEL:-stable}"' in script
     assert 'def latest_stable_tag(repo_dir: Path) -> tuple[str, str]:' in script
     assert '"channel": normalize_update_channel(settings.get("repo_auto_update_channel"), legacy_default_channel)' in script
+    assert 'if config["channel"] == "stable":' in script
     assert 'tag_fetch = run_git_network(["git", "fetch", "--tags", "--prune", "origin"], cwd=worktree_dir, timeout=1800)' in script
+    assert 'elif not run(["git", "tag", "--list", "v*"], cwd=worktree_dir, timeout=60).stdout.strip():' in script
     assert 'if config["channel"] == "stable":' in script
     assert 'remote_ref = stable_tag' in script
     assert 'payload["remote_version"] = stable_tag_version(stable_tag)' in script
