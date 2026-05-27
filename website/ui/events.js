@@ -326,6 +326,15 @@ export function bindEvents() {
     if (shell && !shell.contains(event.target)) {
       shell.classList.remove('menu-open');
     }
+    const panelShortcut = event.target.closest('[data-open-panel]');
+    if (panelShortcut) {
+      const panelName = String(panelShortcut.getAttribute('data-open-panel') || '').trim();
+      if (panelName) {
+        markSessionActivity();
+        setActivePanel(panelName);
+        closeMobileSidebar();
+      }
+    }
   });
 
   if (qs('sidebar-nav')) {

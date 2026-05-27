@@ -508,6 +508,10 @@
           <span>Sessions</span>
           <span class="nav-badge-coming">7.0</span>
         </button>
+        <button type="button" class="nav-item" data-panel="fleet_registry">
+          <svg class="nav-icon" aria-hidden="true"><use href="#i-endpoint"/></svg>
+          <span>Thin Clients</span>
+        </button>
 
         <!-- ── Identity ── -->
         <div class="sidebar-section-label">Identity</div>
@@ -540,6 +544,18 @@
         <button type="button" class="nav-item sidebar-admin-item" data-panel="settings_updates">
           <svg class="nav-icon" aria-hidden="true"><use href="#i-update"/></svg>
           <span>Updates</span>
+        </button>
+        <button type="button" class="nav-item sidebar-admin-item" data-panel="scheduler">
+          <svg class="nav-icon" aria-hidden="true"><use href="#i-operations"/></svg>
+          <span>Scheduler</span>
+        </button>
+        <button type="button" class="nav-item sidebar-admin-item" data-panel="costs">
+          <svg class="nav-icon" aria-hidden="true"><use href="#i-operations"/></svg>
+          <span>Kosten</span>
+        </button>
+        <button type="button" class="nav-item sidebar-admin-item" data-panel="energy">
+          <svg class="nav-icon" aria-hidden="true"><use href="#i-sun"/></svg>
+          <span>Energie</span>
         </button>
         <button type="button" class="nav-item sidebar-admin-item" data-panel="settings_backup">
           <svg class="nav-icon" aria-hidden="true"><use href="#i-backup"/></svg>
@@ -708,7 +724,7 @@
                     <p class="muted-text">Enrolled Geraete mit Hardware, Standort und aktuellem Registry-Status.</p>
                   </div>
                 </div>
-                <div id="fleet-health-panel">
+                <div id="fleet-health-summary-panel">
                   <div class="empty-card">Noch keine Geraete geladen.</div>
                 </div>
               </article>
@@ -721,7 +737,7 @@
                     <p class="muted-text">Node-Hotspots und empfohlene Live-Migrationen fuer den aktuellen Clusterzustand.</p>
                   </div>
                 </div>
-                <div id="scheduler-insights-panel">
+                <div id="scheduler-summary-panel">
                   <div class="empty-card">Noch keine Scheduler-Daten geladen.</div>
                 </div>
               </article>
@@ -734,7 +750,7 @@
                     <p class="muted-text">Monatliche Chargeback-Sicht mit Budget-Hinweisen und CSV-Export.</p>
                   </div>
                 </div>
-                <div id="cost-dashboard-panel">
+                <div id="cost-dashboard-summary-panel">
                   <div class="empty-card">Noch keine Kostendaten geladen.</div>
                 </div>
               </article>
@@ -747,13 +763,13 @@
                     <p class="muted-text">Node-Leistungsaufnahme, Monatsverlauf und CSRD-Export fuer Scope-2-Reporting.</p>
                   </div>
                 </div>
-                <div id="energy-dashboard-panel">
+                <div id="energy-dashboard-summary-panel">
                   <div class="empty-card">Noch keine Energiedaten geladen.</div>
                 </div>
               </article>
             </div>
 
-            <div class="virtualization-grid">
+            <div class="virtualization-grid dashboard-infra-grid" hidden>
               <article class="card">
                 <div class="card-head">
                   <div>
@@ -865,6 +881,70 @@
                 </div>
               </article>
             </div>
+          </section>
+
+          <!-- ============ THIN CLIENT REGISTRY ============ -->
+          <section class="panel-section" id="fleet-registry-section" data-panel-section="fleet_registry">
+            <article class="card section-spaced">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Zero Trust</span>
+                  <h2>Thin-Client Registry</h2>
+                  <p class="muted-text">Geraete, Policies, Remediation und Wipe-Status ohne Dashboard-Endlosspalte.</p>
+                </div>
+              </div>
+              <div id="fleet-health-panel">
+                <div class="empty-card">Noch keine Geraete geladen.</div>
+              </div>
+            </article>
+          </section>
+
+          <!-- ============ SCHEDULER ============ -->
+          <section class="panel-section" id="scheduler-section" data-panel-section="scheduler">
+            <article class="card section-spaced">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Smart Scheduler</span>
+                  <h2>Placement Insights</h2>
+                  <p class="muted-text">Heatmaps, Rebalance-Empfehlungen, Prewarm und Green-Window-Steuerung.</p>
+                </div>
+              </div>
+              <div id="scheduler-insights-panel">
+                <div class="empty-card">Noch keine Scheduler-Daten geladen.</div>
+              </div>
+            </article>
+          </section>
+
+          <!-- ============ COSTS ============ -->
+          <section class="panel-section" id="costs-section" data-panel-section="costs">
+            <article class="card section-spaced">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">FinOps</span>
+                  <h2>Kosten</h2>
+                  <p class="muted-text">Chargeback, Kostenmodell, Budgets und Drilldowns als fokussierte Arbeitsflaeche.</p>
+                </div>
+              </div>
+              <div id="cost-dashboard-panel">
+                <div class="empty-card">Noch keine Kostendaten geladen.</div>
+              </div>
+            </article>
+          </section>
+
+          <!-- ============ ENERGY ============ -->
+          <section class="panel-section" id="energy-section" data-panel-section="energy">
+            <article class="card section-spaced">
+              <div class="card-head">
+                <div>
+                  <span class="eyebrow">Energy &amp; CSRD</span>
+                  <h2>Energie und CO2</h2>
+                  <p class="muted-text">Node-Leistungsaufnahme, CO2-Verlauf, Green Hours und CSRD-Export.</p>
+                </div>
+              </div>
+              <div id="energy-dashboard-panel">
+                <div class="empty-card">Noch keine Energiedaten geladen.</div>
+              </div>
+            </article>
           </section>
 
           <!-- ============ CLUSTER (7.0 foundation) ============ -->

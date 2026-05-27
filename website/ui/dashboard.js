@@ -78,6 +78,22 @@ function renderActivePanelWidgets() {
     dashboardHooks.renderPolicies();
     return;
   }
+  if (panel === 'fleet_registry') {
+    dashboardHooks.renderFleetHealth();
+    return;
+  }
+  if (panel === 'scheduler') {
+    dashboardHooks.renderSchedulerInsights();
+    return;
+  }
+  if (panel === 'costs') {
+    dashboardHooks.renderCostDashboard();
+    return;
+  }
+  if (panel === 'energy') {
+    dashboardHooks.renderEnergyDashboard();
+    return;
+  }
   if (panel === 'iam') {
     dashboardHooks.renderIam();
     return;

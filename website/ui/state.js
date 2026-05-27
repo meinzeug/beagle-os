@@ -75,6 +75,26 @@ export const panelMeta = {
     title: 'Pools & Policies',
     description: 'Desktop-Pools, Zuweisungen, Profile und Prioritaeten fuer die Beagle-Flotte verwalten.'
   },
+  fleet_registry: {
+    eyebrow: 'Thin Clients',
+    title: 'Thin-Client Registry',
+    description: 'Enrolled Geraete, MDM-Policies, Drift, Remediation und Wipe-Status zentral steuern.'
+  },
+  scheduler: {
+    eyebrow: 'Operations',
+    title: 'Scheduler',
+    description: 'Placement, Prewarm, Heatmaps und Rebalance-Empfehlungen fuer den aktuellen Cluster.'
+  },
+  costs: {
+    eyebrow: 'FinOps',
+    title: 'Kosten',
+    description: 'Chargeback, Kostenmodell, Budgets und kostenintensive VMs als eigene Arbeitsflaeche.'
+  },
+  energy: {
+    eyebrow: 'Energy',
+    title: 'Energie & CO2',
+    description: 'Node-Leistungsaufnahme, CO2-Verlauf, Green Hours und CSRD-Export.'
+  },
   iam: {
     eyebrow: 'Identity',
     title: 'Users & Roles',

@@ -92,9 +92,10 @@ function drilldownSection(item) {
 }
 
 export async function renderCostDashboard() {
-  const container = qs('cost-dashboard-panel');
+  const compactMode = state.activePanel === 'overview';
+  const container = qs(compactMode ? 'cost-dashboard-summary-panel' : 'cost-dashboard-panel');
   if (!container) return;
-  if (state.activePanel !== 'overview') return;
+  if (!compactMode && state.activePanel !== 'costs') return;
   if (!renderAccessState(container)) return;
 
   container.innerHTML = '<p class="loading">Lade Kostendaten…</p>';
@@ -125,6 +126,23 @@ export async function renderCostDashboard() {
   const drilldown = Array.isArray(report?.drilldown) ? report.drilldown : [];
   const forecastTotal = Number(report?.forecast_total_cost_eur || 0);
   const totalEnergyCost = Number(report?.total_energy_cost_eur || 0);
+
+  if (compactMode) {
+    const departmentTotal = departments.reduce((sum, item) => sum + (Number(item.total_cost_eur) || 0), 0);
+    const topDepartment = departments.slice().sort((left, right) => Number(right.total_cost_eur || 0) - Number(left.total_cost_eur || 0))[0] || null;
+    container.innerHTML = `
+      <div class="ops-summary-grid">
+        <div class="ops-summary-metric"><span>Monats-Forecast</span><strong>${formatEur(forecastTotal || departmentTotal)}</strong></div>
+        <div class="ops-summary-metric"><span>Energieanteil</span><strong>${formatEur(totalEnergyCost)}</strong></div>
+        <div class="ops-summary-metric"><span>Abteilungen</span><strong>${escapeHtml(String(departments.length))}</strong></div>
+        <div class="ops-summary-metric"><span>Budget-Alerts</span><strong>${escapeHtml(String(alerts.length))}</strong></div>
+      </div>
+      <div class="ops-summary-foot">
+        <span class="muted-text">${topDepartment ? `Top: ${escapeHtml(String(topDepartment.department || '-'))} · ${formatEur(topDepartment.total_cost_eur || 0)}` : 'Noch keine verwertbaren Chargeback-Daten fuer diesen Monat.'}</span>
+        <button class="button ghost small" type="button" data-open-panel="costs">Kosten oeffnen</button>
+      </div>`;
+    return;
+  }
 
   const alertsHtml = alerts.length > 0
     ? `<div class="alert-strip">${alerts.map(alertBadge).join(' ')}</div>`

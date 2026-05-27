@@ -36,6 +36,13 @@
 .pool-wizard-summary { border: 1px solid var(--border); background: var(--bg-elevated); border-radius: var(--radius); padding: 12px; }
 .compact-select { min-width: 220px; }
 .pool-card-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.fleet-registry-control-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); padding: 14px; }
+.fleet-registry-control-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.fleet-registry-control-head h3 { margin: 0; font-size: 0.98rem; }
+.fleet-registry-dialog { width: min(1040px, 100%); }
+.fleet-modal-body { display: grid; gap: 14px; }
+.fleet-policy-card { text-align: left; color: var(--text); cursor: pointer; }
+.fleet-policy-card.selected { border-color: var(--amber); box-shadow: 0 0 0 1px rgba(241, 192, 93, 0.2); }
 .pool-overview-row td { vertical-align: middle; }
 .pool-overview-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .pool-catalog-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

@@ -74,9 +74,10 @@ function greenHourTile(item) {
 }
 
 export async function renderEnergyDashboard() {
-  const container = qs('energy-dashboard-panel');
+  const compactMode = state.activePanel === 'overview';
+  const container = qs(compactMode ? 'energy-dashboard-summary-panel' : 'energy-dashboard-panel');
   if (!container) return;
-  if (state.activePanel !== 'overview') return;
+  if (!compactMode && state.activePanel !== 'energy') return;
   if (!renderAccessState(container)) return;
 
   container.innerHTML = '<p class="loading">Lade Energiedaten…</p>';
@@ -104,6 +105,25 @@ export async function renderEnergyDashboard() {
   const powersHtml = nodes.length > 0
     ? `<div class="power-bars">${nodes.map(powerBar).join('')}</div>`
     : '<div class="empty-card">Keine Node-Daten.</div>';
+
+  if (compactMode) {
+    const totalKwh = Array.isArray(trend) ? trend.reduce((sum, item) => sum + (Number(item.energy_kwh ?? item.month_kwh ?? 0) || 0), 0) : 0;
+    const totalCost = Array.isArray(trend) ? trend.reduce((sum, item) => sum + (Number(item.energy_cost_eur ?? 0) || 0), 0) : 0;
+    const highestNode = nodes.slice().sort((left, right) => Number(right.power_watts || right.current_watts || 0) - Number(left.power_watts || left.current_watts || 0))[0] || null;
+    const greenHourRows = Array.isArray(greenHours?.hourly) ? greenHours.hourly : [];
+    container.innerHTML = `
+      <div class="ops-summary-grid">
+        <div class="ops-summary-metric"><span>Nodes</span><strong>${escapeHtml(String(nodes.length))}</strong></div>
+        <div class="ops-summary-metric"><span>Monats-kWh</span><strong>${escapeHtml(totalKwh.toFixed(1))}</strong></div>
+        <div class="ops-summary-metric"><span>Kosten</span><strong>${escapeHtml(totalCost.toFixed(2))} €</strong></div>
+        <div class="ops-summary-metric"><span>Green Hours</span><strong>${escapeHtml(String(greenHourRows.length))}</strong></div>
+      </div>
+      <div class="ops-summary-foot">
+        <span class="muted-text">${highestNode ? `Peak: ${escapeHtml(String(highestNode.node_id || highestNode.name || '-'))}` : 'Noch keine verwertbaren Energie-Daten.'}</span>
+        <button class="button ghost small" type="button" data-open-panel="energy">Energie oeffnen</button>
+      </div>`;
+    return;
+  }
 
   const trendRows = Array.isArray(trend) ? trend.map(co2TrendRow).join('') : '';
   const trendHtml = trendRows

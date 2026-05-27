@@ -189,6 +189,22 @@ function renderActivePanel(panelName) {
     renderPolicies();
     return;
   }
+  if (panel === 'fleet_registry') {
+    renderFleetHealth();
+    return;
+  }
+  if (panel === 'scheduler') {
+    renderSchedulerInsights();
+    return;
+  }
+  if (panel === 'costs') {
+    renderCostDashboard();
+    return;
+  }
+  if (panel === 'energy') {
+    renderEnergyDashboard();
+    return;
+  }
   if (panel === 'iam') {
     renderIam();
     return;

@@ -181,6 +181,22 @@ function selectedPolicyId() {
   return String(qs('fleet-policy-id')?.value || '').trim();
 }
 
+function setFleetModalState(modalId, open) {
+  const modal = qs(modalId);
+  if (!modal) return;
+  modal.hidden = !open;
+  modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+  document.body.classList.toggle('modal-open', Boolean(document.querySelector('.fleet-registry-modal[aria-hidden="false"]')));
+}
+
+function closeFleetModals() {
+  document.querySelectorAll('.fleet-registry-modal').forEach((modal) => {
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+  });
+  document.body.classList.remove('modal-open');
+}
+
 function policyValidationMarkup(validation) {
   const errors = Array.isArray(validation?.errors) ? validation.errors : [];
   const warnings = Array.isArray(validation?.warnings) ? validation.warnings : [];
@@ -448,19 +464,34 @@ function policyEditorSection() {
   const remediationHints = Array.isArray(effective?.remediation_hints) ? effective.remediation_hints : [];
   const remediationActions = Array.isArray(effective?.remediation_actions) ? effective.remediation_actions : [];
   return `
-    <section class="section-spaced">
-      <div class="button-row compact-row section-spaced-tight">
-        ${chip(`${fleetState.policies.length} Policies`, fleetState.policies.length ? 'info' : 'muted')}
-        ${chip(`${Object.keys(fleetState.assignments?.device_assignments || {}).length} Device-Zuweisungen`, 'info')}
-        ${chip(`${Object.keys(fleetState.assignments?.group_assignments || {}).length} Gruppen-Zuweisungen`, 'info')}
-      </div>
-      <div class="grid two-col section-spaced-tight">
+    <section class="section-spaced fleet-registry-control-card">
+      <div class="fleet-registry-control-head">
         <div>
-          <h3>MDM Policies</h3>
-          <div class="grid auto-grid">${policyCards()}</div>
+          <h3>MDM Steuerung</h3>
+          <div class="button-row compact-row section-spaced-tight">
+            ${chip(`${fleetState.policies.length} Policies`, fleetState.policies.length ? 'info' : 'muted')}
+            ${chip(`${Object.keys(fleetState.assignments?.device_assignments || {}).length} Device-Zuweisungen`, 'info')}
+            ${chip(`${Object.keys(fleetState.assignments?.group_assignments || {}).length} Gruppen-Zuweisungen`, 'info')}
+          </div>
         </div>
-        <div class="card">
-          <h3>Policy Editor</h3>
+        <div class="button-row compact-row">
+          <button type="button" class="button primary small" data-fleet-modal="fleet-policy-editor-modal">Policy Editor</button>
+          <button type="button" class="button ghost small" data-fleet-modal="fleet-policy-preview-modal">Effective Preview</button>
+        </div>
+      </div>
+      <div class="grid auto-grid section-spaced-tight">${policyCards()}</div>
+    </section>
+    <div class="modal fleet-registry-modal" id="fleet-policy-editor-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog fleet-registry-dialog" role="dialog" aria-modal="true" aria-labelledby="fleet-policy-editor-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Thin Clients</span>
+            <h2 id="fleet-policy-editor-title">Policy Editor</h2>
+            <p>Policies, Zuweisungen und Bulk-Aktionen bleiben aus der Dashboard-Spalte heraus und werden hier bearbeitet.</p>
+          </div>
+          <button class="icon-button" type="button" data-fleet-modal-close aria-label="Schliessen">×</button>
+        </div>
+        <div class="fleet-modal-body">
           <div class="grid two-col section-spaced-tight">
             <label class="field"><span>Policy ID</span><input id="fleet-policy-id" type="text" autocomplete="off" placeholder="corp"></label>
             <label class="field"><span>Name</span><input id="fleet-policy-name" type="text" autocomplete="off" placeholder="Corporate"></label>
@@ -502,7 +533,20 @@ function policyEditorSection() {
             <button type="button" class="button ghost" data-mdm-action="bulk-set-group">Bulk Gruppe setzen</button>
             <button type="button" class="button ghost" data-mdm-action="bulk-set-location">Bulk Standort setzen</button>
           </div>
-          <h3>Effective Policy Preview</h3>
+        </div>
+      </div>
+    </div>
+    <div class="modal fleet-registry-modal" id="fleet-policy-preview-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog fleet-registry-dialog" role="dialog" aria-modal="true" aria-labelledby="fleet-policy-preview-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Thin Clients</span>
+            <h2 id="fleet-policy-preview-title">Effective Policy Preview</h2>
+            <p>Validierung, Drift-Diagnose, Runtime-Telemetrie und Wipe-Status zum ausgewaehlten Device.</p>
+          </div>
+          <button class="icon-button" type="button" data-fleet-modal-close aria-label="Schliessen">×</button>
+        </div>
+        <div class="fleet-modal-body">
           <div class="card compact-card">
             <strong>${escapeHtml(String(effective?.policy?.name || 'Policy Preview'))}</strong>
             <div class="muted">${escapeHtml(effectiveSource)}</div>
@@ -519,7 +563,7 @@ function policyEditorSection() {
           </div>
         </div>
       </div>
-    </section>`;
+    </div>`;
 }
 
 function loadPolicyIntoForm(policy) {
@@ -811,9 +855,10 @@ async function applyRemediationAction(action, targetId) {
 }
 
 export async function renderFleetHealth() {
-  const container = qs('fleet-health-panel');
+  const compactMode = state.activePanel === 'overview';
+  const container = qs(compactMode ? 'fleet-health-summary-panel' : 'fleet-health-panel');
   if (!container) return;
-  if (state.activePanel !== 'overview') return;
+  if (!compactMode && state.activePanel !== 'fleet_registry') return;
 
   if (!state.token) {
     container.innerHTML = '<div class="empty-card">Anmeldung erforderlich, um Fleet-Status zu laden.</div>';
@@ -826,6 +871,21 @@ export async function renderFleetHealth() {
   }
 
   container.onclick = (event) => {
+    const modalClose = event.target.closest('[data-fleet-modal-close]');
+    if (modalClose) {
+      closeFleetModals();
+      return;
+    }
+    const modalOpen = event.target.closest('[data-fleet-modal]');
+    if (modalOpen) {
+      const modalId = String(modalOpen.getAttribute('data-fleet-modal') || '').trim();
+      setFleetModalState(modalId, true);
+      return;
+    }
+    if (event.target.classList && event.target.classList.contains('fleet-registry-modal')) {
+      closeFleetModals();
+      return;
+    }
     const button = event.target.closest('[data-fleet-action]');
     if (!button) return;
     const action = String(button.getAttribute('data-fleet-action') || '').trim();
@@ -880,6 +940,21 @@ export async function renderFleetHealth() {
   const anomalyCount = anomalies.length;
   const maintCount = maintenance.filter((m) => m.status === 'pending').length;
   const onlineCount = devices.filter((item) => String(item.status || '').trim() === 'online').length;
+
+  if (compactMode) {
+    container.innerHTML = `
+      <div class="ops-summary-grid">
+        <div class="ops-summary-metric"><span>Geraete</span><strong>${escapeHtml(String(devices.length))}</strong></div>
+        <div class="ops-summary-metric"><span>Online</span><strong>${escapeHtml(String(onlineCount))}</strong></div>
+        <div class="ops-summary-metric"><span>Anomalien</span><strong>${escapeHtml(String(anomalyCount))}</strong></div>
+        <div class="ops-summary-metric"><span>Policies</span><strong>${escapeHtml(String(policies.length))}</strong></div>
+      </div>
+      <div class="ops-summary-foot">
+        <span class="muted-text">${maintCount ? `${escapeHtml(String(maintCount))} Wartungen offen.` : 'Registry und Policy-Editoren liegen in einer eigenen Ansicht.'}</span>
+        <button class="button ghost small" type="button" data-open-panel="fleet_registry">Registry oeffnen</button>
+      </div>`;
+    return;
+  }
 
   if (devices.length === 0) {
     container.innerHTML = `${policyEditorSection()}<div class="empty-card">Keine Geräte erfasst.</div>`;

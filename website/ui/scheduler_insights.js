@@ -119,9 +119,10 @@ function warmPoolRow(item) {
 }
 
 export async function renderSchedulerInsights() {
-  const container = qs('scheduler-insights-panel');
+  const compactMode = state.activePanel === 'overview';
+  const container = qs(compactMode ? 'scheduler-summary-panel' : 'scheduler-insights-panel');
   if (!container) return;
-  if (state.activePanel !== 'overview') return;
+  if (!compactMode && state.activePanel !== 'scheduler') return;
   if (!renderAccessState(container)) return;
 
   container.innerHTML = '<p class="loading">Lade Scheduler-Daten…</p>';
@@ -163,6 +164,22 @@ export async function renderSchedulerInsights() {
     warmPoolAutoApply = data.warm_pool_auto_apply || {};
   } catch (err) {
     container.innerHTML = `<p class="error">Fehler: ${escapeHtml(String(err.message ?? err))}</p>`;
+    return;
+  }
+
+  if (compactMode) {
+    const hotNodes = heatmap.filter((item) => Number(item.cpu_pct || 0) >= 70 || Number(item.mem_pct || 0) >= 70).length;
+    container.innerHTML = `
+      <div class="ops-summary-grid">
+        <div class="ops-summary-metric"><span>Hotspots</span><strong>${escapeHtml(String(hotNodes))}</strong></div>
+        <div class="ops-summary-metric"><span>Migrationen</span><strong>${escapeHtml(String(recommendations.length))}</strong></div>
+        <div class="ops-summary-metric"><span>Prewarm</span><strong>${escapeHtml(String(prewarmCandidates.length))}</strong></div>
+        <div class="ops-summary-metric"><span>Saved CPUh</span><strong>${escapeHtml(savedCpuHours.toFixed(1))}</strong></div>
+      </div>
+      <div class="ops-summary-foot">
+        <span class="muted-text">${greenWindowActive ? 'Green Window aktiv.' : 'Kein Green Window aktiv.'}</span>
+        <button class="button ghost small" type="button" data-open-panel="scheduler">Scheduler oeffnen</button>
+      </div>`;
     return;
   }
 
