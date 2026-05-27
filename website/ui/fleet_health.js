@@ -467,7 +467,7 @@ function policyEditorSection() {
     <section class="section-spaced fleet-registry-control-card">
       <div class="fleet-registry-control-head">
         <div>
-          <h3>MDM Steuerung</h3>
+          <h3>MDM Policies</h3>
           <div class="button-row compact-row section-spaced-tight">
             ${chip(`${fleetState.policies.length} Policies`, fleetState.policies.length ? 'info' : 'muted')}
             ${chip(`${Object.keys(fleetState.assignments?.device_assignments || {}).length} Device-Zuweisungen`, 'info')}

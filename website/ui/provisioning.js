@@ -443,6 +443,17 @@ export function createProvisionedVmWithPrefix(idPrefix) {
       setProvisionProgressMessage('Host meldet VM-Initialisierung fuer #' + String(vmid || '?') + ' ...', 'info');
       provisioningHooks.addToActivityLog('provision-create', vmid || null, 'ok', 'VM erstellt: ' + (payload.name || ''));
       provisioningHooks.setBanner('Provisioning gestartet fuer VM ' + (vmid || '?') + '.', 'ok');
+      state.provisioningCatalog = state.provisioningCatalog || {};
+      state.provisioningCatalog.recent_requests = [{
+        vmid,
+        name: vm.name || payload.name || ('VM ' + String(vmid || '?')),
+        node: vm.node || payload.node || '',
+        desktop_id: payload.desktop || '',
+        provision_status: 'queued',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }].concat(Array.isArray(state.provisioningCatalog.recent_requests) ? state.provisioningCatalog.recent_requests : []).slice(0, 20);
+      renderProvisioningWorkspace();
       setProvisionProgressStep(2, 'done', 'ok');
       setProvisionProgressStep(3, 'active', 'laeuft');
       setProvisionProgressMessage('Dashboard und Inventar werden aktualisiert ...', 'info');

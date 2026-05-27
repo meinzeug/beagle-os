@@ -314,6 +314,11 @@ def test_prepare_host_downloads_rebuilds_payload_after_public_mirror_fallback() 
     assert prepare_text.index("hydrate_packaged_artifacts_from_public_release") < prepare_text.index('rebuild_packaged_payload_from_live_assets "local package build fallback after mirror hydration" || true')
     assert 'ln -f "$payload_versioned" "$bootstrap_versioned"' in prepare_text
     assert 'ln -f "$payload_latest" "$bootstrap_latest"' in prepare_text
+    assert "ensure_versioned_payload_aliases()" in prepare_text
+    assert 'PAYLOAD_VERSIONED_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-v${VERSION}.tar.gz")"' in prepare_text
+    assert 'BOOTSTRAP_VERSIONED_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz")"' in prepare_text
+    assert '--payload-url "$PAYLOAD_VERSIONED_URL"' in prepare_text
+    assert '--bootstrap-url "$BOOTSTRAP_VERSIONED_URL"' in prepare_text
     assert 'local live assets before ISO fallback' in prepare_text
     assert 'if [[ ! -f "$packaged_payload" ]]; then' in prepare_text
 

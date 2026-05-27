@@ -858,6 +858,27 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["repo_auto_update"]["status"]["state"], "updating")
 
+    def test_update_artifact_watchdog_skips_timer_when_enabled_unchanged(self):
+        service = self.make_service()
+        service._save_settings({
+            "artifact_watchdog_enabled": True,
+            "artifact_watchdog_max_age_hours": 6,
+            "artifact_watchdog_auto_repair": True,
+        })
+
+        with mock.patch.object(MODULE, "_run_systemctl_privileged") as run_systemctl:
+            result = service.update_artifact_watchdog({
+                "enabled": True,
+                "max_age_hours": 8,
+                "auto_repair": True,
+            })
+
+        self.assertTrue(result["ok"], result)
+        run_systemctl.assert_not_called()
+        settings = MODULE.json.loads(service._settings_path.read_text(encoding="utf-8"))
+        self.assertTrue(settings["artifact_watchdog_enabled"])
+        self.assertEqual(settings["artifact_watchdog_max_age_hours"], 8)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -446,7 +446,7 @@ set timeout=10
 
 menuentry 'Beagle OS Live' {
   search --no-floppy --fs-uuid --set=root ${usb_uuid}
-  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} ${live_boot_runtime_args} quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles toram pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
+  linux /live/vmlinuz boot=live components username=thinclient hostname=${hostname_value} ${live_boot_runtime_args} quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.network_tui=1 pve_thin_client.debug=1
   initrd /live/initrd.img
 }
 
@@ -501,7 +501,7 @@ set timeout=${grub_timeout}
 set gfxpayload=text
 
 menuentry 'Beagle OS Installer' {
-  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ${installer_boot_media_args} console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles toram systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
+  linux /pve-thin-client/live/vmlinuz boot=live components username=thinclient hostname=beagle-installer ${installer_boot_media_args} console=tty0 console=ttyS0,115200n8 systemd.gpt_auto=0 plymouth.ignore-serial-consoles systemd.unit=multi-user.target systemd.mask=pve-thin-client-installer-gui.service systemd.mask=pve-thin-client-runtime.service pve_thin_client.mode=installer pve_thin_client.installer_ui=text pve_thin_client.no_x11=1
   initrd /pve-thin-client/live/initrd.img
 }
 
