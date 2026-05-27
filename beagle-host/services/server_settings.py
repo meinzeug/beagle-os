@@ -1710,7 +1710,6 @@ class ServerSettingsService:
                 f"pve-thin-client-usb-installer-v{version}.ps1",
                 f"pve-thin-client-live-usb-v{version}.sh",
                 f"pve-thin-client-live-usb-v{version}.ps1",
-                f"pve-thin-client-usb-payload-v{version}.tar.gz",
             ]
         missing_latest = [name for name in _PUBLIC_THIN_CLIENT_LATEST_ARTIFACTS if not (dist_dir / name).is_file()]
         missing_versioned = [name for name in versioned if not (dist_dir / name).is_file()]

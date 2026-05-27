@@ -20,9 +20,7 @@ VERSION="$(tr -d ' \n\r' < "$ROOT_DIR/VERSION")"
 ZIP_NAME="beagle-extension-v${VERSION}.zip"
 TARBALL_NAME="beagle-os-v${VERSION}.tar.gz"
 TARBALL_LATEST_NAME="beagle-os-latest.tar.gz"
-USB_PAYLOAD_NAME="pve-thin-client-usb-payload-v${VERSION}.tar.gz"
 USB_PAYLOAD_LATEST_NAME="pve-thin-client-usb-payload-latest.tar.gz"
-USB_BOOTSTRAP_NAME="pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
 USB_BOOTSTRAP_LATEST_NAME="pve-thin-client-usb-bootstrap-latest.tar.gz"
 USB_INSTALLER_NAME="pve-thin-client-usb-installer-v${VERSION}.sh"
 USB_INSTALLER_LATEST_NAME="pve-thin-client-usb-installer-latest.sh"
@@ -292,7 +290,7 @@ rsync -a --delete \
 
 (
   cd /
-  tar -czf "$DIST_DIR/$USB_PAYLOAD_NAME" \
+  tar -czf "$DIST_DIR/$USB_PAYLOAD_LATEST_NAME" \
     -C "$ROOT_DIR" thin-client-assistant \
     -C "$ROOT_DIR" scripts \
     -C "$ROOT_DIR" README.md \
@@ -314,9 +312,8 @@ for required_asset in vmlinuz initrd.img filesystem.squashfs SHA256SUMS; do
   fi
 done
 
-install -m 0644 "$DIST_DIR/$USB_PAYLOAD_NAME" "$DIST_DIR/$USB_PAYLOAD_LATEST_NAME"
-ln -f "$DIST_DIR/$USB_PAYLOAD_NAME" "$DIST_DIR/$USB_BOOTSTRAP_NAME"
 ln -f "$DIST_DIR/$USB_PAYLOAD_LATEST_NAME" "$DIST_DIR/$USB_BOOTSTRAP_LATEST_NAME"
+rm -f "$DIST_DIR"/pve-thin-client-usb-payload-v*.tar.gz "$DIST_DIR"/pve-thin-client-usb-bootstrap-v*.tar.gz
 
 install -m 0755 "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh" "$DIST_DIR/$USB_INSTALLER_NAME"
 install -m 0755 "$ROOT_DIR/thin-client-assistant/usb/pve-thin-client-usb-installer.sh" "$DIST_DIR/$USB_INSTALLER_LATEST_NAME"
@@ -331,9 +328,7 @@ checksum_targets=(
   "$ZIP_NAME"
   "$TARBALL_NAME"
   "$TARBALL_LATEST_NAME"
-  "$USB_PAYLOAD_NAME"
   "$USB_PAYLOAD_LATEST_NAME"
-  "$USB_BOOTSTRAP_NAME"
   "$USB_BOOTSTRAP_LATEST_NAME"
   "$USB_INSTALLER_NAME"
   "$USB_INSTALLER_LATEST_NAME"
@@ -371,9 +366,7 @@ checksum_targets+=(
 echo "Created: $DIST_DIR/$ZIP_NAME"
 echo "Created: $DIST_DIR/$TARBALL_NAME"
 echo "Created: $DIST_DIR/$TARBALL_LATEST_NAME"
-echo "Created: $DIST_DIR/$USB_PAYLOAD_NAME"
 echo "Created: $DIST_DIR/$USB_PAYLOAD_LATEST_NAME"
-echo "Created: $DIST_DIR/$USB_BOOTSTRAP_NAME"
 echo "Created: $DIST_DIR/$USB_BOOTSTRAP_LATEST_NAME"
 echo "Created: $DIST_DIR/$USB_INSTALLER_NAME"
 echo "Created: $DIST_DIR/$USB_INSTALLER_LATEST_NAME"

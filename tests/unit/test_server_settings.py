@@ -526,7 +526,7 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["watchdog"]["status"]["state"], "healthy")
 
-    def test_get_artifacts_publish_gate_turns_ready_when_latest_and_versioned_exist(self):
+    def test_get_artifacts_publish_gate_turns_ready_when_latest_and_versioned_installers_exist(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             install_dir = Path(tmpdir) / "beagle"
             dist = install_dir / "dist"
@@ -546,7 +546,6 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
                 f"pve-thin-client-usb-installer-v{version}.ps1",
                 f"pve-thin-client-live-usb-v{version}.sh",
                 f"pve-thin-client-live-usb-v{version}.ps1",
-                f"pve-thin-client-usb-payload-v{version}.tar.gz",
             ]:
                 (dist / name).write_text("x\n", encoding="utf-8")
 

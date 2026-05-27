@@ -93,7 +93,6 @@ if version:
         f"pve-thin-client-usb-installer-v{version}.ps1",
         f"pve-thin-client-live-usb-v{version}.sh",
         f"pve-thin-client-live-usb-v{version}.ps1",
-        f"pve-thin-client-usb-payload-v{version}.tar.gz",
     ]
 
 missing_required = [name for name in required if not (dist_dir / name).is_file()]

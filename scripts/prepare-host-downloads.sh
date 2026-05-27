@@ -267,9 +267,7 @@ local_live_assets_complete() {
 rebuild_packaged_payload_from_live_assets() {
   local reason="${1:-local live assets}"
   local live_src="$DIST_DIR/pve-thin-client-installer/live"
-  local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
   local payload_latest="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
-  local bootstrap_versioned="$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
   local bootstrap_latest="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
   local tmpstage cleanup_cmd live_dir
 
@@ -296,7 +294,7 @@ rebuild_packaged_payload_from_live_assets() {
 
   (
     cd /
-    tar -czf "$payload_versioned" \
+    tar -czf "$payload_latest" \
       -C "$ROOT_DIR" thin-client-assistant \
       -C "$ROOT_DIR" scripts \
       -C "$ROOT_DIR" README.md \
@@ -306,9 +304,8 @@ rebuild_packaged_payload_from_live_assets() {
       -C "$tmpstage" "dist/pve-thin-client-installer/live"
   )
 
-  install -m 0644 "$payload_versioned" "$payload_latest"
-  ln -f "$payload_versioned" "$bootstrap_versioned"
   ln -f "$payload_latest" "$bootstrap_latest"
+  rm -f "$DIST_DIR"/pve-thin-client-usb-payload-v*.tar.gz "$DIST_DIR"/pve-thin-client-usb-bootstrap-v*.tar.gz
 
   echo "USB payload tarball rebuilt from local live assets: $payload_latest"
   trap - RETURN
@@ -373,11 +370,9 @@ ensure_bootstrap_from_deployed_iso() {
     sha256sum vmlinuz initrd.img filesystem.squashfs > SHA256SUMS
   )
 
-  local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
-
   (
     cd /
-    tar -czf "$payload_versioned" \
+    tar -czf "$packaged_payload" \
       -C "$ROOT_DIR" thin-client-assistant \
       -C "$ROOT_DIR" scripts \
       -C "$ROOT_DIR" docs \
@@ -388,7 +383,8 @@ ensure_bootstrap_from_deployed_iso() {
       -C "$tmpstage" "dist/pve-thin-client-installer/live"
   )
 
-  install -m 0644 "$payload_versioned" "$packaged_payload"
+  ln -f "$packaged_payload" "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
+  rm -f "$DIST_DIR"/pve-thin-client-usb-payload-v*.tar.gz "$DIST_DIR"/pve-thin-client-usb-bootstrap-v*.tar.gz
 
   echo "USB payload tarball built: $packaged_payload"
   trap - RETURN
@@ -475,10 +471,9 @@ validate_and_repair_payload_assets() {
   )
 
   # Rebuild payload with extracted assets
-  local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
   (
     cd /
-    tar -czf "$payload_versioned" \
+    tar -czf "$packaged_payload" \
       -C "$ROOT_DIR" thin-client-assistant \
       -C "$ROOT_DIR" scripts \
       -C "$ROOT_DIR" docs \
@@ -489,7 +484,8 @@ validate_and_repair_payload_assets() {
       -C "$tmpstage" "dist/pve-thin-client-installer/live"
   )
 
-  install -m 0644 "$payload_versioned" "$packaged_payload"
+  ln -f "$packaged_payload" "$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
+  rm -f "$DIST_DIR"/pve-thin-client-usb-payload-v*.tar.gz "$DIST_DIR"/pve-thin-client-usb-bootstrap-v*.tar.gz
   echo "Payload tarball repaired: $packaged_payload"
 
   trap - RETURN
@@ -531,16 +527,13 @@ hydrate_packaged_artifacts_from_public_release() {
   local -a required_public_files=(
     "beagle-os-v${VERSION}.tar.gz"
     "beagle-os-latest.tar.gz"
-    "pve-thin-client-usb-payload-v${VERSION}.tar.gz"
     "pve-thin-client-usb-payload-latest.tar.gz"
     "beagle-os-installer-amd64.iso"
     "beagle-os-server-installer-amd64.iso"
     "$SERVER_INSTALLIMAGE_FILENAME"
   )
   local file
-  local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
   local payload_latest="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
-  local bootstrap_versioned="$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
   local bootstrap_latest="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
 
   for file in "${required_public_files[@]}"; do
@@ -550,16 +543,11 @@ hydrate_packaged_artifacts_from_public_release() {
     fi
   done
 
-  # Keep latest aliases aligned with the hydrated versioned payload/bootstrap
-  # so WebUI and hosted downloads do not continue to point at stale content.
-  if [[ -f "$payload_versioned" ]]; then
-    install -m 0644 "$payload_versioned" "$payload_latest"
+  # Keep the bootstrap alias aligned with the single hosted payload.
+  if [[ -f "$payload_latest" ]]; then
+    ln -f "$payload_latest" "$bootstrap_latest"
   fi
-  if [[ -f "$bootstrap_versioned" ]]; then
-    install -m 0644 "$bootstrap_versioned" "$bootstrap_latest"
-  elif [[ -f "$payload_versioned" ]]; then
-    install -m 0644 "$payload_versioned" "$bootstrap_latest"
-  fi
+  rm -f "$DIST_DIR"/pve-thin-client-usb-payload-v*.tar.gz "$DIST_DIR"/pve-thin-client-usb-bootstrap-v*.tar.gz
 
   return 0
 }
@@ -637,6 +625,12 @@ cleanup_stale_versioned_thin_client_artifacts() {
   local path name
   while IFS= read -r path; do
     name="$(basename "$path")"
+    case "$name" in
+      pve-thin-client-usb-payload-v*.tar.gz|pve-thin-client-usb-bootstrap-v*.tar.gz)
+        rm -f "$path"
+        continue
+        ;;
+    esac
     case "$name" in
       *"-v${VERSION}."*|*"-v${VERSION}.tar.gz")
         ;;
@@ -731,7 +725,6 @@ checksum_entries=(
   "beagle-extension-v${VERSION}.zip"
   "beagle-os-v${VERSION}.tar.gz"
   "beagle-os-latest.tar.gz"
-  "pve-thin-client-usb-payload-v${VERSION}.tar.gz"
   "pve-thin-client-usb-payload-latest.tar.gz"
   "pve-thin-client-usb-installer-v${VERSION}.sh"
   "pve-thin-client-usb-installer-latest.sh"

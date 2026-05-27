@@ -65,7 +65,7 @@ class DownloadMetadataService:
         return f"{self._public_update_base_url}/SHA256SUMS"
 
     def public_versioned_payload_url(self, version: str) -> str:
-        return f"{self._public_update_base_url}/pve-thin-client-usb-payload-v{version}.tar.gz"
+        return f"{self._public_update_base_url}/pve-thin-client-usb-payload-latest.tar.gz"
 
     def public_versioned_bootstrap_url(self, version: str) -> str:
         return self.public_versioned_payload_url(version)
@@ -115,7 +115,7 @@ class DownloadMetadataService:
     def update_payload_metadata(self, version: str) -> dict[str, str]:
         downloads_status = self._load_json_file(self._downloads_status_file, {})
         latest_version = str(downloads_status.get("version", "")).strip()
-        filename = f"pve-thin-client-usb-payload-v{version}.tar.gz"
+        filename = "pve-thin-client-usb-payload-latest.tar.gz"
         payload_url = self.public_versioned_payload_url(version)
         payload_sha256 = self.checksum_for_dist_filename(filename)
         if not payload_sha256 and version == latest_version:

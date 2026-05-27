@@ -296,7 +296,6 @@ have_packaged_assets() {
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-installer-latest.ps1" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-live-usb-v${VERSION}.ps1" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-live-usb-latest.ps1" ]] &&
-    [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-payload-v${VERSION}.tar.gz" ]] &&
     [[ -f "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" ]]
 }
 
@@ -341,10 +340,8 @@ download_release_assets() {
       "pve-thin-client-live-usb-latest.ps1" &&
     install -m 0644 "$dist_dir/pve-thin-client-live-usb-v${VERSION}.ps1" "$dist_dir/pve-thin-client-live-usb-latest.ps1" &&
     download_asset \
-      "$dist_dir/pve-thin-client-usb-payload-v${VERSION}.tar.gz" \
-      "pve-thin-client-usb-payload-v${VERSION}.tar.gz" \
+      "$dist_dir/pve-thin-client-usb-payload-latest.tar.gz" \
       "pve-thin-client-usb-payload-latest.tar.gz" &&
-    install -m 0644 "$dist_dir/pve-thin-client-usb-payload-v${VERSION}.tar.gz" "$dist_dir/pve-thin-client-usb-payload-latest.tar.gz" &&
     curl -fsSLo "$dist_dir/SHA256SUMS" "$base_url/SHA256SUMS"
 }
 
