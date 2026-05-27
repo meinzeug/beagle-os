@@ -173,6 +173,7 @@ libvirt_pool_target_path() {
 sync_local_storage_pool() {
   local target_dir="$1"
   local current_dir=""
+  local current_has_images="0"
 
   mkdir -p "$target_dir"
   chown root:libvirt "$target_dir"
@@ -182,9 +183,15 @@ sync_local_storage_pool() {
     current_dir="$(libvirt_pool_target_path local || true)"
     if [[ -n "$current_dir" && "$current_dir" != "$target_dir" ]]; then
       mkdir -p "$current_dir"
-      rsync -a "$current_dir"/ "$target_dir"/ 2>/dev/null || true
-      virsh --connect qemu:///system pool-destroy local >/dev/null 2>&1 || true
-      virsh --connect qemu:///system pool-undefine local >/dev/null 2>&1 || true
+      if find "$current_dir" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
+        current_has_images="1"
+      fi
+      if [[ "$current_has_images" == "1" ]]; then
+        target_dir="$current_dir"
+      else
+        virsh --connect qemu:///system pool-destroy local >/dev/null 2>&1 || true
+        virsh --connect qemu:///system pool-undefine local >/dev/null 2>&1 || true
+      fi
     fi
   fi
 
