@@ -423,7 +423,7 @@ has_installed_commit = bool(current_commit)
 status_state = str(status.get("state") or "").strip().lower()
 status_current_commit = str(status.get("current_commit") or "").strip()
 status_update_available = bool(status.get("update_available", False))
-if (
+interval_recent = bool(
     last_checked
     and config_matches_status
     and not force_check
@@ -432,14 +432,7 @@ if (
     and status_state not in {"error", "updating"}
     and not status_update_available
     and now - last_checked < timedelta(minutes=max(1, config["interval_minutes"]))
-):
-    payload.update(status)
-    payload["checked_at"] = now.isoformat()
-    payload["state"] = str(status.get("state") or "idle")
-    payload["message"] = "Intervall noch nicht erreicht."
-    payload["reaction"] = "interval_skip"
-    write_status(payload)
-    raise SystemExit(0)
+)
 
 worktree_dir.parent.mkdir(parents=True, exist_ok=True)
 if not worktree_dir.is_dir():
@@ -495,8 +488,8 @@ payload["pending_commit_count"] = len(pending_commits)
 if current_commit and same_commit(current_commit, remote_commit):
     initialize_runtime_git_checkout(install_dir, config["repo_url"], config["branch"], remote_commit)
     payload["state"] = "healthy"
-    payload["reaction"] = "no_update"
-    payload["message"] = "Installierter Repo-Stand ist aktuell."
+    payload["reaction"] = "interval_skip" if interval_recent else "no_update"
+    payload["message"] = "Intervall noch nicht erreicht; Remote wurde trotzdem geprueft und ist unveraendert." if interval_recent else "Installierter Repo-Stand ist aktuell."
     payload["update_available"] = False
     payload["current_commit"] = remote_commit
     commit_file.write_text(remote_commit + "\n", encoding="utf-8")
@@ -508,6 +501,23 @@ payload["reaction"] = "start_update"
 payload["message"] = f"Neuer Repo-Stand erkannt, {len(pending_commits)} Commit(s) werden der Reihe nach uebernommen."
 payload["update_available"] = True
 write_status(payload)
+
+stopped_stale_refresh_before_update = False
+refresh_active_before_update = run(["systemctl", "is-active", "beagle-artifacts-refresh.service"], timeout=30)
+running_build_commit_before_update = read_running_build_commit(refresh_status_file)
+if refresh_active_before_update.returncode == 0 and (not running_build_commit_before_update or not same_commit(running_build_commit_before_update, remote_commit)):
+    payload["reaction"] = "stopping_stale_artifact_refresh"
+    payload["message"] = "Neuer Repo-Commit erkannt; laufender Artefakt-Build wird vor dem Repo-Install gestoppt."
+    write_status(payload)
+    stop_refresh = run(["systemctl", "stop", "beagle-artifacts-refresh.service"], timeout=90)
+    run(["systemctl", "reset-failed", "beagle-artifacts-refresh.service"], timeout=30)
+    if stop_refresh.returncode != 0:
+        payload["state"] = "error"
+        payload["reaction"] = "artifact_refresh_pre_update_stop_failed"
+        payload["message"] = (stop_refresh.stderr or stop_refresh.stdout or "artifact refresh stop failed before repo update").strip()[-400:]
+        write_status(payload)
+        raise SystemExit(1)
+    stopped_stale_refresh_before_update = True
 
 try:
     repair_runtime_tree(install_dir)
@@ -594,8 +604,8 @@ if install is None or install.returncode != 0:
 refresh_active = run(["systemctl", "is-active", "beagle-artifacts-refresh.service"], timeout=30)
 running_build_commit = read_running_build_commit(refresh_status_file)
 refresh_command = ["systemctl", "--no-block", "start", "beagle-artifacts-refresh.service"]
-refresh_action = "start"
-if refresh_active.returncode == 0 and running_build_commit and not same_commit(running_build_commit, remote_commit):
+refresh_action = "restart" if stopped_stale_refresh_before_update else "start"
+if refresh_active.returncode == 0 and (not running_build_commit or not same_commit(running_build_commit, remote_commit)):
     refresh_action = "restart"
     stop_refresh = run(["systemctl", "stop", "beagle-artifacts-refresh.service"], timeout=90)
     run(["systemctl", "reset-failed", "beagle-artifacts-refresh.service"], timeout=30)

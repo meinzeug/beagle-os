@@ -68,11 +68,35 @@ def test_repo_auto_update_restarts_stale_artifact_refresh_for_new_commit() -> No
     script = SCRIPT.read_text(encoding="utf-8")
 
     assert 'running_build_commit = read_running_build_commit(refresh_status_file)' in script
-    assert 'if refresh_active.returncode == 0 and running_build_commit and not same_commit(running_build_commit, remote_commit):' in script
+    assert 'if refresh_active.returncode == 0 and (not running_build_commit or not same_commit(running_build_commit, remote_commit)):' in script
     assert 'refresh_action = "restart"' in script
     assert '["systemctl", "stop", "beagle-artifacts-refresh.service"]' in script
     assert 'payload["reaction"] = "artifact_refresh_restart_failed"' in script
     assert 'payload["reaction"] = "updated_artifact_refresh_restarted" if refresh_action == "restart" else "updated_artifact_refresh_started"' in script
+
+
+def test_repo_auto_update_checks_remote_before_interval_skip() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'interval_recent = bool(' in script
+    assert 'fetch = run_git_network(["git", "fetch", "--prune", "origin", config["branch"]], cwd=worktree_dir, timeout=1800)' in script
+    current_block = script.split('if current_commit and same_commit(current_commit, remote_commit):', 1)[1]
+    current_block = current_block.split('payload["state"] = "updating"', 1)[0]
+    assert 'payload["reaction"] = "interval_skip" if interval_recent else "no_update"' in current_block
+    assert 'Remote wurde trotzdem geprueft' in current_block
+
+
+def test_repo_auto_update_stops_stale_artifact_build_before_installing_new_tree() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    preinstall_block = script.split('payload["state"] = "updating"', 1)[1]
+    preinstall_block = preinstall_block.split('try:\n    repair_runtime_tree(install_dir)', 1)[0]
+    assert 'stopped_stale_refresh_before_update = False' in preinstall_block
+    assert 'running_build_commit_before_update = read_running_build_commit(refresh_status_file)' in preinstall_block
+    assert 'if refresh_active_before_update.returncode == 0 and (not running_build_commit_before_update or not same_commit(running_build_commit_before_update, remote_commit)):' in preinstall_block
+    assert 'payload["reaction"] = "stopping_stale_artifact_refresh"' in preinstall_block
+    assert 'payload["reaction"] = "artifact_refresh_pre_update_stop_failed"' in preinstall_block
+    assert 'stopped_stale_refresh_before_update = True' in preinstall_block
 
 
 def test_repo_auto_update_verifies_and_records_full_commit_chain() -> None:
