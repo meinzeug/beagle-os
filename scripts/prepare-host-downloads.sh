@@ -60,6 +60,8 @@ GENERIC_WINDOWS_INSTALLER="$DIST_DIR/pve-thin-client-usb-installer-v${VERSION}.p
 GENERIC_WINDOWS_LIVE_USB="$DIST_DIR/pve-thin-client-live-usb-v${VERSION}.ps1"
 PAYLOAD_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
 BOOTSTRAP_URL="$PAYLOAD_URL"
+PAYLOAD_VERSIONED_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-v${VERSION}.tar.gz")"
+BOOTSTRAP_VERSIONED_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz")"
 INSTALLER_ISO_URL="$(beagle_public_release_artifact_url "$PUBLIC_ARTIFACT_BASE_URL" "beagle-os-installer-amd64.iso")"
 INSTALLER_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-installer-host-latest.sh")"
 LIVE_USB_URL="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-live-usb-host-latest.sh")"
@@ -171,6 +173,18 @@ copy_if_missing_or_older() {
   fi
 }
 
+ensure_versioned_payload_aliases() {
+  local payload_latest="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
+  local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
+  local bootstrap_latest="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
+  local bootstrap_versioned="$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
+
+  [[ -f "$payload_latest" ]] || return 0
+  ln -f "$payload_latest" "$payload_versioned"
+  ln -f "$payload_versioned" "$bootstrap_versioned"
+  ln -f "$payload_latest" "$bootstrap_latest"
+}
+
 any_source_newer_than() {
   local target_path="$1"
   shift
@@ -267,7 +281,9 @@ local_live_assets_complete() {
 rebuild_packaged_payload_from_live_assets() {
   local reason="${1:-local live assets}"
   local live_src="$DIST_DIR/pve-thin-client-installer/live"
+  local payload_versioned="$DIST_DIR/pve-thin-client-usb-payload-v${VERSION}.tar.gz"
   local payload_latest="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
+  local bootstrap_versioned="$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
   local bootstrap_latest="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
   local tmpstage cleanup_cmd live_dir
 
@@ -292,9 +308,11 @@ rebuild_packaged_payload_from_live_assets() {
     sha256sum -c SHA256SUMS >/dev/null
   )
 
+  rm -f "$DIST_DIR"/pve-thin-client-usb-payload-v*.tar.gz "$DIST_DIR"/pve-thin-client-usb-bootstrap-v*.tar.gz
+
   (
     cd /
-    tar -czf "$payload_latest" \
+    tar -czf "$payload_versioned" \
       -C "$ROOT_DIR" thin-client-assistant \
       -C "$ROOT_DIR" scripts \
       -C "$ROOT_DIR" README.md \
@@ -304,8 +322,9 @@ rebuild_packaged_payload_from_live_assets() {
       -C "$tmpstage" "dist/pve-thin-client-installer/live"
   )
 
+  ln -f "$payload_versioned" "$payload_latest"
+  ln -f "$payload_versioned" "$bootstrap_versioned"
   ln -f "$payload_latest" "$bootstrap_latest"
-  rm -f "$DIST_DIR"/pve-thin-client-usb-payload-v*.tar.gz "$DIST_DIR"/pve-thin-client-usb-bootstrap-v*.tar.gz
 
   echo "USB payload tarball rebuilt from local live assets: $payload_latest"
   trap - RETURN
@@ -543,11 +562,7 @@ hydrate_packaged_artifacts_from_public_release() {
     fi
   done
 
-  # Keep the bootstrap alias aligned with the single hosted payload.
-  if [[ -f "$payload_latest" ]]; then
-    ln -f "$payload_latest" "$bootstrap_latest"
-  fi
-  rm -f "$DIST_DIR"/pve-thin-client-usb-payload-v*.tar.gz "$DIST_DIR"/pve-thin-client-usb-bootstrap-v*.tar.gz
+  ensure_versioned_payload_aliases
 
   return 0
 }
@@ -626,12 +641,6 @@ cleanup_stale_versioned_thin_client_artifacts() {
   while IFS= read -r path; do
     name="$(basename "$path")"
     case "$name" in
-      pve-thin-client-usb-payload-v*.tar.gz|pve-thin-client-usb-bootstrap-v*.tar.gz)
-        rm -f "$path"
-        continue
-        ;;
-    esac
-    case "$name" in
       *"-v${VERSION}."*|*"-v${VERSION}.tar.gz")
         ;;
       *)
@@ -651,6 +660,7 @@ cleanup_stale_versioned_thin_client_artifacts() {
 }
 
 cleanup_stale_versioned_thin_client_artifacts
+ensure_versioned_payload_aliases
 
 [[ -f "$GENERIC_INSTALLER" ]] || {
   echo "Missing packaged USB installer: $GENERIC_INSTALLER" >&2
@@ -852,8 +862,8 @@ python3 "$PREPARE_HOST_DOWNLOADS_HELPER" write-download-status \
   --live-usb-url "$LIVE_USB_URL" \
   --installer-windows-url "$WINDOWS_INSTALLER_URL" \
   --live-usb-windows-url "$WINDOWS_LIVE_USB_URL" \
-  --bootstrap-url "$BOOTSTRAP_URL" \
-  --payload-url "$PAYLOAD_URL" \
+  --bootstrap-url "$BOOTSTRAP_VERSIONED_URL" \
+  --payload-url "$PAYLOAD_VERSIONED_URL" \
   --installer-iso-url "$INSTALLER_ISO_URL" \
   --status-url "$STATUS_URL" \
   --sha256sums-url "$SHA256SUMS_URL" \

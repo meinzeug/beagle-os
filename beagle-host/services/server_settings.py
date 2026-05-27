@@ -1572,6 +1572,7 @@ class ServerSettingsService:
         settings = self._load_settings()
         errors: list[str] = []
         requested_enabled: bool | None = None
+        previous_enabled = bool(settings.get("artifact_watchdog_enabled", _DEFAULT_ARTIFACT_WATCHDOG_ENABLED))
 
         enabled = payload.get("enabled")
         if enabled is not None:
@@ -1597,7 +1598,7 @@ class ServerSettingsService:
             return {"ok": False, "errors": errors}
 
         self._save_settings(settings)
-        if requested_enabled is not None:
+        if requested_enabled is not None and requested_enabled != previous_enabled:
             timer_result = self._set_artifact_watchdog_timer(requested_enabled)
             if timer_result.returncode != 0:
                 return {

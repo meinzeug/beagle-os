@@ -24,6 +24,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Setup Node.js 20 for JS-backed unit tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install dependencies
         run: |
           pip install \
@@ -132,6 +137,7 @@ jobs:
   webui-provisioning-smoke:
     name: WebUI provisioning smoke (Playwright)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

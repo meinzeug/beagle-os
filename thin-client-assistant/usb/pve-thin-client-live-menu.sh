@@ -972,6 +972,7 @@ PY
 }
 
 install_from_bundled_preset() {
+  local target_disk=""
   AUTO_INSTALL_LOCK_SKIPPED=0
   LAST_INSTALL_EXIT_CODE=0
 
@@ -1000,11 +1001,18 @@ install_from_bundled_preset() {
     sync_logs_to_medium
     return 1
   }
+  target_disk="$(resolve_auto_target_disk || true)"
+  if [[ -z "$target_disk" ]]; then
+    dialog_msgbox "Target Disk Missing" "No safe installation target disk was found. Attach an internal disk or use the manual installer."
+    LAST_INSTALL_EXIT_CODE=1
+    sync_logs_to_medium
+    return 1
+  fi
   AUTO_INSTALL_ACTIVE=1
   run_installer_as_root --cache-bundled-preset >/dev/null 2>&1 || true
 
   set +e
-  run_installer_as_root --auto-install
+  run_installer_as_root --target-disk "$target_disk" --auto-install
   LAST_INSTALL_EXIT_CODE=$?
   set -e
   sync_logs_to_medium

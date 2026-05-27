@@ -25,7 +25,11 @@ import { dirname, join } from 'path';
 const __dir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = __dir;  // stdin module: import.meta.url resolves to cwd
 
-globalThis.navigator = { language: 'de' };
+Object.defineProperty(globalThis, 'navigator', {
+    value: { language: 'de' },
+    configurable: true,
+    writable: true,
+});
 globalThis.localStorage = (() => {
   const store = {};
   return {
