@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-05-27, BeagleStream-Forks gebaut und gepusht)
+
+**Zuletzt erledigt**:
+- `beagle-stream-client` hat jetzt einen Beagle-Managed-Mode fuer Updatecheck-/WoL-Suppression und strukturierte Stream-Events (`6210928b`, Branch `beagle/phase-a`).
+- `beagle-stream-server` hat eine native `/api/beagle/v1/status`-API und kapselt Pairing-Token-Validierung im Broker-Client (`1418ef35`, Branch `beagle/phase-a`).
+- Beide Forks wurden auf `srv1` gebaut; CMake fuer den Server lief remote und nicht lokal.
+
+**Naechste konkrete Schritte**:
+
+1. Beagle-OS-Packaging auf die neuen Fork-Commits/Release-Artefakte pinnen und Checksummen im Build erzwingen.
+2. Aus den beiden Fork-Commits versionierte Artefakte erzeugen und in den Beagle-OS-Payload aufnehmen.
+3. Danach frischen TC-/VM100-E2E-Smoke fahren: `/api/beagle/v1/status` statt `/serverinfo` pruefen und `BEAGLE_STREAM_EVENT`-Logs in Manager-/TC-Diagnose uebernehmen.
+
 ## Stable-Release-Strategie (2026-05-25, BeagleStream-Forks statt Hotfix-Glue)
 
 **Befund aus den aktuellen MDs und Live-Fixes**:

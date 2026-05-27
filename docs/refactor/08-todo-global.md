@@ -17,12 +17,13 @@
 - [ ] VM100-Mikrofon-Bridge live vollstaendig abnehmen: neuen Thinclient-Runtime-Stand booten/ausrollen, `192.168.123.1:43200` Reverse-Listener pruefen und Browser-Aufnahme gegen `beagle_tc_microphone` ohne USB/IP-Zerkratzen verifizieren.
 - [ ] BeagleStream-Integration weiter kanonisieren: `beagle_stream_server_integration.py` und Folgepfade sollen Beagle-Dateinamen bevorzugen; Sunshine bleibt nur Fallback und muss in Live-Validierung weiter reduziert werden.
 - [x] Frisch installierten TC `192.168.178.30` nach aktuellem Payload prüfen: Desktop-Stream ok, Update-Client-`tmpfs`-/`unknown`-Versionsfehler reproduzierbar im Repo gepatcht und live hot verifiziert (2026-05-27).
+- [x] BeagleStream-Forks Phase-A-Stabilitaet weitergezogen: Client-Managed-Mode fuer Updatecheck-/WoL-Suppression plus strukturierte Stream-Events (`6210928b`) und Server-Status-API `/api/beagle/v1/status` plus Broker-Tokenvalidierung (`1418ef35`) gebaut auf `srv1` und gepusht (2026-05-27).
 
 - [x] Thinclient-Startup fuer VM100 sichtbar und schneller machen: Kiosk-Loader mit Wallpaper, 10-Schritte-Statusliste, Hostless-Fast-Path, async Audio-Init und gecachtem Auto-Quality live auf TC `192.168.178.30` bis `Received first video packet after 0 ms` validiert (2026-05-13).
 
 - [x] BeagleStream Runtime-Status in der WebUI sichtbar machen: `stream_runtime.variant` fuer VM-/Installer-Readiness verwenden; `website/main.js` rendert BeagleStream-Server vs. Beagle Stream Server-Fallback inkl. Paketstatus (2026-05-02 Docs-Triage). Thin-Client-Artefakt-/Health-Paritaet bleibt als separater Restpfad in `06-next-steps.md`.
 - [ ] BeagleStream End-to-End-Abnahme fuer VM100 auf `srv1` reproduzierbar abschliessen: Thinclient boot -> Broker-Allocate -> WireGuard -> sichtbarer Desktop-Stream.
-- [ ] BeagleStream Fork-Produktgrenze schliessen: `beagle-stream-server` token-native Pairing/Rotation ohne PIN-Shim implementieren und `beagle-stream-client` CLI/UI/Runtime auf Pairing-Token plus explizites Broker-Ziel umbauen. Der Thin-Client-Runtime-Flow nutzt den alten PIN-basierenden lokalen Pair-Dialog bereits nicht mehr.
+- [ ] BeagleStream Fork-Produktgrenze schliessen: neue Fork-Commits als versionierte Artefakte pinnen, `/api/beagle/v1/status` und `BEAGLE_STREAM_EVENT` live in Manager-/TC-Diagnose uebernehmen und den verbleibenden `/api/pin`-Compatibility-Pfad fuer Beagle-Builds final isolieren. Der Thin-Client-Runtime-Flow nutzt den alten PIN-basierenden lokalen Pair-Dialog bereits nicht mehr.
 - [ ] VM100 RTSP/Media-Restblocker schliessen: nach erfolgreichem Launch (`SUNSHINE_SERVER_BUSY`, `currentgame=881448767`) den `RTSP ANNOUNCE request failed: 110`-Pfad reproduzierbar in Repo-/Host-Konfig beheben.
 
 - [x] R1-VM-Lifecycle ueber API reproduzierbar geschlossen: `scripts/test-vm-lifecycle-r1-smoke.py` fuehrt `create -> start -> snapshot -> reboot -> delete` gegen `srv1` aus (PASS, 2026-04-30, inkl. Cleanup).

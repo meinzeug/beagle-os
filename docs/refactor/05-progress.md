@@ -1,3 +1,25 @@
+## Update (2026-05-27, BeagleStream-Forks: Managed Client und native Server-Status-API)
+
+**Scope**: Auffaelligkeiten aus dem frisch installierten TC `192.168.178.30` wurden in die BeagleStream-Forks uebernommen, statt weiter im Thinclient-Glue zu wachsen.
+
+- **Repo-Fix Client-Fork**:
+  - `beagle-stream-client` erkennt Beagle-Managed-Mode ueber Enrollment bzw. `BEAGLE_STREAM_CLIENT_MANAGED=1`.
+  - Upstream-Moonlight-Updatecheck wird im Managed-Mode uebersprungen.
+  - Wake-on-LAN-Broadcasts werden im Broker-/Managed-Mode unterdrueckt.
+  - Stream-Stages, RTSP-Handshake, erste Audio-/Video-Pakete und Verbindungsabbrueche werden als strukturierte `BEAGLE_STREAM_EVENT`-Logzeilen ausgegeben.
+  - Commit: `meinzeug/beagle-stream-client@6210928b` (`beagle/phase-a`).
+
+- **Repo-Fix Server-Fork**:
+  - `beagle-stream-server` baut die Beagle-Integrationsquellen unter `-DBEAGLE_INTEGRATION=ON` reproduzierbar mit ein.
+  - Pairing-Token-Validierung laeuft ueber `BeagleBrokerClient::validate_pairing_token()` gegen `/api/v1/streams/validate-token`, statt direkt auf interne Broker-Felder zuzugreifen.
+  - Neue native Status-/Identity-API `/api/beagle/v1/status` liefert Produkt, Version, Identity, Ports, Stream-State, GameStream-Kompatibilitaet und Beagle-Management-State.
+  - Commit: `meinzeug/beagle-stream-server@1418ef35` (`beagle/phase-a`).
+
+- **Verifikation**:
+  - Client-Fork auf `srv1` gebaut: `/tmp/beagle-stream-client-build/app/beagle-stream`.
+  - Server-Fork auf `srv1` gebaut: `/tmp/beagle-stream-server-build/sunshine` mit `-DBEAGLE_INTEGRATION=ON -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF -DSUNSHINE_ENABLE_CUDA=OFF`.
+  - Binär-Stringcheck bestaetigt `/api/beagle/v1/status`, `/api/v1/streams/validate-token`, Managed-Mode-Updatecheck-Suppression und WoL-Suppression.
+
 ## Update (2026-05-25, frischer TC: USB/IP-Autobind und erster Stream-Start)
 
 **Scope**: Nach frischer Thinclient-Installation hing der erste Start bei "establishing connection to pc" bis der Launcher neu gestartet wurde; parallel kamen keine USB-Geraete in VM100 an.

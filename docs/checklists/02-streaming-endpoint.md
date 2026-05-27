@@ -16,6 +16,7 @@
   - [x] Server-Token-Rotation und Revocation gegen Beagle Manager verdrahten
   - [x] `.deb`-Paket `beagle-stream-server` ersetzt `beagle-stream-server.deb` in VM-Images
   - [x] Beagle-VM-Integration bevorzugt kanonische `beagle_stream_server_state.json`/`beagle-stream-server.conf`; Sunshine-Dateinamen bleiben nur Rueckfallpfad.
+  - [x] Native Beagle-Status-/Identity-API `/api/beagle/v1/status` im Fork umgesetzt und auf `srv1` gebaut (`meinzeug/beagle-stream-server@1418ef35`).
 - [ ] **Phase A 8.0.x** — Fork `meinzeug/beagle-stream-client` → echtes BeagleStream-Client-Produkt abschliessen
   - [x] `app/beagle/BeagleBroker.cpp` (Broker-Discovery)
   - [x] `app/beagle/BeagleVPN.cpp` (WireGuard-Integration)
@@ -25,6 +26,7 @@
   - [x] Beide Forks: versionierte Release-Artefakte mit Commit-SHA, Checksummen und Beagle-Integrationstest; Beagle OS pinnt diese Artefakte explizit im Build.
   - [x] Broker-Start nutzt explizit `host:port app`, wenn der Manager ein Ziel geliefert hat; stale lokale Hosteintraege duerfen nicht gewinnen. Live-Hotfix/Abnahme 2026-05-04: lokaler Thinclient `ubuntu-beagle-100` meldet `broker_allocation_reachable=1`, `beagle_stream_client_target_reachable=1`, `update_state=current`.
   - [x] Manager-Ziel gewinnt immer gegen stale lokale Config; Pairing/UI/CLI spricht von Token, nicht PIN.
+  - [x] Beagle-Managed-Mode unterdrueckt Upstream-Updatecheck und WoL-Broadcasts und schreibt strukturierte `BEAGLE_STREAM_EVENT`-Logs (`meinzeug/beagle-stream-client@6210928b`, auf `srv1` gebaut).
 - [ ] **Phase B 8.1.x** — NVENC/VAAPI/QSV Tuning, AV1 default
    - [x] Broker-Pfad darf TLS-Fehler nicht pauschal ignorieren; Enrollment/Manager-Pinning oder System-CA muss den Normalpfad tragen.
 - [ ] **Phase C 8.2.x** — WebRTC-Modus (Browser-Stream ohne Client-Install)
