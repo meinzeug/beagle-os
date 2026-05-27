@@ -12,7 +12,7 @@ def test_bundled_preset_install_requires_explicit_target_disk_selection() -> Non
     script = LIVE_MENU_SCRIPT.read_text(encoding="utf-8")
 
     assert "starting preset-based install with explicit target-disk selection" in script
-    assert 'run_installer_as_root --auto-install' in script
+    assert 'run_installer_as_root --target-disk "$target_disk" --auto-install' in script
     assert '--target-disk "$target_disk" --yes --auto-install' not in script
 
 
