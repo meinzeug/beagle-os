@@ -654,6 +654,13 @@ export function bindEvents() {
   }
 
   if (qs('detail-stack')) {
+    qs('detail-stack').addEventListener('change', (event) => {
+      const toggle = event.target.closest('input[data-update-policy-toggle]');
+      if (!toggle) {
+        return;
+      }
+      executeAction(toggle.getAttribute('data-action'), toggle);
+    });
     qs('detail-stack').addEventListener('click', (event) => {
       const revealBtn = event.target.closest('button[data-reveal-id]');
       if (revealBtn) {

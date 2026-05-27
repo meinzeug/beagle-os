@@ -86,6 +86,14 @@ _EDITABLE_SCHEMA: list[dict[str, Any]] = [
             "lock",
         ],
     },
+    {
+        "section": "Beagle",
+        "fields": [
+            "beagle-update-enabled-override",
+            "beagle-update-behavior-override",
+            "beagle-update-channel-override",
+        ],
+    },
 ]
 
 _ALLOWED_KEYS = {

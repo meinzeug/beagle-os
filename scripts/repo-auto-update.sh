@@ -14,6 +14,7 @@ INSTALL_DIR="${BEAGLE_INSTALL_DIR:-/opt/beagle}"
 COMMIT_FILE="$INSTALL_DIR/.beagle-installed-commit"
 DEFAULT_REPO_URL="${BEAGLE_REPO_AUTO_UPDATE_REPO_URL:-https://github.com/meinzeug/beagle-os.git}"
 DEFAULT_BRANCH="${BEAGLE_REPO_AUTO_UPDATE_BRANCH:-main}"
+DEFAULT_CHANNEL="${BEAGLE_REPO_AUTO_UPDATE_CHANNEL:-stable}"
 DEFAULT_INTERVAL_MINUTES="${BEAGLE_REPO_AUTO_UPDATE_INTERVAL_MINUTES:-1}"
 
 ensure_root() {
@@ -30,11 +31,12 @@ ensure_root() {
 ensure_root "$@"
 install -d -m 0755 "$STATUS_DIR" "$CACHE_DIR"
 
-python3 - "$SETTINGS_FILE" "$STATUS_FILE" "$FORCE_FILE" "$WORKTREE_DIR" "$STAGING_DIR" "$INSTALL_DIR" "$COMMIT_FILE" "$REFRESH_STATUS_FILE" "$DEFAULT_REPO_URL" "$DEFAULT_BRANCH" "$DEFAULT_INTERVAL_MINUTES" <<'PY'
+python3 - "$SETTINGS_FILE" "$STATUS_FILE" "$FORCE_FILE" "$WORKTREE_DIR" "$STAGING_DIR" "$INSTALL_DIR" "$COMMIT_FILE" "$REFRESH_STATUS_FILE" "$DEFAULT_REPO_URL" "$DEFAULT_BRANCH" "$DEFAULT_CHANNEL" "$DEFAULT_INTERVAL_MINUTES" <<'PY'
 from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -51,7 +53,10 @@ commit_file = Path(sys.argv[7])
 refresh_status_file = Path(sys.argv[8])
 default_repo_url = sys.argv[9]
 default_branch = sys.argv[10]
-default_interval = int(sys.argv[11])
+default_channel = sys.argv[11]
+default_interval = int(sys.argv[12])
+
+_STABLE_TAG_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 
 
 def utcnow() -> datetime:
@@ -252,6 +257,36 @@ def read_version_file(path: Path) -> str:
         return ""
 
 
+def normalize_update_channel(value: object, fallback: str = "stable") -> str:
+    channel = str(value or "").strip().lower()
+    if channel in {"stable", "rolling"}:
+        return channel
+    return "rolling" if str(fallback or "").strip().lower() == "rolling" else "stable"
+
+
+def stable_tag_sort_key(tag_name: str) -> tuple[int, int, int]:
+    match = _STABLE_TAG_RE.fullmatch(str(tag_name or "").strip())
+    if not match:
+        return (-1, -1, -1)
+    return tuple(int(part) for part in match.groups())
+
+
+def stable_tag_version(tag_name: str) -> str:
+    tag = str(tag_name or "").strip()
+    return tag[1:] if tag.startswith("v") else tag
+
+
+def latest_stable_tag(repo_dir: Path) -> tuple[str, str]:
+    tags = run(["git", "tag", "--list"], cwd=repo_dir, timeout=60)
+    if tags.returncode != 0:
+        return "", (tags.stderr or tags.stdout or "git tag --list failed").strip()[:400]
+    candidates = [line.strip() for line in (tags.stdout or "").splitlines() if _STABLE_TAG_RE.fullmatch(line.strip())]
+    if not candidates:
+        return "", "no stable release tags found"
+    candidates.sort(key=stable_tag_sort_key)
+    return candidates[-1], ""
+
+
 def read_running_build_commit(path: Path) -> str:
     data = load_json(path)
     if str(data.get("status") or "").strip().lower() not in {"queued", "running"}:
@@ -322,7 +357,7 @@ def reset_runtime_git_checkout(install_dir: Path, repo_url: str, branch: str, co
             remove_runtime_git_metadata(install_dir)
             return False
 
-    fetch_runtime = run_git_network(["git", "fetch", "--prune", "origin", branch], cwd=install_dir, timeout=1800)
+    fetch_runtime = run_git_network(["git", "fetch", "--prune", "--tags", "origin", branch], cwd=install_dir, timeout=1800)
     if fetch_runtime.returncode != 0:
         remove_runtime_git_metadata(install_dir)
         return False
@@ -348,7 +383,7 @@ def initialize_runtime_git_checkout(install_dir: Path, repo_url: str, branch: st
     if remote_add.returncode != 0:
         remove_runtime_git_metadata(install_dir)
         return False
-    fetch_runtime = run_git_network(["git", "fetch", "--prune", "origin", branch], cwd=install_dir, timeout=1800)
+    fetch_runtime = run_git_network(["git", "fetch", "--prune", "--tags", "origin", branch], cwd=install_dir, timeout=1800)
     if fetch_runtime.returncode != 0:
         remove_runtime_git_metadata(install_dir)
         return False
@@ -362,10 +397,15 @@ def initialize_runtime_git_checkout(install_dir: Path, repo_url: str, branch: st
 
 settings = load_json(settings_path)
 status = load_json(status_path)
+legacy_default_channel = "rolling" if (
+    "repo_auto_update_channel" not in settings
+    and any(str(status.get(key) or "").strip() for key in ("checked_at", "current_commit", "remote_commit"))
+) else default_channel
 config = {
     "enabled": bool(settings.get("repo_auto_update_enabled", True)),
     "repo_url": str(settings.get("repo_auto_update_repo_url") or default_repo_url).strip() or default_repo_url,
     "branch": str(settings.get("repo_auto_update_branch") or default_branch).strip() or default_branch,
+    "channel": normalize_update_channel(settings.get("repo_auto_update_channel"), legacy_default_channel),
     "interval_minutes": int(settings.get("repo_auto_update_interval_minutes", default_interval) or default_interval),
 }
 
@@ -374,6 +414,7 @@ payload = {
     "enabled": config["enabled"],
     "repo_url": config["repo_url"],
     "branch": config["branch"],
+    "channel": config["channel"],
     "interval_minutes": config["interval_minutes"],
     "checked_at": now.isoformat(),
     "state": "disabled",
@@ -417,6 +458,7 @@ config_matches_status = (
     bool(status.get("enabled", False)) == config["enabled"]
     and str(status.get("repo_url") or "").strip() == config["repo_url"]
     and str(status.get("branch") or "").strip() == config["branch"]
+    and normalize_update_channel(status.get("channel"), config["channel"]) == config["channel"]
     and int(status.get("interval_minutes") or 0) == config["interval_minutes"]
 )
 has_installed_commit = bool(current_commit)
@@ -460,7 +502,30 @@ if fetch.returncode != 0:
     write_status(payload)
     raise SystemExit(1)
 
-remote_commit_proc = run(["git", "rev-parse", f"origin/{config['branch']}"], cwd=worktree_dir, timeout=60)
+tag_fetch = run_git_network(["git", "fetch", "--tags", "--prune", "origin"], cwd=worktree_dir, timeout=1800)
+if tag_fetch.returncode != 0:
+    payload["state"] = "error"
+    payload["reaction"] = "tag_fetch_failed"
+    payload["message"] = (tag_fetch.stderr or tag_fetch.stdout or "git tag fetch failed").strip()[:400]
+    write_status(payload)
+    raise SystemExit(1)
+
+remote_ref = f"origin/{config['branch']}"
+if config["channel"] == "stable":
+    stable_tag, stable_tag_error = latest_stable_tag(worktree_dir)
+    if not stable_tag:
+        payload["state"] = "error"
+        payload["reaction"] = "stable_tag_not_found"
+        payload["message"] = stable_tag_error or "Kein stabiler Release-Tag gefunden."
+        write_status(payload)
+        raise SystemExit(1)
+    remote_ref = stable_tag
+    payload["remote_ref"] = stable_tag
+    payload["remote_version"] = stable_tag_version(stable_tag)
+else:
+    payload["remote_ref"] = remote_ref
+
+remote_commit_proc = run(["git", "rev-parse", remote_ref], cwd=worktree_dir, timeout=60)
 if remote_commit_proc.returncode != 0:
     payload["state"] = "error"
     payload["reaction"] = "rev_parse_failed"
@@ -470,18 +535,22 @@ if remote_commit_proc.returncode != 0:
 
 remote_commit = (remote_commit_proc.stdout or "").strip()
 payload["remote_commit"] = remote_commit
-remote_version_proc = run(["git", "show", f"origin/{config['branch']}:VERSION"], cwd=worktree_dir, timeout=60)
-if remote_version_proc.returncode == 0:
+remote_version_proc = run(["git", "show", f"{remote_ref}:VERSION"], cwd=worktree_dir, timeout=60)
+if remote_version_proc.returncode == 0 and config["channel"] != "stable":
     payload["remote_version"] = (remote_version_proc.stdout or "").strip()
 
 chain_ok, pending_commits, chain_error = list_commit_chain(worktree_dir, current_commit, remote_commit)
 if not chain_ok:
-    payload["state"] = "error"
-    payload["reaction"] = "non_fast_forward_update"
-    payload["message"] = f"Remote-Repo ist kein Fast-Forward vom installierten Commit: {chain_error}"
-    payload["update_available"] = True
-    write_status(payload)
-    raise SystemExit(1)
+    if config["channel"] == "stable":
+        payload["stable_channel_rewind"] = True
+        pending_commits = [remote_commit]
+    else:
+        payload["state"] = "error"
+        payload["reaction"] = "non_fast_forward_update"
+        payload["message"] = f"Remote-Repo ist kein Fast-Forward vom installierten Commit: {chain_error}"
+        payload["update_available"] = True
+        write_status(payload)
+        raise SystemExit(1)
 payload["pending_commits"] = pending_commits
 payload["pending_commit_count"] = len(pending_commits)
 

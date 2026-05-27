@@ -92,6 +92,19 @@ def test_vm_detail_surfaces_stream_runtime_variant_and_fallback_state() -> None:
     assert "Diese VM laeuft noch im Beagle Stream Server-Fallback." in main
 
 
+def test_vm_detail_update_policy_switches_are_wired() -> None:
+    actions = _read(ACTIONS_JS)
+    main = _read(MAIN_JS)
+
+    assert 'data-update-policy-toggle data-action="set-update-enabled"' in main
+    assert 'data-update-policy-toggle data-action="set-update-automation"' in main
+    assert "set-update-channel-stable" in main
+    assert "set-update-channel-rolling" in main
+    assert "request('/vms/' + vmid + '/update-policy'" in actions
+    assert "payload.behavior = enabled ? 'auto' : 'prompt';" in actions
+    assert "payload.enabled = Boolean(sourceButton && sourceButton.checked);" in actions
+
+
 def test_vm_config_editor_surfaces_guided_control_ui() -> None:
     editor = _read(VM_CONFIG_EDITOR_JS)
 

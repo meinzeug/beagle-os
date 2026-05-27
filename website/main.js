@@ -332,6 +332,29 @@ function buildUpdatesPanelHtml(update) {
   const rebuildRequired = Boolean(compatibility.rebuild_recommended || compatibility.reinstall_required || compatibility.migration_required);
   const healthFailure = Boolean(endpoint.health_failure || endpoint.rollback_recommended);
   const reportStale = Boolean(endpoint.report_stale);
+  const channel = String(policy.channel || 'stable').trim().toLowerCase() === 'rolling' ? 'rolling' : 'stable';
+  const updatesEnabled = policy.enabled !== false;
+  const autoInstall = updatesEnabled && String(policy.behavior || 'prompt').trim().toLowerCase() === 'auto';
+  const channelControl =
+    '<div class="detail-update-policy-controls">' +
+    '<label class="settings-switch detail-update-switch">' +
+    '<input type="checkbox" data-update-policy-toggle data-action="set-update-enabled"' + (updatesEnabled ? ' checked' : '') + '>' +
+    '<span class="settings-switch-track" aria-hidden="true"></span>' +
+    '<span><strong>Updates aktiv</strong><small>Endpoint darf Update-Feeds scannen und Updates vorbereiten</small></span>' +
+    '</label>' +
+    '<label class="settings-switch detail-update-switch">' +
+    '<input type="checkbox" data-update-policy-toggle data-action="set-update-automation"' + (autoInstall ? ' checked' : '') + '>' +
+    '<span class="settings-switch-track" aria-hidden="true"></span>' +
+    '<span><strong>Automatisch installieren</strong><small>' + escapeHtml(autoInstall ? 'Auto-Apply mit Reboot ist aktiv' : 'Aktuell nur manuell/prompt') + '</small></span>' +
+    '</label>' +
+    '<div class="detail-channel-control">' +
+    '<div><strong>Update-Kanal</strong><span>' + escapeHtml(channel === 'rolling' ? 'Rolling GitHub' : 'Stable Release') + '</span></div>' +
+    '<div class="channel-toggle" role="group" aria-label="VM Update-Kanal">' +
+    '<button class="channel-toggle-btn' + (channel === 'stable' ? ' is-active' : '') + '" type="button" data-action="set-update-channel-stable" aria-pressed="' + (channel === 'stable' ? 'true' : 'false') + '">Stable</button>' +
+    '<button class="channel-toggle-btn' + (channel === 'rolling' ? ' is-active' : '') + '" type="button" data-action="set-update-channel-rolling" aria-pressed="' + (channel === 'rolling' ? 'true' : 'false') + '">Rolling</button>' +
+    '</div>' +
+    '</div>' +
+    '</div>';
   const compatibilityBanner = rebuildRequired
     ? '<div class="banner warn"><strong>Thinclient/Live-USB neu bauen empfohlen.</strong><br>' +
       (compatibility.reinstall_required
@@ -355,6 +378,7 @@ function buildUpdatesPanelHtml(update) {
     healthBanner +
     '<div class="detail-section">' +
     '<h3>Update Policy</h3>' +
+    channelControl +
     '<div class="detail-grid">' +
     fieldBlock('Update aktiviert', policy.enabled !== false ? 'Ja' : 'Nein') +
     fieldBlock('Kanal', policy.channel || 'stable') +

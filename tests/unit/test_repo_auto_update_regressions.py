@@ -117,10 +117,23 @@ def test_repo_auto_update_tracks_installed_and_remote_versions() -> None:
 
     assert 'def read_version_file(path: Path) -> str:' in script
     assert 'payload["installed_version"] = read_version_file(install_dir / "VERSION")' in script
-    assert 'remote_version_proc = run(["git", "show", f"origin/{config[\'branch\']}:VERSION"], cwd=worktree_dir, timeout=60)' in script
+    assert 'remote_version_proc = run(["git", "show", f"{remote_ref}:VERSION"], cwd=worktree_dir, timeout=60)' in script
     assert 'payload["remote_version"] = (remote_version_proc.stdout or "").strip()' in script
     assert '"sync-web-ui-version.py"' in script
     assert 'payload["reaction"] = "sync_web_ui_version_failed"' in script
+
+
+def test_repo_auto_update_supports_stable_tag_channel() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'DEFAULT_CHANNEL="${BEAGLE_REPO_AUTO_UPDATE_CHANNEL:-stable}"' in script
+    assert 'def latest_stable_tag(repo_dir: Path) -> tuple[str, str]:' in script
+    assert '"channel": normalize_update_channel(settings.get("repo_auto_update_channel"), legacy_default_channel)' in script
+    assert 'tag_fetch = run_git_network(["git", "fetch", "--tags", "--prune", "origin"], cwd=worktree_dir, timeout=1800)' in script
+    assert 'if config["channel"] == "stable":' in script
+    assert 'remote_ref = stable_tag' in script
+    assert 'payload["remote_version"] = stable_tag_version(stable_tag)' in script
+    assert 'payload["stable_channel_rewind"] = True' in script
 
 
 def test_host_check_validates_diamond_d0_repo_update_status() -> None:

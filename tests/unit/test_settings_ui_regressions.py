@@ -52,6 +52,18 @@ def test_settings_updates_panel_shows_installed_and_remote_versions() -> None:
     assert "text('update-center-remote-version', remoteVersion);" in js
 
 
+def test_settings_updates_panel_exposes_stable_rolling_channel_switch() -> None:
+    js = SETTINGS_JS.read_text(encoding="utf-8")
+    html = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert 'id="repo-update-channel"' in html
+    assert 'data-repo-update-channel="stable"' in html
+    assert 'data-repo-update-channel="rolling"' in html
+    assert "function setRepoUpdateChannel(channel)" in js
+    assert "channel: normalizeUpdateChannel(qs('repo-update-channel')" in js
+    assert "saveRepoAutoUpdate();" in js
+
+
 def test_artifact_running_build_message_does_not_show_blocked_gate_as_primary() -> None:
     js = SETTINGS_JS.read_text(encoding="utf-8")
 

@@ -208,6 +208,32 @@
   font-size: 1rem;
   font-weight: 850;
 }
+.settings-update-channel-chip { min-width: 260px; }
+.channel-toggle {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.24);
+}
+.channel-toggle-btn {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+.channel-toggle-btn.is-active {
+  color: #111;
+  background: var(--amber);
+  box-shadow: 0 8px 18px rgba(241, 192, 93, 0.24);
+}
 .settings-update-card-icon {
   display: inline-flex;
   align-items: center;

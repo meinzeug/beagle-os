@@ -12,7 +12,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=8.3.2">
+    <link rel="stylesheet" href="/styles.css?v=8.3.3">
   </head>
   <body class="auth-only">
     <!-- Hidden SVG icon sprite -->
@@ -2537,6 +2537,14 @@
                       <span>Remote</span>
                       <strong id="update-center-remote-version">—</strong>
                     </div>
+                    <div class="settings-update-hero-chip settings-update-channel-chip">
+                      <span>Kanal</span>
+                      <input id="repo-update-channel" type="hidden" value="stable">
+                      <div class="channel-toggle" role="group" aria-label="Server Update-Kanal">
+                        <button class="channel-toggle-btn is-active" type="button" data-repo-update-channel="stable">Stable</button>
+                        <button class="channel-toggle-btn" type="button" data-repo-update-channel="rolling">Rolling</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2633,6 +2641,7 @@
                     <summary>Repo-Details anzeigen</summary>
                     <div class="settings-info-grid settings-info-grid-compact">
                       <div class="info-item"><span class="info-label">Installierter Commit</span><span class="info-value" id="repo-update-current-commit">—</span></div>
+                      <div class="info-item"><span class="info-label">Kanal</span><span class="info-value" id="repo-update-channel-label">—</span></div>
                       <div class="info-item"><span class="info-label">Remote Version</span><span class="info-value" id="repo-update-remote-version">—</span></div>
                       <div class="info-item"><span class="info-label">Remote Commit</span><span class="info-value" id="repo-update-remote">—</span></div>
                       <div class="info-item"><span class="info-label">Letztes Update</span><span class="info-value" id="repo-update-last-update">—</span></div>
@@ -2911,6 +2920,6 @@
 
     <script src="/beagle-web-ui-config.js"></script>
     <script src="/core/platform/browser-common.js"></script>
-    <script type="module" src="/main.js?v=8.3.2"></script>
+    <script type="module" src="/main.js?v=8.3.3"></script>
   </body>
 </html>

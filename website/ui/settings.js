@@ -57,6 +57,24 @@ function setButtonBusy(id, busy) {
   }
 }
 
+function normalizeUpdateChannel(value) {
+  const channel = String(value || '').trim().toLowerCase();
+  return channel === 'rolling' ? 'rolling' : 'stable';
+}
+
+function setRepoUpdateChannel(channel) {
+  const normalized = normalizeUpdateChannel(channel);
+  if (qs('repo-update-channel')) {
+    qs('repo-update-channel').value = normalized;
+  }
+  text('repo-update-channel-label', normalized === 'rolling' ? 'Rolling GitHub' : 'Stable Release');
+  document.querySelectorAll('[data-repo-update-channel]').forEach((button) => {
+    const active = String(button.getAttribute('data-repo-update-channel') || '').trim().toLowerCase() === normalized;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
 function setOptionalLink(id, href) {
   const node = qs(id);
   if (!node) {
@@ -1107,6 +1125,7 @@ function renderRepoUpdateStatus(data) {
   if (qs('repo-update-branch')) {
     qs('repo-update-branch').value = String(config.branch || 'main');
   }
+  setRepoUpdateChannel(config.channel || status.channel || 'stable');
   if (qs('repo-update-interval')) {
     qs('repo-update-interval').value = String(config.interval_minutes || 1);
   }
@@ -1474,6 +1493,7 @@ export function disableFullAutoMaintenance() {
     enabled: false,
     repo_url: String(qs('repo-update-url') ? qs('repo-update-url').value : 'https://github.com/meinzeug/beagle-os.git').trim(),
     branch: String(qs('repo-update-branch') ? qs('repo-update-branch').value : 'main').trim(),
+    channel: normalizeUpdateChannel(qs('repo-update-channel') ? qs('repo-update-channel').value : 'stable'),
     interval_minutes: Number(qs('repo-update-interval') ? qs('repo-update-interval').value : 1) || 1
   };
   const watchdogPayload = {
@@ -1558,6 +1578,7 @@ export function saveRepoAutoUpdate() {
     enabled,
     repo_url: String(qs('repo-update-url') ? qs('repo-update-url').value : 'https://github.com/meinzeug/beagle-os.git').trim(),
     branch: String(qs('repo-update-branch') ? qs('repo-update-branch').value : 'main').trim(),
+    channel: normalizeUpdateChannel(qs('repo-update-channel') ? qs('repo-update-channel').value : 'stable'),
     interval_minutes: Number(qs('repo-update-interval') ? qs('repo-update-interval').value : 1) || 1
   };
   const watchdogPayload = {
@@ -2261,6 +2282,12 @@ export function bindSettingsEvents() {
   if (qs('repo-update-save')) {
     qs('repo-update-save').addEventListener('click', saveRepoAutoUpdate);
   }
+  document.querySelectorAll('[data-repo-update-channel]').forEach((button) => {
+    button.addEventListener('click', () => {
+      setRepoUpdateChannel(button.getAttribute('data-repo-update-channel'));
+      saveRepoAutoUpdate();
+    });
+  });
   if (qs('repo-update-check')) {
     qs('repo-update-check').addEventListener('click', runRepoAutoUpdateCheck);
   }

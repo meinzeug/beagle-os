@@ -811,6 +811,7 @@ defaults = {
     "repo_auto_update_enabled": True,
     "repo_auto_update_repo_url": "https://github.com/meinzeug/beagle-os.git",
     "repo_auto_update_branch": "main",
+    "repo_auto_update_channel": "stable",
     "repo_auto_update_interval_minutes": 1,
     "artifact_watchdog_enabled": True,
     "artifact_watchdog_auto_repair": True,

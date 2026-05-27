@@ -97,6 +97,7 @@ _SYSTEM_UPDATES_SERVICE_NAME = "beagle-system-updates.service"
 _SYSTEM_UPDATES_TIMER_NAME = "beagle-system-updates.timer"
 _DEFAULT_REPO_AUTO_UPDATE_URL = "https://github.com/meinzeug/beagle-os.git"
 _DEFAULT_REPO_AUTO_UPDATE_BRANCH = "main"
+_DEFAULT_REPO_AUTO_UPDATE_CHANNEL = "stable"
 _DEFAULT_REPO_AUTO_UPDATE_ENABLED = True
 _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES = 1
 _DEFAULT_ARTIFACT_WATCHDOG_ENABLED = True
@@ -110,6 +111,13 @@ _SAFE_FIREWALL_PORT_RULE = re.compile(
     r"^(?P<action>allow|deny|drop)\s+(?P<port>[0-9]{1,5})(?:/(?P<proto>tcp|udp))?$",
     re.IGNORECASE,
 )
+
+
+def _normalize_update_channel(value: Any, *, fallback: str = _DEFAULT_REPO_AUTO_UPDATE_CHANNEL) -> str:
+    channel = str(value or "").strip().lower()
+    if channel in {"stable", "rolling"}:
+        return channel
+    return "rolling" if str(fallback or "").strip().lower() == "rolling" else "stable"
 
 
 
@@ -793,12 +801,6 @@ class ServerSettingsService:
 
     def get_repo_auto_update(self) -> dict[str, Any]:
         settings = self._load_settings()
-        config = {
-            "enabled": bool(settings.get("repo_auto_update_enabled", _DEFAULT_REPO_AUTO_UPDATE_ENABLED)),
-            "repo_url": str(settings.get("repo_auto_update_repo_url") or _DEFAULT_REPO_AUTO_UPDATE_URL).strip() or _DEFAULT_REPO_AUTO_UPDATE_URL,
-            "branch": str(settings.get("repo_auto_update_branch") or _DEFAULT_REPO_AUTO_UPDATE_BRANCH).strip() or _DEFAULT_REPO_AUTO_UPDATE_BRANCH,
-            "interval_minutes": int(settings.get("repo_auto_update_interval_minutes", _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES) or _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES),
-        }
         status: dict[str, Any] = {}
         try:
             if _REPO_AUTO_UPDATE_STATUS_FILE.is_file():
@@ -807,6 +809,19 @@ class ServerSettingsService:
                     status.update(loaded)
         except (OSError, json.JSONDecodeError):
             status = {"error": "unreadable"}
+        legacy_default_channel = (
+            "rolling"
+            if "repo_auto_update_channel" not in settings
+            and any(str(status.get(key) or "").strip() for key in ("checked_at", "current_commit", "remote_commit"))
+            else _DEFAULT_REPO_AUTO_UPDATE_CHANNEL
+        )
+        config = {
+            "enabled": bool(settings.get("repo_auto_update_enabled", _DEFAULT_REPO_AUTO_UPDATE_ENABLED)),
+            "repo_url": str(settings.get("repo_auto_update_repo_url") or _DEFAULT_REPO_AUTO_UPDATE_URL).strip() or _DEFAULT_REPO_AUTO_UPDATE_URL,
+            "branch": str(settings.get("repo_auto_update_branch") or _DEFAULT_REPO_AUTO_UPDATE_BRANCH).strip() or _DEFAULT_REPO_AUTO_UPDATE_BRANCH,
+            "channel": _normalize_update_channel(settings.get("repo_auto_update_channel"), fallback=legacy_default_channel),
+            "interval_minutes": int(settings.get("repo_auto_update_interval_minutes", _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES) or _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES),
+        }
 
         if not config["enabled"]:
             status["enabled"] = False
@@ -882,6 +897,14 @@ class ServerSettingsService:
                 errors.append("branch contains invalid characters")
             else:
                 settings["repo_auto_update_branch"] = branch
+
+        channel = payload.get("channel")
+        if channel is not None:
+            normalized_channel = str(channel or "").strip().lower()
+            if normalized_channel not in {"stable", "rolling"}:
+                errors.append("channel must be stable or rolling")
+            else:
+                settings["repo_auto_update_channel"] = normalized_channel
 
         interval_minutes = payload.get("interval_minutes")
         if interval_minutes is not None:
@@ -1613,6 +1636,7 @@ class ServerSettingsService:
         branch = str(settings.get("repo_auto_update_branch") or _DEFAULT_REPO_AUTO_UPDATE_BRANCH).strip() or _DEFAULT_REPO_AUTO_UPDATE_BRANCH
         if not re.fullmatch(r"[A-Za-z0-9._/-]{1,120}", branch):
             branch = _DEFAULT_REPO_AUTO_UPDATE_BRANCH
+        channel = _normalize_update_channel(settings.get("repo_auto_update_channel"), fallback=_DEFAULT_REPO_AUTO_UPDATE_CHANNEL)
 
         try:
             interval = int(settings.get("repo_auto_update_interval_minutes", _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES) or _DEFAULT_REPO_AUTO_UPDATE_INTERVAL_MINUTES)
@@ -1626,6 +1650,7 @@ class ServerSettingsService:
                 "enabled": True,
                 "repo_url": repo_url,
                 "branch": branch,
+                "channel": channel,
                 "interval_minutes": interval,
             }
         )

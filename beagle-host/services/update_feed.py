@@ -22,6 +22,11 @@ def _version_lt(left: str, right: str) -> bool:
     return left_tuple + (0,) * (width - len(left_tuple)) < right_tuple + (0,) * (width - len(right_tuple))
 
 
+def _normalize_channel(value: str) -> str:
+    channel = str(value or "").strip().lower()
+    return channel if channel in {"stable", "rolling"} else "stable"
+
+
 class UpdateFeedService:
     def __init__(
         self,
@@ -51,7 +56,7 @@ class UpdateFeedService:
             if isinstance(downloads_status.get("endpoint_compatibility"), dict)
             else {}
         )
-        configured_channel = str(channel or profile.get("update_channel", "stable") or "stable").strip() or "stable"
+        configured_channel = _normalize_channel(str(channel or profile.get("update_channel", "stable") or "stable"))
         configured_behavior = str(profile.get("update_behavior", "prompt") or "prompt").strip() or "prompt"
         configured_version_pin = str(version_pin or profile.get("update_version_pin", "") or "").strip()
         enabled = bool(profile.get("update_enabled", True))

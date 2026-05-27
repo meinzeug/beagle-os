@@ -78,9 +78,14 @@ class VmMutationSurfaceService:
         return re.match(r"^/api/v1/vms/(?P<vmid>\d+)/update/(?P<operation>scan|download|apply|rollback)$", path)
 
     @staticmethod
+    def _update_policy_match(path: str) -> re.Match[str] | None:
+        return re.match(r"^/api/v1/vms/(?P<vmid>\d+)/(?:update-channel|update-policy)$", path)
+
+    @staticmethod
     def handles_path(path: str) -> bool:
         return bool(
             VmMutationSurfaceService._update_match(path)
+            or VmMutationSurfaceService._update_policy_match(path)
             or (path.startswith("/api/v1/vms/") and path.endswith("/installer-prep"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/actions"))
             or (path.startswith("/api/v1/vms/") and path.endswith("/usb/refresh"))
@@ -101,7 +106,10 @@ class VmMutationSurfaceService:
 
     @staticmethod
     def handles_put(path: str) -> bool:
-        return bool(path.startswith("/api/v1/virtualization/vms/") and path.endswith("/config"))
+        return bool(
+            (path.startswith("/api/v1/virtualization/vms/") and path.endswith("/config"))
+            or VmMutationSurfaceService._update_policy_match(path)
+        )
 
     @staticmethod
     def requires_json_body(path: str) -> bool:
@@ -140,6 +148,59 @@ class VmMutationSurfaceService:
             result = self._update_vm_config(vm, json_payload if isinstance(json_payload, dict) else {})
             status = result.pop("status", HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST)
             return self._json_response(status, result)
+        policy_match = self._update_policy_match(path)
+        if policy_match is not None:
+            vm = self._find_vm(int(policy_match.group("vmid")))
+            if vm is None:
+                return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "vm not found"})
+            payload = json_payload if isinstance(json_payload, dict) else {}
+            updates: dict[str, str] = {}
+            errors: list[str] = []
+            if "channel" in payload:
+                channel = str(payload.get("channel") or "").strip().lower()
+                if channel not in {"stable", "rolling"}:
+                    errors.append("channel must be stable or rolling")
+                else:
+                    updates["beagle-update-channel-override"] = channel
+            if "enabled" in payload:
+                updates["beagle-update-enabled-override"] = "1" if bool(payload.get("enabled")) else "0"
+            if "behavior" in payload:
+                behavior = str(payload.get("behavior") or "").strip().lower()
+                if behavior not in {"prompt", "auto", "off"}:
+                    errors.append("behavior must be prompt, auto, or off")
+                else:
+                    updates["beagle-update-behavior-override"] = behavior
+            if errors:
+                return self._json_response(
+                    HTTPStatus.BAD_REQUEST,
+                    {"ok": False, "error": "; ".join(errors), "errors": errors},
+                )
+            if not updates:
+                return self._json_response(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "no update policy fields supplied"})
+            if self._update_vm_config is None:
+                return self._json_response(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"ok": False, "error": "vm config editor not available"},
+                )
+            result = self._update_vm_config(vm, {"set": updates})
+            status = result.pop("status", HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST)
+            update_policy = {
+                "vmid": int(getattr(vm, "vmid")),
+                "node": str(getattr(vm, "node", "") or ""),
+            }
+            if "beagle-update-channel-override" in updates:
+                update_policy["channel"] = updates["beagle-update-channel-override"]
+            if "beagle-update-enabled-override" in updates:
+                update_policy["enabled"] = updates["beagle-update-enabled-override"] == "1"
+            if "beagle-update-behavior-override" in updates:
+                update_policy["behavior"] = updates["beagle-update-behavior-override"]
+            return self._json_response(
+                status,
+                {
+                    **result,
+                    "update_policy": update_policy,
+                },
+            )
         return self._json_response(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"})
 
     def _vm_from_segment(self, path: str, index_from_end: int) -> tuple[Any | None, str | None]:

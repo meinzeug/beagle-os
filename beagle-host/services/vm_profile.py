@@ -220,9 +220,23 @@ class VmProfileService:
         has_beagle_stream_server_password = bool((vm_secret or {}).get("beagle_stream_server_password"))
         expected_profile_name = policy_profile.get("expected_profile_name") or meta.get("beagle-profile-name", "")
         beagle_stream_client_app = policy_profile.get("beagle_stream_client_app") or meta.get("beagle-stream-client-app", meta.get("beagle-stream-server-app", "Desktop"))
-        update_enabled = self._truthy(policy_profile.get("update_enabled", meta.get("beagle-update-enabled", "1")), default=True)
-        update_channel = str(policy_profile.get("update_channel") or meta.get("beagle-update-channel", "stable")).strip() or "stable"
-        update_behavior = str(policy_profile.get("update_behavior") or meta.get("beagle-update-behavior", "prompt")).strip() or "prompt"
+        update_enabled = self._truthy(
+            meta.get(
+                "beagle-update-enabled-override",
+                policy_profile.get("update_enabled", meta.get("beagle-update-enabled", "1")),
+            ),
+            default=True,
+        )
+        update_channel = str(
+            meta.get("beagle-update-channel-override")
+            or policy_profile.get("update_channel")
+            or meta.get("beagle-update-channel", "stable")
+        ).strip() or "stable"
+        update_behavior = str(
+            meta.get("beagle-update-behavior-override")
+            or policy_profile.get("update_behavior")
+            or meta.get("beagle-update-behavior", "prompt")
+        ).strip() or "prompt"
         update_feed_url = str(policy_profile.get("update_feed_url") or meta.get("beagle-update-feed-url", f"{self._public_manager_url}/api/v1/endpoints/update-feed")).strip()
         update_version_pin = str(policy_profile.get("update_version_pin") or meta.get("beagle-update-version-pin", "")).strip()
         egress_domains = self._listify(policy_profile.get("egress_domains") or meta.get("beagle-egress-domains", ""))

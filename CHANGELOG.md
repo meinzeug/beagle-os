@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added stable/rolling Beagle update channels: server repo auto-update can now follow stable release tags or rolling GitHub main, and the Update Center exposes the channel switch beside installed/remote versions.
+- Added per-VM update policy switches in VM details for Updates active, automatic install behavior, and stable/rolling channel overrides.
+- Fixed VM update policy persistence so per-VM update enabled, behavior, and channel overrides are stored as Beagle metadata and reflected in endpoint profiles/update feeds.
 - Added automatic BeagleStream/Sunshine RTSP port-conflict self-healing for Ubuntu guest runtime provisioning: a new `beagle-stream-server-preflight` now runs before service start, clears stale Sunshine instances, attempts RTSP port cleanup, and fails fast when the port remains blocked.
 - Extended BeagleStream guest healthchecks to detect duplicate Sunshine processes and non-Sunshine listeners on the configured RTSP port, then trigger an automatic service repair cycle instead of requiring manual operator cleanup.
 - Made host installs git-aware: fresh `/opt/beagle` runtime trees are initialized as managed Git checkouts when the source commit is available, and repo auto-update now prefers `git fetch` plus `git reset --hard` before falling back to archive/rsync deployment.

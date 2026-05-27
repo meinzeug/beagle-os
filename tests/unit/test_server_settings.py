@@ -728,10 +728,11 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
     def test_update_repo_auto_update_validates_repo_and_interval(self):
         service = self.make_service()
 
-        result = service.update_repo_auto_update({"repo_url": "git@github.com:bad", "interval_minutes": 0})
+        result = service.update_repo_auto_update({"repo_url": "git@github.com:bad", "channel": "nightly", "interval_minutes": 0})
 
         self.assertFalse(result["ok"])
         self.assertGreaterEqual(len(result["errors"]), 1)
+        self.assertIn("channel must be stable or rolling", result["errors"])
 
     def test_repo_auto_update_defaults_to_security_automation(self):
         service = self.make_service()
@@ -743,6 +744,7 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertTrue(result["config"]["enabled"])
         self.assertEqual(result["config"]["repo_url"], "https://github.com/meinzeug/beagle-os.git")
         self.assertEqual(result["config"]["branch"], "main")
+        self.assertEqual(result["config"]["channel"], "stable")
         self.assertEqual(result["config"]["interval_minutes"], 1)
         self.assertEqual(result["status"]["installed_version"], "")
         self.assertEqual(result["status"]["remote_version"], "")
@@ -759,6 +761,7 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
                 "enabled": True,
                 "repo_url": "https://github.com/meinzeug/beagle-os.git",
                 "branch": "main",
+                "channel": "rolling",
                 "interval_minutes": 1,
             })
 
@@ -766,6 +769,7 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         settings = MODULE.json.loads(service._settings_path.read_text(encoding="utf-8"))
         self.assertTrue(settings["repo_auto_update_enabled"])
         self.assertEqual(settings["repo_auto_update_branch"], "main")
+        self.assertEqual(settings["repo_auto_update_channel"], "rolling")
         self.assertEqual(settings["repo_auto_update_interval_minutes"], 1)
 
     def test_update_repo_auto_update_enable_also_enables_system_updates_timer(self):

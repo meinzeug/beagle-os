@@ -160,6 +160,41 @@ export function executeAction(action, sourceButton) {
     });
     return;
   }
+  if (action === 'set-update-channel-stable' || action === 'set-update-channel-rolling' || action === 'set-update-enabled' || action === 'set-update-automation') {
+    const payload = {};
+    let label = 'Update-Policy';
+    if (action === 'set-update-channel-stable' || action === 'set-update-channel-rolling') {
+      payload.channel = action === 'set-update-channel-rolling' ? 'rolling' : 'stable';
+      label = 'Update-Kanal';
+    } else if (action === 'set-update-enabled') {
+      payload.enabled = Boolean(sourceButton && sourceButton.checked);
+      label = 'Update-Aktivierung';
+    } else {
+      const enabled = Boolean(sourceButton && sourceButton.checked);
+      payload.enabled = true;
+      payload.behavior = enabled ? 'auto' : 'prompt';
+      label = 'Update-Automatik';
+    }
+    runSingleFlight('vm-action:' + vmid + ':update-policy:' + JSON.stringify(payload), () => {
+      actionHooks.setBanner(label + ' fuer VM ' + vmid + ' wird gespeichert ...', 'info');
+      return request('/vms/' + vmid + '/update-policy', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        __timeoutMs: 30000
+      }).then((response) => {
+        if (!response.ok) {
+          throw new Error(response.error || label + ' konnte nicht gespeichert werden');
+        }
+        actionHooks.setBanner(label + ' fuer VM ' + vmid + ' wurde gespeichert.', 'ok');
+        return actionHooks.loadDashboard({ force: true }).then(() => actionHooks.loadDetail(vmid));
+      }).catch((error) => {
+        actionHooks.setBanner(label + ' speichern fehlgeschlagen: ' + error.message, 'warn');
+        return actionHooks.loadDetail(vmid);
+      });
+    });
+    return;
+  }
   if (action.indexOf('update-') === 0) {
     const operation = action.replace('update-', '');
     runSingleFlight('vm-action:' + vmid + ':update:' + operation, () => {
