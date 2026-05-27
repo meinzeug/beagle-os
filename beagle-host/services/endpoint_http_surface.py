@@ -590,6 +590,10 @@ class EndpointHttpSurfaceService:
                 return self._json_response(HTTPStatus.FORBIDDEN, {"ok": False, "error": "endpoint scope mismatch"})
             payload["vmid"] = vmid
             payload["node"] = node
+            if action_name.startswith("os-update-") and not bool(payload.get("ok")):
+                message = str(payload.get("message", "") or "").strip()
+                if not message or ("completed" in message.lower() and "failed" not in message.lower()):
+                    payload["message"] = f"{action_name} failed on endpoint; update client is missing or returned an error"
             payload["received_at"] = self._utcnow()
             self._store_action_result(node, vmid, payload)
             return self._json_response(

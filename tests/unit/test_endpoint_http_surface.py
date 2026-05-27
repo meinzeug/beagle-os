@@ -23,6 +23,7 @@ def _service(
     *,
     prepare_ok: bool = True,
     network_mode: str = "vpn_preferred",
+    store_action_result=None,
     usb_key_sync_hook=None,
 ) -> EndpointHttpSurfaceService:
     vm = _Vm(100, "beagle-0")
@@ -223,7 +224,7 @@ def _service(
                 )
             },
         )(),
-        store_action_result=lambda node, vmid, payload: None,
+        store_action_result=store_action_result or (lambda node, vmid, payload: None),
         store_support_bundle=lambda node, vmid, action_id, filename, payload: {},
         summarize_action_result=lambda payload: payload or {},
         utcnow=lambda: "2026-04-22T00:00:00Z",
@@ -253,6 +254,28 @@ def test_prepare_stream_route_success() -> None:
     assert int(response["status"]) == 200
     assert response["payload"]["ok"] is True
     assert response["payload"]["resolution"] == "1920x1080"
+
+
+def test_action_result_normalizes_failed_os_update_completed_message() -> None:
+    stored: list[dict] = []
+    service = _service(store_action_result=lambda node, vmid, payload: stored.append(dict(payload)))
+
+    response = service.route_post(
+        "/api/v1/endpoints/actions/result",
+        endpoint_identity={"vmid": 100, "node": "beagle-0"},
+        query={},
+        json_payload={
+            "vmid": 100,
+            "node": "beagle-0",
+            "action": "os-update-scan",
+            "action_id": "action-1",
+            "ok": False,
+            "message": "os update scan completed",
+        },
+    )
+
+    assert int(response["status"]) == 200
+    assert stored[0]["message"] == "os-update-scan failed on endpoint; update client is missing or returned an error"
 
 
 def test_prepare_stream_route_failure_propagates_gateway_status() -> None:
