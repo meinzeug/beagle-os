@@ -212,23 +212,20 @@ class VmSecretBootstrapService:
                 for line in managed_lines:
                     handle.write(line + "\n")
                 handle.write(end_marker + "\n")
-        # authorized_keys and auth_root are managed by the installer (root:beagle-manager 0710 /
-        # beagle-manager 0600). Only the per-VM snippet is owned here.
+        # authorized_keys and auth_root are managed by the installer
+        # (root:beagle-manager 0710 / beagle-manager 0600). Keep the primary
+        # managed file writable by the API service user; SSH compatibility for
+        # the tunnel account is provided by the mirrored ~/.ssh/authorized_keys.
         os.chmod(snippet_path, 0o600)
-        # Ensure the authorized_keys file is group-readable by the tunnel user so
-        # that OpenSSH privsep (which drops privileges to the target user) can read
-        # it.  We also mirror the managed content into the tunnel user's ~/.ssh so
-        # that the standard fallback path in the sshd AuthorizedKeysFile directive
-        # always works.
+        os.chmod(authorized_keys, 0o600)
+        # Mirror the managed content into the tunnel user's ~/.ssh so that the
+        # standard fallback path in the sshd AuthorizedKeysFile directive always
+        # works.
         try:
             tunnel_pw = self._lookup_user(self._usb_tunnel_user)
             tunnel_uid = tunnel_pw.pw_uid
             tunnel_gid = tunnel_pw.pw_gid
             tunnel_home = Path(tunnel_pw.pw_dir)
-            # Primary path: file must be owned by root or target user for sshd
-            # StrictModes. Use tunnel user ownership to keep access explicit.
-            os.chown(authorized_keys, tunnel_uid, tunnel_gid)
-            os.chmod(authorized_keys, 0o640)
             # Mirror path: ~/.ssh/authorized_keys owned by tunnel user.
             ssh_dir = tunnel_home / ".ssh"
             ssh_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
