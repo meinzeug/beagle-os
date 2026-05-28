@@ -746,10 +746,10 @@ jobs:
           data = json.loads(Path('/tmp/beagle-downloads-status.json').read_text())
           if data.get('version') != expected_version:
               raise SystemExit(f"expected public mirror version {expected_version}, got {data.get('version')!r}")
-            for key in ('payload_url', 'bootstrap_url'):
+          for key in ('payload_url', 'bootstrap_url'):
               value = str(data.get(key) or '')
               if not value.startswith('https://beagle-os.com/beagle-updates/'):
-                raise SystemExit(f"expected {key} to stay in beagle-updates mirror, got {value!r}")
+                  raise SystemExit(f"expected {key} to stay in beagle-updates mirror, got {value!r}")
           urls = [
               str(data.get('payload_url') or ''),
               str(data.get('bootstrap_url') or ''),
@@ -765,16 +765,9 @@ jobs:
             curl -fsSI "$url" >/dev/null
           done < /tmp/public-artifact-urls.txt
 
-      - name: Checkout public website repository
-        uses: actions/checkout@v4
-        with:
-          repository: meinzeug/beagle-os.com
-          path: beagle-os.com
-          token: ${{ secrets.BEAGLE_PUBLIC_WEBSITE_REPO_TOKEN || secrets.COPILOT_ASSIGNMENT_TOKEN || github.token }}
-
       - name: Publish public website
         env:
-          BEAGLE_PUBLIC_SITE_DIR: ${{ github.workspace }}/beagle-os.com
+          BEAGLE_PUBLIC_SITE_DIR: ${{ github.workspace }}/public-site
           BEAGLE_PUBLIC_SITE_TARGET: ${{ secrets.BEAGLE_PUBLIC_SITE_TARGET }}
         run: bash scripts/deploy-public-website.sh
 
