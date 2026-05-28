@@ -138,9 +138,32 @@ import {
   actionButton,
   escapeHtml,
   fieldBlock,
+  formatBytes,
   formatDate,
   maskedFieldBlock
 } from './ui/dom.js';
+
+function shortCommit(value) {
+  const text = String(value || '').trim();
+  return text ? text.slice(0, 12) : 'n/a';
+}
+
+function formatProductVersion(value) {
+  const text = String(value || '').trim();
+  return text ? 'v' + text.replace(/^v/i, '') : 'n/a';
+}
+
+function buildExternalLink(label, href) {
+  const url = String(href || '').trim();
+  if (!url) {
+    return 'n/a';
+  }
+  return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(label || url) + '</a>';
+}
+
+function linkFieldBlock(label, valueHtml) {
+  return '<div class="kv"><div class="kv-label">' + escapeHtml(label) + '</div><div class="kv-value">' + valueHtml + '</div></div>';
+}
 
 function buildUsbDownloadMenuHtml() {
   return (
@@ -327,6 +350,7 @@ function buildUpdatesPanelHtml(update) {
   const policy = update.policy || {};
   const endpoint = update.endpoint || {};
   const compatibility = update.compatibility || {};
+  const source = update.source || {};
   const reinstallReasons = Array.isArray(compatibility.reinstall_reasons) ? compatibility.reinstall_reasons : [];
   const migrationReasons = Array.isArray(compatibility.migration_reasons) ? compatibility.migration_reasons : [];
   const rebuildRequired = Boolean(compatibility.rebuild_recommended || compatibility.reinstall_required || compatibility.migration_required);
@@ -335,6 +359,13 @@ function buildUpdatesPanelHtml(update) {
   const channel = String(policy.channel || 'stable').trim().toLowerCase() === 'rolling' ? 'rolling' : 'stable';
   const updatesEnabled = policy.enabled !== false;
   const autoInstall = updatesEnabled && String(policy.behavior || 'prompt').trim().toLowerCase() === 'auto';
+  const targetVersion = source.target_version || update.published_latest_version || endpoint.latest_version || '';
+  const channelAdvisory = channel === 'rolling'
+    ? 'Rolling folgt dem aktuellen GitHub-Branch und nimmt neue Commits auf.'
+    : 'Stable folgt echten Release-Tags; es wird kein Downgrade erzwungen.';
+  const sourceMessage = source.message || (compatibility.self_update_supported
+    ? 'Dieser Endpoint kann den publizierten Self-Update-Payload verwenden.'
+    : 'Dieser Endpoint braucht einen Migrations- oder Rebuild-Pfad vor einem Self-Update.');
   const channelControl =
     '<div class="detail-update-policy-controls">' +
     '<label class="settings-switch detail-update-switch">' +
@@ -376,6 +407,8 @@ function buildUpdatesPanelHtml(update) {
     compatibilityBanner +
     staleReportBanner +
     healthBanner +
+    '<div class="banner info"><strong>' + escapeHtml(channel === 'rolling' ? 'Rolling GitHub' : 'Stable Release') + '</strong><br>' +
+    escapeHtml(channelAdvisory + ' Ziel: ' + (targetVersion ? formatProductVersion(targetVersion) : 'n/a') + '. ' + sourceMessage) + '</div>' +
     '<div class="detail-section">' +
     '<h3>Update Policy</h3>' +
     channelControl +
@@ -390,6 +423,29 @@ function buildUpdatesPanelHtml(update) {
     fieldBlock('Publiziert', update.published_latest_version || 'n/a') +
     fieldBlock('Status', endpoint.state || 'n/a') +
     fieldBlock('Pending Reboot', endpoint.pending_reboot ? 'Ja' : 'Nein') +
+    '</div>' +
+    '</div>' +
+    '<div class="detail-section">' +
+    '<h3>GitHub / Release Quelle</h3>' +
+    '<div class="detail-grid">' +
+    fieldBlock('Repo', source.repo_url || 'n/a') +
+    fieldBlock('Branch', source.branch || 'n/a') +
+    fieldBlock('Repo-Status', source.state || 'n/a') +
+    fieldBlock('GitHub Check', formatDate(source.checked_at || '')) +
+    fieldBlock('Installierter Commit', shortCommit(source.current_commit)) +
+    fieldBlock('Remote Commit', shortCommit(source.remote_commit)) +
+    fieldBlock('Ziel Commit', shortCommit(source.target_commit || (channel === 'rolling' ? source.rolling_commit : source.stable_commit))) +
+    fieldBlock('Position', source.channel_position || 'n/a') +
+    fieldBlock('Stable Release', (source.stable_ref || 'n/a') + (source.stable_version ? ' / ' + formatProductVersion(source.stable_version) : '')) +
+    fieldBlock('Stable Commit', shortCommit(source.stable_commit)) +
+    fieldBlock('Rolling Head', shortCommit(source.rolling_commit) + (source.rolling_version ? ' / ' + formatProductVersion(source.rolling_version) : '')) +
+    fieldBlock('Artefakt gebaut', formatDate(source.artifact_generated_at || '')) +
+    fieldBlock('Payload', source.payload_filename || 'n/a') +
+    fieldBlock('Payload Groesse', source.payload_size ? formatBytes(source.payload_size) : 'n/a') +
+    fieldBlock('Payload SHA256', source.payload_sha256 ? String(source.payload_sha256).slice(0, 16) + '...' : 'n/a') +
+    linkFieldBlock('Payload URL', buildExternalLink('Download', source.payload_url)) +
+    linkFieldBlock('SHA256SUMS', buildExternalLink('Checksums', source.sha256sums_url)) +
+    linkFieldBlock('Status JSON', buildExternalLink('Status', source.artifact_status_url)) +
     '</div>' +
     '</div>' +
     '<div class="button-row section-spaced-tight">' +

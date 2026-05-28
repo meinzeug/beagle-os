@@ -239,21 +239,53 @@ class _Vm:
     name = "vm-100"
 
 
-def test_vm_update_payload_exposes_rebuild_and_health_failure(tmp_path: Path) -> None:
+def test_vm_update_payload_exposes_rebuild_and_health_failure(tmp_path: Path, monkeypatch) -> None:
     vm = _Vm()
+    downloads_file = tmp_path / "downloads.json"
+    repo_status_file = tmp_path / "repo-auto-update-status.json"
+
+    def load_update_json(path: Path, default):
+        if Path(path) == repo_status_file:
+            return {
+                "repo_url": "https://github.com/meinzeug/beagle-os.git",
+                "branch": "main",
+                "state": "healthy",
+                "current_commit": "1111111111111111111111111111111111111111",
+                "target_commit": "2222222222222222222222222222222222222222",
+                "stable_ref": "v8.0.0",
+                "stable_version": "8.0.0",
+                "stable_commit": "3333333333333333333333333333333333333333",
+                "rolling_commit": "4444444444444444444444444444444444444444",
+                "rolling_version": "8.0.1",
+            }
+        return {
+            "version": "8.0",
+            "generated_at": "2026-05-27T12:00:00Z",
+            "payload_filename": "pve-thin-client-usb-payload-v8.0.tar.gz",
+            "payload_url": "https://srv1/beagle-downloads/payload.tar.gz",
+            "payload_sha256": "abc123",
+            "payload_size": 1024,
+            "sha256sums_url": "https://srv1/beagle-downloads/SHA256SUMS",
+            "status_url": "https://srv1/beagle-downloads/beagle-downloads-status.json",
+            "endpoint_compatibility": {"minimum_self_update_version": "8.0"},
+        }
+
+    import vm_http_surface
+
+    monkeypatch.setattr(vm_http_surface, "REPO_AUTO_UPDATE_STATUS_FILE", repo_status_file)
     surface = VmHttpSurfaceService(
         build_profile=lambda item: {"vmid": item.vmid, "update_enabled": True, "update_behavior": "auto"},
         build_novnc_access=lambda item: {},
         build_vm_state=lambda item: {"endpoint": {"reported_at": "now"}, "last_action": {}},
         build_vm_usb_state=lambda item, report: {},
-        downloads_status_file=tmp_path / "downloads.json",
+        downloads_status_file=downloads_file,
         ensure_vm_secret=lambda item: {},
         find_vm=lambda vmid: vm if int(vmid) == vm.vmid else None,
         list_support_bundle_metadata=lambda **kwargs: [],
         load_action_queue=lambda node, vmid: [],
         load_endpoint_report=lambda node, vmid: {"update": {"current_version": "7.9", "health_failure": True, "rollback_recommended": True}},
         load_installer_prep_state=lambda node, vmid: {},
-        load_json_file=lambda path, default: {"version": "8.0", "endpoint_compatibility": {"minimum_self_update_version": "8.0"}},
+        load_json_file=load_update_json,
         public_manager_url="https://srv1/beagle-api",
         public_server_name="srv1",
         render_vm_installer_script=lambda item: (b"", "installer.sh"),
@@ -280,6 +312,9 @@ def test_vm_update_payload_exposes_rebuild_and_health_failure(tmp_path: Path) ->
     assert update["compatibility"]["rebuild_recommended"] is True
     assert update["endpoint"]["health_failure"] is True
     assert update["endpoint"]["rollback_recommended"] is True
+    assert update["source"]["repo_url"] == "https://github.com/meinzeug/beagle-os.git"
+    assert update["source"]["payload_filename"] == "pve-thin-client-usb-payload-v8.0.tar.gz"
+    assert update["source"]["stable_ref"] == "v8.0.0"
 
 
 def test_webui_update_panel_warns_when_endpoint_rebuild_is_recommended() -> None:
@@ -288,3 +323,6 @@ def test_webui_update_panel_warns_when_endpoint_rebuild_is_recommended() -> None
     assert "Thinclient/Live-USB neu bauen empfohlen" in script
     assert "compatibility.rebuild_recommended" in script
     assert "Runtime-Health fehlgeschlagen" in script
+    assert "GitHub / Release Quelle" in script
+    assert "Stable Release" in script
+    assert "Rolling Head" in script

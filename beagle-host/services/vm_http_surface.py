@@ -10,6 +10,9 @@ from update_feed import _version_lt
 
 
 STALE_ENDPOINT_SECONDS = int(os.environ.get("BEAGLE_MANAGER_STALE_ENDPOINT_SECONDS", "600"))
+REPO_AUTO_UPDATE_STATUS_FILE = Path(
+    os.environ.get("BEAGLE_REPO_AUTO_UPDATE_STATUS_FILE", "/var/lib/beagle/repo-auto-update-status.json")
+)
 
 
 class VmHttpSurfaceService:
@@ -193,6 +196,9 @@ class VmHttpSurfaceService:
         downloads_status = self._load_json_file(self._downloads_status_file, {})
         if not isinstance(downloads_status, dict):
             downloads_status = {}
+        repo_status = self._load_json_file(REPO_AUTO_UPDATE_STATUS_FILE, {})
+        if not isinstance(repo_status, dict):
+            repo_status = {}
         published_latest_version = str(downloads_status.get("version", "")).strip()
         endpoint_compatibility = (
             downloads_status.get("endpoint_compatibility")
@@ -226,17 +232,26 @@ class VmHttpSurfaceService:
                 f"Installierte Version ist aelter als die minimale Self-Update-Version {minimum_self_update_version}.",
             ]
         update_path = "reinstall_required" if reinstall_required else ("migration_required" if migration_required else "self_update")
+        policy_channel = str(profile.get("update_channel", "stable") or "stable").strip().lower()
+        if policy_channel not in {"stable", "rolling"}:
+            policy_channel = "stable"
+        policy_version_pin = str(profile.get("update_version_pin", "") or "").strip()
+        target_version = policy_version_pin or published_latest_version
+        try:
+            payload_size = int(downloads_status.get("payload_size") or 0)
+        except (TypeError, ValueError):
+            payload_size = 0
         return self._envelope(
             update={
                 "policy": {
                     "enabled": bool(profile.get("update_enabled", True)),
-                    "channel": str(profile.get("update_channel", "stable") or "stable"),
+                    "channel": policy_channel,
                     "behavior": str(profile.get("update_behavior", "prompt") or "prompt"),
                     "feed_url": str(
                         profile.get("update_feed_url", f"{self._public_manager_url}/api/v1/endpoints/update-feed")
                         or ""
                     ),
-                    "version_pin": str(profile.get("update_version_pin", "") or ""),
+                    "version_pin": policy_version_pin,
                 },
                 "endpoint": {
                     "state": "stale-report" if endpoint_report_stale else endpoint.get("update_state", ""),
@@ -256,6 +271,34 @@ class VmHttpSurfaceService:
                     "report_age_seconds": report_age_seconds,
                 },
                 "published_latest_version": published_latest_version,
+                "source": {
+                    "channel": policy_channel,
+                    "target_version": target_version,
+                    "repo_url": str(repo_status.get("repo_url") or "").strip(),
+                    "branch": str(repo_status.get("branch") or "").strip(),
+                    "state": str(repo_status.get("state") or "").strip(),
+                    "message": str(repo_status.get("message") or "").strip(),
+                    "checked_at": str(repo_status.get("checked_at") or "").strip(),
+                    "last_update_at": str(repo_status.get("last_update_at") or "").strip(),
+                    "current_commit": str(repo_status.get("current_commit") or "").strip(),
+                    "remote_commit": str(repo_status.get("remote_commit") or "").strip(),
+                    "target_commit": str(repo_status.get("target_commit") or "").strip(),
+                    "channel_position": str(repo_status.get("channel_position") or "").strip(),
+                    "stable_ref": str(repo_status.get("stable_ref") or "").strip(),
+                    "stable_version": str(repo_status.get("stable_version") or "").strip(),
+                    "stable_commit": str(repo_status.get("stable_commit") or "").strip(),
+                    "rolling_ref": str(repo_status.get("rolling_ref") or "").strip(),
+                    "rolling_version": str(repo_status.get("rolling_version") or "").strip(),
+                    "rolling_commit": str(repo_status.get("rolling_commit") or "").strip(),
+                    "artifact_generated_at": str(downloads_status.get("generated_at") or "").strip(),
+                    "artifact_status_url": str(downloads_status.get("status_url") or "").strip(),
+                    "sha256sums_url": str(downloads_status.get("sha256sums_url") or "").strip(),
+                    "payload_filename": str(downloads_status.get("payload_filename") or "").strip(),
+                    "payload_url": str(downloads_status.get("payload_url") or "").strip(),
+                    "payload_sha256": str(downloads_status.get("payload_sha256") or "").strip(),
+                    "payload_size": payload_size,
+                    "payload_latest_url": str(downloads_status.get("payload_latest_url") or "").strip(),
+                },
                 "compatibility": {
                     "update_path": update_path,
                     "self_update_supported": update_path == "self_update",
