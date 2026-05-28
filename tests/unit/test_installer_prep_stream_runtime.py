@@ -62,7 +62,7 @@ def test_quick_beagle_stream_server_status_parses_stream_runtime_variant(tmp_pat
             "beagle_package": 1,
             "beagle_stream_server_package": 0,
             "variant": "beagle-stream-server",
-            "package_url": "https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb",
+            "package_url": "https://github.com/meinzeug/beagle-stream-server/releases/latest/download/beagle-stream-server-latest-ubuntu-24.04-amd64.deb",
         }
     )
     service = _service(tmp_path, payload)
@@ -107,7 +107,7 @@ def test_default_state_marks_compatibility_mode_when_only_server_runtime_is_pres
             "beagle_package": 0,
             "beagle_stream_server_package": 1,
             "variant": "beagle-stream-server-fallback",
-            "package_url": "https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb",
+            "package_url": "https://github.com/meinzeug/beagle-stream-server/releases/latest/download/beagle-stream-server-latest-ubuntu-24.04-amd64.deb",
         }
     )
     service = _service(tmp_path, payload)

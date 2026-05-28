@@ -1,5 +1,19 @@
 # Next Steps
 
+## Stand (2026-05-28, Fork-Releases jetzt als echte Latest-Releases)
+
+**Zuletzt erledigt**:
+- `beagle-stream-client` veroeffentlicht jetzt non-prerelease Releases als `Latest` unter immutable Tags (`beagle-v6.1.0-<sha>`) inklusive `BeagleStream-latest-x86_64.AppImage` + `SHA256SUMS`.
+- `beagle-stream-server` veroeffentlicht jetzt non-prerelease Releases als `Latest` unter immutable Tags (`beagle-v1.0.0-<sha>`) inklusive `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` + `SHA256SUMS`.
+- Server-Buildversion ist auf `1.0.0` umgestellt (`PROJECT_VERSION: 1.0.0` in CI) und nicht mehr `0.0.0-*`.
+- Beagle-OS-Defaults nutzen fuer Client und Server jetzt `releases/latest/download/...`.
+
+**Naechste konkrete Schritte**:
+
+1. Einen frischen Thin-Client-Artefaktbuild fahren und pruefen, dass das Stage'n aus den neuen `latest`-Release-Assets erfolgt.
+2. VM100-Guest-Reconfigure einmal mit den neuen Server-Latest-Artefakten durchlaufen lassen und Paket-/SHA-Pfad in den Logs festhalten.
+3. Den Cold-Boot-E2E-Smoketest VM100/TC wiederholen (`PairStatus=1`, `/applist` ok, Stream aktiv) und das Ergebnis in `docs/checklists/02-streaming-endpoint.md` nachziehen.
+
 ## Stand (2026-05-28, TC user-manager baseline nachgezogen)
 
 **Zuletzt erledigt**:

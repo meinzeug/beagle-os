@@ -1,3 +1,22 @@
+## Update (2026-05-28, Fork-Releases als echte Latest-Releases umgestellt)
+
+**Scope**: `meinzeug/beagle-stream-client` und `meinzeug/beagle-stream-server` sollten nicht mehr nur ein mutable Pre-Release auf `beagle-phase-a` liefern, sondern echte Releases mit `Latest`-Status; parallel sollten die Beagle-OS-Defaults auf den `latest/download`-Kanal zeigen.
+
+- **Fork-Fix**:
+  - `beagle-stream-client@059db03a`: Release-Workflow erzeugt jetzt pro Commit ein immutable Tag (`beagle-v<version>-<sha>`), publiziert `BeagleStream-latest-x86_64.AppImage` plus `SHA256SUMS` als non-prerelease und setzt den Release auf `Latest`.
+  - `beagle-stream-server@12a0fb63` + `7aedcdcf`: Release-Workflow erzeugt immutable Tags (`beagle-v1.0.0-<sha>`), publiziert `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` plus `SHA256SUMS` als non-prerelease und setzt `Latest`; Publish-Job nutzt Checkout fuer `gh release`.
+  - `beagle-stream-server` Basisversion in `CMakeLists.txt` auf `1.0.0` gesetzt; CI baut mit `BUILD_VERSION=1.0.0` statt `0.0.0-*`.
+
+- **Beagle-OS-Wiring**:
+  - Defaults in Build-/Provisioning-Pfaden zeigen jetzt auf `releases/latest/download/...` statt auf `releases/download/beagle-phase-a/...`.
+  - Betroffene Pfade: `scripts/build-beagle-os.sh`, `scripts/build-thin-client-installer.sh`, `thin-client-assistant/.../008-install-beagle-stream-client.hook.chroot`, `scripts/configure-beagle-stream-server-guest.sh`, `beagle-host/services/service_registry.py`.
+
+- **Verifikation**:
+  - Fork-CI: Client-Run `26590415530` und Server-Run `26590991812` erfolgreich.
+  - Latest-Releases sind non-prerelease und enthalten die erwarteten `latest`-Assets + `SHA256SUMS`.
+  - Server-CI-Log meldet `PROJECT_VERSION: 1.0.0`.
+  - Lokal: `pytest -q tests/unit/test_installer_prep_stream_runtime.py` -> `3 passed`.
+
 ## Update (2026-05-28, TC user-manager root cause fuer Stream-Runtime reproduzierbar gefixt)
 
 **Scope**: Beim Live-Check auf `192.168.178.30` war der Beagle-Stream-Runtimepfad instabil, waehrend VM100 selbst gesund lief. Ziel war, den reproduzierbaren Root Cause im TC-Base-System zu isolieren und als Repo-Fix abzusichern.
