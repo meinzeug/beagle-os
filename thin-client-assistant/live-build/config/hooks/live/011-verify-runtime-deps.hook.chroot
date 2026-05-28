@@ -9,6 +9,8 @@ pipewire
 pipewire-pulse
 pipewire-alsa
 wireplumber
+dbus-user-session
+libpam-systemd
 plymouth
 feh
 flatpak

@@ -1,5 +1,18 @@
 # Next Steps
 
+## Stand (2026-05-28, TC user-manager baseline nachgezogen)
+
+**Zuletzt erledigt**:
+- Root Cause fuer den TC-Runtimekontext live bestaetigt: `user@1000.service` brach ohne `libpam-systemd`; User-DBus-Bus fehlte ohne `dbus-user-session`.
+- Live-Hotfix auf TC angewendet; User-Manager ist wieder `active`, User-Bus vorhanden.
+- Repro-Fix in den Thinclient-Live-Build uebernommen (Paketliste + Verify-Hook + Regressionstest).
+
+**Naechste konkrete Schritte**:
+
+1. Frischen Thinclient-Live-Boot aus neu gebautem Payload fahren und nachweisen, dass `user@1000.service` plus User-DBus ohne Hotfix direkt stehen.
+2. BeagleStream-Launcher auf dem frischen Boot einmal durchlaufen lassen und den App-Listing-/Pairing-Pfad gegen `beagle-stream-client-list.log` erneut pruefen.
+3. Danach den Cold-Boot-E2E-Lauf VM100/TC ohne manuelle Eingriffe als Gate-Nachweis in `docs/checklists/02-streaming-endpoint.md` aktualisieren.
+
 ## Stand (2026-05-28, VM100/TC BeagleStream E2E nach latest-Fork-Deploy)
 
 **Zuletzt erledigt**:

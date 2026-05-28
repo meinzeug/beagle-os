@@ -48,12 +48,16 @@ def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None
     assert "jq" in package_text
     assert "libcap2-bin" in package_text
     assert "wireguard-tools" in package_text
+    assert "dbus-user-session" in package_text
+    assert "libpam-systemd" in package_text
 
 
 def test_thin_client_live_image_verifies_wireguard_commands() -> None:
     hook_text = VERIFY_HOOK.read_text(encoding="utf-8")
 
     assert "wireguard-tools" in hook_text
+    assert "dbus-user-session" in hook_text
+    assert "libpam-systemd" in hook_text
     assert 'for command_name in jq wg ip; do' in hook_text
     assert 'setcap cap_net_admin+ep "$(command -v wg)"' in hook_text
 

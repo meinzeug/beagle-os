@@ -23,7 +23,9 @@ usbip
 usbutils
 ffmpeg
 dbus
+dbus-user-session
 sudo
+libpam-systemd
 dbus-x11
 xterm
 zenity

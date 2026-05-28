@@ -1,3 +1,21 @@
+## Update (2026-05-28, TC user-manager root cause fuer Stream-Runtime reproduzierbar gefixt)
+
+**Scope**: Beim Live-Check auf `192.168.178.30` war der Beagle-Stream-Runtimepfad instabil, waehrend VM100 selbst gesund lief. Ziel war, den reproduzierbaren Root Cause im TC-Base-System zu isolieren und als Repo-Fix abzusichern.
+
+- **Root Cause**:
+  - `user@1000.service` konnte nicht starten, weil `pam_systemd.so` fehlte (`libpam-systemd` nicht installiert).
+  - Nach dem ersten Fix fehlte fuer den User-DBus-Bus noch `dbus-user-session`.
+  - Ohne diese Basisabhaengigkeiten fehlte der stabile User-Manager/User-Bus-Kontext fuer den Thinclient-Runtimepfad.
+
+- **Hotfix live (TC)**:
+  - `libpam-systemd` und `dbus-user-session` installiert.
+  - `user@1000.service` danach `active (running)`, `RuntimePath=/run/user/1000`, User-DBus-Socket vorhanden.
+
+- **Repo-Fix**:
+  - Thinclient-Live-Paketliste enthaelt jetzt zusaetzlich `libpam-systemd` und `dbus-user-session`.
+  - Der Runtime-Dependency-Verify-Hook erzwingt beide Pakete, damit ein fehlendes PAM/DBus-User-Setup Build-seitig sofort auffaellt.
+  - Regressionstest deckt die neuen Pflichtpakete in Paketliste und Verify-Hook ab.
+
 ## Update (2026-05-28, BeagleStream latest E2E auf VM100/TC wieder gruen)
 
 **Scope**: Die letzte VS-Code-/Copilot-Session hatte die neuen BeagleStream-Fork-Release-Artefakte auf `srv1` und den Thinclient `192.168.178.30` im Fokus. Ziel war: Server-Fork-DEB in VM100, Client-Fork-AppImage auf dem TC, danach echter Desktop-Stream.
