@@ -2978,6 +2978,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
         UBUNTU_BEAGLE_PROVISIONING_SERVICE = UbuntuBeagleProvisioningService(
             allocate_public_stream_base_port=allocate_public_stream_base_port,
             build_profile=build_profile,
+            beagle_guest_updater_script=ROOT_DIR / "beagle-host" / "bin" / "beagle-guest-updater",
             configure_beagle_stream_server_guest_script=ROOT_DIR / "scripts" / "configure-beagle-stream-server-guest.sh",
             current_public_stream_host=current_public_stream_host,
             default_usb_tunnel_port=default_usb_tunnel_port,
@@ -3012,6 +3013,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             save_vm_secret=save_vm_secret,
             ensure_ubuntu_beagle_vm_restart_state=ensure_ubuntu_beagle_vm_restart_state,
             stream_ports=stream_ports,
+            store_endpoint_token=endpoint_token_store_service().store,
             summarize_ubuntu_beagle_state=summarize_ubuntu_beagle_state,
             template_dir=UBUNTU_BEAGLE_TEMPLATE_DIR,
             time_now_epoch=lambda: datetime.now(timezone.utc).timestamp(),
@@ -3043,6 +3045,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             utcnow=utcnow,
             validate_linux_username=ubuntu_beagle_inputs_service().validate_linux_username,
             validate_password=ubuntu_beagle_inputs_service().validate_password,
+            version=VERSION,
         )
     return UBUNTU_BEAGLE_PROVISIONING_SERVICE
 

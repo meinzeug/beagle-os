@@ -5,7 +5,11 @@ export DEBIAN_FRONTEND=noninteractive
 
 GUEST_USER="__GUEST_USER__"
 VMID="__VMID__"
+NODE="__NODE__"
 BEAGLE_MANAGER_URL="__BEAGLE_MANAGER_URL__"
+BEAGLE_ENDPOINT_TOKEN="__BEAGLE_ENDPOINT_TOKEN__"
+BEAGLE_VERSION="__BEAGLE_VERSION__"
+BEAGLE_GUEST_UPDATER_B64="__BEAGLE_GUEST_UPDATER_B64__"
 IDENTITY_LOCALE="__IDENTITY_LOCALE__"
 IDENTITY_LANGUAGE="__IDENTITY_LANGUAGE__"
 IDENTITY_KEYMAP="__IDENTITY_KEYMAP__"
@@ -63,6 +67,78 @@ BEAGLE_STREAM_TOKEN=${BEAGLE_STREAM_SERVER_TOKEN}
 BEAGLE_VM_ID=${VMID}
 EOF
   chmod 0600 /etc/beagle/stream-server.env
+}
+
+install_beagle_guest_updater() {
+  install -d -m 0755 /etc/beagle /var/lib/beagle/guest-updater
+  printf '%s' "$BEAGLE_GUEST_UPDATER_B64" | base64 -d > /usr/local/sbin/beagle-guest-updater
+  chmod 0755 /usr/local/sbin/beagle-guest-updater
+  cat > /etc/beagle/guest-updater.env <<EOF
+BEAGLE_MANAGER_URL=${BEAGLE_MANAGER_URL}
+BEAGLE_ENDPOINT_TOKEN=${BEAGLE_ENDPOINT_TOKEN}
+BEAGLE_ENDPOINT_ID=desktop-vm-${VMID}
+BEAGLE_PROFILE_NAME=vm-${VMID}
+BEAGLE_NODE=${NODE}
+BEAGLE_VMID=${VMID}
+BEAGLE_GUEST_VERSION=${BEAGLE_VERSION}
+BEAGLE_UPDATE_CHANNEL=stable
+BEAGLE_UPDATE_BEHAVIOR=prompt
+BEAGLE_UPDATE_FEED_URL=${BEAGLE_MANAGER_URL%/}/api/v1/endpoints/update-feed
+BEAGLE_MANAGER_PINNED_PUBKEY=${CALLBACK_PINNED_PUBKEY}
+BEAGLE_MANAGER_ALLOW_INSECURE_TLS=1
+BEAGLE_GUEST_UPDATER_INTERACTIVE_REBOOT=1
+EOF
+  chmod 0600 /etc/beagle/guest-updater.env
+  cat > /etc/systemd/system/beagle-guest-updater-scan.service <<'EOF'
+[Unit]
+Description=Beagle Desktop Guest Update Scan
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beagle-guest-updater scan --auto-apply-if-idle
+EOF
+  cat > /etc/systemd/system/beagle-guest-updater-scan.timer <<'EOF'
+[Unit]
+Description=Run Beagle Desktop Guest Update Scan
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=30min
+RandomizedDelaySec=3min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+  cat > /etc/systemd/system/beagle-guest-updater-actions.service <<'EOF'
+[Unit]
+Description=Beagle Desktop Guest Action Poller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beagle-guest-updater poll-actions
+EOF
+  cat > /etc/systemd/system/beagle-guest-updater-actions.timer <<'EOF'
+[Unit]
+Description=Poll Beagle Desktop Guest Actions
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=30s
+RandomizedDelaySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now beagle-guest-updater-actions.timer >/dev/null 2>&1 || true
+  systemctl enable --now beagle-guest-updater-scan.timer >/dev/null 2>&1 || true
+  /usr/local/sbin/beagle-guest-updater check-in >/dev/null 2>&1 || true
 }
 
 disable_cdrom_apt_sources() {
@@ -1664,7 +1740,8 @@ if [[ ! -f "$DONE_FILE" ]]; then
     curl \
     ca-certificates \
     usbutils \
-    xdg-utils
+    xdg-utils \
+    zenity
   repair_interrupted_dpkg
   systemctl enable --now qemu-guest-agent.service >/dev/null 2>&1 || true
 
@@ -2436,6 +2513,7 @@ EOF
     sleep 1
   done
   configure_stream_port_guard
+  install_beagle_guest_updater
   install_usb_microphone_normalizer
   install_thinclient_microphone_bridge
   systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true

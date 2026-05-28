@@ -1,0 +1,541 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pwd
+import shutil
+import socket
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import urlencode
+
+AGENT_VERSION = "1"
+CONFIG_FILE = Path(os.environ.get("BEAGLE_GUEST_UPDATER_CONFIG", "/etc/beagle/guest-updater.env"))
+STATE_DIR = Path(os.environ.get("BEAGLE_GUEST_UPDATER_STATE_DIR", "/var/lib/beagle/guest-updater"))
+STATUS_FILE = STATE_DIR / "status.json"
+VERSION_FILE = STATE_DIR / "version"
+APT_LOG_FILE = STATE_DIR / "apt-last.log"
+CLIENT_TYPE = "desktop-guest-updater"
+
+
+def utcnow() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def load_env(path: Path = CONFIG_FILE) -> dict[str, str]:
+    result: dict[str, str] = {}
+    if not path.is_file():
+        return result
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            result[key] = value
+    return result
+
+
+def load_json(path: Path, default):
+    if not path.is_file():
+        return default
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return default
+
+
+def write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def config_value(config: dict[str, str], key: str, default: str = "") -> str:
+    return str(config.get(key, default) or default).strip()
+
+
+def current_version(config: dict[str, str]) -> str:
+    if VERSION_FILE.is_file():
+        text = VERSION_FILE.read_text(encoding="utf-8").strip()
+        if text:
+            return text
+    configured = config_value(config, "BEAGLE_GUEST_VERSION")
+    if configured:
+        return configured
+    os_release = load_env(Path("/etc/os-release"))
+    return os_release.get("VERSION_ID", "").strip()
+
+
+def set_current_version(version: str) -> None:
+    clean = str(version or "").strip()
+    if not clean:
+        return
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    VERSION_FILE.write_text(clean + "\n", encoding="utf-8")
+
+
+def base_url(config: dict[str, str]) -> str:
+    value = config_value(config, "BEAGLE_MANAGER_URL")
+    if not value:
+        raise RuntimeError("BEAGLE_MANAGER_URL missing")
+    return value.rstrip("/")
+
+
+def endpoint_url(config: dict[str, str], path: str) -> str:
+    return base_url(config) + path
+
+
+def curl_json(config: dict[str, str], method: str, url: str, payload: dict | None = None) -> dict:
+    token = config_value(config, "BEAGLE_ENDPOINT_TOKEN") or config_value(config, "BEAGLE_MANAGER_TOKEN")
+    if not token:
+        raise RuntimeError("BEAGLE_ENDPOINT_TOKEN missing")
+    command = [
+        "curl",
+        "-fsS",
+        "--connect-timeout",
+        "10",
+        "--max-time",
+        "120",
+        "-H",
+        f"Authorization: Bearer {token}",
+        "-H",
+        "Content-Type: application/json",
+    ]
+    pinned_pubkey = config_value(config, "BEAGLE_MANAGER_PINNED_PUBKEY")
+    if pinned_pubkey:
+        command.extend(["--pinnedpubkey", pinned_pubkey])
+    elif url.startswith("https://") and config_value(config, "BEAGLE_MANAGER_ALLOW_INSECURE_TLS", "1") == "1":
+        command.append("-k")
+    if method.upper() == "POST":
+        command.extend(["-X", "POST", "--data-binary", json.dumps(payload or {})])
+    command.append(url)
+    completed = subprocess.run(command, check=True, capture_output=True, text=True)
+    if not completed.stdout.strip():
+        return {}
+    return json.loads(completed.stdout)
+
+
+def status_payload(config: dict[str, str], **updates) -> dict:
+    status = load_json(STATUS_FILE, {})
+    if not isinstance(status, dict):
+        status = {}
+    status.setdefault("client", CLIENT_TYPE)
+    status.setdefault("client_version", AGENT_VERSION)
+    status.setdefault("current_version", current_version(config))
+    status.update(updates)
+    status["client"] = CLIENT_TYPE
+    status["client_version"] = AGENT_VERSION
+    status["updated_at"] = utcnow()
+    write_json(STATUS_FILE, status)
+    return status
+
+
+def update_feed(config: dict[str, str]) -> dict:
+    feed_url = config_value(config, "BEAGLE_UPDATE_FEED_URL") or endpoint_url(config, "/api/v1/endpoints/update-feed")
+    params = {
+        "installed_version": current_version(config),
+        "channel": config_value(config, "BEAGLE_UPDATE_CHANNEL", "stable"),
+        "version_pin": config_value(config, "BEAGLE_UPDATE_VERSION_PIN"),
+        "client": CLIENT_TYPE,
+    }
+    separator = "&" if "?" in feed_url else "?"
+    response = curl_json(config, "GET", feed_url + separator + urlencode(params))
+    payload = response.get("update") if isinstance(response, dict) else None
+    if not isinstance(payload, dict):
+        raise RuntimeError("update feed did not return update payload")
+    return payload
+
+
+def scan(config: dict[str, str], *, force: bool = False, auto_apply_if_idle: bool = False) -> dict:
+    del force
+    feed = update_feed(config)
+    status = status_payload(
+        config,
+        state="available" if feed.get("available") else "current",
+        current_version=current_version(config),
+        latest_version=str(feed.get("latest_version", "") or ""),
+        available=bool(feed.get("available")),
+        update_path=str(feed.get("update_path", "") or ""),
+        self_update_supported=bool(feed.get("self_update_supported", False)),
+        pending_reboot=Path("/var/run/reboot-required").exists(),
+        last_scan_at=utcnow(),
+        last_error="",
+        channel=str(feed.get("channel", config_value(config, "BEAGLE_UPDATE_CHANNEL", "stable")) or "stable"),
+        behavior=str(feed.get("behavior", config_value(config, "BEAGLE_UPDATE_BEHAVIOR", "prompt")) or "prompt"),
+    )
+    check_in(config)
+    if auto_apply_if_idle and feed.get("available") and str(feed.get("behavior", "prompt")).lower() == "auto":
+        return apply_update(config, feed=feed, interactive_reboot=True)
+    return status
+
+
+def stage_download(config: dict[str, str], *, force: bool = False) -> dict:
+    del force
+    feed = update_feed(config)
+    if not feed.get("available"):
+        status = status_payload(
+            config,
+            state="current",
+            current_version=current_version(config),
+            latest_version=str(feed.get("latest_version", "") or ""),
+            available=False,
+            staged_version="",
+            last_error="",
+        )
+        check_in(config)
+        return status
+    status = status_payload(
+        config,
+        state="staged",
+        current_version=current_version(config),
+        latest_version=str(feed.get("latest_version", "") or ""),
+        available=True,
+        staged_version=str(feed.get("latest_version", "") or ""),
+        last_stage_at=utcnow(),
+        last_error="",
+    )
+    check_in(config)
+    return status
+
+
+def run_apt_upgrade() -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    env = dict(os.environ)
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    commands = [
+        ["apt-get", "update", "-o", "Acquire::Retries=5"],
+        ["apt-get", "dist-upgrade", "-y", "--with-new-pkgs"],
+        ["apt-get", "autoremove", "-y"],
+    ]
+    with APT_LOG_FILE.open("a", encoding="utf-8") as handle:
+        handle.write(f"\n# beagle guest update {utcnow()}\n")
+        for command in commands:
+            handle.write("+ " + " ".join(command) + "\n")
+            completed = subprocess.run(command, env=env, stdout=handle, stderr=subprocess.STDOUT, text=True)
+            if completed.returncode != 0:
+                raise RuntimeError(f"command failed: {' '.join(command)}")
+
+
+def active_desktop_sessions() -> list[dict[str, str]]:
+    if not shutil.which("loginctl"):
+        return []
+    completed = subprocess.run(["loginctl", "list-sessions", "--no-legend"], capture_output=True, text=True, check=False)
+    sessions: list[dict[str, str]] = []
+    for line in completed.stdout.splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        session_id = parts[0]
+        show = subprocess.run(
+            ["loginctl", "show-session", session_id, "-p", "Name", "-p", "User", "-p", "Display", "-p", "Type", "-p", "State"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        values: dict[str, str] = {}
+        for raw in show.stdout.splitlines():
+            if "=" in raw:
+                key, value = raw.split("=", 1)
+                values[key] = value
+        if values.get("State") != "active":
+            continue
+        if values.get("Type") not in {"x11", "wayland"}:
+            continue
+        username = values.get("Name", "").strip()
+        if not username:
+            continue
+        display = values.get("Display", "").strip() or ":0"
+        sessions.append({"username": username, "display": display})
+    return sessions
+
+
+def run_as_desktop_user(username: str, display: str, command: list[str], *, timeout_seconds: int = 3600) -> int:
+    user_info = pwd.getpwnam(username)
+    runtime_dir = f"/run/user/{user_info.pw_uid}"
+    env_command = [
+        "env",
+        f"DISPLAY={display}",
+        f"XAUTHORITY=/home/{username}/.Xauthority",
+        f"DBUS_SESSION_BUS_ADDRESS=unix:path={runtime_dir}/bus",
+        f"XDG_RUNTIME_DIR={runtime_dir}",
+        *command,
+    ]
+    runner = ["sudo", "-u", username, *env_command] if shutil.which("sudo") else ["runuser", "-u", username, "--", *env_command]
+    try:
+        return subprocess.run(runner, timeout=timeout_seconds, check=False).returncode
+    except subprocess.TimeoutExpired:
+        return 124
+
+
+def prompt_reboot_on_desktop(config: dict[str, str]) -> str:
+    if config_value(config, "BEAGLE_GUEST_UPDATER_INTERACTIVE_REBOOT", "1") != "1":
+        return "deferred"
+    title = "Beagle OS Update abgeschlossen"
+    message = (
+        "Das Update wurde installiert. Dieser VM-Desktop muss neu gestartet werden, "
+        "damit alle Aenderungen aktiv werden."
+    )
+    for session in active_desktop_sessions():
+        username = session["username"]
+        display = session["display"]
+        if shutil.which("zenity"):
+            result = run_as_desktop_user(
+                username,
+                display,
+                [
+                    "zenity",
+                    "--question",
+                    "--title",
+                    title,
+                    "--text",
+                    message,
+                    "--ok-label",
+                    "Jetzt neu starten",
+                    "--cancel-label",
+                    "Spaeter manuell neu starten",
+                    "--width",
+                    "460",
+                    "--timeout",
+                    "3600",
+                ],
+            )
+            if result == 0:
+                return "reboot_now"
+            return "deferred"
+        if shutil.which("kdialog"):
+            result = run_as_desktop_user(
+                username,
+                display,
+                ["kdialog", "--title", title, "--yesno", message, "--yes-label", "Jetzt neu starten", "--no-label", "Spaeter manuell neu starten"],
+            )
+            if result == 0:
+                return "reboot_now"
+            return "deferred"
+        if shutil.which("notify-send"):
+            run_as_desktop_user(username, display, ["notify-send", title, message], timeout_seconds=20)
+            return "deferred"
+    return "no_desktop_session"
+
+
+def schedule_reboot() -> None:
+    if shutil.which("systemd-run"):
+        subprocess.run(["systemd-run", "--on-active=5", "--unit=beagle-guest-updater-reboot", "/usr/bin/systemctl", "reboot"], check=False)
+    else:
+        subprocess.Popen(["/bin/sh", "-c", "sleep 5; systemctl reboot || reboot"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def apply_update(config: dict[str, str], *, feed: dict | None = None, interactive_reboot: bool = True) -> dict:
+    update = feed or update_feed(config)
+    latest = str(update.get("latest_version", "") or "").strip()
+    if not latest or latest == current_version(config):
+        status = status_payload(
+            config,
+            state="current",
+            latest_version=latest,
+            available=False,
+            pending_reboot=Path("/var/run/reboot-required").exists(),
+            last_error="",
+        )
+        check_in(config)
+        return status
+    if not bool(update.get("self_update_supported", False)):
+        reason = str(update.get("update_path", "") or "unsupported update path")
+        status = status_payload(config, state="blocked", latest_version=latest, available=False, last_error=reason)
+        check_in(config)
+        raise RuntimeError(reason)
+
+    status_payload(config, state="installing", latest_version=latest, available=True, last_apply_at=utcnow(), last_error="")
+    run_apt_upgrade()
+    set_current_version(latest)
+    reboot_required = Path("/var/run/reboot-required").exists()
+    reboot_decision = "not_required"
+    if reboot_required and interactive_reboot:
+        reboot_decision = prompt_reboot_on_desktop(config)
+    status = status_payload(
+        config,
+        state="reboot-required" if reboot_required else "current",
+        current_version=latest,
+        latest_version=latest,
+        available=False,
+        staged_version="",
+        pending_reboot=reboot_required,
+        reboot_prompt=reboot_decision,
+        last_error="",
+        last_apply_completed_at=utcnow(),
+    )
+    check_in(config)
+    if reboot_required and reboot_decision == "reboot_now":
+        schedule_reboot()
+    return status
+
+
+def rollback(config: dict[str, str]) -> dict:
+    status = status_payload(config, state="rollback-unsupported", last_error="Desktop package rollback is not available yet.")
+    check_in(config)
+    return status
+
+
+def check_in(config: dict[str, str]) -> dict:
+    status = status_payload(config)
+    hostname = socket.gethostname()
+    vmid = int(config_value(config, "BEAGLE_VMID", "0") or 0)
+    node = config_value(config, "BEAGLE_NODE", "beagle-0")
+    payload = {
+        "endpoint_id": config_value(config, "BEAGLE_ENDPOINT_ID", f"desktop-vm-{vmid}"),
+        "hostname": hostname,
+        "profile_name": config_value(config, "BEAGLE_PROFILE_NAME", f"vm-{vmid}"),
+        "vmid": vmid,
+        "node": node,
+        "reported_at": utcnow(),
+        "software": {
+            "version": status.get("current_version", current_version(config)),
+            "guest_updater_version": AGENT_VERSION,
+        },
+        "install": {
+            "project_version": status.get("current_version", current_version(config)),
+            "source_kind": CLIENT_TYPE,
+        },
+        "health": {
+            "guest_agent_state": "running",
+            "virtualization_type": "kvm",
+        },
+        "update": {
+            "client": CLIENT_TYPE,
+            "client_version": AGENT_VERSION,
+            "state": status.get("state", "current"),
+            "current_version": status.get("current_version", current_version(config)),
+            "latest_version": status.get("latest_version", ""),
+            "staged_version": status.get("staged_version", ""),
+            "available": bool(status.get("available", False)),
+            "pending_reboot": bool(status.get("pending_reboot", False)),
+            "last_scan_at": status.get("last_scan_at", ""),
+            "last_error": status.get("last_error", ""),
+            "update_path": status.get("update_path", "self_update"),
+            "self_update_supported": True,
+            "reboot_prompt": status.get("reboot_prompt", ""),
+        },
+    }
+    return curl_json(config, "POST", endpoint_url(config, "/api/v1/endpoints/check-in"), payload)
+
+
+def post_action_result(config: dict[str, str], action: dict, ok: bool, message: str, status: dict | None = None) -> None:
+    payload = {
+        "vmid": int(config_value(config, "BEAGLE_VMID", "0") or 0),
+        "node": config_value(config, "BEAGLE_NODE", "beagle-0"),
+        "action": str(action.get("action", "") or ""),
+        "action_id": str(action.get("action_id", "") or ""),
+        "ok": bool(ok),
+        "message": message,
+        "completed_at": utcnow(),
+    }
+    if isinstance(status, dict):
+        payload["update"] = status
+    curl_json(config, "POST", endpoint_url(config, "/api/v1/endpoints/actions/result"), payload)
+
+
+def pull_actions(config: dict[str, str]) -> list[dict]:
+    payload = {
+        "vmid": int(config_value(config, "BEAGLE_VMID", "0") or 0),
+        "node": config_value(config, "BEAGLE_NODE", "beagle-0"),
+    }
+    response = curl_json(config, "POST", endpoint_url(config, "/api/v1/endpoints/actions/pull"), payload)
+    actions = response.get("actions", []) if isinstance(response, dict) else []
+    return actions if isinstance(actions, list) else []
+
+
+def handle_action(config: dict[str, str], action: dict) -> None:
+    name = str(action.get("action", "") or "").strip()
+    params = action.get("params", {}) if isinstance(action.get("params"), dict) else {}
+    try:
+        if name == "os-update-scan":
+            status = scan(config, force=bool(params.get("force", False)))
+            post_action_result(config, action, True, "desktop update scan completed", status)
+        elif name == "os-update-download":
+            status = stage_download(config, force=bool(params.get("force", False)))
+            post_action_result(config, action, True, "desktop update staged", status)
+        elif name == "os-update-apply":
+            status = apply_update(config, interactive_reboot=bool(params.get("reboot", True)))
+            message = "desktop update installed"
+            if status.get("pending_reboot"):
+                message = "desktop update installed; reboot required"
+            post_action_result(config, action, True, message, status)
+        elif name == "os-update-rollback":
+            status = rollback(config)
+            post_action_result(config, action, False, "desktop package rollback is not available", status)
+        elif name == "recheckin":
+            check_in(config)
+            post_action_result(config, action, True, "desktop guest checked in")
+        else:
+            post_action_result(config, action, False, f"unsupported desktop guest action: {name}")
+    except Exception as exc:
+        status = status_payload(config, state="error", last_error=str(exc), pending_reboot=Path("/var/run/reboot-required").exists())
+        try:
+            check_in(config)
+        except Exception:
+            pass
+        post_action_result(config, action, False, f"{name} failed: {exc}", status)
+
+
+def poll_actions(config: dict[str, str]) -> dict:
+    check_in(config)
+    actions = pull_actions(config)
+    for action in actions:
+        if isinstance(action, dict):
+            handle_action(config, action)
+    return status_payload(config, last_action_poll_at=utcnow())
+
+
+def print_json(payload: dict) -> None:
+    print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Beagle desktop guest updater")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    scan_parser = subparsers.add_parser("scan")
+    scan_parser.add_argument("--force", action="store_true")
+    scan_parser.add_argument("--auto-apply-if-idle", action="store_true")
+    download_parser = subparsers.add_parser("download")
+    download_parser.add_argument("--force", action="store_true")
+    apply_parser = subparsers.add_parser("apply")
+    apply_parser.add_argument("--reboot", action="store_true")
+    subparsers.add_parser("rollback")
+    subparsers.add_parser("check-in")
+    subparsers.add_parser("poll-actions")
+    subparsers.add_parser("status")
+    args = parser.parse_args()
+
+    config = load_env()
+    try:
+        if args.command == "scan":
+            print_json(scan(config, force=args.force, auto_apply_if_idle=args.auto_apply_if_idle))
+        elif args.command == "download":
+            print_json(stage_download(config, force=args.force))
+        elif args.command == "apply":
+            print_json(apply_update(config, interactive_reboot=args.reboot))
+        elif args.command == "rollback":
+            print_json(rollback(config))
+        elif args.command == "check-in":
+            print_json(check_in(config))
+        elif args.command == "poll-actions":
+            print_json(poll_actions(config))
+        elif args.command == "status":
+            print_json(status_payload(config))
+        return 0
+    except Exception as exc:
+        status_payload(config, state="error", last_error=str(exc), pending_reboot=Path("/var/run/reboot-required").exists())
+        print(f"beagle-guest-updater: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

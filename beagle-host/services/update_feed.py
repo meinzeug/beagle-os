@@ -48,6 +48,7 @@ class UpdateFeedService:
         installed_version: str = "",
         channel: str = "",
         version_pin: str = "",
+        client_type: str = "",
     ) -> dict[str, Any]:
         downloads_status = self._load_json_file(self._downloads_status_file, {})
         latest_version = str(downloads_status.get("version", "")).strip()
@@ -84,7 +85,15 @@ class UpdateFeedService:
         migration_reasons = endpoint_compatibility.get("migration_reasons", [])
         if not isinstance(migration_reasons, list):
             migration_reasons = []
-        if str(profile.get("beagle_role", "")).strip().lower() == "desktop" and str(profile.get("os_family", "")).strip().lower() == "ubuntu":
+        desktop_guest_updater = str(client_type or profile.get("beagle_guest_updater", "")).strip().lower() in {
+            "desktop",
+            "desktop-guest-updater",
+        }
+        if (
+            str(profile.get("beagle_role", "")).strip().lower() == "desktop"
+            and str(profile.get("os_family", "")).strip().lower() == "ubuntu"
+            and not desktop_guest_updater
+        ):
             forced_migration = True
             migration_reasons = [
                 *[str(item) for item in migration_reasons],
@@ -116,6 +125,7 @@ class UpdateFeedService:
             "migration_required": update_path == "migration_required",
             "reinstall_required": update_path == "reinstall_required",
             "rebuild_recommended": update_path != "self_update",
+            "client_type": str(client_type or "").strip(),
             "minimum_self_update_version": minimum_self_update_version,
             "reinstall_reasons": [str(item) for item in reinstall_reasons],
             "migration_reasons": [str(item) for item in migration_reasons],

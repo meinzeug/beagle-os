@@ -26,6 +26,7 @@ class UbuntuBeagleProvisioningService:
         *,
         allocate_public_stream_base_port: Callable[[str, int], int | None],
         build_profile: Callable[[Any], dict[str, Any]],
+        beagle_guest_updater_script: Path,
         configure_beagle_stream_server_guest_script: Path,
         current_public_stream_host: Callable[[], str],
         default_usb_tunnel_port: Callable[[int], int],
@@ -60,6 +61,7 @@ class UbuntuBeagleProvisioningService:
         save_vm_secret: Callable[[str, int, dict[str, Any]], dict[str, Any]],
         ensure_ubuntu_beagle_vm_restart_state: Callable[[dict[str, Any], int], dict[str, Any]],
         stream_ports: Callable[[int], dict[str, int]],
+        store_endpoint_token: Callable[[str, dict[str, Any]], dict[str, Any]],
         summarize_ubuntu_beagle_state: Callable[..., dict[str, Any]],
         template_dir: Path,
         time_now_epoch: Callable[[], float],
@@ -91,9 +93,11 @@ class UbuntuBeagleProvisioningService:
         utcnow: Callable[[], str],
         validate_linux_username: Callable[[str, str], str],
         validate_password: Callable[..., str],
+        version: str,
     ) -> None:
         self._allocate_public_stream_base_port = allocate_public_stream_base_port
         self._build_profile = build_profile
+        self._beagle_guest_updater_script = Path(beagle_guest_updater_script)
         self._configure_beagle_stream_server_guest_script = Path(configure_beagle_stream_server_guest_script)
         self._current_public_stream_host = current_public_stream_host
         self._default_usb_tunnel_port = default_usb_tunnel_port
@@ -128,6 +132,7 @@ class UbuntuBeagleProvisioningService:
         self._save_vm_secret = save_vm_secret
         self._ensure_ubuntu_beagle_vm_restart_state = ensure_ubuntu_beagle_vm_restart_state
         self._stream_ports = stream_ports
+        self._store_endpoint_token = store_endpoint_token
         self._summarize_ubuntu_beagle_state = summarize_ubuntu_beagle_state
         self._template_dir = Path(template_dir)
         self._time_now_epoch = time_now_epoch
@@ -164,6 +169,7 @@ class UbuntuBeagleProvisioningService:
         self._utcnow = utcnow
         self._validate_linux_username = validate_linux_username
         self._validate_password = validate_password
+        self._version = str(version or "")
 
     def provisioning_desktop_profiles(self) -> list[dict[str, Any]]:
         profiles: list[dict[str, Any]] = []
@@ -648,6 +654,7 @@ class UbuntuBeagleProvisioningService:
             f"beagle-desktop-session: {desktop['session']}",
             f"beagle-desktop-theme: {desktop.get('theme_variant', desktop['id'])}",
             f"beagle-streaming: {self._ubuntu_beagle_profile_streaming}",
+            "beagle-guest-updater: desktop",
             f"beagle-stream-server-guest-user: {guest_user}",
             "beagle-stream-server-app: Desktop",
             "beagle-stream-client-app: Desktop",
@@ -699,6 +706,8 @@ class UbuntuBeagleProvisioningService:
         beagle_stream_server_password: str,
         beagle_stream_server_token: str,
         beagle_stream_server_port: int | None,
+        endpoint_token: str,
+        node: str,
         callback_url: str,
     ) -> Path:
         if not self._template_dir.exists():
@@ -708,13 +717,18 @@ class UbuntuBeagleProvisioningService:
         wallpaper_filename = str(wallpaper_asset.get("filename", "")).strip()
         wallpaper_write_file = self.build_desktop_wallpaper_write_file_block(wallpaper_asset)
         desktop_theme_variant = str(desktop.get("theme_variant", desktop["id"])).strip()
+        guest_updater_b64 = base64.b64encode(self._beagle_guest_updater_script.read_bytes()).decode("ascii")
 
         firstboot_script = self.render_template_file(
             self._template_dir / "firstboot-provision.sh.tpl",
             {
                 "__GUEST_USER__": guest_user,
                 "__VMID__": str(int(vmid)),
+            "__NODE__": str(node or ""),
                 "__BEAGLE_MANAGER_URL__": self._public_manager_url,
+            "__BEAGLE_ENDPOINT_TOKEN__": endpoint_token,
+                "__BEAGLE_VERSION__": self._version,
+            "__BEAGLE_GUEST_UPDATER_B64__": guest_updater_b64,
                 "__BEAGLE_STREAM_SERVER_USER__": beagle_stream_server_user,
                 "__BEAGLE_STREAM_SERVER_PASSWORD__": beagle_stream_server_password,
                 "__BEAGLE_STREAM_SERVER_TOKEN__": beagle_stream_server_token,
@@ -953,6 +967,17 @@ class UbuntuBeagleProvisioningService:
         identity_keymap = self._normalize_keymap(payload.get("identity_keymap", ""))
         guest_password_hash = self.openssl_password_hash(guest_password)
         completion_token = secrets.token_urlsafe(24)
+        endpoint_token = secrets.token_urlsafe(32)
+        self._store_endpoint_token(
+            endpoint_token,
+            {
+                "endpoint_id": f"desktop-vm-{vmid}",
+                "hostname": hostname,
+                "vmid": vmid,
+                "node": node,
+                "profile_name": f"vm-{vmid}",
+            },
+        )
         callback_url = self._public_ubuntu_beagle_complete_url(completion_token)
         public_stream: dict[str, Any] | None = None
         public_base_port = self._allocate_public_stream_base_port(node, vmid)
@@ -985,6 +1010,8 @@ class UbuntuBeagleProvisioningService:
             beagle_stream_server_password=beagle_stream_server_password,
             beagle_stream_server_token=beagle_stream_server_token,
             beagle_stream_server_port=beagle_stream_server_port,
+            endpoint_token=endpoint_token,
+            node=node,
             callback_url=callback_url,
         )
         # Keep storage references reproducible across providers by ensuring

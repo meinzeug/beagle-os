@@ -16,6 +16,8 @@ from vm_http_surface import VmHttpSurfaceService
 
 
 UPDATE_CLIENT = ROOT / "beagle-os" / "overlay" / "usr" / "local" / "sbin" / "beagle-update-client"
+GUEST_UPDATER = ROOT / "beagle-host" / "bin" / "beagle-guest-updater"
+UBUNTU_FIRSTBOOT = ROOT / "beagle-host" / "templates" / "ubuntu-beagle" / "firstboot-provision.sh.tpl"
 HEALTHCHECK = ROOT / "beagle-os" / "overlay" / "usr" / "local" / "sbin" / "beagle-healthcheck"
 PREPARE_RUNTIME = ROOT / "thin-client-assistant" / "runtime" / "prepare-runtime.sh"
 SYSTEMD_UNITS = [
@@ -149,6 +151,19 @@ def test_update_client_can_clear_health_failure_state() -> None:
     assert 'state="current"' in script
 
 
+def test_desktop_guest_updater_prompts_before_required_reboot() -> None:
+    script = GUEST_UPDATER.read_text(encoding="utf-8")
+    firstboot = UBUNTU_FIRSTBOOT.read_text(encoding="utf-8")
+
+    assert "Beagle OS Update abgeschlossen" in script
+    assert "Jetzt neu starten" in script
+    assert "Spaeter manuell neu starten" in script
+    assert "prompt_reboot_on_desktop(config)" in script
+    assert "zenity" in firstboot
+    assert "beagle-guest-updater-actions.timer" in firstboot
+    assert "beagle-guest-updater scan --auto-apply-if-idle" in firstboot
+
+
 def test_update_feed_can_require_reinstall_for_old_foundation() -> None:
     status_file = ROOT / "does-not-exist.json"
     service = UpdateFeedService(
@@ -233,10 +248,99 @@ def test_update_feed_marks_ubuntu_desktops_as_migration_required() -> None:
     assert "ubuntu desktop" in feed["migration_reasons"][0]
 
 
+def test_update_feed_allows_ubuntu_desktop_guest_updater_client() -> None:
+    service = UpdateFeedService(
+        downloads_status_file=ROOT / "does-not-exist.json",
+        load_json_file=lambda _path, _default: {"version": "8.3.3"},
+        update_payload_metadata=lambda version: {
+            "version": version,
+            "filename": f"pve-thin-client-usb-payload-v{version}.tar.gz",
+            "payload_url": "https://srv1/beagle-downloads/payload.tar.gz",
+            "payload_sha256": "abc",
+            "sha256sums_url": "https://srv1/beagle-downloads/SHA256SUMS",
+            "payload_pinned_pubkey": "",
+        },
+        public_update_sha256sums_url=lambda: "https://srv1/beagle-downloads/SHA256SUMS",
+    )
+
+    feed = service.build_update_feed(
+        {"beagle_role": "desktop", "os_family": "ubuntu", "update_channel": "rolling"},
+        installed_version="8.3.1",
+        client_type="desktop-guest-updater",
+    )
+
+    assert feed["channel"] == "rolling"
+    assert feed["update_path"] == "self_update"
+    assert feed["self_update_supported"] is True
+    assert feed["available"] is True
+    assert feed["client_type"] == "desktop-guest-updater"
+
+
 class _Vm:
     vmid = 100
     node = "beagle-0"
     name = "vm-100"
+
+
+def test_vm_update_payload_allows_reported_desktop_guest_updater(tmp_path: Path) -> None:
+    vm = _Vm()
+    surface = VmHttpSurfaceService(
+        build_profile=lambda item: {
+            "vmid": item.vmid,
+            "beagle_role": "desktop",
+            "os_family": "ubuntu",
+            "update_enabled": True,
+            "update_channel": "rolling",
+            "update_behavior": "auto",
+        },
+        build_novnc_access=lambda item: {},
+        build_vm_state=lambda item: {"endpoint": {"reported_at": "now"}, "last_action": {}},
+        build_vm_usb_state=lambda item, report: {},
+        downloads_status_file=tmp_path / "downloads.json",
+        ensure_vm_secret=lambda item: {},
+        find_vm=lambda vmid: vm if int(vmid) == vm.vmid else None,
+        list_support_bundle_metadata=lambda **kwargs: [],
+        load_action_queue=lambda node, vmid: [],
+        load_endpoint_report=lambda node, vmid: {
+            "update": {
+                "client": "desktop-guest-updater",
+                "client_version": "1",
+                "current_version": "8.3.1",
+                "latest_version": "8.3.3",
+                "available": True,
+                "state": "available",
+            }
+        },
+        load_installer_prep_state=lambda node, vmid: {},
+        load_json_file=lambda path, default: {"version": "8.3.3", "endpoint_compatibility": {"minimum_self_update_version": "8.0"}},
+        public_manager_url="https://srv1/beagle-api",
+        public_server_name="srv1",
+        render_vm_installer_script=lambda item: (b"", "installer.sh"),
+        render_vm_live_usb_script=lambda item: (b"", "live.sh"),
+        render_vm_windows_installer_script=lambda item: (b"", "installer.ps1"),
+        render_vm_windows_live_usb_script=lambda item: (b"", "live.ps1"),
+        service_name="beagle",
+        summarize_endpoint_report=lambda report: {
+            "reported_at": "now",
+            "update_client": report["update"]["client"],
+            "update_client_version": report["update"]["client_version"],
+            "update_current_version": report["update"]["current_version"],
+            "update_latest_version": report["update"]["latest_version"],
+            "update_available": report["update"]["available"],
+            "update_state": report["update"]["state"],
+        },
+        summarize_installer_prep_state=lambda item, state: {},
+        usb_tunnel_ssh_user="beagle-usb",
+        utcnow=lambda: "now",
+        version="8.3.3",
+    )
+
+    update = surface.route_get("/api/v1/vms/100/update")["payload"]["update"]
+
+    assert update["endpoint"]["client"] == "desktop-guest-updater"
+    assert update["compatibility"]["update_path"] == "self_update"
+    assert update["compatibility"]["self_update_supported"] is True
+    assert update["compatibility"]["migration_required"] is False
 
 
 def test_vm_update_payload_exposes_rebuild_and_health_failure(tmp_path: Path, monkeypatch) -> None:

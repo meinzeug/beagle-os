@@ -187,7 +187,8 @@ class VmHttpSurfaceService:
 
     def _update_payload(self, vm: Any) -> dict[str, Any]:
         profile = self._build_profile(vm)
-        endpoint = self._summarize_endpoint_report(self._load_endpoint_report(vm.node, vm.vmid) or {})
+        report = self._load_endpoint_report(vm.node, vm.vmid) or {}
+        endpoint = self._summarize_endpoint_report(report)
         report_age_seconds = endpoint.get("report_age_seconds")
         endpoint_report_stale = (
             isinstance(report_age_seconds, int)
@@ -219,7 +220,15 @@ class VmHttpSurfaceService:
         migration_reasons = endpoint_compatibility.get("migration_reasons", [])
         if not isinstance(migration_reasons, list):
             migration_reasons = []
-        if str(profile.get("beagle_role", "")).strip().lower() == "desktop" and str(profile.get("os_family", "")).strip().lower() == "ubuntu":
+        report_update = report.get("update", {}) if isinstance(report.get("update"), dict) else {}
+        desktop_guest_updater = str(
+            report_update.get("client") or profile.get("beagle_guest_updater", "")
+        ).strip().lower() in {"desktop", "desktop-guest-updater"}
+        if (
+            str(profile.get("beagle_role", "")).strip().lower() == "desktop"
+            and str(profile.get("os_family", "")).strip().lower() == "ubuntu"
+            and not desktop_guest_updater
+        ):
             migration_required = True
             migration_reasons = [
                 *[str(item) for item in migration_reasons],
@@ -273,6 +282,9 @@ class VmHttpSurfaceService:
                     "health_failure": False if endpoint_report_stale else endpoint.get("update_health_failure", False),
                     "rollback_recommended": False if endpoint_report_stale else endpoint.get("update_rollback_recommended", False),
                     "last_health_failure_at": "" if endpoint_report_stale else endpoint.get("update_last_health_failure_at", ""),
+                    "client": "" if endpoint_report_stale else endpoint.get("update_client", ""),
+                    "client_version": "" if endpoint_report_stale else endpoint.get("update_client_version", ""),
+                    "reboot_prompt": "" if endpoint_report_stale else endpoint.get("update_reboot_prompt", ""),
                     "report_stale": endpoint_report_stale,
                     "report_age_seconds": report_age_seconds,
                 },

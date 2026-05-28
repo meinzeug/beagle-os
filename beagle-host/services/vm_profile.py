@@ -313,6 +313,7 @@ class VmProfileService:
             "beagle_hostname": self._safe_hostname(config.get("name") or vm.name, vm.vmid),
             "beagle_manager_pinned_pubkey": self._manager_pinned_pubkey,
             "beagle_role": policy_profile.get("beagle_role") or meta.get("beagle-role", "desktop" if stream_host else ""),
+            "beagle_guest_updater": policy_profile.get("beagle_guest_updater") or meta.get("beagle-guest-updater", ""),
             "os_family": meta.get("beagle-os-family", ""),
             "expected_profile_name": expected_profile_name,
             "installer_url": installer_url,

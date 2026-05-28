@@ -125,6 +125,7 @@ class PublicHttpSurfaceService:
             installed_version=str((query.get("installed_version") or [""])[0]).strip(),
             channel=str((query.get("channel") or [""])[0]).strip(),
             version_pin=str((query.get("version_pin") or [""])[0]).strip(),
+            client_type=str((query.get("client") or query.get("client_type") or [""])[0]).strip(),
         )
         return self._json_response(
             HTTPStatus.OK,
