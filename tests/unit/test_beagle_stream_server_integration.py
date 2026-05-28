@@ -129,11 +129,12 @@ def test_register_certificate_script_restores_guest_ownership_and_uniqueid() -> 
 
     assert result["ok"] is True
     script = captured["script"]
-    assert 'state_file="$state_dir/beagle_stream_server_state.json"' in script
-    assert 'if [[ ! -f "$state_file" && -f "$state_dir/sunshine_state.json" ]]; then' in script
+    assert 'state_file="$state_dir/sunshine_state.json"' in script
+    assert 'if [[ ! -f "$state_file" && -f "$state_dir/beagle_stream_server_state.json" ]]; then' in script
     assert 'root["uniqueid"]' in script
     assert 'chown "$guest_user:$guest_user" "$state_file"' in script
     assert 'chmod 0600 "$state_file"' in script
+    assert 'ln -sfn "$state_file" "$state_dir/beagle_stream_server_state.json"' in script
 
 
 def test_internal_api_url_prefers_explicit_public_stream_api_url() -> None:

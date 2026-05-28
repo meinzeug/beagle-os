@@ -231,9 +231,9 @@ set -euo pipefail
 guest_user={guest_user!r}
 device_name={safe_device_name!r}
 state_dir="/home/{guest_user}/.config/beagle-stream-server"
-state_file="$state_dir/beagle_stream_server_state.json"
-if [[ ! -f "$state_file" && -f "$state_dir/sunshine_state.json" ]]; then
-    state_file="$state_dir/sunshine_state.json"
+state_file="$state_dir/sunshine_state.json"
+if [[ ! -f "$state_file" && -f "$state_dir/beagle_stream_server_state.json" ]]; then
+    state_file="$state_dir/beagle_stream_server_state.json"
 fi
 cert_file="$(mktemp /tmp/beagle-cert-XXXXXX.pem)"
 trap 'rm -f "$cert_file"' EXIT
@@ -294,6 +294,10 @@ PY
 
 chown "$guest_user:$guest_user" "$state_file" >/dev/null 2>&1 || true
 chmod 0600 "$state_file" >/dev/null 2>&1 || true
+if [[ "$state_file" == "$state_dir/sunshine_state.json" ]]; then
+    ln -sfn "$state_file" "$state_dir/beagle_stream_server_state.json"
+    chown -h "$guest_user:$guest_user" "$state_dir/beagle_stream_server_state.json" >/dev/null 2>&1 || true
+fi
 
 systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true
 sleep 2

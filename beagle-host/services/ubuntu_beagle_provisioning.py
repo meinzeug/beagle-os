@@ -1260,6 +1260,8 @@ class UbuntuBeagleProvisioningService:
                 str(self._configure_beagle_stream_server_guest_script),
                 "--beagle-host",
                 "localhost",
+                "--beagle-manager-url",
+                self._public_manager_url,
                 "--vmid",
                 str(vmid),
                 "--guest-user",

@@ -55,6 +55,9 @@ def test_configure_beagle_stream_server_guest_prefers_beaglestream_server_packag
     assert '-o "\\$tmpdir/beagle-stream-server.deb" \\' in content
     assert '"\\$BEAGLE_STREAM_SERVER_URL"' in content
     assert "Checksum mismatch for beagle-stream-server package" in content
+    assert "--beagle-manager-url" in content
+    assert 'BEAGLE_MANAGER_URL="https://${PUBLIC_STREAM_HOST}/beagle-api"' in content
+    assert "--beagle-manager-url or --public-stream-host is required" in content
 
 
 def test_configure_beagle_stream_server_guest_bootstraps_vscode_repository() -> None:
@@ -159,7 +162,7 @@ def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_basel
     assert "beagle-stream-client-video-decoder: software" in content
     assert "pgrep -x sunshine" in content
     assert "beagle_stream_server_is_running()" in content
-    assert "kill -0 \"$main_pid\"" in content
+    assert "kill -0 \"\\$main_pid\"" in content
     assert "pgrep -x beagle-stream-server" not in content
 
 
@@ -178,18 +181,18 @@ def test_configure_beagle_stream_server_guest_installs_uptime_guardian() -> None
     assert on_failure_pos < service_section_pos, "OnFailure must appear in [Unit], before [Service]"
     assert "cat > /usr/local/bin/beagle-stream-server-guardian <<'GUARDIAN'" in content
     assert 'service_is_transitioning() {' in content
-    assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC:-45}"' in content
-    assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD="${BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD:-4}"' in content
+    assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC="\\${BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC:-45}"' in content
+    assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD="\\${BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD:-4}"' in content
     assert 'record_readiness_failure() {' in content
     assert 'service_is_warming_up() {' in content
     assert 'activating|reloading|deactivating) return 0 ;;' in content
-    assert '"http://127.0.0.1:${BEAGLE_STREAM_SERVER_PORT}/serverinfo"' in content
+    assert '"http://127.0.0.1:\\${BEAGLE_STREAM_SERVER_PORT}/serverinfo"' in content
     assert 'if is_stream_ready || is_api_ready; then' in content
     assert 'if record_readiness_failure; then' in content
     assert 'ensure_timer()' not in content
-    assert 'BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD:-4}"' in content
+    assert 'BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD="\\${BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD:-4}"' in content
     assert 'elif service_is_transitioning || service_is_warming_up; then' in content
-    assert "stream offline for ${consecutive_failures} checks; rebooting guest" in content
+    assert "stream offline for \\${consecutive_failures} checks; rebooting guest" in content
     assert "cat > /etc/systemd/system/beagle-stream-server-guardian.service <<'GUARDSVC'" in content
     assert "ExecStart=/usr/local/bin/beagle-stream-server-guardian" in content
     assert "systemctl enable --now beagle-stream-server-guardian.service" in content

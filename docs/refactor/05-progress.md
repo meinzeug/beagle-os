@@ -1,3 +1,30 @@
+## Update (2026-05-28, BeagleStream latest E2E auf VM100/TC wieder gruen)
+
+**Scope**: Die letzte VS-Code-/Copilot-Session hatte die neuen BeagleStream-Fork-Release-Artefakte auf `srv1` und den Thinclient `192.168.178.30` im Fokus. Ziel war: Server-Fork-DEB in VM100, Client-Fork-AppImage auf dem TC, danach echter Desktop-Stream.
+
+- **Rekonstruktion**:
+  - Relevante lokale VS-Code/Copilot-Chatdaten lagen unter `~/.config/Code/User/workspaceStorage/d89cc495d58594c2131d7b1d87ed8db/`.
+  - Die letzte Session hatte bereits `BeagleStream-latest-x86_64.AppImage` auf den TC gelegt; offen blieb die Pair-/Stream-Diagnose.
+  - Auf `srv1` liegen die Fork-Checkouts unter `/opt/beagle/forks/beagle-stream-client` und `/opt/beagle/forks/beagle-stream-server`; die GitHub-Release-Assets `latest` waren verfuegbar.
+
+- **Repo-Fix**:
+  - `configure-beagle-stream-server-guest.sh` schreibt die generierten Guest-Healthcheck-/Guardian-Skripte wieder ohne lokale Heredoc-Expansion und akzeptiert reproduzierbare `latest`-DEB-Downgrades mit `--allow-downgrades`.
+  - VM100-Stream-Server-Reconfigure bekommt jetzt eine explizite Beagle-Manager-URL, damit `BEAGLE_CONTROL_PLANE` nicht leer bleibt.
+  - Pair-Status im TC nutzt `serverinfo?uniqueid=...`, weil der Server nur im Client-Kontext `PairStatus=1` liefert.
+  - Die Stream-Server-Zertifikatsregistrierung schreibt wieder kanonisch nach `sunshine_state.json` und stellt `beagle_stream_server_state.json` als Symlink her; dadurch liest der laufende Server denselben Client-Cert-State, den der Manager aktualisiert.
+  - Manager-HTTP-Aufrufe des TC legen Bearer-Header nicht mehr in `curl`-Prozessargumente, sondern in temporaere 0600-Headerdateien.
+
+- **Live-Status**:
+  - VM100 wurde mit `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` reconfigured; `beagle-stream-server.service` ist aktiv und lauscht auf `50000`, `50001`, `50021`.
+  - TC `192.168.178.30` laeuft mit dem neuen Client-AppImage und streamt `Desktop` gegen `192.168.123.114:50000`.
+  - Live-Nachweis: `PairStatus=1`, `SUNSHINE_SERVER_BUSY`, erster Video-Packet nach `0 ms`, erster Audio-Packet nach `300 ms`.
+
+- **Verifikation**:
+  - Lokal: `bash -n` fuer betroffene Shell-Skripte.
+  - Lokal: `python3 -m py_compile` fuer geaenderte Python-Services.
+  - Lokal: fokussierte Unit-Tests fuer Guest-Reconfigure, Pairing/Broker-Bypass, Server-Integration und TC-Pairing-Runtime gruen.
+  - Hot auf `srv1` und TC: geaenderte Runtime-/Service-Dateien installiert und Syntaxchecks dort gruen.
+
 ## Update (2026-05-28, BeagleStream latest releases and TC tty1 recovery)
 
 **Scope**: BeagleStream Client/Server-Forks sollen bei Aenderungen Release-Artefakte erzeugen; Beagle OS soll die `latest`-Assets der Fork-Releases ziehen. Parallel fiel TC `192.168.178.30` nach einem Stream-Abbruch auf tty1 in eine Bash zurueck.

@@ -14,3 +14,10 @@ def test_broker_pairing_bypass_requires_explicit_override() -> None:
     assert 'if [[ "$connection_method" == "broker" && "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BROKER_PAIRING_BYPASS:-0}" == "1" ]]; then' in script
     assert 'beagle_stream_client_pair_log "pairing gate bypassed in broker mode (override=1)"' in script
     assert "return 0" in script
+
+
+def test_pair_status_uses_client_uniqueid_context() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'uniqueid="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_UNIQUEID:-0123456789ABCDEF}"' in script
+    assert '"http://${host}:${port}/serverinfo?uniqueid=${uniqueid}"' in script

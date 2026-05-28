@@ -20,12 +20,13 @@ beagle_stream_client_pair_log() {
 }
 
 beagle_stream_client_pair_status() {
-  local host port response
+  local host port response uniqueid
 
   host="$(beagle_stream_client_connect_host)"
   port="$(beagle_stream_client_port)"
   [[ -n "$host" && -n "$port" ]] || return 1
-  response="$(curl -fsS --connect-timeout 2 --max-time 5 "http://${host}:${port}/serverinfo" 2>/dev/null || true)"
+  uniqueid="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_UNIQUEID:-0123456789ABCDEF}"
+  response="$(curl -fsS --connect-timeout 2 --max-time 5 "http://${host}:${port}/serverinfo?uniqueid=${uniqueid}" 2>/dev/null || true)"
   [[ -n "$response" ]] || return 1
 
   python3 - "$response" <<'PY'

@@ -1,5 +1,29 @@
 # Security Findings
 
+Stand: 2026-05-28 (ergaenzt: Thinclient Manager Bearer Header)
+
+## Security Note (2026-05-28) - Thinclient Manager Bearer Header nicht in Prozessargumenten
+
+- Status: umgesetzt, kein offener Token-Rotationsschritt dokumentiert
+- Betroffene Dateien:
+  - `thin-client-assistant/runtime/beagle_stream_client_manager_registration.sh`
+  - `tests/unit/test_beagle_stream_client_pairing_runtime.py`
+- Beschreibung:
+  - Beim Live-Nachtest der TC-Manager-Registrierung war erkennbar, dass `curl`-Aufrufe den Manager-Bearer-Header in Prozessargumenten tragen konnten.
+  - Das ist lokal fuer privilegierte oder gleichberechtigte Prozesslisten sichtbar und darf fuer Runtime-Secrets nicht der Normalpfad sein.
+- Fix:
+  - TC-Manager-Requests schreiben den Bearer-Header jetzt in eine temporaere Headerdatei mit `0600`-Rechten und uebergeben an `curl` nur den Dateipfad per `--header @...`.
+  - Die temporaeren Headerdateien werden nach jedem Request entfernt.
+  - Regressionstest stellt sicher, dass der Manager-Token nicht mehr als `Authorization: Bearer ${manager_token}` in der `curl`-Argumentliste gebaut wird.
+- Verifikation:
+  - Lokal: `bash -n thin-client-assistant/runtime/beagle_stream_client_manager_registration.sh thin-client-assistant/runtime/beagle_stream_client_pairing.sh`
+  - Lokal: `python3 -m pytest tests/unit/test_beagle_stream_client_pairing_runtime.py tests/unit/test_beagle_stream_pairing_broker_bypass_regression.py -q`
+  - Hot auf TC `192.168.178.30`: geaendertes Runtime-Skript installiert und Syntaxcheck gruen.
+- Rest:
+  - Keine Tokenwerte wurden in Repo-Dateien, Tests oder Dokumentation aufgenommen.
+
+---
+
 Stand: 2026-05-28 (ergaenzt: Desktop Guest Updater Token-Sanitization)
 
 ## Security Note (2026-05-28) - Desktop Guest Updater Token-Sanitization

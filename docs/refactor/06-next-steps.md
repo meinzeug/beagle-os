@@ -1,5 +1,22 @@
 # Next Steps
 
+## Stand (2026-05-28, VM100/TC BeagleStream E2E nach latest-Fork-Deploy)
+
+**Zuletzt erledigt**:
+- VS-Code/Copilot-Session rekonstruiert: letzter offener Pfad war BeagleStream-Fork-Artifact-Deploy auf VM100 und TC `192.168.178.30`.
+- VM100 wurde auf das `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` reconfigured und nutzt wieder eine gesetzte Control-Plane-URL.
+- TC nutzt das aktuelle `BeagleStream-latest-x86_64.AppImage`; Pairing prueft mit Client-`uniqueid`.
+- Zertifikats-State-Drift zwischen `beagle_stream_server_state.json` und `sunshine_state.json` wurde behoben.
+- Live-E2E ist gruen: Streamprozess laeuft, `PairStatus=1`, Video- und Audio-Pakete kommen an.
+- TC-Manager-Requests leaken den Bearer-Token nicht mehr in `curl`-Prozessargumente.
+
+**Naechste konkrete Schritte**:
+
+1. Cold-Boot-/Neuinstallationslauf ohne Hotpatch wiederholen: VM100 starten, TC booten, pruefen dass `registered` vor `exec` kommt und der Stream ohne manuelles Eingreifen startet.
+2. Danach die `latest`-Artefakte in ein neues Thinclient-/Payload-Artefakt ziehen und auf internem `BEAGLEROOT` plus Installer-USB verifizieren.
+3. Den Audio-Bridge-Mikrofontest in VM100 wiederholen; Stream selbst ist gruen, Mikrofonqualitaet bleibt separater Abnahmepunkt.
+4. Die verbleibende BeagleStream-Fork-Produktgrenze schliessen: `/api/pin`-Kompatibilitaet isolieren, native Beagle-Status-API in Manager-/TC-Diagnose uebernehmen und Artefakte versioniert pinnen.
+
 ## Stand (2026-05-28, BeagleStream latest release wiring und TC tty1-Fix)
 
 **Zuletzt erledigt**:

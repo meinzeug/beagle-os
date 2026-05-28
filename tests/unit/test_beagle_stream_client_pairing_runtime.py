@@ -109,6 +109,14 @@ ensure_paired
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_manager_registration_keeps_bearer_token_out_of_curl_argv() -> None:
+    script = MANAGER_REGISTRATION_SH.read_text(encoding="utf-8")
+
+    assert 'Authorization: Bearer ${manager_token}' not in script
+    assert "beagle_stream_client_manager_auth_header_file" in script
+    assert '--header "@${auth_header_file}"' in script
+
+
 def test_ensure_paired_uses_preseeded_token_when_manager_request_fails(tmp_path: Path) -> None:
     script = f'''
 source "{PAIRING_SH}"

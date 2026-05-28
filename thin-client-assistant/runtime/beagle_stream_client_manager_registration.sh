@@ -74,9 +74,20 @@ beagle_stream_client_manager_url() {
   printf '%s\n' "${manager_url%/}"
 }
 
+beagle_stream_client_manager_auth_header_file() {
+  local manager_token="${1:-}"
+  local header_file
+
+  [[ -n "$manager_token" ]] || return 1
+  header_file="$(mktemp)"
+  chmod 600 "$header_file" 2>/dev/null || true
+  printf 'Authorization: Bearer %s\n' "$manager_token" >"$header_file"
+  printf '%s\n' "$header_file"
+}
+
 fetch_beagle_stream_client_current_session_via_manager() {
   local response_file="${1:-}"
-  local manager_url manager_token manager_pin manager_ca_cert curl_bin session_id vmid url http_status
+  local manager_url manager_token manager_pin manager_ca_cert curl_bin session_id vmid url http_status auth_header_file
   local -a curl_args tls_args
 
   [[ -n "$response_file" ]] || return 1
@@ -97,11 +108,13 @@ fetch_beagle_stream_client_current_session_via_manager() {
   fi
 
   curl_bin="$(beagle_stream_client_curl_bin)"
+  auth_header_file="$(beagle_stream_client_manager_auth_header_file "$manager_token")" || return 1
   curl_args=("$curl_bin" -fsS --connect-timeout 3 --max-time 6 --output "$response_file" --write-out '%{http_code}' \
-    -H "Authorization: Bearer ${manager_token}")
+    --header "@${auth_header_file}")
   mapfile -t tls_args < <(beagle_curl_tls_args "$url" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
   http_status="$("${curl_args[@]}" "$url" || true)"
+  rm -f "$auth_header_file"
   [[ "$http_status" == "200" ]]
 }
 
@@ -146,7 +159,7 @@ PY
 }
 
 register_beagle_stream_client_via_manager() {
-  local manager_url manager_token manager_pin manager_ca_cert device_name client_cert response_file payload_file http_status register_timeout
+  local manager_url manager_token manager_pin manager_ca_cert device_name client_cert response_file payload_file http_status register_timeout auth_header_file
   local curl_bin
   local -a curl_args tls_args
 
@@ -164,8 +177,12 @@ register_beagle_stream_client_via_manager() {
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
   curl_bin="$(beagle_stream_client_curl_bin)"
+  auth_header_file="$(beagle_stream_client_manager_auth_header_file "$manager_token")" || {
+    rm -f "$payload_file" "$response_file"
+    return 1
+  }
   curl_args=("$curl_bin" -fsS --connect-timeout 5 --max-time "$register_timeout" --output "$response_file" --write-out '%{http_code}' \
-    -H "Authorization: Bearer ${manager_token}" \
+    --header "@${auth_header_file}" \
     -H 'Content-Type: application/json')
   mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/register" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
@@ -176,15 +193,18 @@ register_beagle_stream_client_via_manager() {
     "${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/beagle-stream-client/register" || true
   )"
   if [[ "$http_status" != "201" ]]; then
+    rm -f "$auth_header_file"
     rm -f "$payload_file"
     rm -f "$response_file"
     return 1
   fi
   if ! sync_beagle_stream_client_host_from_manager_response "$response_file"; then
+    rm -f "$auth_header_file"
     rm -f "$payload_file"
     rm -f "$response_file"
     return 1
   fi
+  rm -f "$auth_header_file"
   rm -f "$payload_file"
   rm -f "$response_file"
   return 0
@@ -193,7 +213,7 @@ register_beagle_stream_client_via_manager() {
 prepare_beagle_stream_client_stream_via_manager() {
   local resolution="${1:-}"
   local app="${2:-Desktop}"
-  local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status
+  local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status auth_header_file
   local curl_bin
   local -a curl_args tls_args
 
@@ -209,8 +229,12 @@ prepare_beagle_stream_client_stream_via_manager() {
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
   curl_bin="$(beagle_stream_client_curl_bin)"
+  auth_header_file="$(beagle_stream_client_manager_auth_header_file "$manager_token")" || {
+    rm -f "$payload_file" "$response_file"
+    return 1
+  }
   curl_args=("$curl_bin" -fsS --connect-timeout 3 --max-time 5 --output "$response_file" --write-out '%{http_code}' \
-    -H "Authorization: Bearer ${manager_token}" \
+    --header "@${auth_header_file}" \
     -H 'Content-Type: application/json')
   mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/prepare-stream" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
@@ -218,13 +242,14 @@ prepare_beagle_stream_client_stream_via_manager() {
   build_beagle_stream_client_stream_prepare_payload "$resolution" "$app" >"$payload_file"
   http_status="$("${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/beagle-stream-client/prepare-stream" || true)"
 
+  rm -f "$auth_header_file"
   rm -f "$payload_file"
   rm -f "$response_file"
   [[ "$http_status" == "200" ]]
 }
 
 request_beagle_stream_client_pairing_token_via_manager() {
-  local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status
+  local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status auth_header_file
   local curl_bin device_name
   local -a curl_args tls_args parsed
 
@@ -238,8 +263,12 @@ request_beagle_stream_client_pairing_token_via_manager() {
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
   curl_bin="$(beagle_stream_client_curl_bin)"
+  auth_header_file="$(beagle_stream_client_manager_auth_header_file "$manager_token")" || {
+    rm -f "$payload_file" "$response_file"
+    return 1
+  }
   curl_args=("$curl_bin" -fsS --connect-timeout 3 --max-time 6 --output "$response_file" --write-out '%{http_code}' \
-    -H "Authorization: Bearer ${manager_token}" \
+    --header "@${auth_header_file}" \
     -H 'Content-Type: application/json')
   mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-token" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
@@ -247,15 +276,15 @@ request_beagle_stream_client_pairing_token_via_manager() {
   build_beagle_stream_client_pair_token_payload "$device_name" >"$payload_file"
   http_status="$("${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-token" || true)"
   if [[ "$http_status" != "201" ]]; then
-    rm -f "$payload_file" "$response_file"
+    rm -f "$auth_header_file" "$payload_file" "$response_file"
     return 1
   fi
 
   if ! mapfile -t parsed < <(parse_beagle_stream_client_pair_token_response "$response_file"); then
-    rm -f "$payload_file" "$response_file"
+    rm -f "$auth_header_file" "$payload_file" "$response_file"
     return 1
   fi
-  rm -f "$payload_file" "$response_file"
+  rm -f "$auth_header_file" "$payload_file" "$response_file"
 
   [[ "${#parsed[@]}" -ge 1 ]] || return 1
   export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN="${parsed[0]}"
@@ -265,7 +294,7 @@ request_beagle_stream_client_pairing_token_via_manager() {
 
 exchange_beagle_stream_client_pairing_token_via_manager() {
   local pairing_token="${1:-}"
-  local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status
+  local manager_url manager_token manager_pin manager_ca_cert response_file payload_file http_status auth_header_file
   local curl_bin
   local -a curl_args tls_args parsed
 
@@ -279,8 +308,12 @@ exchange_beagle_stream_client_pairing_token_via_manager() {
   response_file="$(mktemp)"
   payload_file="$(mktemp)"
   curl_bin="$(beagle_stream_client_curl_bin)"
+  auth_header_file="$(beagle_stream_client_manager_auth_header_file "$manager_token")" || {
+    rm -f "$payload_file" "$response_file"
+    return 1
+  }
   curl_args=("$curl_bin" -fsS --connect-timeout 3 --max-time 6 --output "$response_file" --write-out '%{http_code}' \
-    -H "Authorization: Bearer ${manager_token}" \
+    --header "@${auth_header_file}" \
     -H 'Content-Type: application/json')
   mapfile -t tls_args < <(beagle_curl_tls_args "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-exchange" "$manager_pin" "$manager_ca_cert")
   curl_args+=("${tls_args[@]}")
@@ -296,6 +329,6 @@ exchange_beagle_stream_client_pairing_token_via_manager() {
     fi
   fi
 
-  rm -f "$payload_file" "$response_file"
+  rm -f "$auth_header_file" "$payload_file" "$response_file"
   [[ "$http_status" == "200" ]]
 }
