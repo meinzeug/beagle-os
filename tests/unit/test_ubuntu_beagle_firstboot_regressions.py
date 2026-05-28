@@ -20,7 +20,7 @@ def test_firstboot_repairs_interrupted_dpkg_between_apt_retries() -> None:
 def test_firstboot_repairs_dpkg_after_each_desktop_install_phase() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 
-    assert "xdg-utils\n  repair_interrupted_dpkg\n  systemctl enable --now qemu-guest-agent.service" in script
+    assert "zenity\n  repair_interrupted_dpkg\n  systemctl enable --now qemu-guest-agent.service" in script
     assert "fonts-hack-ttf\n  repair_interrupted_dpkg\n  if [[ -n \"$DESKTOP_PACKAGES\" ]]; then" in script
     assert "apt_retry apt-get install -y --fix-missing --no-install-recommends ${DESKTOP_PACKAGES}\n    repair_interrupted_dpkg" in script
     assert "apt_retry apt-get install -y --fix-missing --no-install-recommends ${SOFTWARE_PACKAGES}\n    repair_interrupted_dpkg" in script
