@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import hashlib
 import os
 import re
 import socket
@@ -2595,16 +2594,6 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
             response_payload = json.loads((body or b"{}").decode("utf-8", errors="replace"))
         except json.JSONDecodeError:
             response_payload = {}
-        response_error = str((response_payload or {}).get("error", "") or "").strip()
-
-        # Compatibility fallback for hosts where token-native pairing is not yet
-        # enabled in beagle-stream-server. We still need an automated path.
-        if "requires BEAGLE_INTEGRATION" in response_error:
-            digest = hashlib.sha256(pairing_token.encode("utf-8")).hexdigest()
-            pin = str(int(digest[:8], 16) % 10000).zfill(4)
-            pairing_service().consume_token(pairing_token)
-            return {"ok": True, "mode": "pin-compat", "pin": pin}
-
         return {"ok": False, "error": f"beagle-stream-server token exchange failed with HTTP {int(status)}"}
 
     try:

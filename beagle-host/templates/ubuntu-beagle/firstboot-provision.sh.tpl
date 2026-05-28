@@ -604,7 +604,6 @@ EOF
 [Unit]
 Description=Beagle Virtual Display (vkms)
 Before=display-manager.service
-After=multi-user.target
 
 [Service]
 Type=oneshot
@@ -2455,7 +2454,7 @@ Restart=always
 RestartSec=2s
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
 EOF
 
     systemctl daemon-reload >/dev/null 2>&1 || true

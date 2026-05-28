@@ -14,3 +14,11 @@ def test_pair_token_uses_vm_stream_server_token_as_pairing_secret() -> None:
     assert 'if not pairing_secret:' in code
     assert 'rotated = rotate_beagle_stream_server_token(vm)' in code
     assert '"pairing_secret": pairing_secret,' in code
+
+
+def test_pair_exchange_does_not_fall_back_to_pin_compat() -> None:
+    code = SERVICE_REGISTRY.read_text(encoding="utf-8")
+
+    assert '"mode": "pin-compat"' not in code
+    assert '"pin": pin' not in code
+    assert "hashlib.sha256(pairing_token" not in code

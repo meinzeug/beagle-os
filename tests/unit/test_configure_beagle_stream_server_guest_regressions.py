@@ -123,6 +123,20 @@ def test_configure_beagle_stream_server_guest_installs_thinclient_microphone_bri
     assert 'Environment=XDG_RUNTIME_DIR=/run/user/\\$GUEST_UID' in content
     assert 'Environment=BEAGLE_TC_MIC_BRIDGE_PORT=\\$BEAGLE_TC_MIC_BRIDGE_PORT' in content
     assert 'systemctl enable --now beagle-tc-mic-bridge.service' in content
+    service_template = (ROOT_DIR / "scripts" / "lib" / "beagle-tc-mic-bridge.service").read_text(encoding="utf-8")
+    assert 'WantedBy=graphical.target' in service_template
+    assert 'WantedBy=multi-user.target' not in service_template
+
+
+def test_virtual_display_units_do_not_order_after_multi_user() -> None:
+    firstboot = (ROOT_DIR / "beagle-host" / "templates" / "ubuntu-beagle" / "firstboot-provision.sh.tpl").read_text(encoding="utf-8")
+    setup = (ROOT_DIR / "beagle-host" / "templates" / "ubuntu-beagle" / "virtual-display-setup.sh.tpl").read_text(encoding="utf-8")
+
+    for content in (firstboot, setup):
+        unit_start = content.index("vkms-virtual-display.service")
+        unit_block = content[unit_start:content.index("[Service]", unit_start)]
+        assert "Before=display-manager.service" in unit_block
+        assert "After=multi-user.target" not in unit_block
 
 
 def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_baseline() -> None:

@@ -63,7 +63,6 @@ cat > /etc/systemd/system/vkms-virtual-display.service <<'EOF'
 [Unit]
 Description=Virtual Display (vkms) Driver
 Before=display-manager.service
-After=multi-user.target
 
 [Service]
 Type=oneshot

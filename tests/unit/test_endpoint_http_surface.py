@@ -343,6 +343,7 @@ def test_pair_exchange_success() -> None:
 
     assert int(response["status"]) == 200
     assert response["payload"]["ok"] is True
+    assert response["payload"]["pairing"] == {"mode": "token"}
 
 
 def test_session_current_route_uses_vmid_from_endpoint_identity() -> None:

@@ -547,7 +547,6 @@ class EndpointHttpSurfaceService:
                         paired=True,
                         pairing={
                             "mode": str(exchanged.get("mode", "token") or "token"),
-                            "pin": str(exchanged.get("pin", "") or ""),
                         },
                     ),
                 },

@@ -985,40 +985,7 @@ main() {
           if request_beagle_stream_client_pairing_token_via_manager; then
             pairing_token="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN:-}"
             if [[ -n "$pairing_token" ]] && exchange_beagle_stream_client_pairing_token_via_manager "$pairing_token"; then
-              local compat_pin pair_target pair_bin
-              compat_pin="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_COMPAT_PIN:-}"
-              if [[ -n "$compat_pin" ]]; then
-                local pair_pid pair_start_line pair_pending_ready pair_attempt
-                pair_target="$(beagle_stream_client_target "$host" "$port")"
-                pair_bin="$(beagle_stream_client_bin)"
-                pair_start_line="$(wc -l <"$BEAGLE_STREAM_CLIENT_PAIR_LOG" 2>/dev/null || printf '0')"
-                if [[ -n "$pair_target" ]]; then
-                  timeout 25 "$pair_bin" pair "$pair_target" --pin "$compat_pin" >>"$BEAGLE_STREAM_CLIENT_PAIR_LOG" 2>&1 &
-                  pair_pid=$!
-                  pair_pending_ready=0
-                  for pair_attempt in $(seq 1 100); do
-                    if tail -n +"$((pair_start_line + 1))" "$BEAGLE_STREAM_CLIENT_PAIR_LOG" 2>/dev/null | grep -Eq 'Executing request: ".*/pair\?'; then
-                      pair_pending_ready=1
-                      break
-                    fi
-                    if ! kill -0 "$pair_pid" >/dev/null 2>&1; then
-                      break
-                    fi
-                    sleep 0.2
-                  done
-                  if [[ "$pair_pending_ready" -eq 1 ]] && submit_beagle_stream_server_pin "$compat_pin" && wait "$pair_pid"; then
-                    beagle_log_event "beagle-stream-client.pairing-recovered" "attempt=${stream_attempt}/${max_attempts} method=manager-pin-compat"
-                  else
-                    kill -TERM "$pair_pid" >/dev/null 2>&1 || true
-                    wait "$pair_pid" >/dev/null 2>&1 || true
-                    beagle_log_event "beagle-stream-client.pairing-recovery-failed" "attempt=${stream_attempt}/${max_attempts} reason=manager-pin-compat"
-                  fi
-                else
-                  beagle_log_event "beagle-stream-client.pairing-recovery-failed" "attempt=${stream_attempt}/${max_attempts} reason=manager-pin-compat"
-                fi
-              else
-                beagle_log_event "beagle-stream-client.pairing-recovered" "attempt=${stream_attempt}/${max_attempts} method=manager-token-exchange"
-              fi
+              beagle_log_event "beagle-stream-client.pairing-recovered" "attempt=${stream_attempt}/${max_attempts} method=manager-token-exchange"
             elif [[ -n "$pairing_token" ]] && submit_beagle_stream_server_pairing_token; then
               beagle_log_event "beagle-stream-client.pairing-recovered" "attempt=${stream_attempt}/${max_attempts} method=direct-token-submit"
             else

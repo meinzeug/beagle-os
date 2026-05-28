@@ -273,6 +273,9 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'https://${candidate}:${api_port}' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
     assert '/api/pin' not in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
     manager_registration_text = (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_manager_registration.sh").read_text(encoding="utf-8")
+    assert 'pin-compat' not in manager_registration_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_COMPAT_PIN' not in manager_registration_text
+    assert 'manager-pin-compat' not in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_MANAGER_REGISTER_TIMEOUT:-45' in manager_registration_text
     assert 'Failed to load application' in launcher_text
     assert 'prepare-stream.ok" "mode=hostless' in launcher_text
