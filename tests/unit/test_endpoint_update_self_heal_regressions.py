@@ -159,6 +159,8 @@ def test_desktop_guest_updater_prompts_before_required_reboot() -> None:
     assert "Jetzt neu starten" in script
     assert "Spaeter manuell neu starten" in script
     assert "prompt_reboot_on_desktop(config)" in script
+    assert "Authorization: Bearer" in script
+    assert "url.split('?', 1)[0]" in script
     assert "zenity" in firstboot
     assert "beagle-guest-updater-actions.timer" in firstboot
     assert "beagle-guest-updater scan --auto-apply-if-idle" in firstboot

@@ -5192,12 +5192,20 @@ def update_feed_service() -> UpdateFeedService:
     return UPDATE_FEED_SERVICE
 
 
-def build_update_feed(profile: dict[str, Any], *, installed_version: str = "", channel: str = "", version_pin: str = "") -> dict[str, Any]:
+def build_update_feed(
+    profile: dict[str, Any],
+    *,
+    installed_version: str = "",
+    channel: str = "",
+    version_pin: str = "",
+    client_type: str = "",
+) -> dict[str, Any]:
     return update_feed_service().build_update_feed(
         profile,
         installed_version=installed_version,
         channel=channel,
         version_pin=version_pin,
+        client_type=client_type,
     )
 
 

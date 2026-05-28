@@ -118,7 +118,13 @@ def curl_json(config: dict[str, str], method: str, url: str, payload: dict | Non
     if method.upper() == "POST":
         command.extend(["-X", "POST", "--data-binary", json.dumps(payload or {})])
     command.append(url)
-    completed = subprocess.run(command, check=True, capture_output=True, text=True)
+    completed = subprocess.run(command, capture_output=True, text=True)
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "request failed").strip().splitlines()[-1:]
+        raise RuntimeError(
+            f"HTTP {method.upper()} {url.split('?', 1)[0]} failed with exit {completed.returncode}: "
+            f"{detail[0] if detail else 'request failed'}"
+        )
     if not completed.stdout.strip():
         return {}
     return json.loads(completed.stdout)
