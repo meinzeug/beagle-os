@@ -196,7 +196,8 @@ export function executeAction(action, sourceButton) {
     return;
   }
   if (action.indexOf('update-') === 0) {
-    const operation = action.replace('update-', '');
+    const requestedOperation = action.replace('update-', '');
+    const operation = requestedOperation === 'check' ? 'scan' : requestedOperation;
     runSingleFlight('vm-action:' + vmid + ':update:' + operation, () => {
       actionHooks.setBanner('Update-Aktion ' + action + ' fuer VM ' + vmid + ' wird gestartet ...', 'info');
       return postJson('/vms/' + vmid + '/update/' + operation, {}).then(() => {

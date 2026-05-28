@@ -105,6 +105,17 @@ def test_vm_detail_update_policy_switches_are_wired() -> None:
     assert "payload.enabled = Boolean(sourceButton && sourceButton.checked);" in actions
 
 
+def test_vm_detail_update_check_maps_to_scan_route() -> None:
+    actions = _read(ACTIONS_JS)
+    main = _read(MAIN_JS)
+
+    assert "actionButton('update-check', 'Update pruefen', 'ghost')" in main
+    assert "const requestedOperation = action.replace('update-', '');" in actions
+    assert "const operation = requestedOperation === 'check' ? 'scan' : requestedOperation;" in actions
+    assert "postJson('/vms/' + vmid + '/update/' + operation, {})" in actions
+    assert "/update/check" not in actions
+
+
 def test_vm_config_editor_surfaces_guided_control_ui() -> None:
     editor = _read(VM_CONFIG_EDITOR_JS)
 
