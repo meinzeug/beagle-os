@@ -1,5 +1,26 @@
 # Security Findings
 
+Stand: 2026-05-28 (ergaenzt: Desktop Guest Updater Token-Sanitization)
+
+## Security Note (2026-05-28) - Desktop Guest Updater Token-Sanitization
+
+- Status: umgesetzt, kein offener Token-Rotationsschritt fuer VM100
+- Betroffene Dateien:
+  - `beagle-host/bin/beagle-guest-updater`
+  - `beagle-host/services/service_registry.py`
+  - `beagle-host/services/update_feed.py`
+- Beschreibung:
+  - Beim ersten Live-Test des neuen Desktop-Guest-Updaters auf VM100 konnte ein HTTP-Fehlerpfad die vollstaendige `curl`-Kommandozeile inklusive Authorization-Header in Diagnoseausgaben sichtbar machen.
+  - Der Updater meldet HTTP-Fehler jetzt nur noch mit Methode und URL-Pfad ohne Query-String und ohne Header/Token.
+  - Der VM100 Endpoint-Token wurde live rotiert und die aktualisierte Updater-Version danach neu installiert.
+- Verifikation:
+  - Unit-Test prueft, dass der Updater die Token-Header zwar fuer Requests setzt, Fehlertexte aber ueber den URL-Pfad sanitisiert.
+  - VM100 meldet sich nach Token-Rotation wieder als `desktop-guest-updater` am Endpoint-Protokoll.
+- Rest:
+  - Keine Klartext-Secrets oder Tokenwerte wurden in Repo-Dateien, Tests oder Dokumentation aufgenommen.
+
+---
+
 Stand: 2026-05-25 (ergaenzt: Thinclient-Mikrofon Audio-Bridge)
 
 ## Security Note (2026-05-25) - Thinclient-Mikrofon Audio-Bridge
