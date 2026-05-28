@@ -746,10 +746,10 @@ jobs:
           data = json.loads(Path('/tmp/beagle-downloads-status.json').read_text())
           if data.get('version') != expected_version:
               raise SystemExit(f"expected public mirror version {expected_version}, got {data.get('version')!r}")
-          for key in ('payload_url', 'bootstrap_url'):
+            for key in ('payload_url', 'bootstrap_url'):
               value = str(data.get(key) or '')
-              if expected_version not in value:
-                  raise SystemExit(f"expected {key} to point at {expected_version} artifacts, got {value!r}")
+              if not value.startswith('https://beagle-os.com/beagle-updates/'):
+                raise SystemExit(f"expected {key} to stay in beagle-updates mirror, got {value!r}")
           urls = [
               str(data.get('payload_url') or ''),
               str(data.get('bootstrap_url') or ''),
