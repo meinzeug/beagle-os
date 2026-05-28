@@ -161,6 +161,8 @@ def test_desktop_guest_updater_prompts_before_required_reboot() -> None:
     assert "prompt_reboot_on_desktop(config)" in script
     assert "Authorization: Bearer" in script
     assert "url.split('?', 1)[0]" in script
+    assert '["apt-get", "upgrade", "-y", "--with-new-pkgs"]' in script
+    assert "dist-upgrade" not in script
     assert "zenity" in firstboot
     assert "beagle-guest-updater-actions.timer" in firstboot
     assert "beagle-guest-updater scan --auto-apply-if-idle" in firstboot

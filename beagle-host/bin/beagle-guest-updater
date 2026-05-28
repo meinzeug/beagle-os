@@ -219,7 +219,7 @@ def run_apt_upgrade() -> None:
     env["DEBIAN_FRONTEND"] = "noninteractive"
     commands = [
         ["apt-get", "update", "-o", "Acquire::Retries=5"],
-        ["apt-get", "dist-upgrade", "-y", "--with-new-pkgs"],
+        ["apt-get", "upgrade", "-y", "--with-new-pkgs"],
         ["apt-get", "autoremove", "-y"],
     ]
     with APT_LOG_FILE.open("a", encoding="utf-8") as handle:
