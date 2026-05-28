@@ -241,6 +241,12 @@ class VmHttpSurfaceService:
             payload_size = int(downloads_status.get("payload_size") or 0)
         except (TypeError, ValueError):
             payload_size = 0
+        repo_current_commit = str(repo_status.get("current_commit") or "").strip()
+        repo_remote_commit = str(repo_status.get("remote_commit") or "").strip()
+        repo_target_commit = str(repo_status.get("target_commit") or repo_remote_commit).strip()
+        repo_channel_position = str(repo_status.get("channel_position") or "").strip()
+        if repo_current_commit and repo_target_commit and repo_current_commit.lower() == repo_target_commit.lower():
+            repo_channel_position = "at_target"
         return self._envelope(
             update={
                 "policy": {
@@ -280,10 +286,10 @@ class VmHttpSurfaceService:
                     "message": str(repo_status.get("message") or "").strip(),
                     "checked_at": str(repo_status.get("checked_at") or "").strip(),
                     "last_update_at": str(repo_status.get("last_update_at") or "").strip(),
-                    "current_commit": str(repo_status.get("current_commit") or "").strip(),
-                    "remote_commit": str(repo_status.get("remote_commit") or "").strip(),
-                    "target_commit": str(repo_status.get("target_commit") or "").strip(),
-                    "channel_position": str(repo_status.get("channel_position") or "").strip(),
+                    "current_commit": repo_current_commit,
+                    "remote_commit": repo_remote_commit,
+                    "target_commit": repo_target_commit,
+                    "channel_position": repo_channel_position,
                     "stable_ref": str(repo_status.get("stable_ref") or "").strip(),
                     "stable_version": str(repo_status.get("stable_version") or "").strip(),
                     "stable_commit": str(repo_status.get("stable_commit") or "").strip(),

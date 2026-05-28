@@ -251,7 +251,8 @@ def test_vm_update_payload_exposes_rebuild_and_health_failure(tmp_path: Path, mo
                 "branch": "main",
                 "state": "healthy",
                 "current_commit": "1111111111111111111111111111111111111111",
-                "target_commit": "2222222222222222222222222222222222222222",
+                "target_commit": "1111111111111111111111111111111111111111",
+                "channel_position": "behind_target",
                 "stable_ref": "v8.0.0",
                 "stable_version": "8.0.0",
                 "stable_commit": "3333333333333333333333333333333333333333",
@@ -315,6 +316,7 @@ def test_vm_update_payload_exposes_rebuild_and_health_failure(tmp_path: Path, mo
     assert update["source"]["repo_url"] == "https://github.com/meinzeug/beagle-os.git"
     assert update["source"]["payload_filename"] == "pve-thin-client-usb-payload-v8.0.tar.gz"
     assert update["source"]["stable_ref"] == "v8.0.0"
+    assert update["source"]["channel_position"] == "at_target"
 
 
 def test_webui_update_panel_warns_when_endpoint_rebuild_is_recommended() -> None:
