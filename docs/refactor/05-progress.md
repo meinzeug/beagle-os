@@ -17,6 +17,21 @@
   - Server-CI-Log meldet `PROJECT_VERSION: 1.0.0`.
   - Lokal: `pytest -q tests/unit/test_installer_prep_stream_runtime.py` -> `3 passed`.
 
+## Update (2026-05-28, Fork-Latest konkret auf 0.1.0 gesetzt)
+
+**Scope**: Nach der Umstellung auf echte Latest-Releases wurde die Release-Linie in beiden Forks explizit auf `0.1.0` gesetzt und erneut ausgerollt.
+
+- **Fork-Fix**:
+  - `beagle-stream-client@e64c5eb9`: Release-Workflow pinned auf `BEAGLE_RELEASE_VERSION=0.1.0`.
+  - `beagle-stream-server@2bdd5142`: Release-Workflow pinned auf `BEAGLE_RELEASE_VERSION=0.1.0`.
+  - Server-CMake-Basisversion: `project(Sunshine VERSION 0.1.0)`.
+
+- **Verifikation**:
+  - Client-Run `26591968148` und Server-Run `26591996082` erfolgreich.
+  - `meinzeug/beagle-stream-client` Latest: `beagle-v0.1.0-e64c5eb` (non-prerelease) mit `BeagleStream-latest-x86_64.AppImage` und `SHA256SUMS`.
+  - `meinzeug/beagle-stream-server` Latest: `beagle-v0.1.0-2bdd514` (non-prerelease) mit `beagle-stream-server-latest-ubuntu-24.04-amd64.deb` und `SHA256SUMS`.
+  - Server-CI-Log: `PROJECT_VERSION: 0.1.0`.
+
 ## Update (2026-05-28, TC user-manager root cause fuer Stream-Runtime reproduzierbar gefixt)
 
 **Scope**: Beim Live-Check auf `192.168.178.30` war der Beagle-Stream-Runtimepfad instabil, waehrend VM100 selbst gesund lief. Ziel war, den reproduzierbaren Root Cause im TC-Base-System zu isolieren und als Repo-Fix abzusichern.
