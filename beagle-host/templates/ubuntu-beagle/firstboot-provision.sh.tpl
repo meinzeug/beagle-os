@@ -1795,7 +1795,11 @@ if [[ ! -f "$DONE_FILE" ]]; then
   apt_retry apt-get install -y --no-install-recommends "$TMPDIR_WORK/beagle-stream-server.deb"
   repair_interrupted_dpkg
   write_stream_runtime_status "$stream_runtime_variant" "$stream_runtime_package_url"
-  BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || true)"
+  if [[ -x /usr/bin/beagle-stream-server ]]; then
+    BEAGLE_STREAM_SERVER_EXEC=/usr/bin/beagle-stream-server
+  else
+    BEAGLE_STREAM_SERVER_EXEC="$(command -v beagle-stream-server 2>/dev/null || true)"
+  fi
   if [[ -z "$BEAGLE_STREAM_SERVER_EXEC" || ! -x "$BEAGLE_STREAM_SERVER_EXEC" ]]; then
     echo "beagle-stream-server binary was not installed by stream runtime package" >&2
     exit 1

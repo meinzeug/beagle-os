@@ -2606,6 +2606,20 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
     return {"ok": True}
 
 
+def validate_stream_pairing_token_for_server(token: str, vm_id: int, device_name: str) -> tuple[bool, str]:
+    del device_name
+    payload = pairing_service().validate_token(token)
+    if not isinstance(payload, dict):
+        return False, "invalid or expired token"
+    try:
+        token_vm_id = int(payload.get("vmid", -1))
+    except (TypeError, ValueError):
+        token_vm_id = -1
+    if token_vm_id != int(vm_id):
+        return False, "token scope mismatch"
+    return True, "ok"
+
+
 def beagle_stream_server_proxy_ticket_url(token: str) -> str:
     return beagle_stream_server_integration_service().beagle_stream_server_proxy_ticket_url(token)
 
@@ -3773,6 +3787,7 @@ def stream_http_surface_service() -> StreamHttpSurfaceService:
             stream_policy_service=stream_policy_service(),
             build_wireguard_peer_config=build_stream_allocate_wireguard_profile,
             issue_pairing_token=issue_stream_allocate_pairing_token,
+            validate_pairing_token=validate_stream_pairing_token_for_server,
             audit_event=audit_log_service().write_event,
             utcnow=utcnow,
             version=VERSION,

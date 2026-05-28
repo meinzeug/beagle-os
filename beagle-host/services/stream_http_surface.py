@@ -13,6 +13,7 @@ from core.persistence.json_state_store import JsonStateStore
 class StreamHttpSurfaceService:
     _REGISTER_ROUTE = "/api/v1/streams/register"
     _ALLOCATE_ROUTE = "/api/v1/streams/allocate"
+    _VALIDATE_TOKEN_ROUTE = "/api/v1/streams/validate-token"
     _CONFIG_ROUTE = re.compile(r"^/api/v1/streams/(?P<vm_id>\d+)/config$")
     _EVENTS_ROUTE = re.compile(r"^/api/v1/streams/(?P<vm_id>\d+)/events$")
 
@@ -26,6 +27,7 @@ class StreamHttpSurfaceService:
         stream_policy_service: Any,
         build_wireguard_peer_config: Callable[[str, str, str], dict[str, Any]] | None = None,
         issue_pairing_token: Callable[[int, str, str], str] | None = None,
+        validate_pairing_token: Callable[[str, int, str], tuple[bool, str]] | None = None,
         requester_identity: Callable[[], str] | None = None,
         audit_event: Callable[..., None] | None = None,
         service_name: str = "beagle-control-plane",
@@ -41,6 +43,7 @@ class StreamHttpSurfaceService:
         self._stream_policy = stream_policy_service
         self._build_wireguard_peer_config = build_wireguard_peer_config
         self._issue_pairing_token = issue_pairing_token
+        self._validate_pairing_token = validate_pairing_token
         self._requester_identity = requester_identity or (lambda: "")
         self._audit_event = audit_event
         self._service_name = str(service_name or "beagle-control-plane")
@@ -56,7 +59,7 @@ class StreamHttpSurfaceService:
     @classmethod
     def handles_post(cls, path: str) -> bool:
         route = str(path or "")
-        return route in {cls._REGISTER_ROUTE, cls._ALLOCATE_ROUTE} or cls._EVENTS_ROUTE.match(route) is not None
+        return route in {cls._REGISTER_ROUTE, cls._ALLOCATE_ROUTE, cls._VALIDATE_TOKEN_ROUTE} or cls._EVENTS_ROUTE.match(route) is not None
 
     @staticmethod
     def requires_json_body(path: str) -> bool:
@@ -282,6 +285,28 @@ class StreamHttpSurfaceService:
         endpoint_identity: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         payload = json_payload or {}
+        if path == self._VALIDATE_TOKEN_ROUTE:
+            token = str(payload.get("token") or "").strip()
+            device_name = str(payload.get("device_name") or payload.get("name") or "").strip()
+            try:
+                vm_id = int(payload.get("vm_id") or 0)
+            except (TypeError, ValueError):
+                vm_id = 0
+            if not token:
+                return self._json(HTTPStatus.BAD_REQUEST, {"valid": False, "reason": "token required"})
+            if vm_id <= 0:
+                return self._json(HTTPStatus.BAD_REQUEST, {"valid": False, "reason": "vm_id required"})
+            if self._validate_pairing_token is None:
+                return self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"valid": False, "reason": "pairing validation unavailable"})
+            valid, reason = self._validate_pairing_token(token, vm_id, device_name)
+            return self._json(
+                HTTPStatus.OK,
+                {
+                    "valid": bool(valid),
+                    "reason": str(reason or ("ok" if valid else "invalid token")),
+                },
+            )
+
         if path == self._ALLOCATE_ROUTE:
             pool_id = str(payload.get("pool_id") or "").strip()
             requested_user_id = str(payload.get("user_id") or "").strip()

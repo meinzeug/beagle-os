@@ -79,6 +79,7 @@ def _service(
         find_vm=lambda vmid: vm if int(vmid) == 303 else None,
         pool_manager_service=_PoolManager(),
         stream_policy_service=policy_service,
+        validate_pairing_token=lambda token, vm_id, device_name: (token == "pair-token" and int(vm_id) == 303, "ok" if token == "pair-token" and int(vm_id) == 303 else "invalid token"),
         requester_identity=lambda: "alice",
         audit_event=lambda event_type, outcome, **details: audit_events.append((event_type, outcome, details)),
         utcnow=lambda: "2026-04-28T12:00:00Z",
@@ -90,6 +91,7 @@ def _service(
 def test_handles_stream_routes() -> None:
     assert StreamHttpSurfaceService.handles_post("/api/v1/streams/register") is True
     assert StreamHttpSurfaceService.handles_post("/api/v1/streams/allocate") is True
+    assert StreamHttpSurfaceService.handles_post("/api/v1/streams/validate-token") is True
     assert StreamHttpSurfaceService.handles_post("/api/v1/streams/303/events") is True
     assert StreamHttpSurfaceService.handles_get("/api/v1/streams/303/config") is True
     assert StreamHttpSurfaceService.requires_json_body("/api/v1/streams/303/events") is True
@@ -118,6 +120,32 @@ def test_register_returns_links_and_persists_state(tmp_path: Path) -> None:
     assert payload["registration"]["links"]["config"] == "/api/v1/streams/303/config"
     assert payload["registration"]["pool_id"] == "gaming-1"
     assert audit_events[0][0] == "stream.server.register"
+
+
+def test_validate_token_route_checks_pairing_token_scope(tmp_path: Path) -> None:
+    service, _audit_events = _service(tmp_path)
+
+    response = service.route_post(
+        "/api/v1/streams/validate-token",
+        json_payload={"token": "pair-token", "device_name": "tc", "vm_id": 303},
+    )
+
+    assert response is not None
+    assert response["status"] == 200
+    assert response["payload"] == {"valid": True, "reason": "ok"}
+
+
+def test_validate_token_route_rejects_invalid_token(tmp_path: Path) -> None:
+    service, _audit_events = _service(tmp_path)
+
+    response = service.route_post(
+        "/api/v1/streams/validate-token",
+        json_payload={"token": "wrong", "device_name": "tc", "vm_id": 303},
+    )
+
+    assert response is not None
+    assert response["status"] == 200
+    assert response["payload"] == {"valid": False, "reason": "invalid token"}
 
 
 def test_register_rejects_when_vpn_required_without_wireguard(tmp_path: Path) -> None:

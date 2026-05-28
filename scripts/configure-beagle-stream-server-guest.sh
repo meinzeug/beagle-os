@@ -815,7 +815,11 @@ BEAGLE_STREAM_RUNTIME_PACKAGE_URL=\${stream_runtime_package_url}
 BEAGLE_STREAM_RUNTIME_UPDATED_AT=\$(date -Iseconds)
 RUNTIMEENV
 chmod 0644 /etc/beagle/stream-runtime.env
-BEAGLE_STREAM_SERVER_EXEC="\$(command -v beagle-stream-server 2>/dev/null || true)"
+if [[ "\$stream_runtime_variant" == "beagle-stream-server" && -x /usr/bin/beagle-stream-server ]]; then
+  BEAGLE_STREAM_SERVER_EXEC=/usr/bin/beagle-stream-server
+else
+  BEAGLE_STREAM_SERVER_EXEC="\$(command -v beagle-stream-server 2>/dev/null || true)"
+fi
 if [[ -z "\$BEAGLE_STREAM_SERVER_EXEC" || ! -x "\$BEAGLE_STREAM_SERVER_EXEC" ]]; then
   echo "beagle-stream-server binary was not installed by stream runtime package" >&2
   exit 1
