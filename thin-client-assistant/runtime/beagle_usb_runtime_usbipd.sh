@@ -108,17 +108,18 @@ _is_eligible_for_autobind() {
         iface_class="$(tr '[:upper:]' '[:lower:]' < "$iface_class_file" 2>/dev/null | tr -d '[:space:]')"
         case "$iface_class" in
           01) audio_input_bridge_enabled && continue ;;  # USB audio stays local unless the device also has another useful interface.
+          0e) return 1 ;;  # Webcams stay local so beagle-camera-stream can expose them to the VM reliably.
           03) continue ;;  # Ignore HID sub-interfaces on composite devices.
           e0) return 1 ;;  # Bluetooth controllers must stay local.
         esac
-        # Audio(01), Video(0e), Printer(07), Imaging(06),
+        # Audio(01), Printer(07), Imaging(06),
         # CDC(0a/0b), Vendor(ff)
         case "$iface_class" in
-          01|06|07|0a|0b|0e|ff) has_useful=1 ;;
+          01|06|07|0a|0b|ff) has_useful=1 ;;
         esac
       done
       if [[ "$has_interface" != "1" ]]; then
-        [[ "$class" == "ef" ]] && _usb_device_identity_has_camera_hint "$busid" && return 0
+        [[ "$class" == "ef" ]] && _usb_device_identity_has_camera_hint "$busid" && return 1
         return 1
       fi
       [[ "$has_useful" == "1" ]] || return 1

@@ -2068,3 +2068,10 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 2. Ersten echten Clean-Install-Nachweis sammeln und Artefakte unter `docs/runbooks/evidence/r1-clean-install/` ablegen.
 3. Falls `srv2` wieder erreichbar ist, denselben Wrapper auf `srv2` wiederholen, um Reproduzierbarkeit auf zweitem Host zu belegen.
 4. Danach R1-Checkboxen in `docs/checklists/05-release-operations.md` und `docs/lasthope/02-execution-order.md` mit Datum/Nachweisstand aktualisieren.
+
+## Naechster Schritt (2026-05-28, TC USB-Hub Webcam/Mikrofon Live-Abnahme)
+
+1. Mit dem jetzt verifizierten Login auf `192.168.178.30` einen echten Hub-Test fahren: USB-Webcam + USB-Mikrofon + HID parallel anstecken und pruefen, dass nur die dafuer vorgesehenen Geraete per USB/IP gebunden werden.
+2. Auf dem TC pruefen, dass Webcam lokal bleibt (`beagle-camera-stream` aktiv, `/dev/video*` vorhanden) und in der VM ueber `beagle-camera-receive` als `v4l2loopback` verfuegbar ist.
+3. Auf dem TC und in der VM den Mikrofonpfad validieren: `beagle_audio_input_bridge.py` aktiv, PCM-Bridge-Port verbunden, keine USB-Audio-Weiterleitung ueber `usbip-host`.
+4. Evidence sichern (`journalctl`, Runtime-Logs, kurzer Stream-Mitschnitt) und die Abnahme in `docs/refactor/05-progress.md` plus den passenden Checklist-/Lasthope-Dateien abhaken.

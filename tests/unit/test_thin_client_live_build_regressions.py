@@ -395,15 +395,16 @@ def test_usbip_autobind_keeps_usb_audio_local_for_mic_bridge() -> None:
 
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_BRIDGE_ENABLED:-1' in usbipd_text
     assert '01) audio_input_bridge_enabled && continue ;;' in usbipd_text
+    assert '0e) return 1 ;;  # Webcams stay local so beagle-camera-stream can expose them to the VM reliably.' in usbipd_text
     assert '_usb_device_has_block_child "$busid" && return 1' in usbipd_text
     assert '_usb_device_has_storage_interface "$busid" && return 1' in usbipd_text
     assert '[[ "$iface_class" == "08" ]] && return 0' in usbipd_text
-    assert '01|06|07|0a|0b|0e|ff) has_useful=1 ;;' in usbipd_text
-    assert '01|06|07|08|0a|0b|0e|ff) has_useful=1 ;;' not in usbipd_text
+    assert '01|06|07|0a|0b|ff) has_useful=1 ;;' in usbipd_text
+    assert '01|06|07|0a|0b|0e|ff) has_useful=1 ;;' not in usbipd_text
     assert 'has_interface=1' in usbipd_text
     assert '_usb_device_identity_has_camera_hint()' in usbipd_text
     assert 'grep -Eq \'(camera|webcam|video|uvc|cam)\'' in usbipd_text
-    assert '[[ "$class" == "ef" ]] && _usb_device_identity_has_camera_hint "$busid" && return 0' in usbipd_text
+    assert '[[ "$class" == "ef" ]] && _usb_device_identity_has_camera_hint "$busid" && return 1' in usbipd_text
     assert 'bound_add "$busid" >/dev/null 2>&1 || true' in usbipd_text
     assert 'printf \'%s\\n\' "/usr/sbin/usbip"' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_runtime_env.sh").read_text(encoding="utf-8")
     assert 'printf \'%s\\n\' "/usr/sbin/usbipd"' in actions_text

@@ -8327,3 +8327,37 @@ USB-Tastatur nicht mehr.
   `/dev/input/by-id` zeigt wieder Logitech-Keyboard und GXT-Maus.
 - Xorg-Log bestaetigt `Using input driver 'libinput'` und `XINPUT: Adding extended
   input device` fuer Logitech-Keyboard und GXT-Maus.
+
+## 2026-05-28 — USB-Hub Webcam/Mikrofon Routing fuer TC stabilisiert
+
+**Scope**: USB-Mikrofone, Webcams und weitere USB-Geraete hinter USB-Hub sollen
+im Zielpfad ankommen: Webcam stabil in der VM nutzbar, Audio-Eingang ohne
+USB/IP-Stottern ueber PCM-Bridge.
+
+**Befund**:
+- Die Runtime hatte Video-Interface-Klasse `0e` noch als autobind-faehig fuer
+  USB/IP gewertet.
+- Das widerspricht dem vorgesehenen Kamera-Pfad (`beagle-camera-stream` auf dem
+  TC plus `beagle-camera-receive` in der VM), der UVC-/Isochronous-Probleme von
+  USB/IP explizit umgeht.
+- Audio bleibt bereits lokal und wird ueber `beagle_audio_input_bridge.py`
+  (`parec`, PCM) zum VM-Endpunkt getunnelt.
+
+**Umsetzung**:
+- USB Autobind-Eligibility gehaertet:
+  - Interface-Klasse `0e` (Video/Webcam) wird immer lokal gehalten.
+  - Composite-Fallback mit Kamera-Hinweis bindet nicht mehr an USB/IP.
+  - `has_useful` schliesst `0e` aus, damit Kamera nicht versehentlich in den
+    USB/IP-Pfad rutscht.
+- Regressionstest angepasst, damit genau dieser Vertrag dauerhaft abgesichert
+  bleibt (Webcam lokal, Audio lokal via PCM-Bridge, nur passende USB-Geraete an
+  USB/IP).
+
+**Verifikation**:
+- Lokal: `bash -n thin-client-assistant/runtime/beagle_usb_runtime_usbipd.sh`.
+- Lokal: `python3 -m pytest tests/unit/test_thin_client_live_build_regressions.py -k 'usbip_autobind_keeps_local_hid_devices_off_usbip_host or usbip_autobind_keeps_usb_audio_local_for_mic_bridge'` -> `2 passed`.
+- Lokal: `python3 -m pytest tests/unit/test_thin_client_live_build_regressions.py` -> `32 passed`.
+- Live-Zugang wiederhergestellt: `thinclient_password` aus
+  `/var/lib/beagle/beagle-manager/vm-secrets/beagle-0-100.json` auf `srv1`
+  geholt, als Shell-Variable genutzt und SSH-Login auf `192.168.178.30`
+  erfolgreich bestaetigt.
