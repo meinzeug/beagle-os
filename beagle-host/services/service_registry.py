@@ -2582,7 +2582,7 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
         query="",
         method="POST",
         body=json.dumps(
-            {"access_token": pairing_secret, "token": pairing_secret, "name": device_name},
+            {"access_token": pairing_secret, "token": pairing_token, "name": device_name},
             separators=(",", ":"),
             ensure_ascii=True,
         ).encode("utf-8"),
