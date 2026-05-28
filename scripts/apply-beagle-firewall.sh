@@ -343,10 +343,38 @@ apply_rules() {
   nft -f "$NFT_RULE_FILE"
 }
 
+delete_nft_rules_by_comment() {
+  local family="${1:-}"
+  local table="${2:-}"
+  local chain="${3:-}"
+  local comment="${4:-}"
+  local handle
+
+  [[ -n "$family" && -n "$table" && -n "$chain" && -n "$comment" ]] || return 0
+  command -v nft >/dev/null 2>&1 || return 0
+
+  while IFS= read -r handle; do
+    [[ -n "$handle" ]] || continue
+    nft delete rule "$family" "$table" "$chain" handle "$handle" >/dev/null 2>&1 || true
+  done < <(
+    nft -a list chain "$family" "$table" "$chain" 2>/dev/null |
+      awk -v marker="comment \"${comment}\"" '
+        index($0, marker) {
+          for (i = 1; i <= NF; i++) {
+            if ($i == "handle" && (i + 1) <= NF) {
+              print $(i + 1)
+            }
+          }
+        }
+      ' | sort -rn
+  )
+}
+
 ensure_libvirt_wireguard_forward_rules() {
   local bridges=()
   local bridge
   local wg_iface="${BEAGLE_WIREGUARD_INTERFACE:-wg-beagle}"
+  local comment
 
   [[ "${BEAGLE_WIREGUARD_ENABLED:-0}" =~ ^(1|true|yes|on)$ ]] || return 0
   command -v nft >/dev/null 2>&1 || return 0
@@ -358,20 +386,24 @@ ensure_libvirt_wireguard_forward_rules() {
   fi
 
   for bridge in "${bridges[@]}"; do
-    if nft list chain ip filter FORWARD >/dev/null 2>&1 &&
-       ! nft list chain ip filter FORWARD 2>/dev/null | grep -Fq "beagle-wireguard-forward-to-${bridge}"; then
+    if nft list chain ip filter FORWARD >/dev/null 2>&1; then
+      comment="beagle-wireguard-forward-to-${bridge}"
+      delete_nft_rules_by_comment ip filter FORWARD "$comment"
       nft insert rule ip filter FORWARD iifname "$wg_iface" oifname "$bridge" accept comment "beagle-wireguard-forward-to-${bridge}" >/dev/null 2>&1 || true
     fi
-    if nft list chain ip filter FORWARD >/dev/null 2>&1 &&
-       ! nft list chain ip filter FORWARD 2>/dev/null | grep -Fq "beagle-wireguard-forward-from-${bridge}"; then
+    if nft list chain ip filter FORWARD >/dev/null 2>&1; then
+      comment="beagle-wireguard-forward-from-${bridge}"
+      delete_nft_rules_by_comment ip filter FORWARD "$comment"
       nft insert rule ip filter FORWARD iifname "$bridge" oifname "$wg_iface" accept comment "beagle-wireguard-forward-from-${bridge}" >/dev/null 2>&1 || true
     fi
-    if nft list chain ip filter LIBVIRT_FWI >/dev/null 2>&1 &&
-       ! nft list chain ip filter LIBVIRT_FWI 2>/dev/null | grep -Fq "beagle-wireguard-to-${bridge}"; then
+    if nft list chain ip filter LIBVIRT_FWI >/dev/null 2>&1; then
+      comment="beagle-wireguard-to-${bridge}"
+      delete_nft_rules_by_comment ip filter LIBVIRT_FWI "$comment"
       nft insert rule ip filter LIBVIRT_FWI iifname "$wg_iface" oifname "$bridge" accept comment "beagle-wireguard-to-${bridge}" >/dev/null 2>&1 || true
     fi
-    if nft list chain ip filter LIBVIRT_FWO >/dev/null 2>&1 &&
-       ! nft list chain ip filter LIBVIRT_FWO 2>/dev/null | grep -Fq "beagle-wireguard-from-${bridge}"; then
+    if nft list chain ip filter LIBVIRT_FWO >/dev/null 2>&1; then
+      comment="beagle-wireguard-from-${bridge}"
+      delete_nft_rules_by_comment ip filter LIBVIRT_FWO "$comment"
       nft insert rule ip filter LIBVIRT_FWO iifname "$bridge" oifname "$wg_iface" accept comment "beagle-wireguard-from-${bridge}" >/dev/null 2>&1 || true
     fi
   done

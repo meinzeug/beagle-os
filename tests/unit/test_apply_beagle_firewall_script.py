@@ -42,6 +42,9 @@ def test_firewall_script_adds_libvirt_forward_compatibility_for_wireguard() -> N
     script = SCRIPT.read_text(encoding="utf-8")
 
     assert "ensure_libvirt_wireguard_forward_rules()" in script
+    assert "delete_nft_rules_by_comment()" in script
+    assert 'nft -a list chain "$family" "$table" "$chain"' in script
+    assert 'nft delete rule "$family" "$table" "$chain" handle "$handle"' in script
     assert 'nft insert rule ip filter FORWARD iifname "$wg_iface" oifname "$bridge" accept comment "beagle-wireguard-forward-to-${bridge}"' in script
     assert 'nft insert rule ip filter FORWARD iifname "$bridge" oifname "$wg_iface" accept comment "beagle-wireguard-forward-from-${bridge}"' in script
     assert 'nft insert rule ip filter LIBVIRT_FWI iifname "$wg_iface" oifname "$bridge" accept comment "beagle-wireguard-to-${bridge}"' in script

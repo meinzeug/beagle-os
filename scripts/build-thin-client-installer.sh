@@ -15,9 +15,10 @@ THINCLIENT_LB_BUILD_ATTEMPTS="${BEAGLE_THINCLIENT_LB_BUILD_ATTEMPTS:-2}"
 THINCLIENT_SKIP_MANUAL_ISO="${BEAGLE_THINCLIENT_SKIP_MANUAL_ISO:-0}"
 OWNER_UID="${SUDO_UID:-$(id -u)}"
 OWNER_GID="${SUDO_GID:-$(id -g)}"
-BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-beagle-6210928-x86_64.AppImage"
+BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage"
 BEAGLE_STREAM_CLIENT_URL="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL:-${BEAGLE_STREAM_CLIENT_URL:-$BEAGLE_STREAM_CLIENT_DEFAULT_URL}}"
-BEAGLE_STREAM_CLIENT_SHA256="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_SHA256:-${BEAGLE_STREAM_CLIENT_SHA256:-61cdd24b5d44fd967ee80c2b6d5a3b22a3bbf5463f5c66b7d70cfce803b509cf}}"
+BEAGLE_STREAM_CLIENT_SHA256="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_SHA256:-${BEAGLE_STREAM_CLIENT_SHA256:-}}"
+BEAGLE_STREAM_CLIENT_SHA256SUMS_URL="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_SHA256SUMS_URL:-${BEAGLE_STREAM_CLIENT_SHA256SUMS_URL:-${BEAGLE_STREAM_CLIENT_URL%/*}/SHA256SUMS}}"
 GRUB_BACKGROUND_SRC="$ROOT_DIR/thin-client-assistant/usb/assets/grub-background.jpg"
 ROOTFS_STAGE_DIR="$BUILD_DIR/rootfs-stage"
 THINCLIENT_USER="thinclient"
@@ -59,6 +60,28 @@ verify_sha256() {
     echo "Checksum mismatch for ${label}: expected ${expected_sha}, got ${actual_sha}" >&2
     return 1
   fi
+}
+
+resolve_release_sha256() {
+  local sums_url="$1"
+  local asset_url="$2"
+  local sums_file="$3"
+  local asset_name expected_sha
+
+  asset_name="${asset_url##*/}"
+  curl -fL \
+    --retry 8 \
+    --retry-delay 3 \
+    --retry-connrefused \
+    --retry-all-errors \
+    -o "$sums_file" \
+    "$sums_url"
+  expected_sha="$(awk -v asset="$asset_name" '$2 == asset || $2 == "dist/" asset { print $1; exit }' "$sums_file")"
+  if [[ -z "$expected_sha" ]]; then
+    echo "Checksum entry for ${asset_name} missing in ${sums_url}" >&2
+    return 1
+  fi
+  printf '%s\n' "$expected_sha"
 }
 
 disable_beagle_enterprise_repo() {
@@ -360,6 +383,7 @@ EOF
     beagle-usb-tunnel.service \
     beagle-wg-runtime-guard.service \
     pve-thin-client-network-menu.service \
+    pve-thin-client-runtime.service \
     beagle-thin-client-prepare.service \
     pve-thin-client-installer-menu.service \
     pve-thin-client-installer-menu-serial.service \
@@ -369,6 +393,7 @@ EOF
     getty@tty1.service
 
   ensure_rootfs_wants_link beagle-thin-client-prepare.service multi-user.target
+  ensure_rootfs_wants_link pve-thin-client-runtime.service multi-user.target
   ensure_rootfs_wants_link pve-thin-client-installer-menu.service multi-user.target
   ensure_rootfs_wants_link pve-thin-client-installer-menu-serial.service multi-user.target
 }
@@ -486,6 +511,9 @@ stage_beagle_stream_client_assets() {
     --speed-time 30 \
     -o "$work_dir/BeagleStream.AppImage" \
     "$appimage_url"
+  if [[ -z "$BEAGLE_STREAM_CLIENT_SHA256" ]]; then
+    BEAGLE_STREAM_CLIENT_SHA256="$(resolve_release_sha256 "$BEAGLE_STREAM_CLIENT_SHA256SUMS_URL" "$appimage_url" "$work_dir/SHA256SUMS")"
+  fi
   verify_sha256 "$work_dir/BeagleStream.AppImage" "$BEAGLE_STREAM_CLIENT_SHA256" "thin-client beagle-stream-client AppImage"
 
   chmod +x "$work_dir/BeagleStream.AppImage"

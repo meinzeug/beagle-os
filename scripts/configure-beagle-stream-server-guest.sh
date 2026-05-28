@@ -34,9 +34,10 @@ BEAGLE_STREAM_SERVER_USER="${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
 BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD:-}"
 BEAGLE_STREAM_SERVER_TOKEN="${BEAGLE_STREAM_SERVER_TOKEN:-}"
 BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-50000}"
-BEAGLE_STREAM_SERVER_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-71e32b3-ubuntu-24.04-amd64.deb"
+BEAGLE_STREAM_SERVER_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-server/releases/download/beagle-phase-a/beagle-stream-server-latest-ubuntu-24.04-amd64.deb"
 BEAGLE_STREAM_SERVER_URL="${BEAGLE_STREAM_SERVER_URL:-$BEAGLE_STREAM_SERVER_DEFAULT_URL}"
-BEAGLE_STREAM_SERVER_SHA256="${BEAGLE_STREAM_SERVER_SHA256:-9209e231f7c26e75d8597e03223d123bd94248b010c69752417023afb664fa27}"
+BEAGLE_STREAM_SERVER_SHA256="${BEAGLE_STREAM_SERVER_SHA256:-}"
+BEAGLE_STREAM_SERVER_SHA256SUMS_URL="${BEAGLE_STREAM_SERVER_SHA256SUMS_URL:-${BEAGLE_STREAM_SERVER_URL%/*}/SHA256SUMS}"
 BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR_DEFAULT="/opt/beagle/forks/beagle-stream-server"
 BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR="${BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR:-$BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR_DEFAULT}"
 BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR="${BEAGLE_STREAM_SERVER_NATIVE_DEPS_DIR:-${BEAGLE_STREAM_SERVER_NATIVE_SOURCE_DIR%/}/build-beagle/_deps}"
@@ -582,6 +583,7 @@ BEAGLE_STREAM_SERVER_TOKEN='${BEAGLE_STREAM_SERVER_TOKEN}'
 BEAGLE_STREAM_SERVER_PORT='${BEAGLE_STREAM_SERVER_PORT}'
 BEAGLE_STREAM_SERVER_URL='${BEAGLE_STREAM_SERVER_URL}'
 BEAGLE_STREAM_SERVER_SHA256='${BEAGLE_STREAM_SERVER_SHA256}'
+BEAGLE_STREAM_SERVER_SHA256SUMS_URL='${BEAGLE_STREAM_SERVER_SHA256SUMS_URL}'
 BEAGLE_STREAM_SERVER_INSTALL_MODE='${install_mode}'
 BEAGLE_STREAM_SERVER_NATIVE_SOURCE_ARCHIVE='${native_source_archive}'
 BEAGLE_STREAM_SERVER_NATIVE_DEPS_ARCHIVE='${native_deps_archive}'
@@ -799,6 +801,21 @@ else
     --speed-time 30 \
     -o "\$tmpdir/beagle-stream-server.deb" \
     "\$BEAGLE_STREAM_SERVER_URL"
+  if [[ -z "\$BEAGLE_STREAM_SERVER_SHA256" ]]; then
+    curl -fL \
+      --retry 8 \
+      --retry-delay 3 \
+      --retry-connrefused \
+      --retry-all-errors \
+      -o "\$tmpdir/SHA256SUMS" \
+      "\$BEAGLE_STREAM_SERVER_SHA256SUMS_URL"
+    asset_name="\${BEAGLE_STREAM_SERVER_URL##*/}"
+    BEAGLE_STREAM_SERVER_SHA256="\$(awk -v asset="\$asset_name" '\$2 == asset || \$2 == "dist/" asset { print \$1; exit }' "\$tmpdir/SHA256SUMS")"
+    if [[ -z "\$BEAGLE_STREAM_SERVER_SHA256" ]]; then
+      echo "Checksum entry for \${asset_name} missing in \${BEAGLE_STREAM_SERVER_SHA256SUMS_URL}" >&2
+      exit 1
+    fi
+  fi
   if [[ -n "\$BEAGLE_STREAM_SERVER_SHA256" ]]; then
     actual_sha="\$(sha256sum "\$tmpdir/beagle-stream-server.deb" | awk '{print \$1}')"
     if [[ "\$actual_sha" != "\$BEAGLE_STREAM_SERVER_SHA256" ]]; then
@@ -1125,30 +1142,30 @@ cat > /usr/local/bin/beagle-stream-server-healthcheck <<'HEALTHCHECK'
 set -euo pipefail
 
 ENV_FILE="/etc/beagle/beagle-stream-server-healthcheck.env"
-[[ -r "\$ENV_FILE" ]] || exit 1
+[[ -r "$ENV_FILE" ]] || exit 1
 # shellcheck disable=SC1090
-source "\$ENV_FILE"
+source "$ENV_FILE"
 
-BEAGLE_STREAM_SERVER_USER="\${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
-BEAGLE_STREAM_SERVER_PASSWORD="\${BEAGLE_STREAM_SERVER_PASSWORD:-}"
-BEAGLE_STREAM_SERVER_PORT="\${BEAGLE_STREAM_SERVER_PORT:-}"
-GUEST_USER="\${GUEST_USER:-beagle}"
-GUEST_UID="\${GUEST_UID:-\$(id -u "\$GUEST_USER" 2>/dev/null || echo 1000)}"
+BEAGLE_STREAM_SERVER_USER="${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
+BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD:-}"
+BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-}"
+BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC:-45}"
+BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD="${BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD:-4}"
+GUEST_USER="${GUEST_USER:-beagle}"
+GUEST_UID="${GUEST_UID:-$(id -u "$GUEST_USER" 2>/dev/null || echo 1000)}"
 
-repair="\${1:-}"
-api_port=47990
-if [[ -n "\$BEAGLE_STREAM_SERVER_PORT" ]]; then
-  api_port="\$((BEAGLE_STREAM_SERVER_PORT + 1))"
+repair="${1:-}"
+if ! [[ "$BEAGLE_STREAM_SERVER_PORT" =~ ^[0-9]+$ ]]; then
+  BEAGLE_STREAM_SERVER_PORT="50000"
 fi
-rtsp_port=50021
-if [[ -n "\$BEAGLE_STREAM_SERVER_PORT" && "\$BEAGLE_STREAM_SERVER_PORT" =~ ^[0-9]+$ ]]; then
-  rtsp_port="\$((BEAGLE_STREAM_SERVER_PORT + 21))"
-fi
+api_port="$((BEAGLE_STREAM_SERVER_PORT + 1))"
+rtsp_port="$((BEAGLE_STREAM_SERVER_PORT + 21))"
+readiness_failure_file="/run/beagle-stream-server-healthcheck/readiness-failures"
 
 ensure_runtime() {
-  local runtime_dir="/run/user/\${GUEST_UID}"
-  if [[ ! -d "\$runtime_dir" ]]; then
-    loginctl enable-linger "\$GUEST_USER" >/dev/null 2>&1 || true
+  local runtime_dir="/run/user/${GUEST_UID}"
+  if [[ ! -d "$runtime_dir" ]]; then
+    loginctl enable-linger "$GUEST_USER" >/dev/null 2>&1 || true
   fi
 }
 
@@ -1159,57 +1176,117 @@ restart_stack() {
   systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true
 }
 
-ensure_timer() {
-  systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
+reset_readiness_failures() {
+  rm -f "$readiness_failure_file" >/dev/null 2>&1 || true
+}
+
+record_readiness_failure() {
+  local count state_dir
+  state_dir="$(dirname "$readiness_failure_file")"
+  install -d -m 0755 "$state_dir" >/dev/null 2>&1 || true
+  count="$(cat "$readiness_failure_file" 2>/dev/null || echo 0)"
+  [[ "$count" =~ ^[0-9]+$ ]] || count=0
+  count="$((count + 1))"
+  printf '%s\n' "$count" > "$readiness_failure_file"
+  [[ "$count" -ge "$BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD" ]]
+}
+
+beagle_stream_server_is_running() {
+  local main_pid
+  main_pid="$(systemctl show -p MainPID --value beagle-stream-server.service 2>/dev/null || echo 0)"
+  [[ "$main_pid" =~ ^[0-9]+$ && "$main_pid" -gt 0 ]] || return 1
+  kill -0 "$main_pid" 2>/dev/null
+}
+
+service_state() {
+  systemctl is-active beagle-stream-server.service 2>/dev/null || true
+}
+
+service_is_transitioning() {
+  case "$(service_state)" in
+    activating|reloading|deactivating) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+service_uptime_sec() {
+  local main_pid uptime
+  main_pid="$(systemctl show -p MainPID --value beagle-stream-server.service 2>/dev/null || echo 0)"
+  [[ "$main_pid" =~ ^[0-9]+$ && "$main_pid" -gt 0 ]] || { echo 0; return 0; }
+  uptime="$(ps -o etimes= -p "$main_pid" 2>/dev/null | tr -d ' ' || true)"
+  [[ "$uptime" =~ ^[0-9]+$ ]] || uptime=0
+  echo "$uptime"
+}
+
+service_is_warming_up() {
+  [[ "$(service_uptime_sec)" -lt "$BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC" ]]
+}
+
+is_stream_ready() {
+  curl -fsS --connect-timeout 3 --max-time 5 "http://127.0.0.1:${BEAGLE_STREAM_SERVER_PORT}/serverinfo" >/dev/null
 }
 
 is_api_ready() {
-  [[ -n "\$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
-  curl -kfsS --connect-timeout 3 --max-time 5 --user "\${BEAGLE_STREAM_SERVER_USER}:\${BEAGLE_STREAM_SERVER_PASSWORD}" "https://127.0.0.1:\${api_port}/api/apps" >/dev/null # tls-bypass-allowlist: loopback health check against local Beagle Stream Server self-signed API
+  [[ -n "$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
+  curl -kfsS --connect-timeout 3 --max-time 5 --user "${BEAGLE_STREAM_SERVER_USER}:${BEAGLE_STREAM_SERVER_PASSWORD}" "https://127.0.0.1:${api_port}/api/apps" >/dev/null # tls-bypass-allowlist: loopback health check against local Beagle Stream Server self-signed API
 }
 
 has_rtsp_port_conflict() {
   local listeners server_count sunshine_count total_count
 
-  listeners="\$(ss -lntp 2>/dev/null | awk -v p=":\${rtsp_port}" '\$4 ~ p"\$" {print \$0}')"
-  [[ -n "\$listeners" ]] || return 1
+  listeners="$(ss -lntp 2>/dev/null | awk -v p=":${rtsp_port}" '$4 ~ p"$" {print $0}')"
+  [[ -n "$listeners" ]] || return 1
 
-  server_count="\$(pgrep -x beagle-stream-server 2>/dev/null | wc -l | tr -d ' ')"
-  sunshine_count="\$(pgrep -x sunshine 2>/dev/null | wc -l | tr -d ' ')"
-  total_count="\$((\${server_count:-0} + \${sunshine_count:-0}))"
-  if [[ "\${total_count:-0}" -gt 1 ]]; then
+  server_count=0
+  beagle_stream_server_is_running && server_count=1
+  sunshine_count="$(pgrep -x sunshine 2>/dev/null | wc -l | tr -d ' ')"
+  total_count="$((${server_count:-0} + ${sunshine_count:-0}))"
+  if [[ "${total_count:-0}" -gt 1 ]]; then
     return 0
   fi
 
-  if printf '%s\n' "\$listeners" | grep -Eq "sunshine|beagle-stream-server"; then
+  if printf '%s\n' "$listeners" | grep -Eq "sunshine|beagle-stream-server"; then
     return 1
   fi
   return 0
 }
 
-ensure_timer
-
-if [[ "\$repair" == "--repair-only" ]]; then
+if [[ "$repair" == "--repair-only" ]]; then
   restart_stack
   exit 0
 fi
 
-if ! systemctl is-active --quiet beagle-stream-server.service; then
+case "$(service_state)" in
+  active) ;;
+  activating|reloading|deactivating) exit 0 ;;
+  *)
+    restart_stack
+    exit 0
+    ;;
+esac
+
+if ! beagle_stream_server_is_running && ! pgrep -x sunshine >/dev/null 2>&1; then
   restart_stack
   exit 0
 fi
 
-if ! pgrep -x beagle-stream-server >/dev/null 2>&1 && ! pgrep -x sunshine >/dev/null 2>&1; then
-  restart_stack
+if service_is_warming_up; then
+  exit 0
+fi
+
+if is_stream_ready || is_api_ready; then
+  reset_readiness_failures
   exit 0
 fi
 
 if has_rtsp_port_conflict; then
+  reset_readiness_failures
   restart_stack
   exit 0
 fi
 
-if ! is_api_ready; then
+if record_readiness_failure; then
+  reset_readiness_failures
   restart_stack
 fi
 HEALTHCHECK
@@ -1246,41 +1323,79 @@ cat > /usr/local/bin/beagle-stream-server-guardian <<'GUARDIAN'
 set -euo pipefail
 
 ENV_FILE="/etc/beagle/beagle-stream-server-healthcheck.env"
-[[ -r "\$ENV_FILE" ]] || exit 1
+[[ -r "$ENV_FILE" ]] || exit 1
 # shellcheck disable=SC1090
-source "\$ENV_FILE"
+source "$ENV_FILE"
 
-BEAGLE_STREAM_SERVER_USER="\${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
-BEAGLE_STREAM_SERVER_PASSWORD="\${BEAGLE_STREAM_SERVER_PASSWORD:-}"
-BEAGLE_STREAM_SERVER_PORT="\${BEAGLE_STREAM_SERVER_PORT:-50000}"
-BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="\${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"
-BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="\${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"
+BEAGLE_STREAM_SERVER_USER="${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
+BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD:-}"
+BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-50000}"
+BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC:-45}"
+BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"
+BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD:-4}"
+BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"
 
-api_port="\$((BEAGLE_STREAM_SERVER_PORT + 1))"
+if ! [[ "$BEAGLE_STREAM_SERVER_PORT" =~ ^[0-9]+$ ]]; then
+  BEAGLE_STREAM_SERVER_PORT="50000"
+fi
+
+api_port="$((BEAGLE_STREAM_SERVER_PORT + 1))"
 consecutive_failures=0
 
+service_state() {
+  systemctl is-active beagle-stream-server.service 2>/dev/null || true
+}
+
+service_is_transitioning() {
+  case "$(service_state)" in
+    activating|reloading|deactivating) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+service_uptime_sec() {
+  local main_pid uptime
+  main_pid="$(systemctl show -p MainPID --value beagle-stream-server.service 2>/dev/null || echo 0)"
+  [[ "$main_pid" =~ ^[0-9]+$ && "$main_pid" -gt 0 ]] || { echo 0; return 0; }
+  uptime="$(ps -o etimes= -p "$main_pid" 2>/dev/null | tr -d ' ' || true)"
+  [[ "$uptime" =~ ^[0-9]+$ ]] || uptime=0
+  echo "$uptime"
+}
+
+service_is_warming_up() {
+  [[ "$(service_uptime_sec)" -lt "$BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC" ]]
+}
+
+stream_ready() {
+  curl -fsS --connect-timeout 3 --max-time 5 "http://127.0.0.1:${BEAGLE_STREAM_SERVER_PORT}/serverinfo" >/dev/null
+}
+
 api_ready() {
-  [[ -n "\$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
-  curl -kfsS --connect-timeout 3 --max-time 5 --user "\${BEAGLE_STREAM_SERVER_USER}:\${BEAGLE_STREAM_SERVER_PASSWORD}" "https://127.0.0.1:\${api_port}/api/apps" >/dev/null # tls-bypass-allowlist: loopback health check against local Beagle Stream Server self-signed API
+  [[ -n "$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
+  curl -kfsS --connect-timeout 3 --max-time 5 --user "${BEAGLE_STREAM_SERVER_USER}:${BEAGLE_STREAM_SERVER_PASSWORD}" "https://127.0.0.1:${api_port}/api/apps" >/dev/null # tls-bypass-allowlist: loopback health check against local Beagle Stream Server self-signed API
 }
 
 while :; do
   /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1 || true
 
-  if systemctl is-active --quiet beagle-stream-server.service && api_ready; then
+  if [[ "$(service_state)" == "active" ]] && { stream_ready || api_ready; }; then
     consecutive_failures=0
+  elif service_is_transitioning || service_is_warming_up; then
+    :
   else
-    consecutive_failures=\$((consecutive_failures + 1))
-    systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true
+    consecutive_failures=$((consecutive_failures + 1))
+    if [[ "$consecutive_failures" -ge "$BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD" ]]; then
+      systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true
+    fi
 
-    if [[ "\$consecutive_failures" -ge "\$BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD" ]]; then
-      logger -t beagle-stream-server-guardian "stream offline for \${consecutive_failures} checks; rebooting guest"
+    if [[ "$consecutive_failures" -ge "$BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD" ]]; then
+      logger -t beagle-stream-server-guardian "stream offline for ${consecutive_failures} checks; rebooting guest"
       systemctl reboot >/dev/null 2>&1 || /sbin/reboot >/dev/null 2>&1 || true
       sleep 120
     fi
   fi
 
-  sleep "\$BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC"
+  sleep "$BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC"
 done
 GUARDIAN
 chmod 0755 /usr/local/bin/beagle-stream-server-guardian

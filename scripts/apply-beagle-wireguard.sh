@@ -190,9 +190,7 @@ EOF
 write_nat_rules() {
   local uplink
   local bridges=()
-  local bridge_cidrs=()
   local bridge_set=""
-  local bridge_cidr_set=""
   uplink="$(detect_uplink_iface)"
   [[ -n "$uplink" ]] || {
     echo "unable to detect WireGuard uplink interface" >&2
@@ -202,14 +200,9 @@ write_nat_rules() {
   if [[ "${#bridges[@]}" -eq 0 ]]; then
     bridges=("virbr10" "virbr0")
   fi
-  mapfile -t bridge_cidrs < <(detect_vm_bridge_cidrs)
   bridge_set="$(nft_quote_list "${bridges[@]}")"
-  bridge_cidr_set="$(nft_cidr_list "${bridge_cidrs[@]}")"
   install -d -m 0755 "$CONFIG_DIR"
   local bridge_masquerade_rule="ip saddr ${WG_SUBNET} oifname { ${bridge_set} } masquerade"
-  if [[ -n "$bridge_cidr_set" ]]; then
-    bridge_masquerade_rule="ip saddr ${WG_SUBNET} ip daddr != { ${bridge_cidr_set} } oifname { ${bridge_set} } masquerade"
-  fi
   cat >"$WG_NFT_FILE" <<EOF
 table ip ${WG_NFT_TABLE} {
   chain postrouting {

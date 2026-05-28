@@ -20,9 +20,10 @@ HOSTNAME_VALUE="${BEAGLE_OS_HOSTNAME:-beagle-os}"
 RUNTIME_USER="${BEAGLE_OS_USER:-thinclient}"
 IMAGE_SIZE_GB="${BEAGLE_OS_IMAGE_SIZE_GB:-8}"
 JOBS="${BEAGLE_OS_JOBS:-$(nproc)}"
-BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-beagle-6210928-x86_64.AppImage"
+BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage"
 BEAGLE_STREAM_CLIENT_URL="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_URL:-$BEAGLE_STREAM_CLIENT_DEFAULT_URL}"
-BEAGLE_STREAM_CLIENT_SHA256="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_SHA256:-61cdd24b5d44fd967ee80c2b6d5a3b22a3bbf5463f5c66b7d70cfce803b509cf}"
+BEAGLE_STREAM_CLIENT_SHA256="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_SHA256:-}"
+BEAGLE_STREAM_CLIENT_SHA256SUMS_URL="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_SHA256SUMS_URL:-${BEAGLE_STREAM_CLIENT_URL%/*}/SHA256SUMS}"
 BEAGLE_STREAM_CLIENT_HOST="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_HOST:-}"
 BEAGLE_STREAM_CLIENT_PORT="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_PORT:-}"
 BEAGLE_STREAM_CLIENT_APP="${BEAGLE_OS_BEAGLE_STREAM_CLIENT_APP:-Desktop}"
@@ -120,6 +121,28 @@ verify_sha256() {
     echo "Checksum mismatch for ${label}: expected ${expected_sha}, got ${actual_sha}" >&2
     return 1
   fi
+}
+
+resolve_release_sha256() {
+  local sums_url="$1"
+  local asset_url="$2"
+  local sums_file="$3"
+  local asset_name expected_sha
+
+  asset_name="${asset_url##*/}"
+  curl -fL \
+    --retry 8 \
+    --retry-delay 3 \
+    --retry-connrefused \
+    --retry-all-errors \
+    -o "$sums_file" \
+    "$sums_url"
+  expected_sha="$(awk -v asset="$asset_name" '$2 == asset || $2 == "dist/" asset { print $1; exit }' "$sums_file")"
+  if [[ -z "$expected_sha" ]]; then
+    echo "Checksum entry for ${asset_name} missing in ${sums_url}" >&2
+    return 1
+  fi
+  printf '%s\n' "$expected_sha"
 }
 
 install_dependencies() {
@@ -490,6 +513,9 @@ install_beagle_stream_client_into_rootfs() {
     --speed-time 30 \
     -o "$work_dir/BeagleStream.AppImage" \
     "$appimage_url"
+  if [[ -z "$BEAGLE_STREAM_CLIENT_SHA256" ]]; then
+    BEAGLE_STREAM_CLIENT_SHA256="$(resolve_release_sha256 "$BEAGLE_STREAM_CLIENT_SHA256SUMS_URL" "$appimage_url" "$work_dir/SHA256SUMS")"
+  fi
   verify_sha256 "$work_dir/BeagleStream.AppImage" "$BEAGLE_STREAM_CLIENT_SHA256" "beagle-stream-client AppImage"
 
   chmod +x "$work_dir/BeagleStream.AppImage"

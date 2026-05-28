@@ -43,8 +43,9 @@ def test_configure_beagle_stream_server_guest_prefers_beaglestream_server_packag
     assert 'STREAM_RUNTIME_STATUS_FILE="/etc/beagle/stream-runtime.env"' in content
     assert 'write_stream_runtime_status() {' in content
     assert "BEAGLE_STREAM_SERVER_DEFAULT_URL" in content
-    assert "beagle-stream-server-71e32b3-ubuntu-24.04-amd64.deb" in content
-    assert "9209e231f7c26e75d8597e03223d123bd94248b010c69752417023afb664fa27" in content
+    assert "beagle-stream-server-latest-ubuntu-24.04-amd64.deb" in content
+    assert "BEAGLE_STREAM_SERVER_SHA256SUMS_URL" in content
+    assert "Checksum entry for" in content
     assert "BeagleStream server package unavailable" not in content
     assert 'stream_runtime_variant="beagle-stream-server"' in content
     assert 'stream_runtime_variant="beagle-stream-server-fallback"' not in content
@@ -157,6 +158,9 @@ def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_basel
     assert "BEAGLE_STREAM_SERVER_ALLOWED_CIDRS=\"${BEAGLE_STREAM_SERVER_ALLOWED_CIDRS:-10.88.0.0/16}\"" in content
     assert "beagle-stream-client-video-decoder: software" in content
     assert "pgrep -x sunshine" in content
+    assert "beagle_stream_server_is_running()" in content
+    assert "kill -0 \"$main_pid\"" in content
+    assert "pgrep -x beagle-stream-server" not in content
 
 
 def test_configure_beagle_stream_server_guest_installs_uptime_guardian() -> None:
@@ -173,7 +177,33 @@ def test_configure_beagle_stream_server_guest_installs_uptime_guardian() -> None
     on_failure_pos = content.index("OnFailure=beagle-stream-server-healthcheck.service", unit_section_pos)
     assert on_failure_pos < service_section_pos, "OnFailure must appear in [Unit], before [Service]"
     assert "cat > /usr/local/bin/beagle-stream-server-guardian <<'GUARDIAN'" in content
-    assert "stream offline for \\${consecutive_failures} checks; rebooting guest" in content
+    assert 'service_is_transitioning() {' in content
+    assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC:-45}"' in content
+    assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD="${BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD:-4}"' in content
+    assert 'record_readiness_failure() {' in content
+    assert 'service_is_warming_up() {' in content
+    assert 'activating|reloading|deactivating) return 0 ;;' in content
+    assert '"http://127.0.0.1:${BEAGLE_STREAM_SERVER_PORT}/serverinfo"' in content
+    assert 'if is_stream_ready || is_api_ready; then' in content
+    assert 'if record_readiness_failure; then' in content
+    assert 'ensure_timer()' not in content
+    assert 'BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD:-4}"' in content
+    assert 'elif service_is_transitioning || service_is_warming_up; then' in content
+    assert "stream offline for ${consecutive_failures} checks; rebooting guest" in content
     assert "cat > /etc/systemd/system/beagle-stream-server-guardian.service <<'GUARDSVC'" in content
     assert "ExecStart=/usr/local/bin/beagle-stream-server-guardian" in content
     assert "systemctl enable --now beagle-stream-server-guardian.service" in content
+
+
+def test_firstboot_stream_server_healthcheck_avoids_startup_restart_loop() -> None:
+    content = (ROOT_DIR / "beagle-host" / "templates" / "ubuntu-beagle" / "firstboot-provision.sh.tpl").read_text(encoding="utf-8")
+
+    assert 'service_is_transitioning() {' in content
+    assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC:-45}"' in content
+    assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD="${BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD:-4}"' in content
+    assert 'record_readiness_failure() {' in content
+    assert 'service_is_warming_up() {' in content
+    assert 'activating|reloading|deactivating) return 0 ;;' in content
+    assert '"http://127.0.0.1:${BEAGLE_STREAM_SERVER_PORT}/serverinfo"' in content
+    assert 'if is_stream_ready || is_api_ready; then' in content
+    assert 'if record_readiness_failure; then' in content

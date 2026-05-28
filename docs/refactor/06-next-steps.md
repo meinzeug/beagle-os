@@ -1,18 +1,19 @@
 # Next Steps
 
-## Stand (2026-05-27, BeagleStream-Forks gebaut und gepusht)
+## Stand (2026-05-28, BeagleStream latest release wiring und TC tty1-Fix)
 
 **Zuletzt erledigt**:
-- `beagle-stream-client` hat jetzt einen Beagle-Managed-Mode fuer Updatecheck-/WoL-Suppression und strukturierte Stream-Events (`6210928b`, Branch `beagle/phase-a`).
-- `beagle-stream-server` hat eine native `/api/beagle/v1/status`-API und kapselt Pairing-Token-Validierung im Broker-Client (`1418ef35`, Branch `beagle/phase-a`).
-- Beide Forks wurden auf `srv1` gebaut; CMake fuer den Server lief remote und nicht lokal.
-- Die Fork-Release-Assets wurden erzeugt und Beagle-OS pinnt jetzt `BeagleStream-beagle-6210928-x86_64.AppImage` sowie `beagle-stream-server-71e32b3-ubuntu-24.04-amd64.deb` mit SHA256-Pruefung.
+- `beagle-stream-client` wurde auf `9b3a02c2` gepusht; `beagle/phase-a` triggert den Client-Release-Workflow fuer `BeagleStream-latest-x86_64.AppImage`.
+- `beagle-stream-server` wurde auf `1fc8eb08` gepusht; `beagle/phase-a` triggert den Server-Release-Workflow fuer `beagle-stream-server-latest-ubuntu-24.04-amd64.deb`.
+- Beagle OS verwendet jetzt die `latest`-Release-Assets der Forks und verifiziert sie ueber `SHA256SUMS`, wenn kein expliziter SHA override gesetzt ist.
+- TC `192.168.178.30` faellt nach X/Stream-Ende nicht mehr dauerhaft auf tty1 in Bash, sondern startet die Runtime-X11-Session erneut.
 
 **Naechste konkrete Schritte**:
 
-1. Neues Beagle-OS-/Thinclient-Payload-Artefakt aus den gepinnten Fork-Binaries bauen.
-2. Danach frischen TC-/VM100-E2E-Smoke fahren: `/api/beagle/v1/status` statt `/serverinfo` pruefen und `BEAGLE_STREAM_EVENT`-Logs in Manager-/TC-Diagnose uebernehmen.
-3. Wenn der E2E-Smoke gruen ist, die alten `/serverinfo`-/GFE-Kompatibilitaetschecks in den Beagle-Diagnosepfaden weiter zurueckstufen.
+1. GitHub Actions fuer `beagle-stream-client` und `beagle-stream-server` beobachten, bis die neuen `latest`-Assets im Release `beagle-phase-a` verfuegbar sind.
+2. Danach TC `192.168.178.30` aus dem neuen Client-AppImage aktualisieren und VM100 aus dem neuen Server-DEB aktualisieren.
+3. TC-/VM100-E2E-Smoke wiederholen: `PairStatus=1`, `/applist` mit Client-Zertifikat, `Desktop` ohne Lookup-Fehler, laufender Stream-Prozess.
+4. Falls `PairStatus` wieder auf `0` zurueckfaellt, Pairing-Persistenz im Server-Fork statt im Thinclient-Glue fixen.
 
 ## Stable-Release-Strategie (2026-05-25, BeagleStream-Forks statt Hotfix-Glue)
 

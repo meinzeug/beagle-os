@@ -42,7 +42,8 @@ def test_firstboot_prefers_beaglestream_server_package() -> None:
     assert 'write_stream_runtime_status() {' in script
     assert 'BEAGLE_STREAM_SERVER_URL="__BEAGLE_STREAM_SERVER_URL__"' in script
     assert 'BEAGLE_STREAM_SERVER_SHA256="__BEAGLE_STREAM_SERVER_SHA256__"' in script
-    assert '9209e231f7c26e75d8597e03223d123bd94248b010c69752417023afb664fa27' in script
+    assert 'BEAGLE_STREAM_SERVER_SHA256SUMS_URL' in script
+    assert 'Checksum entry for' in script
     assert '-o "$TMPDIR_WORK/beagle-stream-server.deb" \\' in script
     assert '"$BEAGLE_STREAM_SERVER_URL"' in script
     assert 'stream_runtime_variant="beagle-stream-server"' in script

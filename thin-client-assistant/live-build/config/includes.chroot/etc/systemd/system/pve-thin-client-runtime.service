@@ -1,43 +1,20 @@
 [Unit]
-Description=Thinclient Runtime Session
+Description=Thinclient Runtime Session Bootstrap
 Documentation=file:///usr/local/lib/pve-thin-client/README.md
 ConditionKernelCommandLine=pve_thin_client.mode=runtime
 ConditionPathExists=/usr/local/bin/pve-thin-client-start-x11
+ConditionPathExists=/usr/local/lib/pve-thin-client/runtime/runtime_getty_session_owner.sh
 After=local-fs.target systemd-user-sessions.service plymouth-quit-wait.service getty-pre.target network.target pve-thin-client-network-menu.service beagle-thin-client-prepare.service
-Wants=plymouth-quit-wait.service network.target pve-thin-client-network-menu.service beagle-thin-client-prepare.service
-Conflicts=getty@tty1.service
-Before=getty@tty1.service
+Wants=plymouth-quit-wait.service network.target pve-thin-client-network-menu.service beagle-thin-client-prepare.service getty@tty1.service
 
 [Service]
-Type=simple
-User=thinclient
-Group=thinclient
-WorkingDirectory=/home/thinclient
-Environment=HOME=/home/thinclient
-Environment=USER=thinclient
-Environment=LOGNAME=thinclient
-Environment=SHELL=/bin/bash
-Environment=XDG_RUNTIME_DIR=/run/user/1000
-SupplementaryGroups=audio video render input plugdev users netdev tty
-CapabilityBoundingSet=CAP_SYS_NICE CAP_NET_ADMIN
-AmbientCapabilities=CAP_SYS_NICE CAP_NET_ADMIN
-LimitNICE=-15
-LimitRTPRIO=50
-Nice=-10
-CPUWeight=10000
-PAMName=login
-PermissionsStartOnly=yes
-ExecStartPre=/usr/bin/install -d -m 0700 -o thinclient -g thinclient /run/user/1000
-ExecStart=/usr/local/bin/pve-thin-client-start-x11
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/pve-thin-client/runtime/runtime_getty_session_owner.sh
 StandardInput=tty-force
 StandardOutput=journal
 StandardError=journal
 TTYPath=/dev/tty1
-TTYReset=yes
-TTYVHangup=yes
-TTYVTDisallocate=yes
-Restart=always
-RestartSec=2
 
 [Install]
 WantedBy=multi-user.target

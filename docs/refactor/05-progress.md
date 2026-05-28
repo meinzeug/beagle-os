@@ -1,3 +1,24 @@
+## Update (2026-05-28, BeagleStream latest releases and TC tty1 recovery)
+
+**Scope**: BeagleStream Client/Server-Forks sollen bei Aenderungen Release-Artefakte erzeugen; Beagle OS soll die `latest`-Assets der Fork-Releases ziehen. Parallel fiel TC `192.168.178.30` nach einem Stream-Abbruch auf tty1 in eine Bash zurueck.
+
+- **Repo-Fix**:
+  - Beagle OS zieht den Client jetzt standardmaessig aus `BeagleStream-latest-x86_64.AppImage` und den Server aus `beagle-stream-server-latest-ubuntu-24.04-amd64.deb`.
+  - Mutable `latest`-Assets werden nicht blind genutzt: Wenn kein expliziter SHA gesetzt ist, wird `SHA256SUMS` aus demselben Release geladen und der passende Asset-Eintrag verifiziert.
+  - Der TC-Pairing-Wrapper akzeptiert einen beendeten/timeoutenden Client-Pair-Prozess nur dann als Erfolg, wenn der Server danach `PairStatus=1` meldet.
+  - `pve-thin-client-login-shell` startet X11 im Runtime-Modus nach einem X/Stream-Ende erneut, statt auf tty1 dauerhaft in eine Bash zu fallen.
+
+- **Fork-Fix**:
+  - `beagle-stream-client@9b3a02c2`: CLI-Pairing versteckt Token-/Secret-Laengen im UI und beendet `pair` bei Erfolg/Fehler mit Exit-Code, statt im Dialog zu haengen.
+  - `beagle-stream-server@1fc8eb08`: `scripts/linux_build.sh` baut mit `-DBEAGLE_INTEGRATION=ON`.
+
+- **Live-Status**:
+  - TC `192.168.178.30`: tty1-Bash-Fallback live behoben; Xorg, openbox und Runtime-Launcher laufen wieder.
+  - VM100: `Desktop` ist in `apps.json` vorhanden, `PairStatus` war zuletzt noch `0`; Stream-E2E bleibt offen bis das neue Client-Release-AppImage deployed ist bzw. die Pairing-Persistenz gruen ist.
+
+- **Verifikation**:
+  - Lokal: `python3 -m pytest tests/unit/test_beagle_stream_client_pairing_runtime.py tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_apply_beagle_wireguard_script.py tests/unit/test_apply_beagle_firewall_script.py tests/unit/test_configure_beagle_stream_server_guest_regressions.py::test_configure_beagle_stream_server_guest_prefers_beaglestream_server_package tests/unit/test_ubuntu_beagle_firstboot_regressions.py::test_firstboot_prefers_beaglestream_server_package tests/unit/test_installer_prep_stream_runtime.py -q` -> `51 passed`.
+
 ## Update (2026-05-27, Stable/Rolling-Istzustand sichtbar und Downgrade blockiert)
 
 **Scope**: Die Update-UI zeigte bei Stable/Rolling nicht klar, ob der installierte Stand vor oder hinter dem gewaehlten Ziel liegt. Beim Wechsel von Rolling zurueck auf Stable waere der letzte Stable-Tag technisch ein Downgrade-Ziel gewesen.

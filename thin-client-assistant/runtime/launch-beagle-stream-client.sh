@@ -985,7 +985,11 @@ main() {
           if request_beagle_stream_client_pairing_token_via_manager; then
             pairing_token="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN:-}"
             if [[ -n "$pairing_token" ]] && exchange_beagle_stream_client_pairing_token_via_manager "$pairing_token"; then
-              beagle_log_event "beagle-stream-client.pairing-recovered" "attempt=${stream_attempt}/${max_attempts} method=manager-token-exchange"
+              if complete_beagle_stream_client_pairing_handshake; then
+                beagle_log_event "beagle-stream-client.pairing-recovered" "attempt=${stream_attempt}/${max_attempts} method=manager-token-exchange"
+              else
+                beagle_log_event "beagle-stream-client.pairing-recovery-failed" "attempt=${stream_attempt}/${max_attempts} reason=client-certificate-handshake"
+              fi
             elif [[ -n "$pairing_token" ]] && submit_beagle_stream_server_pairing_token; then
               beagle_log_event "beagle-stream-client.pairing-recovered" "attempt=${stream_attempt}/${max_attempts} method=direct-token-submit"
             else

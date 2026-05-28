@@ -1,9 +1,10 @@
 #!/bin/sh
 set -e
 
-BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-beagle-6210928-x86_64.AppImage"
+BEAGLE_STREAM_CLIENT_DEFAULT_URL="https://github.com/meinzeug/beagle-stream-client/releases/download/beagle-phase-a/BeagleStream-latest-x86_64.AppImage"
 BEAGLE_STREAM_CLIENT_URL="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL:-$BEAGLE_STREAM_CLIENT_DEFAULT_URL}"
-BEAGLE_STREAM_CLIENT_SHA256="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_SHA256:-61cdd24b5d44fd967ee80c2b6d5a3b22a3bbf5463f5c66b7d70cfce803b509cf}"
+BEAGLE_STREAM_CLIENT_SHA256="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_SHA256:-}"
+BEAGLE_STREAM_CLIENT_SHA256SUMS_URL="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_SHA256SUMS_URL:-${BEAGLE_STREAM_CLIENT_URL%/*}/SHA256SUMS}"
 WORK_DIR="$(mktemp -d)"
 TARGET_DIR="/opt/beagle-stream-client"
 
@@ -49,6 +50,21 @@ curl -fL \
   --speed-time 30 \
   -o "${WORK_DIR}/BeagleStream.AppImage" \
   "${BEAGLE_STREAM_CLIENT_URL}"
+
+if [ -z "${BEAGLE_STREAM_CLIENT_SHA256}" ]; then
+  curl -fL \
+    --retry 8 \
+    --retry-delay 3 \
+    --retry-connrefused \
+    -o "${WORK_DIR}/SHA256SUMS" \
+    "${BEAGLE_STREAM_CLIENT_SHA256SUMS_URL}"
+  asset_name="${BEAGLE_STREAM_CLIENT_URL##*/}"
+  BEAGLE_STREAM_CLIENT_SHA256="$(awk -v asset="${asset_name}" '$2 == asset || $2 == "dist/" asset { print $1; exit }' "${WORK_DIR}/SHA256SUMS")"
+  if [ -z "${BEAGLE_STREAM_CLIENT_SHA256}" ]; then
+    echo "Checksum entry for ${asset_name} missing in ${BEAGLE_STREAM_CLIENT_SHA256SUMS_URL}" >&2
+    exit 1
+  fi
+fi
 
 if [ -n "${BEAGLE_STREAM_CLIENT_SHA256}" ]; then
   actual_sha="$(sha256sum "${WORK_DIR}/BeagleStream.AppImage" | awk '{print $1}')"

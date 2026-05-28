@@ -20,35 +20,7 @@ beagle_stream_client_pair_log() {
 }
 
 beagle_stream_client_pair_status() {
-  local host port api_url response
-
-  # Try the Sunshine HTTPS API first (/serverinfo returns 404 in beagle-stream-server builds).
-  # A 200 response with apps data means the client is paired; 401 means unpaired.
-  api_url="$(selected_beagle_stream_server_api_url 2>/dev/null || true)"
-  if [[ -n "$api_url" ]]; then
-    response="$(curl -fsS -k --connect-timeout 2 --max-time 5 \
-      "${api_url%/}/api/apps" 2>/dev/null || true)"
-    if [[ -n "$response" ]]; then
-      python3 - "$response" <<'PY'
-import json, sys
-try:
-    d = json.loads(sys.argv[1])
-    status = d.get("status", None)
-    # status=True (or absent/truthy with app data) → paired
-    if status is True or ("apps" in d and status is not False) or ("data" in d and status is not False):
-        print("1")
-        raise SystemExit(0)
-    # status=False → not paired (Unauthorized)
-    print("0")
-    raise SystemExit(0)
-except SystemExit:
-    raise
-except Exception:
-    raise SystemExit(1)
-PY
-      return $?
-    fi
-  fi
+  local host port response
 
   host="$(beagle_stream_client_connect_host)"
   port="$(beagle_stream_client_port)"
@@ -113,6 +85,43 @@ beagle_stream_client_stream_ready() {
   beagle_stream_client_list_ready
 }
 
+complete_beagle_stream_client_pairing_handshake() {
+  local compat_pin target bin log_file pair_rc
+
+  compat_pin="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_COMPAT_PIN:-}"
+  [[ -n "$compat_pin" ]] || return 1
+
+  target="$(beagle_stream_client_target "$(beagle_stream_client_connect_host)" "$(beagle_stream_client_port)")"
+  bin="$(beagle_stream_client_bin)"
+  [[ -n "$target" && -n "$bin" ]] || return 1
+
+  log_file="${BEAGLE_STREAM_CLIENT_PAIR_LOG:-/dev/null}"
+  if declare -F beagle_stream_client_prepare_cli_environment >/dev/null 2>&1; then
+    beagle_stream_client_prepare_cli_environment
+  else
+    export HOME="${HOME:-/home/${PVE_THIN_CLIENT_RUNTIME_USER:-thinclient}}"
+    export DISPLAY="${DISPLAY:-:0}"
+    [[ -n "${XAUTHORITY:-}" || ! -r "${HOME}/.Xauthority" ]] || export XAUTHORITY="${HOME}/.Xauthority"
+    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+    export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
+    unset WAYLAND_DISPLAY 2>/dev/null || true
+  fi
+  pair_rc=0
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 25 "$bin" pair "$target" --pin "$compat_pin" >>"$log_file" 2>&1 || pair_rc="$?"
+  else
+    "$bin" pair "$target" --pin "$compat_pin" >>"$log_file" 2>&1 || pair_rc="$?"
+  fi
+  if [[ "$pair_rc" -eq 0 ]]; then
+    return 0
+  fi
+  if beagle_stream_client_pair_status_ready; then
+    beagle_stream_client_pair_log "beagle-stream client pair command exited rc=${pair_rc} after server marked PairStatus=1"
+    return 0
+  fi
+  return "$pair_rc"
+}
+
 ensure_paired() {
   local bin host port paired_ok attempt target pairing_token retry_sleep connection_method
 
@@ -169,16 +178,15 @@ ensure_paired() {
       register_beagle_stream_client_via_manager >/dev/null 2>&1 || true
     fi
     if exchange_beagle_stream_client_pairing_token_via_manager "$pairing_token"; then
-      # Manager-side exchange succeeded: Sunshine accepted the pairing token.
-      # Trust the exchange result. The secondary pair_status/stream_ready checks
-      # are best-effort only — they can fail legitimately (e.g. broker host not
-      # yet resolved, /serverinfo 404 on beagle-stream-server builds). The token
-      # is consumed after exchange, so we must not retry exchange.
-      paired_ok="1"
       beagle_stream_client_pair_log "pair-exchange accepted via manager"
-      beagle_stream_client_pair_status_ready >/dev/null 2>&1 || true
-      beagle_stream_client_stream_ready >/dev/null 2>&1 || true
-      break
+      if complete_beagle_stream_client_pairing_handshake; then
+        paired_ok="1"
+        beagle_stream_client_pair_log "pairing handshake completed via beagle-stream client"
+        beagle_stream_client_pair_status_ready >/dev/null 2>&1 || true
+        beagle_stream_client_stream_ready >/dev/null 2>&1 || true
+        break
+      fi
+      beagle_stream_client_pair_log "pair-exchange accepted but client certificate handshake failed"
     fi
     beagle_stream_client_pair_log "pair-exchange failed via manager; trying direct submit"
     if submit_beagle_stream_server_pairing_token; then

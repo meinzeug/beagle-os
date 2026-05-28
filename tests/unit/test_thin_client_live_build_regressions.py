@@ -116,7 +116,7 @@ def test_live_runtime_executes_tmpfs_staged_shell_scripts_with_bash() -> None:
     assert 'bash "$SCRIPT_DIR/install-geforcenow.sh" --ensure-only' in launch_gfn_text
 
 
-def test_live_build_does_not_start_legacy_runtime_x_service_by_default() -> None:
+def test_live_build_starts_runtime_session_bootstrap_by_default() -> None:
     hook_text = ENABLE_SERVICES_HOOK.read_text(encoding="utf-8")
     build_thin_client_text = BUILD_THIN_CLIENT.read_text(encoding="utf-8")
     prepare_downloads_text = PREPARE_HOST_DOWNLOADS.read_text(encoding="utf-8")
@@ -124,11 +124,33 @@ def test_live_build_does_not_start_legacy_runtime_x_service_by_default() -> None
     assert "beagle-thin-client-prepare.service" in hook_text
     assert "getty@tty1.service" in hook_text
     assert "ensure_wantedby_symlink /etc/systemd/system/beagle-thin-client-prepare.service multi-user.target" in hook_text
-    assert "pve-thin-client-runtime.service multi-user.target" not in hook_text
-    assert '    pve-thin-client-runtime.service \\' not in build_thin_client_text
-    assert "ensure_rootfs_wants_link pve-thin-client-runtime.service multi-user.target" not in build_thin_client_text
-    assert 'rm -f \\' in prepare_downloads_text
-    assert 'multi-user.target.wants/pve-thin-client-runtime.service"' in prepare_downloads_text
+    assert "ensure_wantedby_symlink /etc/systemd/system/pve-thin-client-runtime.service multi-user.target" in hook_text
+    assert '    pve-thin-client-runtime.service \\' in build_thin_client_text
+    assert "ensure_rootfs_wants_link pve-thin-client-runtime.service multi-user.target" in build_thin_client_text
+    assert 'multi-user.target.wants/pve-thin-client-runtime.service"' not in prepare_downloads_text
+
+
+def test_runtime_service_bootstraps_getty_session_without_owning_x11_tty() -> None:
+    owner_script = ROOT / "thin-client-assistant" / "runtime" / "runtime_getty_session_owner.sh"
+    login_shell = ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "usr" / "local" / "bin" / "pve-thin-client-login-shell"
+    unit = (ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "etc" / "systemd" / "system" / "pve-thin-client-runtime.service").read_text(encoding="utf-8")
+    login_shell_text = login_shell.read_text(encoding="utf-8")
+
+    assert "Description=Thinclient Runtime Session Bootstrap" in unit
+    assert "Type=oneshot" in unit
+    assert "RemainAfterExit=yes" in unit
+    assert "ExecStart=/usr/local/lib/pve-thin-client/runtime/runtime_getty_session_owner.sh" in unit
+    assert "Wants=plymouth-quit-wait.service network.target pve-thin-client-network-menu.service beagle-thin-client-prepare.service getty@tty1.service" in unit
+    assert "Conflicts=getty@tty1.service" not in unit
+    assert "User=thinclient" not in unit
+    assert "ExecStart=/usr/local/bin/pve-thin-client-start-x11" not in unit
+    assert owner_script.exists()
+    assert owner_script.stat().st_mode & 0o111
+    assert '"$SYSTEMCTL_BIN" cat "$GETTY_UNIT"' in owner_script.read_text(encoding="utf-8")
+    assert 'list-unit-files "$GETTY_UNIT"' not in owner_script.read_text(encoding="utf-8")
+    assert 'PVE_THIN_CLIENT_X11_RESTART_ON_EXIT:-1' in login_shell_text
+    assert 'PVE_THIN_CLIENT_X11_RESTART_DELAY:-3' in login_shell_text
+    assert login_shell_text.index('/usr/local/bin/pve-thin-client-start-x11') < login_shell_text.index('exec /bin/bash --login')
 
 
 def test_runtime_scripts_normalize_live_boot_var_local_overlay_paths() -> None:
@@ -273,8 +295,8 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'https://${candidate}:${api_port}' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
     assert '/api/pin' not in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
     manager_registration_text = (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_manager_registration.sh").read_text(encoding="utf-8")
-    assert 'pin-compat' not in manager_registration_text
-    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_COMPAT_PIN' not in manager_registration_text
+    assert 'pin-compat' in manager_registration_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_COMPAT_PIN' in manager_registration_text
     assert 'manager-pin-compat' not in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_MANAGER_REGISTER_TIMEOUT:-45' in manager_registration_text
     assert 'Failed to load application' in launcher_text
@@ -427,8 +449,9 @@ def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:
     build_text = BUILD_THIN_CLIENT.read_text(encoding="utf-8")
 
     assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in build_text
-    assert "BeagleStream-beagle-6210928-x86_64.AppImage" in build_text
-    assert "61cdd24b5d44fd967ee80c2b6d5a3b22a3bbf5463f5c66b7d70cfce803b509cf" in build_text
+    assert "BeagleStream-latest-x86_64.AppImage" in build_text
+    assert "BEAGLE_STREAM_CLIENT_SHA256SUMS_URL" in build_text
+    assert "resolve_release_sha256" in build_text
     assert "validate_beagle_stream_client_bundle" in build_text
     assert "LD_LIBRARY_PATH=\"$appdir/usr/lib" in build_text
     assert "BeagleStream AppImage has unresolved runtime library dependencies" in build_text
@@ -451,13 +474,13 @@ def test_live_and_raw_image_builds_default_to_beaglestream_client() -> None:
     live_hook_text = LIVE_HOOK.read_text(encoding="utf-8")
 
     assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in raw_build_text
-    assert "BeagleStream-beagle-6210928-x86_64.AppImage" in raw_build_text
-    assert "61cdd24b5d44fd967ee80c2b6d5a3b22a3bbf5463f5c66b7d70cfce803b509cf" in raw_build_text
+    assert "BeagleStream-latest-x86_64.AppImage" in raw_build_text
+    assert "BEAGLE_STREAM_CLIENT_SHA256SUMS_URL" in raw_build_text
     assert "BEAGLE_STREAM_CLIENT_FALLBACK_URL" not in raw_build_text
     assert "BeagleStream.AppImage" in raw_build_text
     assert "BEAGLE_STREAM_CLIENT_DEFAULT_URL" in live_hook_text
-    assert "BeagleStream-beagle-6210928-x86_64.AppImage" in live_hook_text
-    assert "61cdd24b5d44fd967ee80c2b6d5a3b22a3bbf5463f5c66b7d70cfce803b509cf" in live_hook_text
+    assert "BeagleStream-latest-x86_64.AppImage" in live_hook_text
+    assert "BEAGLE_STREAM_CLIENT_SHA256SUMS_URL" in live_hook_text
     assert "BEAGLE_STREAM_CLIENT_FALLBACK_URL" not in live_hook_text
     assert "BeagleStream.AppImage" in live_hook_text
     assert 'find "${TARGET_DIR}" -type d -exec chmod 0755 {} +' in live_hook_text
