@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${BEAGLE_STREAM_CLIENT_LAUNCHER_ACTIVE:-0}" == "1" ]]; then
+  logger -t beagle-runtime "phase=beagle-stream-client.reentry-suppressed parent=${PPID:-unknown}" >/dev/null 2>&1 || true
+  exit 0
+fi
+export BEAGLE_STREAM_CLIENT_LAUNCHER_ACTIVE=1
+
 BEAGLE_STREAM_CLIENT_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 if [[ ! -d "$BEAGLE_STREAM_CLIENT_RUNTIME_DIR" ]]; then
   if command -v sudo >/dev/null 2>&1 && [[ -x /usr/local/sbin/beagle-ensure-xdg-runtime-dir ]]; then
@@ -127,23 +133,25 @@ beagle_stream_startup_status_start() {
 
   if browser_bin="$(beagle_stream_startup_browser_bin 2>/dev/null)"; then
     mkdir -p "$BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE" >/dev/null 2>&1 || true
-    "$browser_bin" \
-      --kiosk "file://${BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE}" \
-      --user-data-dir="$BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE" \
-      --allow-file-access-from-files \
-      --window-position=0,0 \
-      --start-fullscreen \
-      --no-first-run \
-      --no-default-browser-check \
-      --noerrdialogs \
-      --disable-infobars \
-      --disable-session-crashed-bubble \
-      --disable-translate \
-      --disable-features=Translate \
-      >/dev/null 2>&1 &
+    (
+      exec 9>&- || true
+      "$browser_bin" \
+        --kiosk "file://${BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE}" \
+        --user-data-dir="$BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE" \
+        --allow-file-access-from-files \
+        --window-position=0,0 \
+        --start-fullscreen \
+        --no-first-run \
+        --no-default-browser-check \
+        --noerrdialogs \
+        --disable-infobars \
+        --disable-session-crashed-bubble \
+        --disable-translate \
+        --disable-features=Translate
+    ) >/dev/null 2>&1 &
     BEAGLE_STREAM_CLIENT_STARTUP_UI_PID="$!"
   elif command -v firefox >/dev/null 2>&1; then
-    firefox --kiosk "file://${BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE}" >/dev/null 2>&1 &
+    (exec 9>&- || true; firefox --kiosk "file://${BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE}") >/dev/null 2>&1 &
     BEAGLE_STREAM_CLIENT_STARTUP_UI_PID="$!"
   elif command -v zenity >/dev/null 2>&1; then
     beagle_stream_startup_status_zenity "$title"
@@ -327,6 +335,16 @@ beagle_stream_startup_status_step() {
   local step="$1" label="$2" detail="${3:-laeuft}"
 
   beagle_stream_startup_status_render "$step" "active" "$label" "$detail"
+  beagle_stream_startup_status_pace
+}
+
+beagle_stream_startup_status_pace() {
+  local pace="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC:-0.35}"
+
+  beagle_stream_startup_status_enabled || return 0
+  [[ -n "${DISPLAY:-}" ]] || return 0
+  [[ "$pace" != "0" && "$pace" != "0.0" ]] || return 0
+  sleep "$pace" 2>/dev/null || true
 }
 
 beagle_stream_startup_status_stop() {
@@ -931,6 +949,7 @@ main() {
   retry_delay="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESTART_DELAY:-3}"
   # Background watchdog: restores wg peer if binary's deactivatePeer() removes it mid-session.
   wg_peer_watchdog() {
+    exec 9>&- || true
     while sleep 8; do
       ensure_wg_peer 2>/dev/null || true
     done
@@ -949,7 +968,7 @@ main() {
     ensure_wg_peer
     stream_start_line="$(wc -l <"$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null || printf '0')"
     stream_forced_restart=0
-    "${args[@]}" >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>&1 &
+    { exec 9>&- || true; "${args[@]}"; } >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>&1 &
     stream_pid=$!
     while kill -0 "$stream_pid" >/dev/null 2>&1; do
       if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eq 'Qt Critical: Connection terminated|Connection terminated|Error code: -1'; then

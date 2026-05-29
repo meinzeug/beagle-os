@@ -1,5 +1,20 @@
 # Next Steps
 
+## Stand (2026-05-29, Stream-Client-/Session-Lifecycle und VM-Guardian abgesichert)
+
+**Zuletzt erledigt**:
+- TC-Launcher-Reentry und Lock-FD-Vererbung wurden im Runtime-Launcher gefixt; Child-Kontexte halten den Launcher-Lock nicht mehr.
+- Startup-Status-Schritte erhalten ein sichtbares pacing, damit die 10 Schritte nicht mehr an Schritt 2 "haengen bleiben".
+- VM-Healthcheck/Guardian starten den Stream-Server nicht mehr nur wegen kurzzeitiger Readiness-Flaps neu, solange der Prozess laeuft.
+- Die gleiche Guardian-Absicherung wurde in den Firstboot-Templatepfad uebernommen und fuer neue Guests aktiviert.
+- Live-Neustart und Hot-Deploy auf TC/VM100 verifiziert; fokussierte Regressionen sind gruen (`45 passed`).
+
+**Naechste konkrete Schritte**:
+
+1. Frischen TC-Bootlauf aus neu gebauttem Payload pruefen und die sichtbare 10-Schritt-Anzeige einmal per Video/Log-Nachweis archivieren.
+2. Neue VM-Erstellung aus dem aktuellen Template fahren und verifizieren, dass `beagle-stream-server-guardian.service` direkt aktiv ist.
+3. Einen laengeren Dauerstream-Smoketest (>=15 Minuten) auf TC/VM100 fahren und auf erneute `Connection terminated`-/Service-Restart-Marker pruefen.
+
 ## Stand (2026-05-28, Fork-Releases jetzt als echte Latest-Releases)
 
 **Zuletzt erledigt**:

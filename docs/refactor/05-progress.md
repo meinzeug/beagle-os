@@ -1,3 +1,26 @@
+## Update (2026-05-29, TC Launcher-Restart + VM100 Stream-Lifecycle reproduzierbar abgesichert)
+
+**Scope**: Wiederkehrende Stream-Abbrueche im TC-/Session-Lifecycle und instabile Ladeanzeige sollten reproduzierbar im Repo gefixt werden, inklusive VM-seitigem Schutz vor Service-Restarts waehrend laufender Streams.
+
+- **Repo-Fix (TC)**:
+  - `thin-client-assistant/runtime/launch-beagle-stream-client.sh` hat jetzt einen Reentry-Guard (`BEAGLE_STREAM_CLIENT_LAUNCHER_ACTIVE`) gegen rekursive Launcher-Starts.
+  - Lock-FD wird vor Child-Prozessen (`browser`, Watchdog, Stream-Exec) geschlossen, damit Child-Kontexte keinen Launcher-Lock erben.
+  - Startup-Status bekommt pacing (`PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC`, Default `0.35s`), damit die 10 Schritte sichtbar fuer User durchlaufen.
+
+- **Repo-Fix (VM100 / neue Guests)**:
+  - `scripts/configure-beagle-stream-server-guest.sh`: Healthcheck startet den Stream-Server nicht neu, wenn der Prozess laeuft und nur Readiness-Probes flappen.
+  - Guardian-Logik toleriert aktiven laufenden MainPID ohne Readiness-Race als sofortigen Failover-Trigger.
+  - `beagle-host/templates/ubuntu-beagle/firstboot-provision.sh.tpl` zieht den gleichen Guard und installiert/aktiviert den Guardian jetzt ebenfalls fuer neue VM-Erstellungen.
+
+- **Live-Hotfix-Verifikation**:
+  - TC `192.168.178.30` Launcher wurde erneut ueber `pve-thin-client-runtime.service` neugestartet; neue Session-Startzeit liegt bei `09:58` (vorher `09:42`).
+  - VM100 `beagle-stream-server-guardian.service` laeuft nach Korrektur wieder `active/running`.
+  - Stream-Log zeigt `first_video_packet`/`first_audio_packet`; keine neuen `Connection terminated`-Marker im aktuellen Lauf.
+
+- **Tests**:
+  - `python3 -m pytest tests/unit/test_configure_beagle_stream_server_guest_regressions.py tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_launch_beagle_stream_client_runtime.py`
+  - Ergebnis: `45 passed`.
+
 ## Update (2026-05-28, Fork-Releases als echte Latest-Releases umgestellt)
 
 **Scope**: `meinzeug/beagle-stream-client` und `meinzeug/beagle-stream-server` sollten nicht mehr nur ein mutable Pre-Release auf `beagle-phase-a` liefern, sondern echte Releases mit `Latest`-Status; parallel sollten die Beagle-OS-Defaults auf den `latest/download`-Kanal zeigen.

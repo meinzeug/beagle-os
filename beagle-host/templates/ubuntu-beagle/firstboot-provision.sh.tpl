@@ -2268,6 +2268,14 @@ if has_rtsp_port_conflict; then
   exit 0
 fi
 
+if beagle_stream_server_is_running; then
+  # Do not restart a live stream-server process solely because readiness probes
+  # flap during an active media/control session. Restart=always still covers
+  # genuine process exits.
+  reset_readiness_failures
+  exit 0
+fi
+
 if record_readiness_failure; then
   reset_readiness_failures
   restart_stack
@@ -2299,6 +2307,106 @@ Unit=beagle-stream-server-healthcheck.service
 
 [Install]
 WantedBy=timers.target
+EOF
+
+  cat > /usr/local/bin/beagle-stream-server-guardian <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+ENV_FILE="/etc/beagle/beagle-stream-server-healthcheck.env"
+[[ -r "$ENV_FILE" ]] || exit 1
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+
+BEAGLE_STREAM_SERVER_USER="${BEAGLE_STREAM_SERVER_USER:-beagle-stream-server}"
+BEAGLE_STREAM_SERVER_PASSWORD="${BEAGLE_STREAM_SERVER_PASSWORD:-}"
+BEAGLE_STREAM_SERVER_PORT="${BEAGLE_STREAM_SERVER_PORT:-50000}"
+BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC:-45}"
+BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC="${BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC:-10}"
+BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD:-4}"
+BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD:-18}"
+
+if ! [[ "$BEAGLE_STREAM_SERVER_PORT" =~ ^[0-9]+$ ]]; then
+  BEAGLE_STREAM_SERVER_PORT="50000"
+fi
+
+api_port="$((BEAGLE_STREAM_SERVER_PORT + 1))"
+consecutive_failures=0
+
+service_state() {
+  systemctl is-active beagle-stream-server.service 2>/dev/null || true
+}
+
+service_is_transitioning() {
+  case "$(service_state)" in
+    activating|reloading|deactivating) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+service_uptime_sec() {
+  local main_pid uptime
+  main_pid="$(systemctl show -p MainPID --value beagle-stream-server.service 2>/dev/null || echo 0)"
+  [[ "$main_pid" =~ ^[0-9]+$ && "$main_pid" -gt 0 ]] || { echo 0; return 0; }
+  uptime="$(ps -o etimes= -p "$main_pid" 2>/dev/null | tr -d ' ' || true)"
+  [[ "$uptime" =~ ^[0-9]+$ ]] || uptime=0
+  echo "$uptime"
+}
+
+service_is_warming_up() {
+  [[ "$(service_uptime_sec)" -lt "$BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC" ]]
+}
+
+stream_ready() {
+  curl -fsS --connect-timeout 3 --max-time 5 "http://127.0.0.1:${BEAGLE_STREAM_SERVER_PORT}/serverinfo" >/dev/null
+}
+
+api_ready() {
+  [[ -n "$BEAGLE_STREAM_SERVER_PASSWORD" ]] || return 1
+  curl -kfsS --connect-timeout 3 --max-time 5 --user "${BEAGLE_STREAM_SERVER_USER}:${BEAGLE_STREAM_SERVER_PASSWORD}" "https://127.0.0.1:${api_port}/api/apps" >/dev/null # tls-bypass-allowlist: loopback health check against local Beagle Stream Server self-signed API
+}
+
+while :; do
+  /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1 || true
+
+  if [[ "$(service_state)" == "active" ]] && { stream_ready || api_ready; }; then
+    consecutive_failures=0
+  elif [[ "$(service_state)" == "active" ]] && main_pid="$(systemctl show -p MainPID --value beagle-stream-server.service 2>/dev/null || echo 0)" && [[ "$main_pid" =~ ^[0-9]+$ && "$main_pid" -gt 0 ]] && kill -0 "$main_pid" 2>/dev/null; then
+    consecutive_failures=0
+  elif service_is_transitioning || service_is_warming_up; then
+    :
+  else
+    consecutive_failures=$((consecutive_failures + 1))
+    if [[ "$consecutive_failures" -ge "$BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD" ]]; then
+      systemctl restart beagle-stream-server.service >/dev/null 2>&1 || true
+    fi
+
+    if [[ "$consecutive_failures" -ge "$BEAGLE_STREAM_SERVER_GUARD_REBOOT_THRESHOLD" ]]; then
+      logger -t beagle-stream-server-guardian "stream offline for ${consecutive_failures} checks; rebooting guest"
+      systemctl reboot >/dev/null 2>&1 || /sbin/reboot >/dev/null 2>&1 || true
+      sleep 120
+    fi
+  fi
+
+  sleep "$BEAGLE_STREAM_SERVER_GUARD_INTERVAL_SEC"
+done
+EOF
+  chmod 0755 /usr/local/bin/beagle-stream-server-guardian
+
+  cat > /etc/systemd/system/beagle-stream-server-guardian.service <<'EOF'
+[Unit]
+Description=Beagle Stream Server Uptime Guardian
+After=network-online.target beagle-stream-server.service
+Wants=network-online.target beagle-stream-server.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/beagle-stream-server-guardian
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
   configure_stream_port_guard() {
@@ -2597,6 +2705,7 @@ EOF
   install_thinclient_microphone_bridge
   systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true
   systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
+  systemctl enable --now beagle-stream-server-guardian.service >/dev/null 2>&1 || true
   systemctl enable beagle-x11vnc.service >/dev/null 2>&1 || true
   if ! wait_for_beagle_stream_server_ready; then
     echo "WARN: Beagle Stream Server did not become ready during firstboot; continuing and leaving repair timer active" >&2

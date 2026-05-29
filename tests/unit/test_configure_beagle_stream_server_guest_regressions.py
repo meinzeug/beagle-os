@@ -188,9 +188,12 @@ def test_configure_beagle_stream_server_guest_installs_uptime_guardian() -> None
     assert 'activating|reloading|deactivating) return 0 ;;' in content
     assert '"http://127.0.0.1:\\${BEAGLE_STREAM_SERVER_PORT}/serverinfo"' in content
     assert 'if is_stream_ready || is_api_ready; then' in content
+    assert 'if beagle_stream_server_is_running; then' in content
+    assert content.index('if beagle_stream_server_is_running; then', content.index('if has_rtsp_port_conflict; then')) < content.index('if record_readiness_failure; then')
     assert 'if record_readiness_failure; then' in content
     assert 'ensure_timer()' not in content
     assert 'BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD="\\${BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD:-4}"' in content
+    assert 'elif [[ "\\$(service_state)" == "active" ]] && main_pid="\\$(systemctl show -p MainPID --value beagle-stream-server.service 2>/dev/null || echo 0)"' in content
     assert 'elif service_is_transitioning || service_is_warming_up; then' in content
     assert "stream offline for \\${consecutive_failures} checks; rebooting guest" in content
     assert "cat > /etc/systemd/system/beagle-stream-server-guardian.service <<'GUARDSVC'" in content
@@ -209,4 +212,11 @@ def test_firstboot_stream_server_healthcheck_avoids_startup_restart_loop() -> No
     assert 'activating|reloading|deactivating) return 0 ;;' in content
     assert '"http://127.0.0.1:${BEAGLE_STREAM_SERVER_PORT}/serverinfo"' in content
     assert 'if is_stream_ready || is_api_ready; then' in content
+    assert 'if beagle_stream_server_is_running; then' in content
+    assert content.index('if beagle_stream_server_is_running; then', content.index('if has_rtsp_port_conflict; then')) < content.index('if record_readiness_failure; then')
     assert 'if record_readiness_failure; then' in content
+    assert "cat > /usr/local/bin/beagle-stream-server-guardian <<'EOF'" in content
+    assert 'BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD:-4}"' in content
+    assert 'elif [[ "$(service_state)" == "active" ]] && main_pid="$(systemctl show -p MainPID --value beagle-stream-server.service 2>/dev/null || echo 0)"' in content
+    assert "cat > /etc/systemd/system/beagle-stream-server-guardian.service <<'EOF'" in content
+    assert "systemctl enable --now beagle-stream-server-guardian.service" in content

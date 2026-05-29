@@ -1313,6 +1313,15 @@ if has_rtsp_port_conflict; then
   exit 0
 fi
 
+if beagle_stream_server_is_running; then
+  # During active streams Sunshine/BeagleStream may temporarily stop answering
+  # HTTP readiness probes while the media/control channels stay healthy. Do not
+  # tear down a live process from the healthcheck path; Restart=always still
+  # covers real process exits.
+  reset_readiness_failures
+  exit 0
+fi
+
 if record_readiness_failure; then
   reset_readiness_failures
   restart_stack
@@ -1407,6 +1416,8 @@ while :; do
   /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1 || true
 
   if [[ "\$(service_state)" == "active" ]] && { stream_ready || api_ready; }; then
+    consecutive_failures=0
+  elif [[ "\$(service_state)" == "active" ]] && main_pid="\$(systemctl show -p MainPID --value beagle-stream-server.service 2>/dev/null || echo 0)" && [[ "\$main_pid" =~ ^[0-9]+\$ && "\$main_pid" -gt 0 ]] && kill -0 "\$main_pid" 2>/dev/null; then
     consecutive_failures=0
   elif service_is_transitioning || service_is_warming_up; then
     :
