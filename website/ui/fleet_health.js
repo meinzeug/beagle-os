@@ -1102,9 +1102,9 @@ export async function renderFleetHealth() {
     container.innerHTML = `
       ${fleetGuidedWorkspace(devices, onlineCount, anomalyCount, maintCount)}
 
-      <section class="section-spaced">
+      <section class="section-spaced fleet-summary-section">
         <h3 style="margin-bottom:12px;">Thin Clients Fleet</h3>
-        <div class="grid auto-grid section-spaced-tight">
+        <div class="fleet-kpi-strip section-spaced-tight">
           <div class="fleet-metric-card">
             <span>Registrierte Thin-Clients</span>
             <strong>${escapeHtml(String(devices.length))}</strong>
