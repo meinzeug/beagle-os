@@ -5306,6 +5306,7 @@ def fleet_http_surface_service() -> FleetHttpSurfaceService:
             mdm_policy_service=mdm_policy_service(),
             fleet_telemetry_service=fleet_telemetry_service(),
             alert_service=alert_service(),
+            list_endpoint_reports=list_endpoint_reports,
             audit_event=audit_log_service().write_event,
             requester_identity=lambda: "",
             service_name="beagle-control-plane",

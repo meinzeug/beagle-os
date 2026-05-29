@@ -30,7 +30,11 @@ HW = {
 }
 
 
-def make_services(tmp_path: Path) -> tuple[DeviceRegistryService, MDMPolicyService, FleetTelemetryService, AlertService, FleetHttpSurfaceService]:
+def make_services(
+    tmp_path: Path,
+    *,
+    endpoint_reports: list[dict[str, object]] | None = None,
+) -> tuple[DeviceRegistryService, MDMPolicyService, FleetTelemetryService, AlertService, FleetHttpSurfaceService]:
     audit_events: list[tuple[str, str, dict[str, object]]] = []
     registry = DeviceRegistryService(
         state_file=tmp_path / "device-registry.json",
@@ -45,6 +49,7 @@ def make_services(tmp_path: Path) -> tuple[DeviceRegistryService, MDMPolicyServi
         mdm_policy_service=mdm,
         fleet_telemetry_service=telemetry,
         alert_service=alerts,
+        list_endpoint_reports=lambda: list(endpoint_reports or []),
         audit_event=lambda event_type, outcome, **details: audit_events.append((event_type, outcome, details)),
         requester_identity=lambda: "admin",
         remediation_state_file=tmp_path / "fleet-remediation.json",
@@ -52,6 +57,34 @@ def make_services(tmp_path: Path) -> tuple[DeviceRegistryService, MDMPolicyServi
         version="test",
     )
     return registry, mdm, telemetry, alerts, service
+
+
+def test_list_devices_prefers_current_endpoint_update_report_over_stale_registry_status(tmp_path: Path) -> None:
+    endpoint_report = {
+        "endpoint_id": "ubuntu-beagle-100-100",
+        "hostname": "ubuntu-beagle-100",
+        "reported_at": "2026-04-28T06:05:00Z",
+        "update": {
+            "state": "current",
+            "current_version": "8.3.4",
+            "latest_version": "8.3.4",
+            "available": False,
+            "pending_reboot": False,
+        },
+    }
+    registry, _, _, _, service = make_services(tmp_path, endpoint_reports=[endpoint_report])
+    registry.register_device("ubuntu-beagle-100-100", "ubuntu-beagle-100", HW)
+    registry.set_update_settings("ubuntu-beagle-100-100", target_os_version="latest", update_status="installing")
+
+    listing = service.route_get("/api/v1/fleet/devices")
+
+    assert listing is not None
+    assert listing["status"] == HTTPStatus.OK
+    device = listing["payload"]["devices"][0]
+    assert device["registry_update_status"] == "installing"
+    assert device["update_status"] == "idle"
+    assert device["target_os_version"] == ""
+    assert device["endpoint_update_report"]["state"] == "current"
 
 
 def test_register_device_and_fetch_detail(tmp_path: Path) -> None:

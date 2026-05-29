@@ -39,6 +39,7 @@ class FleetHttpSurfaceService:
         mdm_policy_service: Any | None = None,
         fleet_telemetry_service: Any | None = None,
         alert_service: Any | None = None,
+        list_endpoint_reports: Callable[[], list[dict[str, Any]]] | None = None,
         audit_event: Callable[..., None] | None = None,
         requester_identity: Callable[[], str] | None = None,
         remediation_state_file: Path | None = None,
@@ -50,6 +51,7 @@ class FleetHttpSurfaceService:
         self._mdm_policy = mdm_policy_service
         self._telemetry = fleet_telemetry_service
         self._alerts = alert_service
+        self._list_endpoint_reports = list_endpoint_reports or (lambda: [])
         self._audit_event = audit_event
         self._requester_identity = requester_identity or (lambda: "")
         self._service_name = str(service_name or "beagle-control-plane")
@@ -328,12 +330,60 @@ class FleetHttpSurfaceService:
             "disk_gb": int(getattr(hardware, "disk_gb", 0) or 0),
         }
 
-    @classmethod
-    def _device_to_dict(cls, device: Any) -> dict[str, Any]:
+    def _endpoint_report_for_device(self, device: Any) -> dict[str, Any]:
+        device_id = str(getattr(device, "device_id", "") or "").strip()
+        hostname = str(getattr(device, "hostname", "") or "").strip()
+        if not device_id and not hostname:
+            return {}
+        try:
+            reports = self._list_endpoint_reports() or []
+        except Exception:
+            return {}
+        candidates: list[dict[str, Any]] = []
+        for report in reports:
+            if not isinstance(report, dict):
+                continue
+            report_endpoint_id = str(report.get("endpoint_id", "") or "").strip()
+            report_hostname = str(report.get("hostname", "") or "").strip()
+            if (device_id and report_endpoint_id == device_id) or (hostname and report_hostname == hostname):
+                candidates.append(report)
+        if not candidates:
+            return {}
+        candidates.sort(key=lambda item: str(item.get("reported_at") or item.get("received_at") or ""), reverse=True)
+        return candidates[0]
+
+    @staticmethod
+    def _endpoint_update_payload(report: dict[str, Any]) -> dict[str, Any]:
+        update = report.get("update") if isinstance(report.get("update"), dict) else {}
+        return update if isinstance(update, dict) else {}
+
+    def _effective_engine_update_status(self, device: Any, report: dict[str, Any]) -> str:
+        registry_status = str(getattr(device, "update_status", "idle") or "idle")
+        update = self._endpoint_update_payload(report)
+        reported_state = str(update.get("state", "") or "").strip()
+        if not reported_state:
+            return registry_status
+        if reported_state == "current":
+            return "idle"
+        return reported_state
+
+    def _effective_target_os_version(self, device: Any, report: dict[str, Any]) -> str:
+        target = str(getattr(device, "target_os_version", "") or "")
+        update = self._endpoint_update_payload(report)
+        reported_state = str(update.get("state", "") or "").strip()
+        latest_version = str(update.get("latest_version", "") or "").strip()
+        current_version = str(update.get("current_version", "") or "").strip()
+        if reported_state == "current" and target.lower() == "latest" and latest_version and current_version == latest_version:
+            return ""
+        return target
+
+    def _device_to_dict(self, device: Any) -> dict[str, Any]:
+        endpoint_report = self._endpoint_report_for_device(device)
+        endpoint_update = self._endpoint_update_payload(endpoint_report)
         return {
             "device_id": str(getattr(device, "device_id", "") or ""),
             "hostname": str(getattr(device, "hostname", "") or ""),
-            "hardware": cls._hardware_to_dict(getattr(device, "hardware", None)),
+            "hardware": self._hardware_to_dict(getattr(device, "hardware", None)),
             "os_version": str(getattr(device, "os_version", "") or ""),
             "enrolled_at": str(getattr(device, "enrolled_at", "") or ""),
             "last_seen": str(getattr(device, "last_seen", "") or ""),
@@ -349,10 +399,12 @@ class FleetHttpSurfaceService:
             "wipe_confirmed_at": str(getattr(device, "wipe_confirmed_at", "") or ""),
             "last_wipe_report": dict(getattr(device, "last_wipe_report", {}) or {}),
             "last_runtime_report": dict(getattr(device, "last_runtime_report", {}) or {}),
+            "endpoint_update_report": dict(endpoint_update),
             "auto_update": bool(getattr(device, "auto_update", True)),
             "update_channel": str(getattr(device, "update_channel", "stable") or "stable"),
-            "target_os_version": str(getattr(device, "target_os_version", "") or ""),
-            "update_status": str(getattr(device, "update_status", "idle") or "idle"),
+            "target_os_version": self._effective_target_os_version(device, endpoint_report),
+            "update_status": self._effective_engine_update_status(device, endpoint_report),
+            "registry_update_status": str(getattr(device, "update_status", "idle") or "idle"),
             "auto_sys_update": bool(getattr(device, "auto_sys_update", False)),
             "sys_update_status": str(getattr(device, "sys_update_status", "idle") or "idle"),
             "target_sys_update": str(getattr(device, "target_sys_update", "") or ""),

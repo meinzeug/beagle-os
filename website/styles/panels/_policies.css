@@ -241,6 +241,32 @@
   border: 1px solid rgba(241, 127, 127, 0.2);
 }
 
+.fleet-group-picker {
+  gap: 6px;
+}
+.fleet-group-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.fleet-group-chip {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.fleet-group-chip:hover,
+.fleet-group-chip.is-selected {
+  border-color: var(--amber);
+  background: var(--amber-glow);
+}
+.fleet-group-chip-new {
+  border-style: dashed;
+}
+
 .modal-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;

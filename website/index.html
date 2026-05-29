@@ -917,7 +917,9 @@
                       <div class="policy-form">
                         <label class="field"><span>Hostname</span><input id="edit-device-hostname" type="text" readonly disabled class="settings-readonly-input"></label>
                         <label class="field"><span>Standort</span><input id="edit-device-location" type="text" autocomplete="off" placeholder="Berlin-Office-1"></label>
-                        <label class="field"><span>Gruppe</span><input id="edit-device-group" type="text" autocomplete="off" placeholder="reception"></label>
+                        <label class="field"><span>Gruppe</span><input id="edit-device-group" type="text" autocomplete="off" list="fleet-device-group-options" placeholder="reception"></label>
+                        <datalist id="fleet-device-group-options"></datalist>
+                        <div class="field field-wide fleet-group-picker" id="edit-device-group-picker" aria-label="Gruppen auswählen oder erstellen"></div>
                         <label class="field field-wide"><span>Notes / Notizen</span><textarea id="edit-device-notes" rows="3" placeholder="Interne Bemerkungen"></textarea></label>
                       </div>
                     </div>

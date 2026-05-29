@@ -76,6 +76,56 @@ function deviceActionButtons(device) {
   return buttons.length ? `<div class="button-row compact-row">${buttons.join('')}</div>` : '<span class="badge tone-muted">-</span>';
 }
 
+function deviceGroups() {
+  return Array.from(new Set((fleetState.devices || [])
+    .map((device) => String(device.group || '').trim())
+    .filter(Boolean)))
+    .sort((left, right) => left.localeCompare(right, 'de'));
+}
+
+function updateDeviceGroupOptions(selectedGroup = '') {
+  const selected = String(selectedGroup || '').trim();
+  const groups = deviceGroups();
+  if (selected && !groups.includes(selected)) {
+    groups.push(selected);
+    groups.sort((left, right) => left.localeCompare(right, 'de'));
+  }
+  const dataList = qs('fleet-device-group-options');
+  if (dataList) {
+    dataList.innerHTML = groups.map((group) => `<option value="${escapeHtml(group)}"></option>`).join('');
+  }
+  const picker = qs('edit-device-group-picker');
+  if (!picker) return;
+  const chips = groups.map((group) => `<button type="button" class="fleet-group-chip${group === selected ? ' is-selected' : ''}" data-device-group-select="${escapeHtml(group)}">${escapeHtml(group)}</button>`).join('');
+  picker.innerHTML = `
+    <span>Bekannte Gruppen</span>
+    <div class="fleet-group-chip-list">
+      ${chips || '<span class="muted">Noch keine Gruppen vorhanden.</span>'}
+      <button type="button" class="fleet-group-chip fleet-group-chip-new" id="create-device-group-btn">+ Gruppe verwenden</button>
+    </div>`;
+  picker.querySelectorAll('[data-device-group-select]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const value = String(button.getAttribute('data-device-group-select') || '').trim();
+      const input = qs('edit-device-group');
+      if (input) input.value = value;
+      updateDeviceGroupOptions(value);
+    });
+  });
+  const createButton = qs('create-device-group-btn');
+  if (createButton) {
+    createButton.addEventListener('click', () => {
+      const input = qs('edit-device-group');
+      const value = String(input?.value || '').trim();
+      if (!value) {
+        fleetHooks.setBanner('Gruppennamen eintragen oder vorhandene Gruppe anklicken.', 'warn');
+        return;
+      }
+      updateDeviceGroupOptions(value);
+      fleetHooks.setBanner(`Gruppe ${value} wird beim Speichern gesetzt.`, 'info');
+    });
+  }
+}
+
 function deviceRow(device, anomalies, maintenance) {
   const deviceId = String(device.device_id ?? '');
   const deviceAnomalies = (anomalies || []).filter((a) => a.device_id === device.device_id);
@@ -1345,6 +1395,7 @@ export async function renderFleetHealth() {
       qs('edit-device-hostname').value = device.hostname || '';
       qs('edit-device-location').value = device.location || '';
       qs('edit-device-group').value = device.group || '';
+      updateDeviceGroupOptions(device.group || '');
       qs('edit-device-notes').value = device.notes || '';
 
       qs('edit-device-auto-update').checked = !!device.auto_update;

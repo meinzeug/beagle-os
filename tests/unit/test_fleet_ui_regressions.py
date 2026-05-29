@@ -108,6 +108,21 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "Keine Geräte erfasst." in js
     assert "Standort / Gruppe" in js
     assert "Lade Fleet-Status" in js
+    assert "function deviceGroups()" in js
+    assert "function updateDeviceGroupOptions" in js
+    assert "data-device-group-select" in js
+    assert "create-device-group-btn" in js
+    assert "Gruppennamen eintragen oder vorhandene Gruppe anklicken." in js
+
+
+def test_thin_client_config_modal_uses_interactive_group_picker() -> None:
+    html = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert 'id="edit-device-group"' in html
+    assert 'list="fleet-device-group-options"' in html
+    assert 'id="fleet-device-group-options"' in html
+    assert 'id="edit-device-group-picker"' in html
+    assert 'fleet-group-picker' in html
 
 
 def test_enterprise_dashboard_modules_use_operator_routes() -> None:
