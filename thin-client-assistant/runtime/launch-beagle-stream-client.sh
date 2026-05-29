@@ -250,6 +250,10 @@ state["updated_at"] = now
 json_path.write_text(json.dumps(state, ensure_ascii=True), encoding="utf-8")
 state_path.write_text(f"Schritt {active_step}/10: {label} - {detail}\n", encoding="utf-8")
 
+reload_interval_sec = 1.0
+if reload_interval_sec < 0.5:
+  reload_interval_sec = 0.5
+
 def icon_for(value):
     return {"ok": "OK", "active": "...", "skip": "SKIP", "warn": "!", "error": "ERR"}.get(value, "--")
 
@@ -325,6 +329,15 @@ async function refreshState() {{
 }}
 render(initialState);
 setInterval(refreshState, 400);
+setInterval(() => {{
+  try {{
+    const current = new URL(window.location.href);
+    current.searchParams.set('ts', String(Date.now()));
+    window.location.replace(current.toString());
+  }} catch (_error) {{
+    window.location.reload();
+  }}
+}}, {int(reload_interval_sec * 1000)});
 </script></body></html>'''
 html_path.write_text(doc, encoding="utf-8")
 PY
@@ -339,13 +352,13 @@ beagle_stream_startup_status_step() {
 }
 
 beagle_stream_startup_status_pace() {
-  local pace_raw="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC:-1.0}"
+  local pace_raw="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC:-0.5}"
   local pace=""
 
   beagle_stream_startup_status_enabled || return 0
 
-  # Keep each visible startup step on screen for at least one second.
-  pace="$(awk -v p="$pace_raw" 'BEGIN { if (p+0 < 1) print 1; else print p+0 }')"
+  # Keep each visible startup step on screen for at least 500ms.
+  pace="$(awk -v p="$pace_raw" 'BEGIN { if (p+0 < 0.5) print 0.5; else print p+0 }')"
   sleep "$pace" 2>/dev/null || true
 }
 
