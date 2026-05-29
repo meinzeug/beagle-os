@@ -890,13 +890,87 @@
                 <div>
                   <span class="eyebrow">Zero Trust</span>
                   <h2>Thin-Client Registry</h2>
-                  <p class="muted-text">Geraete, Policies, Remediation und Wipe-Status ohne Dashboard-Endlosspalte.</p>
+                  <p class="muted-text">Geraete, Policies, Remediation, System- und OS-Updates ohne Dashboard-Endlosspalte.</p>
                 </div>
               </div>
               <div id="fleet-health-panel">
                 <div class="empty-card">Noch keine Geraete geladen.</div>
               </div>
             </article>
+
+            <!-- Modern Modal for individual device editing -->
+            <div class="modal fleet-registry-modal" id="fleet-device-edit-modal" aria-hidden="true" hidden>
+              <div class="modal-dialog fleet-registry-dialog" role="dialog" aria-modal="true" aria-labelledby="fleet-device-edit-title">
+                <div class="modal-dialog-head">
+                  <div>
+                    <span class="eyebrow" id="edit-device-eyebrow">Settings</span>
+                    <h2 id="fleet-device-edit-title">Thin-Client konfigurieren</h2>
+                    <p>Hier koennen Systemdetails, Beagle OS Engine-Versionen und automatische Updates fuer diesen Thin Client verwaltet werden.</p>
+                  </div>
+                  <button class="icon-button" type="button" id="close-device-edit-modal" aria-label="Schliessen">×</button>
+                </div>
+                <div class="fleet-modal-body">
+                  <div class="modal-grid-2">
+                    <!-- Left: Metadata -->
+                    <div class="card compact-card" style="margin:0;">
+                      <h3 style="margin-top:0; font-size:1.05rem;">Allgemeine Einstellungen</h3>
+                      <div class="policy-form">
+                        <label class="field"><span>Hostname</span><input id="edit-device-hostname" type="text" readonly disabled style="opacity: 0.6; cursor: not-allowed;"></label>
+                        <label class="field"><span>Standort</span><input id="edit-device-location" type="text" autocomplete="off" placeholder="Berlin-Office-1"></label>
+                        <label class="field"><span>Gruppe</span><input id="edit-device-group" type="text" autocomplete="off" placeholder="reception"></label>
+                        <label class="field field-wide"><span>Notes / Notizen</span><textarea id="edit-device-notes" rows="3" placeholder="Interne Bemerkungen"></textarea></label>
+                      </div>
+                    </div>
+
+                    <!-- Right: Engine & OS Updates -->
+                    <div class="card compact-card" style="margin:0;">
+                      <h3 style="margin-top:0; font-size:1.05rem;">Updates &amp; Kanäle</h3>
+                      <div class="policy-form">
+                        <!-- 1. Beagle OS Payload Updates -->
+                        <div style="border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px;">
+                          <h4 style="margin:0 0 8px; font-size:0.9rem; color:var(--amber);">Beagle OS Engine Update</h4>
+                          <label class="settings-switch" style="margin-bottom:8px;">
+                            <input type="checkbox" id="edit-device-auto-update">
+                            <span class="settings-switch-track" aria-hidden="true"></span>
+                            <span><strong>Engine Auto-Update</strong><small>Automatische Engine Version-Wechsel</small></span>
+                          </label>
+                          <label class="field"><span>Update-Kanal</span>
+                            <select id="edit-device-update-channel">
+                              <option value="stable">Stable Release</option>
+                              <option value="rolling">Rolling GitHub</option>
+                            </select>
+                          </label>
+                          <div class="modal-grid-2" style="gap:8px; margin-top:8px;">
+                            <input id="edit-device-target-os" type="text" class="fleet-bulk-input" style="width:100%;" placeholder="v8.3.4" title="Ziel-Engine Version">
+                            <button type="button" class="button primary small" id="trigger-device-engine-update">Engine Update starten</button>
+                          </div>
+                        </div>
+
+                        <!-- 2. Apt / System Updates -->
+                        <div>
+                          <h4 style="margin:0 0 8px; font-size:0.9rem; color:var(--amber);">Linux System-Updates (apt)</h4>
+                          <label class="settings-switch" style="margin-bottom:8px;">
+                            <input type="checkbox" id="edit-device-auto-sys-update">
+                            <span class="settings-switch-track" aria-hidden="true"></span>
+                            <span><strong>System Auto-Update</strong><small>Systempakete (apt) automatisch im Wartungsfenster</small></span>
+                          </label>
+                          <div class="modal-grid-2" style="gap:8px; margin-top:8px;">
+                            <select id="edit-device-target-sys-update" class="fleet-bulk-select" style="width:100%;">
+                              <option value="all">Alle Updates (all)</option>
+                              <option value="security">Nur Sicherheitsupdates</option>
+                            </select>
+                            <button type="button" class="button primary small" id="trigger-device-sys-update">System-Updates starten</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="button-row compact-row section-spaced-tight" style="justify-content: flex-end; margin-top: 14px;">
+                    <button type="button" class="button ghost" id="save-device-settings-btn">Aenderungen speichern</button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
 
           <!-- ============ SCHEDULER ============ -->

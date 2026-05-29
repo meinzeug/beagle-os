@@ -49,6 +49,13 @@ class Device:
     last_runtime_report: dict[str, Any] = field(default_factory=dict)
     pending_stream_profile: dict[str, Any] = field(default_factory=dict)
     stream_profile_updated_at: str = ""
+    auto_update: bool = True               # Beagle OS Update
+    update_channel: str = "stable"
+    target_os_version: str = ""
+    update_status: str = "idle"
+    auto_sys_update: bool = False          # System-Updates (apt)
+    sys_update_status: str = "idle"        # System update status
+    target_sys_update: str = ""
 
 
 def device_hardware_from_dict(d: dict[str, Any]) -> DeviceHardware:
@@ -84,6 +91,13 @@ def device_from_dict(d: dict[str, Any]) -> Device:
         last_runtime_report=d.get("last_runtime_report", {}) if isinstance(d.get("last_runtime_report", {}), dict) else {},
         pending_stream_profile=d.get("pending_stream_profile", {}) if isinstance(d.get("pending_stream_profile", {}), dict) else {},
         stream_profile_updated_at=d.get("stream_profile_updated_at", ""),
+        auto_update=bool(d.get("auto_update", True)),
+        update_channel=str(d.get("update_channel", "stable") or "stable"),
+        target_os_version=str(d.get("target_os_version", "") or ""),
+        update_status=str(d.get("update_status", "idle") or "idle"),
+        auto_sys_update=bool(d.get("auto_sys_update", False)),
+        sys_update_status=str(d.get("sys_update_status", "idle") or "idle"),
+        target_sys_update=str(d.get("target_sys_update", "") or ""),
     )
 
 
@@ -277,6 +291,36 @@ class DeviceRegistryService:
     def unlock_device(self, device_id: str) -> Device:
         dev = self._require(device_id)
         dev["status"] = "offline"
+        self._save()
+        return device_from_dict(dev)
+
+    def set_update_settings(
+        self,
+        device_id: str,
+        *,
+        auto_update: bool | None = None,
+        update_channel: str | None = None,
+        target_os_version: str | None = None,
+        update_status: str | None = None,
+        auto_sys_update: bool | None = None,
+        sys_update_status: str | None = None,
+        target_sys_update: str | None = None,
+    ) -> Device:
+        dev = self._require(device_id)
+        if auto_update is not None:
+            dev["auto_update"] = bool(auto_update)
+        if update_channel is not None:
+            dev["update_channel"] = str(update_channel)
+        if target_os_version is not None:
+            dev["target_os_version"] = str(target_os_version)
+        if update_status is not None:
+            dev["update_status"] = str(update_status)
+        if auto_sys_update is not None:
+            dev["auto_sys_update"] = bool(auto_sys_update)
+        if sys_update_status is not None:
+            dev["sys_update_status"] = str(sys_update_status)
+        if target_sys_update is not None:
+            dev["target_sys_update"] = str(target_sys_update)
         self._save()
         return device_from_dict(dev)
 

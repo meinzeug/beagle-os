@@ -349,6 +349,13 @@ class FleetHttpSurfaceService:
             "wipe_confirmed_at": str(getattr(device, "wipe_confirmed_at", "") or ""),
             "last_wipe_report": dict(getattr(device, "last_wipe_report", {}) or {}),
             "last_runtime_report": dict(getattr(device, "last_runtime_report", {}) or {}),
+            "auto_update": bool(getattr(device, "auto_update", True)),
+            "update_channel": str(getattr(device, "update_channel", "stable") or "stable"),
+            "target_os_version": str(getattr(device, "target_os_version", "") or ""),
+            "update_status": str(getattr(device, "update_status", "idle") or "idle"),
+            "auto_sys_update": bool(getattr(device, "auto_sys_update", False)),
+            "sys_update_status": str(getattr(device, "sys_update_status", "idle") or "idle"),
+            "target_sys_update": str(getattr(device, "target_sys_update", "") or ""),
         }
 
     def handles_get(self, path: str) -> bool:
@@ -738,7 +745,11 @@ class FleetHttpSurfaceService:
             action = str(payload.get("action") or "").strip().lower()
             target_ids = payload.get("target_ids")
             value = str(payload.get("value") or "").strip()
-            if action not in {"lock", "unlock", "wipe", "set-group", "set-location"}:
+            if action not in {
+                "lock", "unlock", "wipe", "set-group", "set-location",
+                "install-update", "set-auto-update", "set-update-channel",
+                "install-sys-update", "set-auto-sys-update"
+            }:
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "unsupported bulk action"})
             if not isinstance(target_ids, list):
                 return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "target_ids list required"})
@@ -759,8 +770,18 @@ class FleetHttpSurfaceService:
                         device = self._registry.wipe_device(device_id)
                     elif action == "set-group":
                         device = self._registry.set_group(device_id, value)
-                    else:
+                    elif action == "set-location":
                         device = self._registry.set_location(device_id, value)
+                    elif action == "install-update":
+                        device = self._registry.set_update_settings(device_id, target_os_version=value or "latest", update_status="installing")
+                    elif action == "set-auto-update":
+                        device = self._registry.set_update_settings(device_id, auto_update=(value.lower() in {"true", "1", "yes"}))
+                    elif action == "set-update-channel":
+                        device = self._registry.set_update_settings(device_id, update_channel=value)
+                    elif action == "install-sys-update":
+                        device = self._registry.set_update_settings(device_id, target_sys_update=value or "all", sys_update_status="installing")
+                    elif action == "set-auto-sys-update":
+                        device = self._registry.set_update_settings(device_id, auto_sys_update=(value.lower() in {"true", "1", "yes"}))
                     affected.append(self._device_to_dict(device))
                 except KeyError:
                     failed.append({"device_id": device_id, "error": "device not found"})
@@ -909,6 +930,17 @@ class FleetHttpSurfaceService:
                 raw["notes"] = str(payload.get("notes") or "").strip()
                 self._registry._save()
                 device = self._registry.get_device(device_id)
+            if "auto_update" in payload or "update_channel" in payload or "target_os_version" in payload or "update_status" in payload or "auto_sys_update" in payload or "sys_update_status" in payload or "target_sys_update" in payload:
+                device = self._registry.set_update_settings(
+                    device_id,
+                    auto_update=payload.get("auto_update") if "auto_update" in payload else None,
+                    update_channel=str(payload["update_channel"]).strip() if "update_channel" in payload else None,
+                    target_os_version=str(payload["target_os_version"]).strip() if "target_os_version" in payload else None,
+                    update_status=str(payload["update_status"]).strip() if "update_status" in payload else None,
+                    auto_sys_update=payload.get("auto_sys_update") if "auto_sys_update" in payload else None,
+                    sys_update_status=str(payload["sys_update_status"]).strip() if "sys_update_status" in payload else None,
+                    target_sys_update=str(payload["target_sys_update"]).strip() if "target_sys_update" in payload else None,
+                )
             if device is None:
                 return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
         except KeyError:

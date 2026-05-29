@@ -191,3 +191,25 @@ def test_update_runtime_report_persists_report(tmp_path):
     reloaded = make_svc(tmp_path).get_device("dev-001")
     assert reloaded is not None
     assert reloaded.last_runtime_report == report
+
+
+def test_device_registry_update_settings_and_system_updates(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.register_device("dev-001", "tc-001", HW)
+    updated = svc.set_update_settings(
+        "dev-001",
+        auto_update=False,
+        update_channel="rolling",
+        target_os_version="v8.3.4",
+        update_status="installing",
+        auto_sys_update=True,
+        sys_update_status="idle",
+        target_sys_update="security",
+    )
+    assert updated.auto_update is False
+    assert updated.update_channel == "rolling"
+    assert updated.target_os_version == "v8.3.4"
+    assert updated.update_status == "installing"
+    assert updated.auto_sys_update is True
+    assert updated.sys_update_status == "idle"
+    assert updated.target_sys_update == "security"

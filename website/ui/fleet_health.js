@@ -63,9 +63,10 @@ function deviceActionButtons(device) {
   const deviceId = String(device.device_id ?? '');
   const status = String(device.status ?? '').trim().toLowerCase();
   const buttons = [];
-  buttons.push(actionButton('Policy', 'policy-select', 'primary', deviceId));
+  buttons.push(`<button type="button" class="btn btn-primary" data-custom-device-edit="${escapeHtml(deviceId)}">Konfigurieren</button>`);
+  buttons.push(actionButton('Policy', 'policy-select', 'ghost', deviceId));
   if (status === 'locked') {
-    buttons.push(actionButton('Entsperren', 'unlock', 'primary', deviceId));
+    buttons.push(actionButton('Entsperren', 'unlock', 'ghost', deviceId));
   } else if (status !== 'wiped') {
     buttons.push(actionButton('Sperren', 'lock', 'ghost', deviceId));
   }
@@ -76,24 +77,50 @@ function deviceActionButtons(device) {
 }
 
 function deviceRow(device, anomalies, maintenance) {
+  const deviceId = String(device.device_id ?? '');
   const deviceAnomalies = (anomalies || []).filter((a) => a.device_id === device.device_id);
   const mEntry = (maintenance || []).find((m) => m.device_id === device.device_id);
   const hardware = device.hardware && typeof device.hardware === 'object' ? device.hardware : {};
   const hardwareSummary = [
     hardware.cpu_model ? String(hardware.cpu_model) : '',
-    hardware.ram_gb ? String(hardware.ram_gb) + ' GB RAM' : '',
-    hardware.gpu_model ? String(hardware.gpu_model) : ''
+    hardware.ram_gb ? String(hardware.ram_gb) + ' GB' : '',
   ].filter(Boolean).join(' / ');
+
+  const currentStatus = String(device.status ?? 'offline').trim();
+  const statusHtml = `<span class="device-status-badge ${escapeHtml(currentStatus)}">
+    <span class="status-indicator"></span> ${escapeHtml(currentStatus.toUpperCase())}
+  </span>`;
+
+  // Beagle OS update info & Apt info
+  const systemAutoUpdateHtml = device.auto_sys_update
+    ? '<span class="tc-auto-update-chip active">Apt Auto</span>'
+    : '<span class="tc-auto-update-chip inactive">Apt Manual</span>';
+  const osAutoUpdateHtml = device.auto_update
+    ? '<span class="tc-auto-update-chip active">Engine Auto</span>'
+    : '<span class="tc-auto-update-chip inactive">Engine Manual</span>';
+
+  const updateInfoHtml = `
+    <div style="display:flex; flex-direction:column; gap:4px;">
+      <div><span class="tc-version-badge">OS: ${escapeHtml(device.os_version || 'n/a')}</span> <span class="badge tone-info">${escapeHtml(device.update_channel || 'stable')}</span></div>
+      <div style="font-size:0.75rem; color:var(--text-muted);">
+        Apt: ${escapeHtml(device.sys_update_status || 'idle')} | Engine: ${escapeHtml(device.update_status || 'idle')}
+      </div>
+      <div style="display:flex; gap:4px; margin-top:2px;">
+        ${osAutoUpdateHtml} ${systemAutoUpdateHtml}
+      </div>
+    </div>
+  `;
+
   return `<tr>
-    <td>${escapeHtml(device.device_id ?? '-')}</td>
+    <td class="table-checkbox-col"><input type="checkbox" class="fleet-row-checkbox" value="${escapeHtml(deviceId)}"></td>
+    <td><strong>${escapeHtml(device.device_id ?? '-')}</strong></td>
     <td>${escapeHtml(device.hostname ?? '-')}</td>
-    <td>${escapeHtml(device.status ?? '-')}</td>
-    <td>${escapeHtml(device.location ?? device.group ?? '-')}</td>
-    <td>${escapeHtml(hardwareSummary || '-')}</td>
+    <td>${statusHtml}</td>
+    <td>${escapeHtml(device.location || 'n/a')} / <span class="badge tone-muted">${escapeHtml(device.group || 'n/a')}</span></td>
+    <td><small>${escapeHtml(hardwareSummary || '-')}</small></td>
     <td>${policyBadge(device)}</td>
     <td>${escapeHtml(formatDate(device.last_seen ?? ''))}</td>
-    <td>${anomalyBadges(deviceAnomalies)}</td>
-    <td>${mEntry ? maintenanceLabel(mEntry) : '-'}</td>
+    <td>${updateInfoHtml}</td>
     <td>${deviceActionButtons(device)}</td>
   </tr>`;
 }
@@ -964,25 +991,68 @@ export async function renderFleetHealth() {
       ${predictiveAlertsMarkup(anomalies)}
       ${remediationDriftMarkup()}
       ${locationTreeSection()}
-      <div class="button-row compact-row section-spaced-tight">
-        ${chip(String(devices.length) + ' Geraete', devices.length ? 'info' : 'muted')}
-        ${chip('online ' + String(onlineCount), onlineCount ? 'ok' : 'muted')}
-        ${chip(String(anomalyCount) + ' Anomalien', anomalyCount > 0 ? 'warn' : 'ok')}
-        ${chip(String(maintCount) + ' Wartungen', maintCount > 0 ? 'warn' : 'muted')}
+      
+      <!-- Modernized Fleet Header & Statistics grid -->
+      <section class="section-spaced">
+        <h3 style="margin-bottom:12px;">Thin Clients Fleet</h3>
+        <div class="grid auto-grid section-spaced-tight">
+          <div class="fleet-metric-card">
+            <span>Registrierte Thin-Clients</span>
+            <strong>${escapeHtml(String(devices.length))}</strong>
+          </div>
+          <div class="fleet-metric-card">
+            <span>Geräte Online</span>
+            <strong style="color: #1fc17f;">${escapeHtml(String(onlineCount))}</strong>
+          </div>
+          <div class="fleet-metric-card">
+            <span>Anomale Zustände</span>
+            <strong style="color: ${anomalyCount > 0 ? '#f17f7f' : '#1fc17f'};">${escapeHtml(String(anomalyCount))}</strong>
+          </div>
+          <div class="fleet-metric-card">
+            <span>Wartungen geplatzt/offen</span>
+            <strong style="color: ${maintCount > 0 ? '#f7b955' : 'var(--text-muted)'};">${escapeHtml(String(maintCount))}</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bulk action toolbar -->
+      <div class="fleet-bulk-bar" id="fleet-mass-toolbar">
+        <div class="fleet-bulk-controls">
+          <span class="fleet-bulk-label" id="fleet-bulk-selection-count">0 Geräte deselektiert</span>
+          
+          <select id="fleet-mass-action-type" class="fleet-bulk-select">
+            <option value="">Aktion wählen...</option>
+            <option value="set-group">Gruppe setzen</option>
+            <option value="set-location">Standort setzen</option>
+            <option value="set-update-channel">Beagle OS Update-Kanal festlegen</option>
+            <option value="install-update">Beagle OS Engine Update einspielen</option>
+            <option value="set-auto-update">Beagle OS Engine Auto-Update umschalten</option>
+            <option value="install-sys-update">System-Updates (apt) starten</option>
+            <option value="set-auto-sys-update">System Auto-Update (apt) umschalten</option>
+            <option value="lock">Geräte sperren (Lock)</option>
+            <option value="unlock">Geräte entsperren</option>
+          </select>
+
+          <input type="text" id="fleet-mass-action-value" class="fleet-bulk-input" placeholder="Wert..." title="Wert für die Bulk Aktion">
+
+          <button type="button" class="button primary" id="execute-fleet-mass-action">Bulk ausführen</button>
+        </div>
+        <button type="button" class="button ghost small" id="clear-fleet-selection">Abbrechen</button>
       </div>
+
       <div class="table-wrap compact">
       <table class="vm-table compact-table">
         <thead>
           <tr>
-            <th>Gerät</th>
+            <th class="table-checkbox-col"><input type="checkbox" id="fleet-select-all-checkbox"></th>
+            <th>Geräte ID</th>
             <th>Hostname</th>
             <th>Status</th>
             <th>Standort / Gruppe</th>
-            <th>Hardware</th>
-            <th>Policy</th>
-            <th>Last Seen</th>
-            <th>Anomalien</th>
-            <th>Wartung</th>
+            <th>CPU / RAM</th>
+            <th>MDM Policy</th>
+            <th>Letzter Heartbeat</th>
+            <th>Update-Zustand &amp; Modi</th>
             <th>Aktionen</th>
           </tr>
         </thead>
@@ -1100,6 +1170,225 @@ export async function renderFleetHealth() {
       }
     });
   });
+
+  // Modal Setup
+  const deviceEditModal = qs('fleet-device-edit-modal');
+  let currentEditingDeviceId = null;
+
+  const closeEditModalFn = () => {
+    if (deviceEditModal) {
+      deviceEditModal.hidden = true;
+      deviceEditModal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+    }
+  };
+
+  const closeButton = qs('close-device-edit-modal');
+  if (closeButton) {
+    closeButton.onclick = closeEditModalFn;
+  }
+
+  container.querySelectorAll('[data-custom-device-edit]').forEach((item) => {
+    item.addEventListener('click', () => {
+      const deviceId = item.getAttribute('data-custom-device-edit');
+      const device = fleetState.devices.find((d) => d.device_id === deviceId);
+      if (!device) return;
+
+      currentEditingDeviceId = deviceId;
+      qs('edit-device-eyebrow').textContent = `ID: ${deviceId}`;
+      qs('edit-device-hostname').value = device.hostname || '';
+      qs('edit-device-location').value = device.location || '';
+      qs('edit-device-group').value = device.group || '';
+      qs('edit-device-notes').value = device.notes || '';
+
+      qs('edit-device-auto-update').checked = !!device.auto_update;
+      qs('edit-device-update-channel').value = device.update_channel || 'stable';
+      qs('edit-device-target-os').value = device.target_os_version || '';
+      
+      qs('edit-device-auto-sys-update').checked = !!device.auto_sys_update;
+      qs('edit-device-target-sys-update').value = device.target_sys_update || 'all';
+
+      if (deviceEditModal) {
+        deviceEditModal.hidden = false;
+        deviceEditModal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+      }
+    });
+  });
+
+  const saveDeviceSettingsBtn = qs('save-device-settings-btn');
+  if (saveDeviceSettingsBtn) {
+    saveDeviceSettingsBtn.onclick = async () => {
+      if (!currentEditingDeviceId) return;
+      try {
+        const payload = {
+          location: qs('edit-device-location').value.trim(),
+          group: qs('edit-device-group').value.trim(),
+          notes: qs('edit-device-notes').value.trim(),
+          auto_update: qs('edit-device-auto-update').checked,
+          update_channel: qs('edit-device-update-channel').value,
+          target_os_version: qs('edit-device-target-os').value.trim(),
+          auto_sys_update: qs('edit-device-auto-sys-update').checked,
+          target_sys_update: qs('edit-device-target-sys-update').value,
+        };
+
+        await request(`/fleet/devices/${encodeURIComponent(currentEditingDeviceId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        fleetHooks.setBanner('Geräteeinstellungen erfolgreich gespeichert.', 'ok');
+        closeEditModalFn();
+        await fleetHooks.loadDashboard({ force: true });
+      } catch (err) {
+        fleetHooks.setBanner('Speichern fehlgeschlagen: ' + String(err.message ?? err), 'warn');
+      }
+    };
+  }
+
+  const triggerEngineUpdateBtn = qs('trigger-device-engine-update');
+  if (triggerEngineUpdateBtn) {
+    triggerEngineUpdateBtn.onclick = async () => {
+      if (!currentEditingDeviceId) return;
+      try {
+        const targetVer = qs('edit-device-target-os').value.trim() || 'latest';
+        await request(`/fleet/devices/${encodeURIComponent(currentEditingDeviceId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target_os_version: targetVer,
+            update_status: 'installing'
+          })
+        });
+        fleetHooks.setBanner('Beagle OS Engine Update-Installation angestoßen.', 'ok');
+        closeEditModalFn();
+        await fleetHooks.loadDashboard({ force: true });
+      } catch (err) {
+        fleetHooks.setBanner('Engine-Update Trigger fehlgeschlagen: ' + String(err.message ?? err), 'warn');
+      }
+    };
+  }
+
+  const triggerSysUpdateBtn = qs('trigger-device-sys-update');
+  if (triggerSysUpdateBtn) {
+    triggerSysUpdateBtn.onclick = async () => {
+      if (!currentEditingDeviceId) return;
+      try {
+        const targetSys = qs('edit-device-target-sys-update').value;
+        await request(`/fleet/devices/${encodeURIComponent(currentEditingDeviceId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target_sys_update: targetSys,
+            sys_update_status: 'installing'
+          })
+        });
+        fleetHooks.setBanner('System-Updates (apt) Installation angestoßen.', 'ok');
+        closeEditModalFn();
+        await fleetHooks.loadDashboard({ force: true });
+      } catch (err) {
+        fleetHooks.setBanner('System-Update Trigger fehlgeschlagen: ' + String(err.message ?? err), 'warn');
+      }
+    };
+  }
+
+  // Multi-Selection Tracking logic
+  const selectAllCheckbox = qs('fleet-select-all-checkbox');
+  const massToolbar = qs('fleet-mass-toolbar');
+  const bulkCountSpan = qs('fleet-bulk-selection-count');
+  
+  const getSelectedDeviceIds = () => {
+    return Array.from(container.querySelectorAll('.fleet-row-checkbox:checked')).map(cb => cb.value);
+  };
+
+  const updateBulkBarVisibility = () => {
+    const selected = getSelectedDeviceIds();
+    if (selected.length > 0) {
+      if (massToolbar) massToolbar.classList.add('is-active');
+      if (bulkCountSpan) bulkCountSpan.textContent = `${selected.length} Geräte ausgewählt`;
+    } else {
+      if (massToolbar) massToolbar.classList.remove('is-active');
+    }
+  };
+
+  if (selectAllCheckbox) {
+    selectAllCheckbox.onchange = () => {
+      container.querySelectorAll('.fleet-row-checkbox').forEach(cb => {
+        cb.checked = selectAllCheckbox.checked;
+      });
+      updateBulkBarVisibility();
+    };
+  }
+
+  container.querySelectorAll('.fleet-row-checkbox').forEach(cb => {
+    cb.onchange = () => {
+      if (!cb.checked && selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+      }
+      updateBulkBarVisibility();
+    };
+  });
+
+  const clearSelectionBtn = qs('clear-fleet-selection');
+  if (clearSelectionBtn) {
+    clearSelectionBtn.onclick = () => {
+      container.querySelectorAll('.fleet-row-checkbox').forEach(cb => cb.checked = false);
+      if (selectAllCheckbox) selectAllCheckbox.checked = false;
+      updateBulkBarVisibility();
+    };
+  }
+
+  const executeBulkBtn = qs('execute-fleet-mass-action');
+  if (executeBulkBtn) {
+    executeBulkBtn.onclick = async () => {
+      const selectedIds = getSelectedDeviceIds();
+      if (selectedIds.length === 0) return;
+      const type = qs('fleet-mass-action-type').value;
+      if (!type) {
+        fleetHooks.setBanner('Bitte wähle eine Bulk-Aktion aus.', 'warn');
+        return;
+      }
+      const val = qs('fleet-mass-action-value').value.trim();
+
+      const confirmed = await fleetHooks.requestConfirm({
+        title: 'Massenaktion ausführen',
+        message: `${selectedIds.length} Thin-Clients wirklich massenhaft aktualisieren/konfigurieren?`,
+        confirmLabel: 'Absenden'
+      });
+      if (!confirmed) return;
+
+      try {
+        let action = type;
+        let finalVal = val;
+        if (type === 'install-update') {
+          finalVal = val || 'latest';
+        } else if (type === 'install-sys-update') {
+          finalVal = val || 'all';
+        } else if (type === 'set-auto-update' || type === 'set-auto-sys-update') {
+          finalVal = (val.toLowerCase() in { 'true': 1, 'yes': 1, '1': 1, 'ein': 1, 'on': 1, 'active': 1 }) ? 'true' : 'false';
+        }
+
+        await request('/fleet/devices/actions/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: action,
+            target_ids: selectedIds,
+            value: finalVal
+          })
+        });
+
+        fleetHooks.setBanner('Massenaktion erfolgreich an Backend gesendet.', 'ok');
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
+        container.querySelectorAll('.fleet-row-checkbox').forEach(cb => cb.checked = false);
+        updateBulkBarVisibility();
+        await fleetHooks.loadDashboard({ force: true });
+      } catch (err) {
+        fleetHooks.setBanner('Massenaktion fehlgeschlagen: ' + String(err.message ?? err), 'warn');
+      }
+    };
+  }
 
   container.querySelectorAll('[data-fleet-alert-action]').forEach((item) => {
     item.addEventListener('click', async () => {

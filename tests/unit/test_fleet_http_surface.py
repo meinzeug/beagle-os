@@ -457,6 +457,60 @@ def test_fleet_anomalies_and_maintenance_routes_return_telemetry_data(tmp_path: 
     assert maintenance["payload"]["maintenance"][0]["device_id"] == "dev-001"
 
 
+def test_fleet_system_updates_and_auto_updates(tmp_path: Path) -> None:
+    registry, _, _, _, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+
+    # 1. Test Single update settings PUT endpoint
+    response = service.route_put(
+        "/api/v1/fleet/devices/dev-001",
+        json_payload={
+            "auto_sys_update": True,
+            "sys_update_status": "checking",
+            "target_sys_update": "security",
+            "auto_update": False,
+            "target_os_version": "v1.2.3",
+        }
+    )
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    dev = response["payload"]["device"]
+    assert dev["auto_sys_update"] is True
+    assert dev["sys_update_status"] == "checking"
+    assert dev["target_sys_update"] == "security"
+    assert dev["auto_update"] is False
+    assert dev["target_os_version"] == "v1.2.3"
+
+    # 2. Test Bulk action endpoint for installing both system updates (apt) & os engine updates
+    bulk_resp = service.route_post(
+        "/api/v1/fleet/devices/actions/bulk",
+        json_payload={
+            "action": "install-sys-update",
+            "target_ids": ["dev-001"],
+            "value": "security-only"
+        }
+    )
+    assert bulk_resp is not None
+    assert bulk_resp["status"] == HTTPStatus.OK
+    updated_bulk_dev = bulk_resp["payload"]["affected"][0]
+    assert updated_bulk_dev["sys_update_status"] == "installing"
+    assert updated_bulk_dev["target_sys_update"] == "security-only"
+
+    bulk_engine_resp = service.route_post(
+        "/api/v1/fleet/devices/actions/bulk",
+        json_payload={
+            "action": "install-update",
+            "target_ids": ["dev-001"],
+            "value": "v1.2.9"
+        }
+    )
+    assert bulk_engine_resp is not None
+    assert bulk_engine_resp["status"] == HTTPStatus.OK
+    updated_engine_dev = bulk_engine_resp["payload"]["affected"][0]
+    assert updated_engine_dev["update_status"] == "installing"
+    assert updated_engine_dev["target_os_version"] == "v1.2.9"
+
+
 def test_fleet_alert_routes_create_list_update_and_resolve_rules(tmp_path: Path) -> None:
     _, _, _, alerts, service = make_services(tmp_path)
     create_response = service.route_post(
