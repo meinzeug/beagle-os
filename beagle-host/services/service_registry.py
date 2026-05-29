@@ -2603,7 +2603,7 @@ def exchange_beagle_stream_client_pairing_token(vm: VmSummary, endpoint_identity
     if not bool((response_payload or {}).get("status")):
         return {"ok": False, "error": "beagle-stream-server token exchange rejected"}
     pairing_service().consume_token(pairing_token)
-    return {"ok": True, "mode": "pin-compat", "pin": pairing_secret}
+    return {"ok": True, "mode": "token"}
 
 
 def validate_stream_pairing_token_for_server(token: str, vm_id: int, device_name: str) -> tuple[bool, str]:

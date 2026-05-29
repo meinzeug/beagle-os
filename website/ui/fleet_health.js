@@ -457,6 +457,119 @@ function remediationDriftMarkup() {
   `;
 }
 
+function fleetWorkspaceStrip(devices, alerts, anomalies, maintenance) {
+  return `
+    <section class="fleet-workspace-strip section-spaced-tight">
+      <button type="button" class="fleet-workspace-chip" data-fleet-scroll-target="fleet-table-anchor">
+        <strong>${escapeHtml(String(devices.length || 0))}</strong>
+        <span>Devices</span>
+      </button>
+      <button type="button" class="fleet-workspace-chip" data-fleet-scroll-target="fleet-policies-workspace">
+        <strong>${escapeHtml(String(fleetState.policies.length || 0))}</strong>
+        <span>Policies</span>
+      </button>
+      <button type="button" class="fleet-workspace-chip" data-fleet-scroll-target="fleet-alerts-workspace">
+        <strong>${escapeHtml(String((alerts || []).length || 0))}</strong>
+        <span>Alerts</span>
+      </button>
+      <button type="button" class="fleet-workspace-chip" data-fleet-scroll-target="fleet-remediation-workspace">
+        <strong>${escapeHtml(String((anomalies || []).length || 0))}</strong>
+        <span>Drift</span>
+      </button>
+      <button type="button" class="fleet-workspace-chip" data-fleet-scroll-target="fleet-topology-workspace">
+        <strong>${escapeHtml(String((maintenance || []).length || 0))}</strong>
+        <span>Topologie</span>
+      </button>
+    </section>`;
+}
+
+function fleetCollapsibleWorkspace(id, title, subtitle, content, open = false) {
+  return `
+    <details class="fleet-collapsible-workspace section-spaced-tight" id="${escapeHtml(id)}"${open ? ' open' : ''}>
+      <summary>
+        <div>
+          <strong>${escapeHtml(title)}</strong>
+          <span>${escapeHtml(subtitle)}</span>
+        </div>
+      </summary>
+      <div class="fleet-collapsible-body">
+        ${content}
+      </div>
+    </details>`;
+}
+
+function fleetExpertModal(id, title, description, content) {
+  return `
+    <div class="modal fleet-registry-modal" id="${escapeHtml(id)}" aria-hidden="true" hidden>
+      <div class="modal-dialog fleet-registry-dialog" role="dialog" aria-modal="true" aria-labelledby="${escapeHtml(id)}-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Thin Clients</span>
+            <h2 id="${escapeHtml(id)}-title">${escapeHtml(title)}</h2>
+            <p>${escapeHtml(description)}</p>
+          </div>
+          <button class="icon-button" type="button" data-fleet-modal-close aria-label="Schliessen">×</button>
+        </div>
+        <div class="fleet-modal-body">
+          ${content}
+        </div>
+      </div>
+    </div>`;
+}
+
+function fleetGuidedWorkspace(devices, onlineCount, anomalyCount, maintCount) {
+  const devicesOffline = Math.max(0, Number(devices.length || 0) - Number(onlineCount || 0));
+  return `
+    <section class="fleet-guided-grid section-spaced-tight">
+      <article class="fleet-guided-card">
+        <span class="fleet-guided-step">1. Geräte prüfen</span>
+        <h3>Welche Thin Clients sind gerade relevant?</h3>
+        <p>Beginne immer mit der Geräteliste. Online-, Offline- und Warnzustände werden direkt in der Tabelle angezeigt.</p>
+        <div class="button-row compact-row section-spaced-tight">
+          ${chip(String(devices.length || 0) + ' registriert', devices.length ? 'info' : 'muted')}
+          ${chip(String(onlineCount || 0) + ' online', onlineCount ? 'ok' : 'muted')}
+          ${chip(String(devicesOffline) + ' offline', devicesOffline ? 'warn' : 'muted')}
+        </div>
+      </article>
+      <article class="fleet-guided-card">
+        <span class="fleet-guided-step">2. Updates verteilen</span>
+        <h3>Erst Geräte auswählen, dann Aktion senden</h3>
+        <p>Wähle ein oder mehrere Geräte per Checkbox. Danach erscheinen nur die passenden Sammelaktionen für Gruppen, Engine-Updates und Systemupdates.</p>
+        <div class="button-row compact-row section-spaced-tight">
+          ${chip(String(anomalyCount || 0) + ' Warnungen', anomalyCount ? 'warn' : 'ok')}
+          ${chip(String(maintCount || 0) + ' Wartungen', maintCount ? 'warn' : 'muted')}
+        </div>
+      </article>
+      <article class="fleet-guided-card">
+        <span class="fleet-guided-step">3. Nur bei Bedarf tiefer gehen</span>
+        <h3>Technische Werkzeuge separat öffnen</h3>
+        <p>Policies, Predictive Alerts, Remediation und Standortstruktur liegen in separaten Dialogen, damit die Hauptseite kurz und verständlich bleibt.</p>
+        <div class="button-row compact-row section-spaced-tight">
+          <button type="button" class="button ghost small" data-fleet-modal="fleet-policy-editor-modal">Policies</button>
+          <button type="button" class="button ghost small" data-fleet-modal="fleet-alerts-modal">Alerts</button>
+          <button type="button" class="button ghost small" data-fleet-modal="fleet-remediation-modal">Remediation</button>
+          <button type="button" class="button ghost small" data-fleet-modal="fleet-topology-modal">Standorte</button>
+        </div>
+      </article>
+    </section>`;
+}
+
+function fleetActionGuide() {
+  return `
+    <section class="fleet-action-guide section-spaced-tight">
+      <div>
+        <span class="eyebrow">Schnellablauf</span>
+        <h3>Geräte auswählen und dann die passende Aktion ausführen</h3>
+        <p class="muted-text">Für einzelne Geräte nutzt du <strong>Konfigurieren</strong>. Für mehrere Geräte nutzt du die Auswahlboxen links in der Tabelle.</p>
+      </div>
+      <div class="fleet-action-guide-list">
+        <div><strong>Beagle OS Engine Update</strong><span>Payload-/Versionswechsel für den Thin Client</span></div>
+        <div><strong>System-Updates (apt)</strong><span>Linux-Pakete und Sicherheitsupdates getrennt steuerbar</span></div>
+        <div><strong>Gruppe / Standort</strong><span>Mehrere Geräte gleichzeitig organisatorisch ändern</span></div>
+      </div>
+    </section>`;
+}
+
 function policyCards() {
   if (!fleetState.policies.length) {
     return '<div class="empty-card">Noch keine MDM-Policies vorhanden.</div>';
@@ -987,12 +1100,8 @@ export async function renderFleetHealth() {
     container.innerHTML = `${policyEditorSection()}<div class="empty-card">Keine Geräte erfasst.</div>`;
   } else {
     container.innerHTML = `
-      ${policyEditorSection()}
-      ${predictiveAlertsMarkup(anomalies)}
-      ${remediationDriftMarkup()}
-      ${locationTreeSection()}
-      
-      <!-- Modernized Fleet Header & Statistics grid -->
+      ${fleetGuidedWorkspace(devices, onlineCount, anomalyCount, maintCount)}
+
       <section class="section-spaced">
         <h3 style="margin-bottom:12px;">Thin Clients Fleet</h3>
         <div class="grid auto-grid section-spaced-tight">
@@ -1015,7 +1124,8 @@ export async function renderFleetHealth() {
         </div>
       </section>
 
-      <!-- Bulk action toolbar -->
+      ${fleetActionGuide()}
+
       <div class="fleet-bulk-bar" id="fleet-mass-toolbar">
         <div class="fleet-bulk-controls">
           <span class="fleet-bulk-label" id="fleet-bulk-selection-count">0 Geräte deselektiert</span>
@@ -1040,7 +1150,19 @@ export async function renderFleetHealth() {
         <button type="button" class="button ghost small" id="clear-fleet-selection">Abbrechen</button>
       </div>
 
-      <div class="table-wrap compact">
+      <section class="section-spaced">
+      <div class="fleet-table-head">
+        <div>
+          <span class="eyebrow">Geräteliste</span>
+          <h3>Alle Thin Clients auf einen Blick</h3>
+          <p class="muted-text">Status, Versionen und Updates bleiben in einer einzigen Tabelle sichtbar.</p>
+        </div>
+        <div class="button-row compact-row">
+          <button type="button" class="button ghost small" data-fleet-modal="fleet-policy-preview-modal">Aktive Policy prüfen</button>
+          <button type="button" class="button ghost small" data-fleet-modal="fleet-topology-modal">Standorte ansehen</button>
+        </div>
+      </div>
+      <div class="table-wrap compact fleet-table-wrap">
       <table class="vm-table compact-table">
         <thead>
           <tr>
@@ -1058,7 +1180,31 @@ export async function renderFleetHealth() {
         </thead>
         <tbody>${rows}</tbody>
       </table>
-      </div>`;
+      </div>
+      </section>
+
+      <section class="fleet-expert-launchers section-spaced-tight">
+        <article class="fleet-expert-card">
+          <h3>Richtlinien & Freigaben</h3>
+          <p>MDM-Policies, Gruppenzuweisungen und Effective Preview getrennt in einem Dialog.</p>
+          <div class="button-row compact-row"><button type="button" class="button primary small" data-fleet-modal="fleet-policy-editor-modal">Policy Dialog öffnen</button></div>
+        </article>
+        <article class="fleet-expert-card">
+          <h3>Alerts & Vorhersagen</h3>
+          <p>Predictive Alerts und Regeln liegen außerhalb der Hauptansicht, bleiben aber schnell erreichbar.</p>
+          <div class="button-row compact-row"><button type="button" class="button ghost small" data-fleet-modal="fleet-alerts-modal">Alerts öffnen</button></div>
+        </article>
+        <article class="fleet-expert-card">
+          <h3>Remediation & Diagnose</h3>
+          <p>Drift, Safe Remediation und History nur für Admin-Aufgaben sichtbar.</p>
+          <div class="button-row compact-row"><button type="button" class="button ghost small" data-fleet-modal="fleet-remediation-modal">Remediation öffnen</button></div>
+        </article>
+      </section>
+
+      <div class="fleet-policy-backing">${policyEditorSection()}</div>
+      ${fleetExpertModal('fleet-alerts-modal', 'Alerts und Regeln', 'Predictive Alerts und Regelpflege an einem Ort.', predictiveAlertsMarkup(anomalies))}
+      ${fleetExpertModal('fleet-remediation-modal', 'Remediation und Drift', 'Sichere Reparaturen, Drift-Analyse und Verlauf getrennt von der Hauptansicht.', remediationDriftMarkup())}
+      ${fleetExpertModal('fleet-topology-modal', 'Standorte und Gruppen', 'Standort- und Gruppenansicht für organisatorische Übersicht.', locationTreeSection())}`;
   }
 
   container.querySelectorAll('[data-policy-id]').forEach((item) => {
