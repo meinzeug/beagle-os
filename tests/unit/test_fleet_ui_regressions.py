@@ -35,6 +35,7 @@ def test_dashboard_wires_fleet_health_panel() -> None:
     assert "renderCostDashboard" in main
     assert "configureEnergyDashboard" in main
     assert "renderEnergyDashboard" in main
+    assert "updateFleetHealthAlert" in main
 
 
 def test_fleet_health_uses_fleet_registry_api_surface() -> None:
@@ -158,3 +159,12 @@ def test_enterprise_dashboard_modules_use_operator_routes() -> None:
     assert "Konfiguration speichern" in energy_js
     assert "Green Window aktuell" in scheduler_js
     assert "Green Hours CSV" in scheduler_js
+
+
+def test_live_snapshots_do_not_rerender_interactive_panels_every_five_seconds() -> None:
+    main = MAIN_JS.read_text(encoding="utf-8")
+
+    assert "Full panel rerenders on every 5s SSE snapshot" in main
+    assert "if (String(state.activePanel || 'overview') === 'overview')" in main
+    assert "renderActivePanel('overview');" in main
+    assert "updateFleetHealthAlert();" in main

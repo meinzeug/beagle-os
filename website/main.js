@@ -34,6 +34,7 @@ import {
   configureActivity,
   renderActivityLog,
   startDashboardPoll,
+  updateFleetHealthAlert,
   updateAutoRefreshButton
 } from './ui/activity.js';
 import {
@@ -742,8 +743,14 @@ function applyLiveSnapshot(snapshot) {
     state.sessions = snapshot.sessions;
   }
 
-  // Render only the active workspace from fresh SSE state to avoid hidden-panel API bursts.
-  renderActivePanel(state.activePanel);
+  // Full panel rerenders on every 5s SSE snapshot reset forms, filters, and modal
+  // context. Keep interactive workspaces stable and only live-rerender the passive
+  // overview dashboard.
+  if (String(state.activePanel || 'overview') === 'overview') {
+    renderActivePanel('overview');
+  } else {
+    updateFleetHealthAlert();
+  }
 
   // Keep detail context alive when selected VM still exists.
   if (state.selectedVmid) {
