@@ -318,6 +318,8 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC:-0.5' in launcher_text
     assert "if (p+0 < 0.5) print 0.5; else print p+0" in launcher_text
     assert "window.location.replace(current.toString())" in launcher_text
+    assert "initial_state = json.dumps(state, ensure_ascii=True)" in launcher_text
+    assert "initial_state = html.escape(json.dumps(state, ensure_ascii=True))" not in launcher_text
     assert 'if [[ "$method" == "broker" && -r /etc/beagle/enrollment.conf ]]; then' in launch_session_text
     assert 'beagle_stream_connection_method()' in targeting_text
     assert 'if beagle_stream_broker_connection; then' in targeting_text

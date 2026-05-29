@@ -272,7 +272,7 @@ wallpaper_url = ""
 json_url = "file://" + quote(str(json_path.resolve()), safe="/:")
 if wallpaper_path:
   wallpaper_url = "file://" + quote(str(Path(wallpaper_path).resolve()), safe="/:")
-initial_state = html.escape(json.dumps(state, ensure_ascii=True))
+initial_state = json.dumps(state, ensure_ascii=True)
 doc = f'''<!doctype html><html><head><meta charset="utf-8"><title>Beagle OS Streamstart</title>
 <style>
 html,body{{margin:0;height:100%;overflow:hidden;font-family:Inter,Segoe UI,Arial,sans-serif;background:#05070d;color:#eef6ff;}}
