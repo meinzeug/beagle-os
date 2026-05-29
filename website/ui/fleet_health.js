@@ -14,6 +14,7 @@ const fleetHooks = {
 
 const fleetState = {
   devices: [],
+  editingDeviceId: '',
   alerts: [],
   alertRules: [],
   policies: [],
@@ -101,7 +102,10 @@ function updateDeviceGroupOptions(selectedGroup = '') {
     <span>Bekannte Gruppen</span>
     <div class="fleet-group-chip-list">
       ${chips || '<span class="muted">Noch keine Gruppen vorhanden.</span>'}
-      <button type="button" class="fleet-group-chip fleet-group-chip-new" id="create-device-group-btn">+ Gruppe verwenden</button>
+      <button type="button" class="fleet-group-chip fleet-group-chip-new" id="create-device-group-btn">
+        <span class="fleet-group-plus" aria-hidden="true">+</span>
+        <span>Neue Gruppe erstellen</span>
+      </button>
     </div>`;
   picker.querySelectorAll('[data-device-group-select]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -113,15 +117,32 @@ function updateDeviceGroupOptions(selectedGroup = '') {
   });
   const createButton = qs('create-device-group-btn');
   if (createButton) {
-    createButton.addEventListener('click', () => {
+    createButton.addEventListener('click', async () => {
       const input = qs('edit-device-group');
       const value = String(input?.value || '').trim();
       if (!value) {
-        fleetHooks.setBanner('Gruppennamen eintragen oder vorhandene Gruppe anklicken.', 'warn');
+        fleetHooks.setBanner('Erst einen Gruppennamen eintragen, dann Neue Gruppe erstellen klicken.', 'warn');
         return;
       }
+      const deviceId = String(fleetState.editingDeviceId || '').trim();
+      if (deviceId) {
+        createButton.disabled = true;
+        try {
+          await request(`/fleet/devices/${encodeURIComponent(deviceId)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ group: value }),
+          });
+          const device = fleetState.devices.find((item) => String(item.device_id || '') === deviceId);
+          if (device) device.group = value;
+          fleetHooks.setBanner(`Gruppe ${value} erstellt und diesem ThinClient zugewiesen.`, 'ok');
+        } catch (error) {
+          fleetHooks.setBanner('Gruppe konnte nicht gesetzt werden: ' + String(error.message ?? error), 'warn');
+        } finally {
+          createButton.disabled = false;
+        }
+      }
       updateDeviceGroupOptions(value);
-      fleetHooks.setBanner(`Gruppe ${value} wird beim Speichern gesetzt.`, 'info');
     });
   }
 }
@@ -1373,6 +1394,7 @@ export async function renderFleetHealth() {
 
   const closeEditModalFn = () => {
     if (deviceEditModal) {
+      fleetState.editingDeviceId = '';
       deviceEditModal.hidden = true;
       deviceEditModal.setAttribute('aria-hidden', 'true');
       document.body.classList.remove('modal-open');
@@ -1391,10 +1413,13 @@ export async function renderFleetHealth() {
       if (!device) return;
 
       currentEditingDeviceId = deviceId;
+      fleetState.editingDeviceId = deviceId;
       qs('edit-device-eyebrow').textContent = `ID: ${deviceId}`;
       qs('edit-device-hostname').value = device.hostname || '';
       qs('edit-device-location').value = device.location || '';
-      qs('edit-device-group').value = device.group || '';
+      const groupInput = qs('edit-device-group');
+      groupInput.value = device.group || '';
+      groupInput.oninput = () => updateDeviceGroupOptions(groupInput.value);
       updateDeviceGroupOptions(device.group || '');
       qs('edit-device-notes').value = device.notes || '';
 

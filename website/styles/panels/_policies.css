@@ -257,6 +257,9 @@
   padding: 5px 10px;
   font-size: 0.78rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .fleet-group-chip:hover,
 .fleet-group-chip.is-selected {
@@ -265,6 +268,17 @@
 }
 .fleet-group-chip-new {
   border-style: dashed;
+}
+.fleet-group-plus {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--amber);
+  color: #1a1d22;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .modal-grid-2 {

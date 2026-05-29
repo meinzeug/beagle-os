@@ -111,8 +111,13 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "function deviceGroups()" in js
     assert "function updateDeviceGroupOptions" in js
     assert "data-device-group-select" in js
+    assert "editingDeviceId" in js
     assert "create-device-group-btn" in js
-    assert "Gruppennamen eintragen oder vorhandene Gruppe anklicken." in js
+    assert "Neue Gruppe erstellen" in js
+    assert "fleet-group-plus" in js
+    assert "Gruppe ${value} erstellt und diesem ThinClient zugewiesen." in js
+    assert "body: JSON.stringify({ group: value })" in js
+    assert "groupInput.oninput = () => updateDeviceGroupOptions(groupInput.value);" in js
 
 
 def test_thin_client_config_modal_uses_interactive_group_picker() -> None:
