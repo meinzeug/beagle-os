@@ -1,81 +1,63 @@
-# Beagle OS — Dokumentation
+# Beagle OS Documentation
 
-**Stand**: 2026-05-02 · **Version**: 8.0.9 · **Quelle der Wahrheit**: [`MASTER-PLAN.md`](MASTER-PLAN.md)
+Stand: 2026-05-29
 
-Beagle OS ist eine Open-Source Desktop-Virtualisierungs- und Streaming-Plattform
-auf KVM/libvirt-Basis. Diese Dokumentation ist **bewusst klein gehalten**: wenige
-kanonische Dateien, alles andere ist im Archiv.
+Version: 8.3.4
 
----
+Operative source of truth: [lasthope/05-diamond-plan.md](lasthope/05-diamond-plan.md)
 
-## Operative Checklisten (Quelle der Wahrheit fuer offene Arbeit)
+Beagle OS is a standalone KVM/libvirt virtualization, streaming, endpoint OS,
+and gaming kiosk platform. This documentation is intentionally split into a
+small set of active documents and a clearly marked archive.
 
-Genau **5 Dateien**. Jede Aufgabe lebt nur in einer dieser Listen.
+## Active Structure
 
-| # | Datei | Thema |
+| Area | Role | Files |
 |---|---|---|
-| 01 | [checklists/01-platform.md](checklists/01-platform.md) | Cluster, Storage, HA, VDI, GPU, Netzwerk |
-| 02 | [checklists/02-streaming-endpoint.md](checklists/02-streaming-endpoint.md) | BeagleStream, Endpoint OS, Thin Client, Kiosk |
-| 03 | [checklists/03-security.md](checklists/03-security.md) | Auth, RBAC, Secrets, Audit, TLS, Compliance |
-| 04 | [checklists/04-quality-ci.md](checklists/04-quality-ci.md) | CI, Tests, Observability, Datenintegritaet, UX/i18n |
-| 05 | [checklists/05-release-operations.md](checklists/05-release-operations.md) | Release-Gates R0..R4, Runbooks, Operations |
+| Product gates | What must be proven before pilot/enterprise use | [lasthope/](lasthope/) |
+| Implementation backlog | Detailed open and completed tasks | [checklists/](checklists/) |
+| Architecture map | Current system shape and ownership boundaries | [MASTER-PLAN.md](MASTER-PLAN.md), [architecture/](architecture/) |
+| Status snapshot | 30-second readiness summary | [STATUS.md](STATUS.md) |
+| Runbooks | Operator procedures and validation records | [runbooks/](runbooks/) |
+| Security | Security model, secrets, TLS exceptions | [security/](security/) |
+| API | OpenAPI and compatibility policy | [api/](api/) |
+| Deployment | Build/install/deployment procedures | [deployment/](deployment/) |
+| Observability | Monitoring setup and dashboards | [observability/](observability/) |
+| Work log | Chronological progress, decisions, risks | [refactor/](refactor/) |
+| Historical plans | Non-operative old plans and research | [archive/](archive/) |
 
----
+## Canonical Rules
 
-## Strategie + Architektur
+1. [lasthope/05-diamond-plan.md](lasthope/05-diamond-plan.md) controls priority.
+2. Open implementation work lives in exactly one file under [checklists/](checklists/).
+3. Runtime or hardware gates are not closed by docs alone; they need real host evidence.
+4. Live hotfixes count only after the same fix is reproducible in the repo.
+5. [archive/](archive/) is historical background, not a task source.
+6. [refactor/05-progress.md](refactor/05-progress.md) is append-only evidence/history, not the current plan.
+7. [refactor/06-next-steps.md](refactor/06-next-steps.md) may summarize recent handoff state, but it must not contradict LastHope.
 
-| Datei | Inhalt |
+## Current Product Direction
+
+- Active provider: [../providers/beagle](../providers/beagle) and [../beagle-host/providers](../beagle-host/providers).
+- Operator UI: [../website](../website).
+- BeagleStream client/server artifacts are consumed from GitHub `releases/latest/download` by default.
+- `providers/proxmox/` and `proxmox-ui/` are not active product paths.
+- Legacy `pve-thin-client` file/service names still exist as endpoint-runtime compatibility names; they are not a Proxmox provider dependency.
+
+## Where To Put New Information
+
+| Information | Put it here |
 |---|---|
-| [lasthope/README.md](lasthope/README.md) | Enterprise-GA-Steuerplan: offene Pflichtluecken, Reihenfolge, Firmen-Go/No-Go |
-| [lasthope/05-diamond-plan.md](lasthope/05-diamond-plan.md) | Diamond Plan: direkter Pfad zum durchbruchfaehigen Produktzustand |
-| [MASTER-PLAN.md](MASTER-PLAN.md) | Kanonische Gesamtsicht (Vision, Layer-Modell, Themen-Zuordnung) |
-| [STATUS.md](STATUS.md) | 30-Sekunden Enterprise-Readiness-Snapshot |
-| [architecture/overview.md](architecture/overview.md) | System-Architektur (Bestand) |
-| [architecture/endpoint-update.md](architecture/endpoint-update.md) | Endpoint-Update-Architektur |
+| A new open task | One of [checklists/01-platform.md](checklists/01-platform.md), [checklists/02-streaming-endpoint.md](checklists/02-streaming-endpoint.md), [checklists/03-security.md](checklists/03-security.md), [checklists/04-quality-ci.md](checklists/04-quality-ci.md), [checklists/05-release-operations.md](checklists/05-release-operations.md) |
+| A completed live validation | Relevant checklist plus [refactor/05-progress.md](refactor/05-progress.md) |
+| A handoff note | [refactor/06-next-steps.md](refactor/06-next-steps.md) |
+| A security finding | [refactor/11-security-findings.md](refactor/11-security-findings.md) |
+| A product gate change | Relevant [lasthope/](lasthope/) file plus checklist |
+| Historical context | [archive/](archive/) |
 
----
+## Non-Goals For Docs Cleanup
 
-## Operatives Logbuch (chronologisch, nicht abhakbar)
-
-| Datei | Inhalt |
-|---|---|
-| [refactor/05-progress.md](refactor/05-progress.md) | Append-only Run-Log |
-| [refactor/06-next-steps.md](refactor/06-next-steps.md) | Aktueller Stand (oben) + naechste Schritte |
-| [refactor/07-decisions.md](refactor/07-decisions.md) | Architektur-/Arbeitsregel-Entscheidungen |
-| [refactor/11-security-findings.md](refactor/11-security-findings.md) | Security-Funde + Restrisiken |
-
-Hinweis: `refactor/00-09-*.md` sind historisch und werden nicht mehr aktiv gepflegt
-(Inhalte aufgegangen in `MASTER-PLAN.md` + Checklisten).
-
----
-
-## Referenzen
-
-| Bereich | Datei |
-|---|---|
-| Contributing | [contributing.md](contributing.md) |
-| API | [api/openapi-v1-coverage.md](api/openapi-v1-coverage.md), [api/breaking-change-policy.md](api/breaking-change-policy.md) |
-| Deployment | [deployment/](deployment/) (Hetzner installimage, beagle-os build, thin client, PXE) |
-| Runbooks | [runbooks/](runbooks/) (Installation, Update, Rollback, Backup, Incident, Pilot) |
-| Security | [security/](security/) (overview, secret-inventory, secret-lifecycle, tls-bypass-allowlist) |
-| Observability | [observability/setup.md](observability/setup.md) |
-
----
-
-## Archiv
-
-`docs/archive/` enthaelt die historischen Mehrfach-Plaene (`gofuture/`, `goenterprise/`,
-`goadvanced/`, `gorelease/`, `refactorv2/`). Sie sind **nicht aktive Auftraege**,
-sondern Hintergrund-/Recherchematerial. Wenn ein Punkt aus dem Archiv noch relevant
-ist, gehoert er in eine der 5 Checklisten — sonst bleibt er archiviert.
-
----
-
-## Regeln fuer Aenderungen
-
-1. Neue Umsetzungsaufgaben kommen in **eine** der 5 Checklisten.
-2. Erledigte Aufgaben werden auf `[x]` gesetzt, nicht geloescht.
-3. Chronologische Notizen kommen in `refactor/05-progress.md`.
-4. Architektur-/Arbeitsregel-Entscheidungen in `refactor/07-decisions.md`.
-5. `docs/lasthope/` bleibt die verdichtete Enterprise-GA-Sicht und darf keine Detail-Checklisten duplizieren.
-6. Wenn ein Bereich keine offenen `[ ]`-Items mehr hat, bleibt die Datei leer-aber-existent.
+- Do not create another master roadmap.
+- Do not duplicate checklist items inside new plan files.
+- Do not mark hardware/runtime gates complete without real evidence.
+- Do not delete historical plans solely because they are old; keep them under [archive/](archive/) with clear status.

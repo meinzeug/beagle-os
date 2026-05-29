@@ -9,7 +9,7 @@
 
 - [x] Server-Installer-ISO baut reproduzierbar (`build-iso.yml`)
 - [x] Installimage-Tarball baut reproduzierbar
-- [x] `latest`-Release zeigt auf aktuelle Zielversion — GitHub `Latest` = `v8.0.9`, `beagle-os.com/beagle-updates/beagle-downloads-status.json` meldet `version=8.0.9` (2026-05-02)
+- [x] `latest`-Release zeigt auf aktuelle Zielversion — Repo-Version `8.3.4`; GitHub/Public-Release-Pfad wurde am 2026-05-28 auf den aktuellen `latest`-Stand nachgezogen.
 - [x] `8443` aus allen Pfaden entfernt
 - [x] Public Download-Skripte ohne Admin-/Manager-Credentials (CI-Guard `security-secrets-check.yml`)
 

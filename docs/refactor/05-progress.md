@@ -5,7 +5,8 @@
 - **Repo-Fix (TC)**:
   - `thin-client-assistant/runtime/launch-beagle-stream-client.sh` hat jetzt einen Reentry-Guard (`BEAGLE_STREAM_CLIENT_LAUNCHER_ACTIVE`) gegen rekursive Launcher-Starts.
   - Lock-FD wird vor Child-Prozessen (`browser`, Watchdog, Stream-Exec) geschlossen, damit Child-Kontexte keinen Launcher-Lock erben.
-  - Startup-Status bekommt pacing (`PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC`, Default `0.35s`), damit die 10 Schritte sichtbar fuer User durchlaufen.
+  - Startup-Status bekommt pacing (`PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC`, Default `0.5s`), damit die 10 Schritte sichtbar fuer User durchlaufen.
+  - Startup-HTML rendert den initialen JSON-State wieder als rohes JavaScript-Objekt statt als HTML-escaped Text; dadurch aktualisiert die Ladeanzeige sichtbar statt auf Schritt 1 einzufrieren.
 
 - **Repo-Fix (VM100 / neue Guests)**:
   - `scripts/configure-beagle-stream-server-guest.sh`: Healthcheck startet den Stream-Server nicht neu, wenn der Prozess laeuft und nur Readiness-Probes flappen.
@@ -20,6 +21,24 @@
 - **Tests**:
   - `python3 -m pytest tests/unit/test_configure_beagle_stream_server_guest_regressions.py tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_launch_beagle_stream_client_runtime.py`
   - Ergebnis: `45 passed`.
+
+## Update (2026-05-29, Docs gegen aktuellen Repo-Stand konsolidiert)
+
+**Scope**: Veraltete und konkurrierende Planungsdokumente sollten gegen den aktuellen Code-/Runtime-Stand abgeglichen und klar strukturiert werden.
+
+- **Dokustruktur**:
+  - `docs/README.md` definiert jetzt die aktive Struktur: LastHope als operative Quelle, Checklisten als Backlog, Refactor-Dokumente als Verlauf/Handoff, Archiv nur als Historie.
+  - `docs/MASTER-PLAN.md` ist keine konkurrierende Roadmap mehr, sondern eine kurze Architektur-/Produktkarte fuer Version `8.3.4`.
+  - `docs/STATUS.md` ist ein aktueller Enterprise-Readiness-Snapshot statt eines 8.0.9-Statusdokuments.
+  - `docs/archive/README.md` markiert alte Planordner explizit als nicht-operative Historie.
+
+- **Abgleich**:
+  - LastHope-Metadaten und BeagleStream-Status unterscheiden jetzt sauber zwischen live validiertem TC/VM100-Pfad und weiterhin offenem Cold-Boot-/Fresh-Payload-Gate.
+  - Streaming-Checklist schliesst die erledigte Phase-A-Produktlinie und ersetzt `beagle-phase-a` durch die aktuelle `releases/latest/download`-Artefaktlogik.
+  - Release-Operations-Checklist verweist nicht mehr auf `v8.0.9` als aktuellen Latest-Stand.
+
+- **Verifikation**:
+  - Doku-Grep gegen aktive Dateien: keine alten `Version: 8.0.9`, `beagle-phase-a` oder `MASTER-PLAN`-als-Quelle-der-Wahrheit-Verweise mehr in den bereinigten aktiven Einstiegsdokumenten.
 
 ## Update (2026-05-28, Fork-Releases als echte Latest-Releases umgestellt)
 

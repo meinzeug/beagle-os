@@ -1,6 +1,6 @@
 # Enterprise Gap List
 
-Stand: 2026-05-02
+Stand: 2026-05-29
 
 Diese Liste ist aus `fork.md`, `docs/checklists/*`, `docs/STATUS.md`,
 `docs/MASTER-PLAN.md`, `docs/refactor/06-next-steps.md`,
@@ -20,9 +20,10 @@ konsolidiert.
   - Akzeptanz: VM meldet `installed`/`ready` statt dauerhaft `installing`.
   - Quelle: `docs/refactor/06-next-steps.md`, VM100-Pfad.
 
-- [ ] BeagleStream-End-to-End mit echter VM und echtem Thinclient abschliessen.
+- [ ] BeagleStream-End-to-End mit echter VM und echtem Thinclient aus frischem Payload abschliessen.
   - Akzeptanz: Thinclient bootet, enrollt, aktiviert WireGuard, ruft `/api/v1/streams/allocate` auf und zeigt den Desktop.
   - Akzeptanz: keine manuelle PIN-Eingabe, kein Legacy-Direct-Stream-State fuer VM-Sticks.
+  - Status: VM100 + TC `192.168.178.30` sind live validiert; offen ist der wiederholbare Cold-Boot-/Neuinstallationslauf ohne manuelle Hotpatches.
   - Quelle: `fork.md`, `docs/checklists/02-streaming-endpoint.md`, `docs/refactor/08-todo-global.md`.
 
 - [ ] WireGuard-Stream-Latenz mit Messwerten belegen.

@@ -1,6 +1,11 @@
 # Execution Order
 
-Stand: 2026-05-02
+Stand: 2026-05-29
+
+Hinweis: Welle 0 enthaelt historische gruene Nachweise aus dem 8.0.9-Zeitpunkt.
+Der aktuelle Repo-Stand ist 8.3.4; je Release-Lauf muessen Version, Artefakte,
+`srv1`-Runtime und Pflichtdienste erneut gegen `docs/lasthope/04-validation-matrix.md`
+geprueft werden.
 
 Diese Reihenfolge priorisiert Verkaufbarkeit. Features, die keinen Firmenpilot
 freischalten, kommen nach Stabilitaet, Installation, Stream und Betrieb.
@@ -42,9 +47,9 @@ Akzeptanz:
 
 Ziel: der Kunde sieht keinen Beagle Stream Server/Beagle Stream Client-Bastelpfad mehr, sondern BeagleStream.
 
-- [ ] `beagle-stream-server` in neuen VMs als bevorzugter Runtime-Pfad pruefen.
-- [ ] `beagle-stream-client` im Thinclient-Image als bevorzugter Runtime-Pfad pruefen.
-- [ ] Token-als-PIN ohne manuelle Eingabe live abnehmen.
+- [x] `beagle-stream-server` in VM100 als bevorzugter Runtime-Pfad pruefen; fuer neue VMs bleibt der D1/D2-Cold-Boot-Nachweis offen.
+- [x] `beagle-stream-client` im Thinclient-Image als bevorzugter Runtime-Pfad pruefen; frischer Payload-Boot bleibt als Gate-Nachweis offen.
+- [x] Token-als-PIN ohne manuelle Eingabe live abnehmen; lokale PIN-Dialoge sind nicht mehr Produktpfad.
 - [ ] WireGuard-Peer-Activation und Deactivation am Stream-Start/-Ende pruefen.
 - [ ] Stream-Health, Audit-Events und Runtime-Variante in der WebUI sichtbar pruefen.
 

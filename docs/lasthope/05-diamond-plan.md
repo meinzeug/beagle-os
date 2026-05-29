@@ -1,7 +1,7 @@
 # Diamond Plan
 
-Stand: 2026-05-04
-Version: 8.0.9
+Stand: 2026-05-29
+Version: 8.3.4
 
 Dieser Plan beschreibt den direkten Weg vom aktuellen Beagle-OS-Stand zu einer
 Software, die nicht nur technisch beeindruckt, sondern als echtes Produkt einen
@@ -53,10 +53,10 @@ Ziel: Ein stabiler Ausgangspunkt, auf dem alle weiteren Abnahmen aufbauen.
 Abnahme:
 
 - ✅ `main`, lokaler Checkout, GitHub Actions, `srv1` und Public-Artefakte zeigen
-  dieselbe Version (8.0.9, commit c1f76b1efea8).
+  dieselbe Version (damals 8.0.9, commit c1f76b1efea8).
 - ✅ `srv1` hat keine roten Beagle-Pflichtdienste (systemctl --failed: 0 units).
 - ✅ `repo-auto-update-status.json` (state=healthy, installed==remote==8.0.9)
-  und `beagle-downloads-status.json` (version=8.0.9) widersprechen sich nicht.
+  und `beagle-downloads-status.json` (damals version=8.0.9) widersprechen sich nicht.
 - ✅ Keine Live-Hotfixes existieren nur auf Zielhosts (alle Aenderungen im Repo).
 - ✅ 1657 Unit-Tests gruen, Release-Workflow-Versions-Drift repariert.
 
@@ -99,6 +99,11 @@ Kanonische Detailquellen:
 ## Phase D2 - BeagleStream als sichtbaren Produktpfad liefern
 
 Ziel: Der Durchbruchsmoment fuer Nutzer: Thinclient einschalten, Desktop sehen.
+
+Status 2026-05-29: TC `192.168.178.30` und VM100 haben einen live validierten
+BeagleStream-Pfad inklusive Stream-Client-/Session-Lifecycle-Fixes und sichtbarer
+Startup-Anzeige. D2 bleibt offen, bis derselbe Pfad aus frischem Payload/Cold
+Boot ohne manuelle Hotpatches nachgewiesen und in den Checklisten abgehakt ist.
 
 Abnahme:
 

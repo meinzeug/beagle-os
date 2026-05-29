@@ -1,69 +1,47 @@
-# Beagle OS — Enterprise-Readiness Snapshot
+# Beagle OS - Enterprise Readiness Snapshot
 
-**Stand**: 2026-05-02 · **Version**: 8.0.9
+Stand: 2026-05-29
 
-Diese Datei beantwortet in 30 Sekunden: *Wo stehen wir auf dem Weg zu einem
-firmentauglichen, Enterprise-Niveau Produkt?*
+Version: 8.3.4
 
-Der komprimierte Enterprise-GA-Steuerplan fuer die naechsten Abnahmen liegt in
-[`lasthope/README.md`](lasthope/README.md). Die fuenf Checklisten unter
-[`checklists/`](checklists/) bleiben die operative Aufgabenquelle.
+Priority source: [lasthope/05-diamond-plan.md](lasthope/05-diamond-plan.md)
 
----
+This file is the quick status view. It is not a backlog. Open work is tracked in
+[lasthope/](lasthope/) and the five [checklists/](checklists/).
 
-## Ampel pro Bereich
+## Current State
 
-| Bereich | Status | Quelle |
+| Area | Status | Notes |
 |---|---|---|
-| Provider/Architektur (KVM-only, Proxmox raus) | gruen | [`MASTER-PLAN.md`](MASTER-PLAN.md) §4 |
-| Auth/RBAC/Session | gruen | [`checklists/03-security.md`](checklists/03-security.md) |
-| TLS/Header/Hardening | gruen (auf srv1 verifiziert) | [`checklists/03-security.md`](checklists/03-security.md) |
-| WebUI Modularisierung | gruen | [`MASTER-PLAN.md`](MASTER-PLAN.md) §4 |
-| BeagleStream Control-Slice | gruen | [`checklists/02-streaming-endpoint.md`](checklists/02-streaming-endpoint.md) |
-| Zero-Trust Endpoint + WireGuard | gruen | [`checklists/02-streaming-endpoint.md`](checklists/02-streaming-endpoint.md) |
-| Cluster Foundation | gruen | [`checklists/01-platform.md`](checklists/01-platform.md) |
-| CI / Lint / Unit / Integration / E2E | gruen (Integration jetzt in CI) | [`checklists/04-quality-ci.md`](checklists/04-quality-ci.md) |
-| Datenintegritaet (atomic + locking) | gruen (SQLite-Migration deferred) | [`checklists/04-quality-ci.md`](checklists/04-quality-ci.md) |
-| BeagleStream Fork (Phase B/C/D) | gelb | [`checklists/02-streaming-endpoint.md`](checklists/02-streaming-endpoint.md) |
-| Storage Plane v2 (StorageClass) | gelb | [`checklists/01-platform.md`](checklists/01-platform.md) |
-| HA Manager + Fencing (Hardware) | gelb | [`checklists/01-platform.md`](checklists/01-platform.md) |
-| VDI Pools + Templates | gelb | [`checklists/01-platform.md`](checklists/01-platform.md) |
-| Live Session Handover | gelb | [`checklists/02-streaming-endpoint.md`](checklists/02-streaming-endpoint.md) |
-| GPU Pools + vGPU | gelb (srv2-Hardware validiert, NVENC/Reboot/vGPU-Rest offen) | [`checklists/01-platform.md`](checklists/01-platform.md) |
-| SDN + Distributed Firewall | gelb | [`checklists/01-platform.md`](checklists/01-platform.md) |
-| Audit-Export + Compliance | gelb | [`checklists/03-security.md`](checklists/03-security.md) |
-| Backup/DR auf 2 Hosts validiert | gelb | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
-| Operations-Runbooks | gelb (Skelette vorhanden, ungetestet) | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
-| Hardware-Abnahme R3 | gelb (srv2-GPU-Smokes gruen, NVENC/Reboot/vGPU-Rest offen) | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
-| Externer Pen-Test R4 | rot | [`checklists/05-release-operations.md`](checklists/05-release-operations.md) |
+| Repo architecture | green | Beagle provider is the active provider path; KVM/libvirt is the target stack. |
+| Web console/control plane | green/yellow | Main surfaces exist and are used; product gates still require fresh install and VM lifecycle evidence. |
+| BeagleStream runtime | yellow | VM100/TC live path has been hot-validated repeatedly; cold-boot from fresh artifacts still needs gate evidence. |
+| Thin client runtime | yellow | TC `192.168.178.30` has live fixes for launcher lifecycle and visible startup steps; fresh payload boot remains open. |
+| VM guest lifecycle | yellow | VM100 path is heavily validated, but new VM from WebUI through firstboot/reboot/desktop is still an open P0 gate. |
+| Release artifacts | yellow | Current repo version is `8.3.4`; BeagleStream defaults use latest release assets. R1 clean install from current artifacts remains open. |
+| Backup/restore | red/yellow | Runbook exists; real VM-disk restore on fresh/second host is still open. |
+| Two-host operation | red/yellow | Requires `srv1` + `srv2` join/drain/failover evidence. |
+| Security/compliance | yellow/red | Auth/RBAC/audit surfaces exist; OIDC/SCIM/debug-secret hardening and external review remain open. |
+| GPU/R3 | yellow/red | Some hardware inventory/proof exists historically; NVENC/VFIO reboot/vGPU gates remain open. |
 
-Legende: **gruen** = produktiv und verifiziert · **gelb** = Code/Plan vorhanden,
-Live-/Hardware-Validation offen · **rot** = blockiert, externe Voraussetzung.
+## Active Blockers Before A Pilot Claim
 
----
+1. R1 clean install from current release artifacts on a blank host.
+2. New VM provisioning from WebUI through firstboot, reboot, desktop, and `ready` state.
+3. Cold-boot BeagleStream E2E with fresh TC payload and no live hotpatch.
+4. WireGuard direct-vs-tunnel stream latency measurements.
+5. Backup/restore of a real VM disk with boot/hash evidence.
+6. Update and rollback proof from release artifacts.
 
-## Release-Gates
+## Recently Closed Evidence
 
-| Gate | Definition | Status |
-|---|---|---|
-| **R0** | Pre-Release Smoke auf Test-VMs | erledigt |
-| **R1** | Funktionale Abnahme (frische ISO, VM-Lifecycle, Backup/Restore) | offen |
-| **R2** | Pilot-fertig (Cluster auf 2 Nodes, Stream-Tunnel mit Latenz) | offen |
-| **R3** | Hardware-Abnahme (Bare-Metal + GPU + Reboot-Proof) | offen |
-| **R4** | Production-Ready (Pen-Test, Runbooks, Pilotkunde) | offen |
+- TC stream launcher reentry and lock-FD inheritance fixed in repo and hot-deployed.
+- VM stream-server healthcheck/guardian no longer restarts an active server solely because readiness probes flap.
+- TC startup UI now renders progressing steps instead of freezing on the initial HTML state.
+- BeagleStream client/server default artifact wiring uses GitHub `releases/latest/download` paths.
 
-Aktuell blockierend fuer Pilot/Production:
+## How To Read This Snapshot
 
-1. Runbooks sind Skelette — mind. 1 Validierung auf realer Hardware noch offen
-2. GPU-Server-Basis ist validiert, aber NVENC-/Streaming-Session, VFIO-Reboot-Proof und vGPU/MDEV-Lizenzpfad sind noch offen
-3. Externer Security-Review nicht beauftragt → R4 nicht abschliessbar
-
----
-
-## Naechste konkrete Schritte (top 5)
-
-1. `srv1`/`vm100` stabilisieren: Provisioning bis Reboot/Desktop, Update-Versionen und Artefaktstatus widerspruchsfrei.
-2. BeagleStream-End-to-End abnehmen: Thinclient bootet, WireGuard aktiv, Broker-Allocate, sichtbarer Desktop-Stream ohne manuelle PIN.
-3. Frische ISO-Installation auf leerem Host live durchfuehren + [`runbooks/installation.md`](runbooks/installation.md) auf **Validiert** heben.
-4. Backup/Restore auf realer 2-Node-Konstellation testen, [`runbooks/backup-restore.md`](runbooks/backup-restore.md) validieren.
-5. R3/R4 vorbereiten: Cluster-Smoke `srv1`+`srv2`, GPU-Rest, externe Security-Review.
+- Green means implemented and backed by current evidence.
+- Yellow means implementation exists but gate evidence is incomplete or hardware-specific.
+- Red means external hardware, clean environment, or third-party review is still required.

@@ -1,6 +1,6 @@
 # Commercial Readiness
 
-Stand: 2026-05-02
+Stand: 2026-05-29
 
 Dieses Dokument definiert, was vorhanden sein muss, bevor Beagle OS aktiv Firmen
 angeboten wird.
@@ -22,7 +22,7 @@ Entwicklerintervention liefern kann:
 ## Nicht verkaufen, solange offen
 
 - Clean-Install ist nicht live validiert.
-- BeagleStream-End-to-End ist nicht reproduzierbar abgeschlossen.
+- BeagleStream-End-to-End ist live auf TC/VM100 validiert, aber noch nicht aus frischem Release-/Payload-Pfad ohne Hotpatch reproduzierbar abgeschlossen.
 - Restore einer echten VM-Disk auf frischem Host fehlt.
 - Externer Security-Review fehlt.
 - HA/Fencing und WireGuard-Stream-Latenz sind nicht auf echter Zwei-Host-Umgebung abgenommen.

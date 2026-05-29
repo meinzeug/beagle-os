@@ -9,7 +9,7 @@
 
 **Korrektur 2026-05-03**: Die Fork-Repositories existieren und sind in den Beagle-OS-Artefaktpfad eingebunden, aber der Produktumbau ist noch nicht abgeschlossen. Beagle-Pfade muessen token-native werden; vorhandene PIN-/Moonlight-/Sunshine-Kompatibilitaet ist nur Uebergangsbruecke und kein Zielzustand.
 
-- [ ] **Phase A 8.0.x** — Fork `meinzeug/beagle-stream-server` → echtes BeagleStream-Server-Produkt abschliessen
+- [x] **Phase A 8.0.x/8.3.x** — Fork `meinzeug/beagle-stream-server` als BeagleStream-Server-Produktlinie abschliessen
   - [x] `src/beagle/BeagleBrokerClient.cpp` (Broker-getriebenes Pairing)
   - [x] `src/beagle/BeagleAuth.cpp` token-native machen: kein `nvhttp::pin(token, name)`-Shim, sondern Manager-/Signatur-/Expiry-/One-Time-Use-Validierung
   - [x] `/api/pin` in Beagle-Builds deaktivieren oder strikt als Upstream-Kompatibilitaet isolieren
@@ -17,13 +17,13 @@
   - [x] `.deb`-Paket `beagle-stream-server` ersetzt `beagle-stream-server.deb` in VM-Images
   - [x] Beagle-VM-Integration bevorzugt kanonische `beagle_stream_server_state.json`/`beagle-stream-server.conf`; Sunshine-Dateinamen bleiben nur Rueckfallpfad.
   - [x] Native Beagle-Status-/Identity-API `/api/beagle/v1/status` im Fork umgesetzt und auf `srv1` gebaut (`meinzeug/beagle-stream-server@1418ef35`).
-- [ ] **Phase A 8.0.x** — Fork `meinzeug/beagle-stream-client` → echtes BeagleStream-Client-Produkt abschliessen
+- [x] **Phase A 8.0.x/8.3.x** — Fork `meinzeug/beagle-stream-client` als BeagleStream-Client-Produktlinie abschliessen
   - [x] `app/beagle/BeagleBroker.cpp` (Broker-Discovery)
   - [x] `app/beagle/BeagleVPN.cpp` (WireGuard-Integration)
   - [x] Beagle-Branding (Name, Icons, About)
-  - [x] In Thin-Client-OS-Image gebundelt: Build versucht standardmaessig `meinzeug/beagle-stream-client` Release `beagle-phase-a` und kann per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL` ueberschrieben werden; Runtime startet bei Enrollment ohne statischen Host hostless gegen den Broker.
+  - [x] In Thin-Client-OS-Image gebundelt: Build nutzt standardmaessig `meinzeug/beagle-stream-client` ueber `releases/latest/download/BeagleStream-latest-x86_64.AppImage` und kann per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_URL` ueberschrieben werden; Runtime startet bei Enrollment ohne statischen Host hostless gegen den Broker.
   - [x] CLI/UI auf Pairing-Token statt PIN umbenennen; Beagle-Runtime darf keine neue PIN-Benennung einfuehren.
-  - [x] Beide Forks: versionierte Release-Artefakte mit Commit-SHA, Checksummen und Beagle-Integrationstest; Beagle OS pinnt diese Artefakte explizit im Build (`BeagleStream-beagle-6210928-x86_64.AppImage`, `beagle-stream-server-71e32b3-ubuntu-24.04-amd64.deb`).
+  - [x] Beide Forks: echte non-prerelease GitHub-Latest-Releases mit Checksummen; Beagle OS nutzt die `latest/download`-Assets (`BeagleStream-latest-x86_64.AppImage`, `beagle-stream-server-latest-ubuntu-24.04-amd64.deb`) mit `SHA256SUMS`-Verifikation, solange kein expliziter SHA/URL override gesetzt ist.
   - [x] Broker-Start nutzt explizit `host:port app`, wenn der Manager ein Ziel geliefert hat; stale lokale Hosteintraege duerfen nicht gewinnen. Live-Hotfix/Abnahme 2026-05-04: lokaler Thinclient `ubuntu-beagle-100` meldet `broker_allocation_reachable=1`, `beagle_stream_client_target_reachable=1`, `update_state=current`.
   - [x] Manager-Ziel gewinnt immer gegen stale lokale Config; Pairing/UI/CLI spricht von Token, nicht PIN.
   - [x] Beagle-Managed-Mode unterdrueckt Upstream-Updatecheck und WoL-Broadcasts und schreibt strukturierte `BEAGLE_STREAM_EVENT`-Logs (`meinzeug/beagle-stream-client@6210928b`, auf `srv1` gebaut).

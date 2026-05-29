@@ -1,19 +1,21 @@
 # Next Steps
 
-## Stand (2026-05-29, Stream-Client-/Session-Lifecycle und VM-Guardian abgesichert)
+## Stand (2026-05-29, Docs konsolidiert und Stream-Lifecycle abgesichert)
 
 **Zuletzt erledigt**:
 - TC-Launcher-Reentry und Lock-FD-Vererbung wurden im Runtime-Launcher gefixt; Child-Kontexte halten den Launcher-Lock nicht mehr.
-- Startup-Status-Schritte erhalten ein sichtbares pacing, damit die 10 Schritte nicht mehr an Schritt 2 "haengen bleiben".
+- Startup-Status-Schritte erhalten ein sichtbares 500ms-Pacing; der initiale HTML-State ist wieder gueltiges JavaScript-JSON, damit die UI sichtbar durchlaeuft.
 - VM-Healthcheck/Guardian starten den Stream-Server nicht mehr nur wegen kurzzeitiger Readiness-Flaps neu, solange der Prozess laeuft.
 - Die gleiche Guardian-Absicherung wurde in den Firstboot-Templatepfad uebernommen und fuer neue Guests aktiviert.
 - Live-Neustart und Hot-Deploy auf TC/VM100 verifiziert; fokussierte Regressionen sind gruen (`45 passed`).
+- `docs/README.md`, `docs/MASTER-PLAN.md`, `docs/STATUS.md`, LastHope-Metadaten, Streaming-/Release-Checklisten und `docs/archive/README.md` sind gegen den aktuellen Repo-Stand `8.3.4` konsolidiert.
 
 **Naechste konkrete Schritte**:
 
 1. Frischen TC-Bootlauf aus neu gebauttem Payload pruefen und die sichtbare 10-Schritt-Anzeige einmal per Video/Log-Nachweis archivieren.
 2. Neue VM-Erstellung aus dem aktuellen Template fahren und verifizieren, dass `beagle-stream-server-guardian.service` direkt aktiv ist.
 3. Einen laengeren Dauerstream-Smoketest (>=15 Minuten) auf TC/VM100 fahren und auf erneute `Connection terminated`-/Service-Restart-Marker pruefen.
+4. Nach dem naechsten Release-/Payload-Build die LastHope-D2-Gate-Zeile erst dann schliessen, wenn der Cold-Boot-/Fresh-Payload-Pfad ohne Hotpatch belegt ist.
 
 ## Stand (2026-05-28, Fork-Releases jetzt als echte Latest-Releases)
 
@@ -69,8 +71,8 @@
 
 **Naechste konkrete Schritte**:
 
-1. GitHub Actions fuer `beagle-stream-client` und `beagle-stream-server` beobachten, bis die neuen `latest`-Assets im Release `beagle-phase-a` verfuegbar sind.
-2. Danach TC `192.168.178.30` aus dem neuen Client-AppImage aktualisieren und VM100 aus dem neuen Server-DEB aktualisieren.
+1. Frischen Payload-/Thinclient-Build gegen die `releases/latest/download`-Assets fahren und SHA256SUMS-Verifikation im Build-Log sichern.
+2. TC `192.168.178.30` und VM100 aus diesen frischen Artefakten statt aus Hotfix-Dateien aktualisieren.
 3. TC-/VM100-E2E-Smoke wiederholen: `PairStatus=1`, `/applist` mit Client-Zertifikat, `Desktop` ohne Lookup-Fehler, laufender Stream-Prozess.
 4. Falls `PairStatus` wieder auf `0` zurueckfaellt, Pairing-Persistenz im Server-Fork statt im Thinclient-Glue fixen.
 

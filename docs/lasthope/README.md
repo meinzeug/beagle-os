@@ -1,7 +1,7 @@
 # Beagle OS LastHope Enterprise Plan
 
-Stand: 2026-05-02
-Version: 8.0.9
+Stand: 2026-05-29
+Version: 8.3.4
 
 Dieses Verzeichnis ist der endgueltige Enterprise-GA-Plan fuer Beagle OS.
 Es ersetzt nicht die operativen Detail-Checklisten unter `docs/checklists/`.
@@ -40,8 +40,8 @@ sind implementiert und teils auf `srv1`/`srv2` live validiert:
 Noch nicht Enterprise-GA:
 
 - frischer Clean-Install aus Release-Artefakten ist noch kein gruenes R1-Gate
-- `vm100`/neue VMs muessen Firstboot, Reboot, Desktop und Stream reproduzierbar abschliessen
-- BeagleStream muss als echter End-to-End-Pfad Thinclient -> WireGuard -> Broker -> Desktop bewiesen werden
+- `vm100` ist als Live-Pfad wiederholt validiert; neue VMs muessen Firstboot, Reboot, Desktop und Stream noch reproduzierbar ohne Hotfix abschliessen
+- BeagleStream ist auf TC/VM100 live nachgewiesen; der noch offene Gate-Beweis ist der Cold-Boot-/Fresh-Payload-Pfad ohne manuelle Hotpatches
 - Backup/Restore muss mit echter VM-Disk auf einem frischen bzw. zweiten Host nachgewiesen werden
 - HA/Fencing/Storage/GPU brauchen weitere Hardware-Gates
 - externer Security-Review/Pentest fehlt
@@ -75,7 +75,7 @@ wenn mindestens E2 gruen ist. Fuer produktive Enterprise-Nutzung ist E3 Pflicht.
 ## Sofort-Reihenfolge
 
 1. `vm100` neu provisionieren und bis Desktop/Stream-Endzustand ueberwachen.
-2. BeagleStream-End-to-End mit echtem Thinclient beweisen.
+2. BeagleStream-End-to-End mit echtem Thinclient aus frischem Payload ohne Hotpatch beweisen.
 3. R1 Clean-Install aus Release-Artefakten auf leerem Host durchfuehren.
 4. Backup einer echten VM-Disk auf zweitem/frischem Host restoren und Hash/Boot pruefen.
 5. Runbooks fuer Installation, Update, Rollback, Backup, Incident live validieren.
