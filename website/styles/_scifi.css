@@ -135,6 +135,12 @@ body > * {
   color: color-mix(in srgb, var(--scifi-cyan) 90%, white);
 }
 
+@media (max-width: 720px) {
+  .scifi-hud .scifi-statusbar {
+    display: none;
+  }
+}
+
 @keyframes scifiPulse {
   0%, 100% { opacity: 0.55; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.25); }

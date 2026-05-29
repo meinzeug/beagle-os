@@ -32,6 +32,14 @@ def test_scifi_css_contains_core_markers():
         assert marker in css, f"_scifi.css missing marker: {marker}"
 
 
+def test_scifi_statusbar_is_hidden_on_mobile():
+    css = _read(WEBSITE / "styles" / "_scifi.css")
+
+    assert "@media (max-width: 720px)" in css
+    assert ".scifi-hud .scifi-statusbar" in css
+    assert "display: none;" in css
+
+
 def test_scifi_hud_module_exports_initializer_and_palette():
     js = _read(WEBSITE / "ui" / "scifi_hud.js")
     for marker in (
