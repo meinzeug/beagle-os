@@ -695,6 +695,7 @@ body.light-mode .artifact-status-feed-item {
   min-width: 260px;
   cursor: pointer;
 }
+.settings-switch-spaced { margin-bottom: 8px; }
 .settings-switch input { position: absolute; opacity: 0; pointer-events: none; }
 .settings-switch-track {
   position: relative;
@@ -728,6 +729,28 @@ body.light-mode .artifact-status-feed-item {
 }
 .settings-switch strong { display: block; color: var(--text); font-size: 0.92rem; }
 .settings-switch small { display: block; color: var(--text-secondary); font-size: 0.78rem; margin-top: 2px; }
+.settings-modal-card { margin: 0; }
+.settings-modal-heading { margin-top: 0; font-size: 1.05rem; }
+.settings-readonly-input { opacity: 0.6; cursor: not-allowed; }
+.settings-update-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+.settings-update-section-title {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: var(--amber);
+}
+.settings-update-action-grid {
+  gap: 8px;
+  margin-top: 8px;
+}
+.settings-full-width-input { width: 100%; }
+.settings-actions-row {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
 .banner.subtle { color: var(--text-secondary); background: rgba(255, 255, 255, 0.03); border-color: var(--border); }
 .banner.subtle::before { background: var(--text-muted); }
 .sidebar-section-admin, .sidebar-admin-item { display: none; }

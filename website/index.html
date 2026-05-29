@@ -912,10 +912,10 @@
                 <div class="fleet-modal-body">
                   <div class="modal-grid-2">
                     <!-- Left: Metadata -->
-                    <div class="card compact-card" style="margin:0;">
-                      <h3 style="margin-top:0; font-size:1.05rem;">Allgemeine Einstellungen</h3>
+                    <div class="card compact-card settings-modal-card">
+                      <h3 class="settings-modal-heading">Allgemeine Einstellungen</h3>
                       <div class="policy-form">
-                        <label class="field"><span>Hostname</span><input id="edit-device-hostname" type="text" readonly disabled style="opacity: 0.6; cursor: not-allowed;"></label>
+                        <label class="field"><span>Hostname</span><input id="edit-device-hostname" type="text" readonly disabled class="settings-readonly-input"></label>
                         <label class="field"><span>Standort</span><input id="edit-device-location" type="text" autocomplete="off" placeholder="Berlin-Office-1"></label>
                         <label class="field"><span>Gruppe</span><input id="edit-device-group" type="text" autocomplete="off" placeholder="reception"></label>
                         <label class="field field-wide"><span>Notes / Notizen</span><textarea id="edit-device-notes" rows="3" placeholder="Interne Bemerkungen"></textarea></label>
@@ -923,13 +923,13 @@
                     </div>
 
                     <!-- Right: Engine & OS Updates -->
-                    <div class="card compact-card" style="margin:0;">
-                      <h3 style="margin-top:0; font-size:1.05rem;">Updates &amp; Kanäle</h3>
+                    <div class="card compact-card settings-modal-card">
+                      <h3 class="settings-modal-heading">Updates &amp; Kanäle</h3>
                       <div class="policy-form">
                         <!-- 1. Beagle OS Payload Updates -->
-                        <div style="border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 12px;">
-                          <h4 style="margin:0 0 8px; font-size:0.9rem; color:var(--amber);">Beagle OS Engine Update</h4>
-                          <label class="settings-switch" style="margin-bottom:8px;">
+                        <div class="settings-update-section">
+                          <h4 class="settings-update-section-title">Beagle OS Engine Update</h4>
+                          <label class="settings-switch settings-switch-spaced">
                             <input type="checkbox" id="edit-device-auto-update">
                             <span class="settings-switch-track" aria-hidden="true"></span>
                             <span><strong>Engine Auto-Update</strong><small>Automatische Engine Version-Wechsel</small></span>
@@ -940,22 +940,22 @@
                               <option value="rolling">Rolling GitHub</option>
                             </select>
                           </label>
-                          <div class="modal-grid-2" style="gap:8px; margin-top:8px;">
-                            <input id="edit-device-target-os" type="text" class="fleet-bulk-input" style="width:100%;" placeholder="v8.3.4" title="Ziel-Engine Version">
+                          <div class="modal-grid-2 settings-update-action-grid">
+                            <input id="edit-device-target-os" type="text" class="fleet-bulk-input settings-full-width-input" placeholder="v8.3.4" title="Ziel-Engine Version">
                             <button type="button" class="button primary small" id="trigger-device-engine-update">Engine Update starten</button>
                           </div>
                         </div>
 
                         <!-- 2. Apt / System Updates -->
                         <div>
-                          <h4 style="margin:0 0 8px; font-size:0.9rem; color:var(--amber);">Linux System-Updates (apt)</h4>
-                          <label class="settings-switch" style="margin-bottom:8px;">
+                          <h4 class="settings-update-section-title">Linux System-Updates (apt)</h4>
+                          <label class="settings-switch settings-switch-spaced">
                             <input type="checkbox" id="edit-device-auto-sys-update">
                             <span class="settings-switch-track" aria-hidden="true"></span>
                             <span><strong>System Auto-Update</strong><small>Systempakete (apt) automatisch im Wartungsfenster</small></span>
                           </label>
-                          <div class="modal-grid-2" style="gap:8px; margin-top:8px;">
-                            <select id="edit-device-target-sys-update" class="fleet-bulk-select" style="width:100%;">
+                          <div class="modal-grid-2 settings-update-action-grid">
+                            <select id="edit-device-target-sys-update" class="fleet-bulk-select settings-full-width-input">
                               <option value="all">Alle Updates (all)</option>
                               <option value="security">Nur Sicherheitsupdates</option>
                             </select>
@@ -965,7 +965,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="button-row compact-row section-spaced-tight" style="justify-content: flex-end; margin-top: 14px;">
+                  <div class="button-row compact-row section-spaced settings-actions-row">
                     <button type="button" class="button ghost" id="save-device-settings-btn">Aenderungen speichern</button>
                   </div>
                 </div>

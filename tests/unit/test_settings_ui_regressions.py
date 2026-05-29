@@ -96,3 +96,11 @@ def test_stream_config_endpoint_auth_runs_before_global_get_auth_guard() -> None
     global_auth_index = handler.rindex("if not self._is_authenticated():")
 
     assert stream_index < global_auth_index
+
+
+def test_index_html_avoids_inline_styles_for_csp() -> None:
+    html = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert "style=" not in html
+    assert 'class="card compact-card settings-modal-card"' in html
+    assert 'class="settings-switch settings-switch-spaced"' in html
