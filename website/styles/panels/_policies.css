@@ -288,7 +288,7 @@
   width: min(440px, 100%);
 }
 .fleet-group-create-modal {
-  z-index: 80;
+  z-index: 260;
 }
 .fleet-group-filter-bar {
   display: flex;
