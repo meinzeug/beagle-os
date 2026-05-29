@@ -77,7 +77,21 @@ def _service(
                 "last_runtime_report": self.devices.get(device_id, {}).get("last_runtime_report", {}),
                 "pending_stream_profile": self.devices.get(device_id, {}).get("pending_stream_profile", {}),
                 "stream_profile_updated_at": self.devices.get(device_id, {}).get("stream_profile_updated_at", ""),
+                "auto_update": self.devices.get(device_id, {}).get("auto_update", True),
+                "update_channel": self.devices.get(device_id, {}).get("update_channel", "stable"),
+                "target_os_version": self.devices.get(device_id, {}).get("target_os_version", ""),
+                "update_status": self.devices.get(device_id, {}).get("update_status", "idle"),
+                "auto_sys_update": self.devices.get(device_id, {}).get("auto_sys_update", False),
+                "sys_update_status": self.devices.get(device_id, {}).get("sys_update_status", "idle"),
+                "target_sys_update": self.devices.get(device_id, {}).get("target_sys_update", ""),
             }
+            return type("Device", (), self.devices[device_id])()
+
+        def set_update_settings(self, device_id, **kwargs):
+            self.devices.setdefault(device_id, {"device_id": device_id, "hostname": device_id})
+            for key, value in kwargs.items():
+                if value is not None:
+                    self.devices[device_id][key] = value
             return type("Device", (), self.devices[device_id])()
 
         def update_heartbeat(self, device_id, metrics=None):
@@ -499,6 +513,45 @@ def test_device_sync_route_returns_policy_and_commands() -> None:
     assert response["payload"]["health"]["anomaly_count"] == 0
     assert response["payload"]["policy"]["stream_profile"]["preset"] == "slow_dsl"
     assert response["payload"]["commands"]["restart_stream"] is True
+
+
+def test_device_sync_route_returns_persisted_offline_update_targets() -> None:
+    service = _service()
+    service._device_registry.set_update_settings(
+        "endpoint-a",
+        auto_update=False,
+        update_channel="rolling",
+        target_os_version="v8.4.0",
+        update_status="installing",
+        auto_sys_update=True,
+        target_sys_update="security",
+        sys_update_status="installing",
+    )
+
+    response = service.route_post(
+        "/api/v1/endpoints/device/sync",
+        endpoint_identity={"endpoint_id": "endpoint-a", "vmid": 100, "node": "beagle-0", "hostname": "thin-01"},
+        query={},
+        json_payload={"hardware": {"cpu_model": "Intel"}},
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["device"]["target_os_version"] == "v8.4.0"
+    assert response["payload"]["updates"]["beagle_os"] == {
+        "auto_update": False,
+        "channel": "rolling",
+        "target_version": "v8.4.0",
+        "status": "installing",
+        "install_requested": True,
+    }
+    assert response["payload"]["updates"]["system"] == {
+        "auto_update": True,
+        "target": "security",
+        "status": "installing",
+        "install_requested": True,
+    }
+    assert response["payload"]["commands"]["install_update"] is True
+    assert response["payload"]["commands"]["install_sys_update"] is True
 
 
 def test_device_sync_route_ingests_metrics_and_emits_alert_counts() -> None:

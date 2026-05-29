@@ -125,6 +125,28 @@ class EndpointHttpSurfaceService:
             return True
         return bool(str(getattr(device, "wg_assigned_ip", "") or "").strip())
 
+    @staticmethod
+    def _device_update_state(device: Any) -> dict[str, Any]:
+        engine_target = str(getattr(device, "target_os_version", "") or "")
+        engine_status = str(getattr(device, "update_status", "idle") or "idle")
+        system_target = str(getattr(device, "target_sys_update", "") or "")
+        system_status = str(getattr(device, "sys_update_status", "idle") or "idle")
+        return {
+            "beagle_os": {
+                "auto_update": bool(getattr(device, "auto_update", True)),
+                "channel": str(getattr(device, "update_channel", "stable") or "stable"),
+                "target_version": engine_target,
+                "status": engine_status,
+                "install_requested": bool(engine_target) or engine_status == "installing",
+            },
+            "system": {
+                "auto_update": bool(getattr(device, "auto_sys_update", False)),
+                "target": system_target,
+                "status": system_status,
+                "install_requested": bool(system_target) or system_status == "installing",
+            },
+        }
+
     def _network_mode_for_pool(self, pool_id: str) -> str:
         if not pool_id or self._pool_manager is None:
             return ""
@@ -324,6 +346,7 @@ class EndpointHttpSurfaceService:
             stream_profile = getattr(device, "pending_stream_profile", {})
             if not isinstance(stream_profile, dict):
                 stream_profile = {}
+            update_state = self._device_update_state(device)
 
             return self._json_response(
                 HTTPStatus.OK,
@@ -339,7 +362,15 @@ class EndpointHttpSurfaceService:
                             "group": str(device.group),
                             "last_wipe_report": dict(getattr(device, "last_wipe_report", {}) or {}),
                             "last_runtime_report": dict(getattr(device, "last_runtime_report", {}) or {}),
+                            "auto_update": update_state["beagle_os"]["auto_update"],
+                            "update_channel": update_state["beagle_os"]["channel"],
+                            "target_os_version": update_state["beagle_os"]["target_version"],
+                            "update_status": update_state["beagle_os"]["status"],
+                            "auto_sys_update": update_state["system"]["auto_update"],
+                            "sys_update_status": update_state["system"]["status"],
+                            "target_sys_update": update_state["system"]["target"],
                         },
+                        updates=update_state,
                         policy={
                             "policy_id": str(getattr(policy, "policy_id", "__default__") or "__default__"),
                             "name": str(getattr(policy, "name", "Default") or "Default"),
@@ -364,6 +395,8 @@ class EndpointHttpSurfaceService:
                             "wipe_pending": str(device.status) == "wipe_pending",
                             "device_status": str(device.status),
                             "restart_stream": bool(stream_profile),
+                            "install_update": bool(update_state["beagle_os"]["install_requested"]),
+                            "install_sys_update": bool(update_state["system"]["install_requested"]),
                         },
                         vpn={
                             "active": bool(vpn.get("active")),

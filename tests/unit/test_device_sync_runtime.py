@@ -81,6 +81,53 @@ def test_apply_runtime_sync_response_writes_stream_profile_env(tmp_path: Path) -
     assert not (state_dir / "stream-profile.restart").exists()
 
 
+def test_apply_runtime_sync_response_persists_update_targets_and_markers(tmp_path: Path) -> None:
+    response = tmp_path / "sync.json"
+    state_dir = tmp_path / "state"
+    response.write_text(
+        json.dumps(
+            {
+                "commands": {"install_update": True, "install_sys_update": True},
+                "updates": {
+                    "beagle_os": {
+                        "auto_update": False,
+                        "channel": "rolling",
+                        "target_version": "v8.4.0",
+                        "status": "installing",
+                        "install_requested": True,
+                    },
+                    "system": {
+                        "auto_update": True,
+                        "target": "security",
+                        "status": "installing",
+                        "install_requested": True,
+                    },
+                },
+                "policy": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cmd = (
+        f"source {SCRIPT}\n"
+        f"export BEAGLE_STATE_DIR={state_dir}\n"
+        f"apply_runtime_sync_response {response}\n"
+    )
+    subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), check=True)
+
+    updates = json.loads((state_dir / "device-updates.json").read_text(encoding="utf-8"))
+    assert updates["beagle_os"]["target_version"] == "v8.4.0"
+    update_env = (state_dir / "device-updates.env").read_text(encoding="utf-8")
+    assert "PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED='0'" in update_env
+    assert "PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL='rolling'" in update_env
+    assert "PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN='v8.4.0'" in update_env
+    assert "PVE_THIN_CLIENT_SYSTEM_UPDATE_ENABLED='1'" in update_env
+    assert "PVE_THIN_CLIENT_SYSTEM_UPDATE_TARGET='security'" in update_env
+    assert (state_dir / "beagle-os-update.requested").read_text(encoding="utf-8").strip() == "v8.4.0"
+    assert (state_dir / "system-update.requested").read_text(encoding="utf-8").strip() == "security"
+
+
 def test_runtime_device_sync_payload_marks_wireguard_state(tmp_path: Path) -> None:
     bindir = tmp_path / "bin"
     bindir.mkdir(parents=True, exist_ok=True)

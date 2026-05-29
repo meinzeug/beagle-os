@@ -475,7 +475,7 @@ apply_runtime_sync_response() {
   local response_file="${1:-}"
   [[ -r "$response_file" ]] || return 1
 
-  local state_dir lock_file wipe_file policy_file stream_env_file restart_marker
+  local state_dir lock_file wipe_file policy_file stream_env_file restart_marker update_file update_env_file engine_marker system_marker
   state_dir="$(beagle_state_dir)"
   mkdir -p "$state_dir" >/dev/null 2>&1 || true
   lock_file="$state_dir/device.locked"
@@ -483,20 +483,31 @@ apply_runtime_sync_response() {
   policy_file="$state_dir/device-policy.json"
   stream_env_file="$state_dir/stream-profile.env"
   restart_marker="$state_dir/stream-profile.restart"
+  update_file="$state_dir/device-updates.json"
+  update_env_file="$state_dir/device-updates.env"
+  engine_marker="$state_dir/beagle-os-update.requested"
+  system_marker="$state_dir/system-update.requested"
 
-  python3 - "$response_file" "$lock_file" "$wipe_file" "$policy_file" "$stream_env_file" "$restart_marker" <<'PY'
+  python3 - "$response_file" "$lock_file" "$wipe_file" "$policy_file" "$stream_env_file" "$restart_marker" "$update_file" "$update_env_file" "$engine_marker" "$system_marker" <<'PY'
 import json, sys
 from pathlib import Path
 
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 commands = payload.get("commands") if isinstance(payload, dict) else {}
 policy = payload.get("policy") if isinstance(payload, dict) else {}
+updates = payload.get("updates") if isinstance(payload, dict) else {}
+if not isinstance(updates, dict):
+  updates = {}
 
 lock_file = Path(sys.argv[2])
 wipe_file = Path(sys.argv[3])
 policy_file = Path(sys.argv[4])
 stream_env_file = Path(sys.argv[5])
 restart_marker = Path(sys.argv[6])
+update_file = Path(sys.argv[7])
+update_env_file = Path(sys.argv[8])
+engine_marker = Path(sys.argv[9])
+system_marker = Path(sys.argv[10])
 
 if commands.get("lock_screen"):
     lock_file.write_text("locked\n", encoding="utf-8")
@@ -541,6 +552,29 @@ if content != old:
   else:
     stream_env_file.unlink(missing_ok=True)
   restart_marker.write_text("restart\n", encoding="utf-8")
+
+beagle_os = updates.get("beagle_os") if isinstance(updates.get("beagle_os"), dict) else {}
+system = updates.get("system") if isinstance(updates.get("system"), dict) else {}
+update_file.write_text(json.dumps(updates, indent=2), encoding="utf-8")
+update_env = {
+  "PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED": "1" if beagle_os.get("auto_update", True) else "0",
+  "PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL": beagle_os.get("channel", "stable") or "stable",
+  "PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN": beagle_os.get("target_version", "") or "",
+  "PVE_THIN_CLIENT_SYSTEM_UPDATE_ENABLED": "1" if system.get("auto_update", False) else "0",
+  "PVE_THIN_CLIENT_SYSTEM_UPDATE_TARGET": system.get("target", "") or "",
+}
+update_env_content = "".join(f"export {key}={shell_value(value)}\n" for key, value in update_env.items())
+old_update_env = update_env_file.read_text(encoding="utf-8") if update_env_file.exists() else ""
+if update_env_content != old_update_env:
+  update_env_file.write_text(update_env_content, encoding="utf-8")
+if commands.get("install_update") or beagle_os.get("install_requested"):
+  engine_marker.write_text(str(beagle_os.get("target_version", "") or "latest") + "\n", encoding="utf-8")
+else:
+  engine_marker.unlink(missing_ok=True)
+if commands.get("install_sys_update") or system.get("install_requested"):
+  system_marker.write_text(str(system.get("target", "") or "all") + "\n", encoding="utf-8")
+else:
+  system_marker.unlink(missing_ok=True)
 PY
   if [[ -f "$restart_marker" ]]; then
   rm -f "$restart_marker" >/dev/null 2>&1 || true
