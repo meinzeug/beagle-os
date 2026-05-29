@@ -29,6 +29,7 @@ class FleetHttpSurfaceService:
     _DEVICE_REMEDIATION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/remediation/execute$")
     _DEVICE_ACTION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/(?P<action>heartbeat|lock|unlock|wipe|confirm-wiped)$")
     _DEVICE_BULK_ACTIONS = "/api/v1/fleet/devices/actions/bulk"
+    _DEVICE_GROUPS = "/api/v1/fleet/devices/groups"
     _FLEET_ALERT_RULE = re.compile(r"^/api/v1/fleet/alerts/rules/(?P<rule_id>[A-Za-z0-9._:-]+)$")
     _FLEET_ALERT_RESOLVE = re.compile(r"^/api/v1/fleet/alerts/(?P<alert_id>[^/]+)/resolve$")
 
@@ -427,7 +428,7 @@ class FleetHttpSurfaceService:
             return True
         if path == "/api/v1/fleet/devices":
             return True
-        if path == "/api/v1/fleet/devices/groups":
+        if path == self._DEVICE_GROUPS:
             return True
         if self._DEVICE_EFFECTIVE_POLICY.match(path):
             return True
@@ -546,14 +547,15 @@ class FleetHttpSurfaceService:
                     **self._envelope(
                         devices=payload,
                         groups=self._registry.list_groups(),
+                        group_records=self._registry.list_group_records(),
                         count=len(payload),
                     ),
                 },
             )
-        if path == "/api/v1/fleet/devices/groups":
+        if path == self._DEVICE_GROUPS:
             return self._json(
                 HTTPStatus.OK,
-                {"ok": True, **self._envelope(groups=self._registry.list_groups())},
+                {"ok": True, **self._envelope(groups=self._registry.list_groups(), group_records=self._registry.list_group_records())},
             )
 
         match = self._DEVICE_EFFECTIVE_POLICY.match(path)
@@ -593,6 +595,8 @@ class FleetHttpSurfaceService:
 
     def handles_post(self, path: str) -> bool:
         if path == "/api/v1/fleet/devices/register":
+            return True
+        if path == self._DEVICE_GROUPS:
             return True
         if path == self._FLEET_ALERT_RULES:
             return True
@@ -792,6 +796,24 @@ class FleetHttpSurfaceService:
             return self._json(
                 HTTPStatus.CREATED,
                 {"ok": True, **self._envelope(device=self._device_to_dict(device))},
+            )
+        if path == self._DEVICE_GROUPS:
+            name = str(payload.get("name") or payload.get("group") or "").strip()
+            if not name:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "group name required"})
+            try:
+                group = self._registry.ensure_group(name)
+            except ValueError as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._safe_audit_event(
+                "fleet.group.create",
+                "success",
+                username=requester_name or self._requester_identity(),
+                group=name,
+            )
+            return self._json(
+                HTTPStatus.CREATED,
+                {"ok": True, **self._envelope(group=group, groups=self._registry.list_groups(), group_records=self._registry.list_group_records())},
             )
         if path == self._DEVICE_BULK_ACTIONS:
             action = str(payload.get("action") or "").strip().lower()

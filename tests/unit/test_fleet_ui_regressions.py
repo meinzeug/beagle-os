@@ -109,14 +109,22 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "Standort / Gruppe" in js
     assert "Lade Fleet-Status" in js
     assert "function deviceGroups()" in js
+    assert "function normalizeGroupNames" in js
     assert "function updateDeviceGroupOptions" in js
     assert "data-device-group-select" in js
     assert "editingDeviceId" in js
     assert "create-device-group-btn" in js
     assert "Neue Gruppe erstellen" in js
     assert "fleet-group-plus" in js
-    assert "Gruppe ${value} erstellt und diesem ThinClient zugewiesen." in js
-    assert "body: JSON.stringify({ group: value })" in js
+    assert "function openGroupCreateModal" in js
+    assert "function createPersistentGroup" in js
+    assert "request('/fleet/devices/groups'" in js
+    assert "function groupFilterBar" in js
+    assert "function filteredDevicesByGroup" in js
+    assert "data-fleet-group-filter" in js
+    assert "Keine ThinClients in dieser Gruppe." in js
+    assert "Gruppe ${group} gespeichert und ausgewaehlt." in js
+    assert "body: JSON.stringify({ group: clean })" in js
     assert "groupInput.oninput = () => updateDeviceGroupOptions(groupInput.value);" in js
 
 
@@ -128,6 +136,10 @@ def test_thin_client_config_modal_uses_interactive_group_picker() -> None:
     assert 'id="fleet-device-group-options"' in html
     assert 'id="edit-device-group-picker"' in html
     assert 'fleet-group-picker' in html
+    assert 'id="fleet-group-create-modal"' in html
+    assert 'id="new-device-group-name"' in html
+    assert 'id="confirm-create-group-btn"' in html
+    assert 'Erstellen und auswählen' in html
 
 
 def test_enterprise_dashboard_modules_use_operator_routes() -> None:

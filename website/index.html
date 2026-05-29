@@ -202,7 +202,7 @@
               <button class="button primary" id="artifact-modal-restart" type="button">Sauber neu starten</button>
               <button class="button ghost" id="artifact-modal-watchdog" type="button">Watchdog pruefen</button>
             </div>
-          </section>
+
           <aside class="artifact-build-modal-side">
             <div class="info-item"><span class="info-label">Service</span><span class="info-value" id="artifact-modal-service">—</span></div>
             <div class="info-item"><span class="info-label">Timer</span><span class="info-value" id="artifact-modal-timer">—</span></div>
@@ -881,6 +881,7 @@
                 </div>
               </article>
             </div>
+
           </section>
 
           <!-- ============ THIN CLIENT REGISTRY ============ -->
@@ -969,6 +970,26 @@
                   </div>
                   <div class="button-row compact-row section-spaced settings-actions-row">
                     <button type="button" class="button ghost" id="save-device-settings-btn">Aenderungen speichern</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal fleet-group-create-modal" id="fleet-group-create-modal" aria-hidden="true" hidden>
+              <div class="modal-dialog fleet-group-create-dialog" role="dialog" aria-modal="true" aria-labelledby="fleet-group-create-title">
+                <div class="modal-dialog-head">
+                  <div>
+                    <span class="eyebrow">Thin Clients</span>
+                    <h2 id="fleet-group-create-title">Neue Gruppe erstellen</h2>
+                    <p>Gruppe persistent speichern und fuer ThinClients, Policies und Bulk-Aktionen wiederverwenden.</p>
+                  </div>
+                  <button class="icon-button" type="button" id="close-group-create-modal" aria-label="Schliessen">×</button>
+                </div>
+                <div class="fleet-modal-body">
+                  <label class="field"><span>Gruppenname</span><input id="new-device-group-name" type="text" autocomplete="off" placeholder="reception"></label>
+                  <div class="button-row compact-row settings-actions-row">
+                    <button type="button" class="button ghost" id="cancel-create-group-btn">Abbrechen</button>
+                    <button type="button" class="button primary" id="confirm-create-group-btn">Erstellen und auswählen</button>
                   </div>
                 </div>
               </div>

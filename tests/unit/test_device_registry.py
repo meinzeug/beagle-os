@@ -213,3 +213,26 @@ def test_device_registry_update_settings_and_system_updates(tmp_path):
     assert updated.auto_sys_update is True
     assert updated.sys_update_status == "idle"
     assert updated.target_sys_update == "security"
+
+
+def test_device_groups_are_persisted_independently_from_devices(tmp_path):
+    svc = make_svc(tmp_path)
+    group = svc.ensure_group("reception")
+
+    assert group["name"] == "reception"
+    assert "reception" in svc.list_groups()
+
+    reloaded = make_svc(tmp_path)
+    assert "reception" in reloaded.list_groups()
+    assert reloaded.list_group_records()[0]["name"] == "reception"
+
+
+def test_set_group_creates_reusable_group_record(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.register_device("dev-001", "tc-001", HW)
+
+    updated = svc.set_group("dev-001", "kiosk")
+
+    assert updated.group == "kiosk"
+    assert "kiosk" in svc.list_groups()
+    assert "kiosk" in make_svc(tmp_path).list_groups()

@@ -14,6 +14,8 @@ const fleetHooks = {
 
 const fleetState = {
   devices: [],
+  groups: [],
+  selectedGroupFilter: '__all__',
   editingDeviceId: '',
   alerts: [],
   alertRules: [],
@@ -78,10 +80,63 @@ function deviceActionButtons(device) {
 }
 
 function deviceGroups() {
-  return Array.from(new Set((fleetState.devices || [])
+  return Array.from(new Set([...(fleetState.groups || []), ...(fleetState.devices || [])
     .map((device) => String(device.group || '').trim())
+    .filter(Boolean)]))
+    .sort((left, right) => left.localeCompare(right, 'de'));
+}
+
+function normalizeGroupNames(payload) {
+  if (!Array.isArray(payload)) return [];
+  return Array.from(new Set(payload
+    .map((item) => typeof item === 'string' ? item : String(item?.name || ''))
+    .map((item) => item.trim())
     .filter(Boolean)))
     .sort((left, right) => left.localeCompare(right, 'de'));
+}
+
+function closeGroupCreateModal() {
+  const modal = qs('fleet-group-create-modal');
+  if (!modal) return;
+  modal.hidden = true;
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function openGroupCreateModal(prefill = '') {
+  const modal = qs('fleet-group-create-modal');
+  const input = qs('new-device-group-name');
+  if (!modal || !input) return;
+  input.value = String(prefill || '').trim();
+  modal.hidden = false;
+  modal.setAttribute('aria-hidden', 'false');
+  window.setTimeout(() => input.focus(), 0);
+}
+
+async function createPersistentGroup(name, { assignToEditingDevice = false } = {}) {
+  const clean = String(name || '').trim();
+  if (!clean) {
+    throw new Error('Gruppenname fehlt');
+  }
+  const created = await request('/fleet/devices/groups', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: clean }),
+  });
+  fleetState.groups = normalizeGroupNames(created?.groups || created?.group_records || [clean]);
+  if (!fleetState.groups.includes(clean)) {
+    fleetState.groups.push(clean);
+    fleetState.groups.sort((left, right) => left.localeCompare(right, 'de'));
+  }
+  if (assignToEditingDevice && fleetState.editingDeviceId) {
+    await request(`/fleet/devices/${encodeURIComponent(fleetState.editingDeviceId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group: clean }),
+    });
+    const device = fleetState.devices.find((item) => String(item.device_id || '') === fleetState.editingDeviceId);
+    if (device) device.group = clean;
+  }
+  return clean;
 }
 
 function updateDeviceGroupOptions(selectedGroup = '') {
@@ -102,7 +157,7 @@ function updateDeviceGroupOptions(selectedGroup = '') {
     <span>Bekannte Gruppen</span>
     <div class="fleet-group-chip-list">
       ${chips || '<span class="muted">Noch keine Gruppen vorhanden.</span>'}
-      <button type="button" class="fleet-group-chip fleet-group-chip-new" id="create-device-group-btn">
+      <button type="button" class="fleet-group-chip fleet-group-chip-new" id="create-device-group-btn" data-open-group-create>
         <span class="fleet-group-plus" aria-hidden="true">+</span>
         <span>Neue Gruppe erstellen</span>
       </button>
@@ -117,34 +172,37 @@ function updateDeviceGroupOptions(selectedGroup = '') {
   });
   const createButton = qs('create-device-group-btn');
   if (createButton) {
-    createButton.addEventListener('click', async () => {
+    createButton.addEventListener('click', () => {
       const input = qs('edit-device-group');
       const value = String(input?.value || '').trim();
-      if (!value) {
-        fleetHooks.setBanner('Erst einen Gruppennamen eintragen, dann Neue Gruppe erstellen klicken.', 'warn');
-        return;
-      }
-      const deviceId = String(fleetState.editingDeviceId || '').trim();
-      if (deviceId) {
-        createButton.disabled = true;
-        try {
-          await request(`/fleet/devices/${encodeURIComponent(deviceId)}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ group: value }),
-          });
-          const device = fleetState.devices.find((item) => String(item.device_id || '') === deviceId);
-          if (device) device.group = value;
-          fleetHooks.setBanner(`Gruppe ${value} erstellt und diesem ThinClient zugewiesen.`, 'ok');
-        } catch (error) {
-          fleetHooks.setBanner('Gruppe konnte nicht gesetzt werden: ' + String(error.message ?? error), 'warn');
-        } finally {
-          createButton.disabled = false;
-        }
-      }
-      updateDeviceGroupOptions(value);
+      openGroupCreateModal(value);
     });
   }
+}
+
+function groupFilterBar(devices) {
+  const groups = deviceGroups();
+  if (!groups.length && !devices.some((device) => !String(device.group || '').trim())) {
+    return '';
+  }
+  const countFor = (group) => devices.filter((device) => String(device.group || '').trim() === group).length;
+  const withoutGroup = devices.filter((device) => !String(device.group || '').trim()).length;
+  const selected = String(fleetState.selectedGroupFilter || '__all__');
+  const buttons = [
+    `<button type="button" class="fleet-group-filter${selected === '__all__' ? ' is-selected' : ''}" data-fleet-group-filter="__all__">Alle <span>${escapeHtml(String(devices.length))}</span></button>`,
+    ...groups.map((group) => `<button type="button" class="fleet-group-filter${selected === group ? ' is-selected' : ''}" data-fleet-group-filter="${escapeHtml(group)}">${escapeHtml(group)} <span>${escapeHtml(String(countFor(group)))}</span></button>`),
+  ];
+  if (withoutGroup) {
+    buttons.push(`<button type="button" class="fleet-group-filter${selected === '__none__' ? ' is-selected' : ''}" data-fleet-group-filter="__none__">Ohne Gruppe <span>${escapeHtml(String(withoutGroup))}</span></button>`);
+  }
+  return `<section class="fleet-group-filter-bar section-spaced-tight" aria-label="ThinClients nach Gruppe filtern">${buttons.join('')}</section>`;
+}
+
+function filteredDevicesByGroup(devices) {
+  const selected = String(fleetState.selectedGroupFilter || '__all__');
+  if (selected === '__all__') return devices;
+  if (selected === '__none__') return devices.filter((device) => !String(device.group || '').trim());
+  return devices.filter((device) => String(device.group || '').trim() === selected);
 }
 
 function deviceRow(device, anomalies, maintenance) {
@@ -1097,6 +1155,12 @@ export async function renderFleetHealth() {
       closeFleetModals();
       return;
     }
+    const groupFilter = event.target.closest('[data-fleet-group-filter]');
+    if (groupFilter) {
+      fleetState.selectedGroupFilter = String(groupFilter.getAttribute('data-fleet-group-filter') || '__all__');
+      renderFleetHealth();
+      return;
+    }
     const button = event.target.closest('[data-fleet-action]');
     if (!button) return;
     const action = String(button.getAttribute('data-fleet-action') || '').trim();
@@ -1115,6 +1179,7 @@ export async function renderFleetHealth() {
   let alerts = [];
   let alertRules = [];
   let policies = [];
+  let groups = [];
   let assignments = { device_assignments: {}, group_assignments: {} };
   let remediationDrift = { devices: [], drifted_count: 0, safe_candidate_count: 0 };
   let remediationConfig = { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} };
@@ -1122,7 +1187,10 @@ export async function renderFleetHealth() {
 
   try {
     [devices, anomalies, maintenance, alerts, alertRules, policies, assignments, remediationDrift, remediationConfig, remediationHistory] = await Promise.all([
-      request('/fleet/devices').then((d) => Array.isArray(d) ? d : (d.devices ?? [])),
+      request('/fleet/devices').then((d) => {
+        groups = normalizeGroupNames(d?.group_records || d?.groups || []);
+        return Array.isArray(d) ? d : (d.devices ?? []);
+      }),
       request('/fleet/anomalies').then((d) => Array.isArray(d) ? d : (d.anomalies ?? [])).catch(() => []),
       request('/fleet/maintenance').then((d) => Array.isArray(d) ? d : (d.maintenance ?? [])).catch(() => []),
       request('/fleet/alerts').then((d) => Array.isArray(d) ? d : (d.alerts ?? [])).catch(() => []),
@@ -1139,6 +1207,7 @@ export async function renderFleetHealth() {
   }
 
   fleetState.devices = devices;
+  fleetState.groups = groups;
   fleetState.alerts = alerts;
   fleetState.alertRules = alertRules;
   fleetState.policies = policies;
@@ -1147,7 +1216,8 @@ export async function renderFleetHealth() {
   fleetState.remediationConfig = remediationConfig?.config || { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} };
   fleetState.remediationHistory = Array.isArray(remediationHistory?.history) ? remediationHistory.history : [];
 
-  const rows = devices.map((d) => deviceRow(d, anomalies, maintenance)).join('');
+  const visibleDevices = filteredDevicesByGroup(devices);
+  const rows = visibleDevices.map((d) => deviceRow(d, anomalies, maintenance)).join('');
   const anomalyCount = anomalies.length;
   const maintCount = maintenance.filter((m) => m.status === 'pending').length;
   const onlineCount = devices.filter((item) => String(item.status || '').trim() === 'online').length;
@@ -1197,6 +1267,8 @@ export async function renderFleetHealth() {
 
       ${fleetActionGuide()}
 
+      ${groupFilterBar(devices)}
+
       <div class="fleet-bulk-bar" id="fleet-mass-toolbar">
         <div class="fleet-bulk-controls">
           <span class="fleet-bulk-label" id="fleet-bulk-selection-count">0 Geräte deselektiert</span>
@@ -1226,7 +1298,7 @@ export async function renderFleetHealth() {
         <div>
           <span class="eyebrow">Geräteliste</span>
           <h3>Alle Thin Clients auf einen Blick</h3>
-          <p class="muted-text">Status, Versionen und Updates bleiben in einer einzigen Tabelle sichtbar.</p>
+          <p class="muted-text">Status, Versionen und Updates bleiben in einer einzigen Tabelle sichtbar. Gruppenfilter blenden Geräte gezielt ein oder aus.</p>
         </div>
         <div class="button-row compact-row">
           <button type="button" class="button ghost small" data-fleet-modal="fleet-policy-preview-modal">Aktive Policy prüfen</button>
@@ -1249,7 +1321,7 @@ export async function renderFleetHealth() {
             <th>Aktionen</th>
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody>${rows || '<tr><td colspan="10"><div class="empty-card">Keine ThinClients in dieser Gruppe.</div></td></tr>'}</tbody>
       </table>
       </div>
       </section>
@@ -1404,6 +1476,30 @@ export async function renderFleetHealth() {
   const closeButton = qs('close-device-edit-modal');
   if (closeButton) {
     closeButton.onclick = closeEditModalFn;
+  }
+  const closeGroupButton = qs('close-group-create-modal');
+  const cancelGroupButton = qs('cancel-create-group-btn');
+  const confirmGroupButton = qs('confirm-create-group-btn');
+  if (closeGroupButton) closeGroupButton.onclick = closeGroupCreateModal;
+  if (cancelGroupButton) cancelGroupButton.onclick = closeGroupCreateModal;
+  if (confirmGroupButton) {
+    confirmGroupButton.onclick = async () => {
+      const input = qs('new-device-group-name');
+      const value = String(input?.value || '').trim();
+      confirmGroupButton.disabled = true;
+      try {
+        const group = await createPersistentGroup(value, { assignToEditingDevice: true });
+        const groupInput = qs('edit-device-group');
+        if (groupInput) groupInput.value = group;
+        updateDeviceGroupOptions(group);
+        closeGroupCreateModal();
+        fleetHooks.setBanner(`Gruppe ${group} gespeichert und ausgewaehlt.`, 'ok');
+      } catch (error) {
+        fleetHooks.setBanner('Gruppe konnte nicht erstellt werden: ' + String(error.message ?? error), 'warn');
+      } finally {
+        confirmGroupButton.disabled = false;
+      }
+    };
   }
 
   container.querySelectorAll('[data-custom-device-edit]').forEach((item) => {

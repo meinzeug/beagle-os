@@ -269,6 +269,10 @@
 .fleet-group-chip-new {
   border-style: dashed;
 }
+.fleet-group-chip:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
 .fleet-group-plus {
   display: inline-grid;
   place-items: center;
@@ -279,6 +283,39 @@
   color: #1a1d22;
   font-weight: 800;
   line-height: 1;
+}
+.fleet-group-create-dialog {
+  width: min(440px, 100%);
+}
+.fleet-group-create-modal {
+  z-index: 80;
+}
+.fleet-group-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.fleet-group-filter {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 10px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.fleet-group-filter span {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+.fleet-group-filter:hover,
+.fleet-group-filter.is-selected {
+  border-color: var(--amber);
+  background: var(--amber-glow);
 }
 
 .modal-grid-2 {

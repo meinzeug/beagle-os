@@ -114,16 +114,18 @@ class DeviceRegistryService:
     ) -> None:
         self._store = JsonStateStore(
             state_file or self.STATE_FILE,
-            default_factory=lambda: {"devices": {}},
+            default_factory=lambda: {"devices": {}, "groups": {}},
         )
         self._utcnow = utcnow or self._default_utcnow
         self._repo: DeviceRepository | None = device_repository
         if device_repository is not None:
             # Load initial state from SQLite repository
             db_devices = {d["device_id"]: d for d in device_repository.list()}
-            self._state: dict[str, Any] = {"devices": db_devices}
+            self._state: dict[str, Any] = {"devices": db_devices, "groups": {}}
         else:
             self._state = self._store.load()
+        self._state.setdefault("devices", {})
+        self._state.setdefault("groups", {})
 
     # ------------------------------------------------------------------
     # CRUD
@@ -234,7 +236,10 @@ class DeviceRegistryService:
 
     def set_group(self, device_id: str, group: str) -> Device:
         dev = self._require(device_id)
-        dev["group"] = group
+        normalized_group = str(group or "").strip()
+        if normalized_group:
+            self.ensure_group(normalized_group)
+        dev["group"] = normalized_group
         self._save()
         return device_from_dict(dev)
 
@@ -330,16 +335,41 @@ class DeviceRegistryService:
 
     def assign_group(self, group: str, device_ids: list[str]) -> list[str]:
         """Assign multiple devices to a group. Returns list of updated IDs."""
+        normalized_group = str(group or "").strip()
+        if normalized_group:
+            self.ensure_group(normalized_group)
         updated = []
         for did in device_ids:
             if did in self._state["devices"]:
-                self._state["devices"][did]["group"] = group
+                self._state["devices"][did]["group"] = normalized_group
                 updated.append(did)
         self._save()
         return updated
 
+    def ensure_group(self, name: str) -> dict[str, Any]:
+        clean = str(name or "").strip()
+        if not clean:
+            raise ValueError("group name required")
+        groups = self._state.setdefault("groups", {})
+        existing = groups.get(clean)
+        if isinstance(existing, dict):
+            return existing
+        record = {"name": clean, "created_at": self._utcnow()}
+        groups[clean] = record
+        self._save()
+        return record
+
+    def list_group_records(self) -> list[dict[str, Any]]:
+        groups = self._state.setdefault("groups", {})
+        for device in self._state["devices"].values():
+            group = str(device.get("group", "") or "").strip()
+            if group and group not in groups:
+                groups[group] = {"name": group, "created_at": ""}
+        records = [dict(record, name=str(record.get("name") or name)) for name, record in groups.items() if isinstance(record, dict)]
+        return sorted(records, key=lambda item: str(item.get("name", "")).lower())
+
     def list_groups(self) -> list[str]:
-        return sorted({d.get("group", "") for d in self._state["devices"].values() if d.get("group")})
+        return [str(item.get("name", "") or "") for item in self.list_group_records() if str(item.get("name", "") or "")]
 
     # ------------------------------------------------------------------
     # Internals

@@ -136,6 +136,21 @@ def test_list_devices_returns_groups_and_filters(tmp_path: Path) -> None:
     assert listing["payload"]["devices"][0]["device_id"] == "dev-001"
     assert "berlin" in listing["payload"]["groups"]
     assert "munich" in listing["payload"]["groups"]
+    assert {item["name"] for item in listing["payload"]["group_records"]} >= {"berlin", "munich"}
+
+
+def test_fleet_group_api_creates_persistent_reusable_groups(tmp_path: Path) -> None:
+    registry, _, _, _, service = make_services(tmp_path)
+
+    created = service.route_post("/api/v1/fleet/devices/groups", json_payload={"name": "reception"})
+    listing = service.route_get("/api/v1/fleet/devices/groups")
+
+    assert created is not None
+    assert created["status"] == HTTPStatus.CREATED
+    assert created["payload"]["group"]["name"] == "reception"
+    assert listing is not None
+    assert "reception" in listing["payload"]["groups"]
+    assert "reception" in registry.list_groups()
 
 
 def test_put_updates_location_group_and_notes(tmp_path: Path) -> None:
