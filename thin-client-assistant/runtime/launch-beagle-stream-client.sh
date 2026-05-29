@@ -339,11 +339,13 @@ beagle_stream_startup_status_step() {
 }
 
 beagle_stream_startup_status_pace() {
-  local pace="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC:-0.35}"
+  local pace_raw="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC:-1.0}"
+  local pace=""
 
   beagle_stream_startup_status_enabled || return 0
-  [[ -n "${DISPLAY:-}" ]] || return 0
-  [[ "$pace" != "0" && "$pace" != "0.0" ]] || return 0
+
+  # Keep each visible startup step on screen for at least one second.
+  pace="$(awk -v p="$pace_raw" 'BEGIN { if (p+0 < 1) print 1; else print p+0 }')"
   sleep "$pace" 2>/dev/null || true
 }
 
