@@ -34,6 +34,7 @@ PREVIOUS_MANIFEST_FILE = STATE_ROOT / "install-manifest.previous.json"
 RECENT_SCAN_SECONDS = int(os.environ.get("BEAGLE_UPDATE_RECENT_SCAN_SECONDS", "21600"))
 SESSION_MONITOR_INTERVAL_SECONDS = int(os.environ.get("BEAGLE_UPDATE_SESSION_MONITOR_INTERVAL_SECONDS", "60"))
 PROMPT_COOLDOWN_SECONDS = int(os.environ.get("BEAGLE_UPDATE_PROMPT_COOLDOWN_SECONDS", "43200"))
+PERSISTENT_MIN_FREE_BYTES = int(os.environ.get("BEAGLE_UPDATE_PERSISTENT_MIN_FREE_BYTES", "536870912"))
 
 
 def utcnow() -> str:
@@ -62,6 +63,21 @@ def ensure_dirs() -> None:
     CACHE_ROOT.mkdir(parents=True, exist_ok=True)
 
 
+def free_bytes(path: Path) -> int:
+    stats = os.statvfs(path)
+    return int(stats.f_bavail) * int(stats.f_frsize)
+
+
+def ensure_local_update_paths() -> None:
+    for path in (STATE_ROOT, CACHE_ROOT):
+        if path.is_symlink():
+            try:
+                path.unlink()
+            except OSError:
+                pass
+        path.mkdir(parents=True, exist_ok=True)
+
+
 def replace_with_symlink(path: Path, target: Path) -> None:
     if path.is_symlink():
         if path.resolve() == target.resolve():
@@ -88,8 +104,14 @@ def ensure_persistent_update_paths() -> None:
         medium = live_medium()
         state_dir = persistent_state_dir(medium)
         ensure_medium_writable(medium)
+        available = free_bytes(state_dir.parent if state_dir.parent.exists() else medium)
+        if available < PERSISTENT_MIN_FREE_BYTES:
+            raise RuntimeError(
+                f"insufficient space on {medium}: {available} bytes free (< {PERSISTENT_MIN_FREE_BYTES})"
+            )
     except Exception as exc:
         log(f"persistent update state unavailable, using volatile paths: {exc}")
+        ensure_local_update_paths()
         return
 
     persistent_state = state_dir / "update"
