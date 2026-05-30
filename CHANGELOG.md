@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed thin-client USB preset propagation so `PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN` survives installer generation and local preset installs instead of being dropped, preventing fresh USB recreates from losing required manager auth context.
 - Added stable/rolling Beagle update channels: server repo auto-update can now follow stable release tags or rolling GitHub main, and the Update Center exposes the channel switch beside installed/remote versions.
 - Added per-VM update policy switches in VM details for Updates active, automatic install behavior, and stable/rolling channel overrides.
 - Fixed VM update policy persistence so per-VM update enabled, behavior, and channel overrides are stored as Beagle metadata and reflected in endpoint profiles/update feeds.

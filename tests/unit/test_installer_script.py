@@ -69,6 +69,7 @@ class InstallerScriptServiceTests(unittest.TestCase):
             },
             {"name": "VM 100", "description": ""},
             enrollment_token="token-123",
+            manager_token="manager-token-123",
             thinclient_password="thin-pass",
         )
 
@@ -76,6 +77,7 @@ class InstallerScriptServiceTests(unittest.TestCase):
         self.assertEqual(preset["PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_HOST"], "stream.example")
         self.assertEqual(preset["PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_USERNAME"], "sun-user")
         self.assertEqual(preset["PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_PASSWORD"], "sun-pass")
+        self.assertEqual(preset["PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN"], "manager-token-123")
 
     def test_patch_service_injects_log_defaults_into_stale_hosted_shell_template(self):
         stale_template = "\n".join(

@@ -73,6 +73,16 @@ def test_build_installer_env_keeps_broker_mode_even_with_fallback_hosts() -> Non
     assert env["CONNECTION_METHOD"] == "broker"
 
 
+def test_build_installer_env_maps_manager_token_from_preset() -> None:
+    env = build_installer_env(
+        preset={
+            "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": "manager-token-abc",
+        },
+        runtime_user="thinclient",
+    )
+    assert env["BEAGLE_MANAGER_TOKEN"] == "manager-token-abc"
+
+
 def test_hostless_runtime_uses_enrollment_config_for_broker_mode() -> None:
     script = (RUNTIME_DIR / "beagle_stream_client_runtime_exec.sh").read_text(encoding="utf-8")
 

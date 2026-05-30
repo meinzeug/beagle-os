@@ -87,6 +87,7 @@ class InstallerScriptService:
         config: dict[str, Any],
         *,
         enrollment_token: str,
+        manager_token: str,
         thinclient_password: str,
     ) -> dict[str, str]:
         meta = self._parse_description_meta(config.get("description", ""))
@@ -169,6 +170,7 @@ class InstallerScriptService:
                 network_dns_servers=meta.get("thinclient-network-dns-servers", "1.1.1.1 8.8.8.8"),
                 beagle_manager_pinned_pubkey=self._manager_pinned_pubkey,
                 beagle_enrollment_url=f"{self._public_manager_url}/api/v1/endpoints/enroll",
+                beagle_manager_token=manager_token,
                 beagle_enrollment_token=enrollment_token,
                 beagle_stream_mode="broker",
                 beagle_stream_allocation_id=stream_allocation_id,
@@ -220,6 +222,7 @@ class InstallerScriptService:
             profile,
             config,
             enrollment_token=enrollment_token,
+            manager_token=str(enrollment_record.get("beagle_manager_token", "")),
             thinclient_password=str(enrollment_record.get("thinclient_password", "")),
         )
         preset_name = preset.get("PVE_THIN_CLIENT_PRESET_PROFILE_NAME") or f"vm-{vm.vmid}"

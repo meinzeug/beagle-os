@@ -131,6 +131,12 @@ def test_live_usb_write_stage_passes_stream_fallback_values_into_runtime_state()
     assert 'BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL:-}"' in writer
 
 
+def test_local_installer_keeps_manager_token_from_preset() -> None:
+    local_installer = LOCAL_INSTALLER.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_MANAGER_TOKEN="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN:-}"' in local_installer
+
+
 def test_network_menu_is_included_before_runtime_services() -> None:
     build_script = BUILD_SCRIPT.read_text(encoding="utf-8")
     prepare_unit = PREPARE_UNIT.read_text(encoding="utf-8")
