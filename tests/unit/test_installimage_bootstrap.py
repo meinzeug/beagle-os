@@ -33,6 +33,9 @@ class BootstrapServiceUnitTests(unittest.TestCase):
                 value = line.split("=", 1)[1].strip()
                 self.assertTrue(value.isdigit() or value.isalpha(), f"Unexpected TimeoutStartSec: {value}")
 
+    def test_service_timeout_is_unbounded_for_long_firstboot(self) -> None:
+        self.assertIn("TimeoutStartSec=infinity", self._service_text)
+
     def test_service_type_is_oneshot(self) -> None:
         self.assertIn("Type=oneshot", self._service_text)
 

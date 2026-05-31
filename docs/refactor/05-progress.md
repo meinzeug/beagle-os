@@ -8451,3 +8451,27 @@ validieren.
   - `curl -kI https://srv1.beagle-os.com/` -> kein `Strict-Transport-Security`
   - `curl -k https://srv1.beagle-os.com/beagle-api/healthz` -> `200`
   - `/opt/beagle/scripts/check-beagle-host.sh` -> `Host validation completed successfully.`
+## Update (2026-05-31, installimage bootstrap timeout + dpkg interruption on srv1)
+
+**Scope**: Der installimage-Firstboot auf `srv1.beagle-os.com` sollte reproduzierbar durchlaufen, statt beim Debian-13-/Beagle-Bootstrap nach dem Reboot abzubrechen.
+
+- **Befund auf `srv1`**:
+  - Das Hetzner-`installimage` selbst installiert das Zielsystem korrekt und bootet in Debian 13.
+  - Der nachgelagerte Service `beagle-installimage-bootstrap.service` wurde jedoch nach exakt `10min` von `systemd` terminiert.
+  - Der sichtbare Folgefehler war danach mehrfach `E: dpkg was interrupted, you must manually run 'dpkg --configure -a'`.
+  - Parallel lief der Bootstrap im erwarteten, aber langen Artifact-/Thinclient-Pfad (`prepare-host-downloads.sh`, `package.sh`, `build-thin-client-installer.sh`, `debootstrap`, `mksquashfs`), also nicht in einem sofortigen inhaltlichen Crash.
+
+- **Repo-Fix**:
+  - `server-installer/installimage/etc/systemd/system/beagle-installimage-bootstrap.service`
+    - `TimeoutStartSec` von `600` auf `infinity` angehoben.
+  - `tests/unit/test_installimage_bootstrap.py`
+    - Regressionstest ergaenzt, der `TimeoutStartSec=infinity` explizit erwartet.
+
+- **Live-Recovery auf `srv1`**:
+  - Unit-Datei live ersetzt, `systemctl daemon-reload` ausgefuehrt und den Bootstrap neu gestartet.
+  - `dpkg --configure -a` nach dem alten Kill-Lauf manuell bereinigt, damit der neue Bootstrap nicht erneut am unterbrochenen Paketstatus scheitert.
+  - Verifiziert, dass der neue Lauf mit `TimeoutStartUSec=infinity` aktiv bleibt und weiter durch den langen `debootstrap`-/Artifact-Build laeuft.
+
+- **Wichtige Einordnung**:
+  - Der Primaerfehler war nicht ein inhaltlicher `debootstrap`-Abbruch, sondern der zu kurze systemd-Starttimeout.
+  - Der `dpkg interrupted`-Fehler ist der direkte Sekundaereffekt dieses harten Kill-Szenarios.

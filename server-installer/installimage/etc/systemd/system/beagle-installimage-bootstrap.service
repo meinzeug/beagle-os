@@ -8,7 +8,7 @@ ConditionPathExists=!/var/lib/beagle/installimage-bootstrap/done
 Type=oneshot
 ExecStart=/usr/local/bin/beagle-installimage-bootstrap
 RemainAfterExit=yes
-TimeoutStartSec=600
+TimeoutStartSec=infinity
 StandardOutput=journal+console
 StandardError=journal+console
 

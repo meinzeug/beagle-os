@@ -2102,3 +2102,14 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
    - `scripts/check-beagle-host.sh` nach Firstboot gruen.
 3. Danach LetsEncrypt auf demselben Host ausstellen/uebernehmen und verifizieren, dass der certbot-Deploy-Hook den Proxy neu rendert und HSTS automatisch wieder aktiv wird.
 4. Erst danach D1/R1-Clean-Install-Evidence unter `docs/runbooks/evidence/r1-clean-install/` erneut sammeln und die passenden LastHope-/Checklist-Eintraege aktualisieren.
+## Naechster Schritt (2026-05-31, installimage bootstrap timeout on srv1)
+
+1. Den aktuell wieder laufenden `beagle-installimage-bootstrap.service` auf `srv1.beagle-os.com` bis zum `done`-Marker `/var/lib/beagle/installimage-bootstrap/done` weiter beobachten und den finalen Host-Zustand dokumentieren.
+2. Danach direkt pruefen:
+   - `beagle-control-plane.service`
+   - `nginx`
+   - `libvirtd`
+   - `curl -k https://localhost/beagle-api/healthz`
+   - `/opt/beagle/scripts/check-beagle-host.sh`
+3. Falls der Bootstrap trotz `TimeoutStartSec=infinity` noch scheitert, den dann verbleibenden echten Inhaltsfehler isolieren; der alte 10-Minuten-Systemd-Kill gilt danach nicht mehr als Ursache.
+4. Erst nach gruener Host-Validierung den installimage-Pfad erneut als R1-/D1-Clean-Install-Evidence auf `srv1` sammeln.
