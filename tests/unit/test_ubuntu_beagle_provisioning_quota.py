@@ -42,6 +42,26 @@ class UbuntuBeagleProvisioningQuotaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "quota_exceeded"):
             service.enforce_storage_quota("local", 30 * 1024 * 1024 * 1024)
 
+    def test_resolve_target_node_uses_online_default_when_missing(self):
+        service = self._build_service(inventory=[], quota_bytes=0)
+        service._list_nodes_inventory = lambda: [
+            {"name": "srv-a", "status": "offline"},
+            {"name": "srv-b", "status": "online"},
+        ]
+
+        resolved = service._resolve_target_node("")
+
+        self.assertEqual(resolved, "srv-b")
+
+    def test_resolve_bridge_prefers_available_node_bridge(self):
+        service = self._build_service(inventory=[], quota_bytes=0)
+        service._ubuntu_beagle_default_bridge = "beagle"
+        service._list_bridge_inventory = lambda _node: ["virbr10", "virbr20"]
+
+        resolved = service._resolve_bridge("srv1", "vmbr0")
+
+        self.assertEqual(resolved, "virbr10")
+
 
 if __name__ == "__main__":
     unittest.main()

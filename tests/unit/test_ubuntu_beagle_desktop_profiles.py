@@ -98,6 +98,13 @@ class UbuntuBeagleDesktopProfilesTests(unittest.TestCase):
 
         self.assertEqual(payload["desktop"], "plasma-classic")
 
+    def test_legacy_thinclient_desktop_alias_maps_to_default(self) -> None:
+        service = build_service()
+
+        payload = service.create_provisioned_vm({"desktop": "thinclient"})
+
+        self.assertEqual(payload["desktop"], "plasma-cyberpunk")
+
     def test_invalid_profile_is_rejected(self) -> None:
         service = build_service()
 

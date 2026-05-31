@@ -262,6 +262,45 @@ class UbuntuBeagleProvisioningService:
         # Keep UX simple: never suggest below the enforced minimum.
         return max(2048, min(configured, budget))
 
+    def _default_node_name(self) -> str:
+        nodes = self._list_nodes_inventory()
+        online = next((str(item.get("name", "")).strip() for item in nodes if item.get("status") == "online"), "")
+        if online:
+            return online
+        return str(nodes[0].get("name", "")).strip() if nodes else ""
+
+    def _resolve_target_node(self, requested: Any) -> str:
+        candidate = str(requested or "").strip()
+        known_nodes = {str(item.get("name", "")).strip() for item in self._list_nodes_inventory() if str(item.get("name", "")).strip()}
+        if candidate:
+            if candidate not in known_nodes:
+                raise ValueError(f"unknown node: {candidate}")
+            return candidate
+        default_node = self._default_node_name()
+        if not default_node:
+            raise ValueError("missing node")
+        return default_node
+
+    def _available_bridges_for_node(self, node: str) -> list[str]:
+        target = str(node or "").strip()
+        if not target:
+            return []
+        return sorted({str(item or "").strip() for item in self._list_bridge_inventory(target) if str(item or "").strip()})
+
+    def _resolve_bridge(self, node: str, requested: Any) -> str:
+        candidate = str(requested or "").strip()
+        bridges = self._available_bridges_for_node(node)
+        if candidate and candidate in bridges:
+            return candidate
+        if bridges:
+            return bridges[0]
+        if candidate:
+            return candidate
+        configured = str(self._ubuntu_beagle_default_bridge or "").strip()
+        if configured:
+            return configured
+        raise ValueError("missing bridge")
+
     def build_provisioning_catalog(self) -> dict[str, Any]:
         nodes = self._list_nodes_inventory()
         storages = self._provider.list_storage_inventory()
@@ -344,6 +383,18 @@ class UbuntuBeagleProvisioningService:
         desktop = str(payload.get("desktop", "") or payload.get("desktop_id", "") or "").strip()
         if os_profile in self._ubuntu_beagle_profile_legacy_ids and not desktop:
             desktop = self._ubuntu_beagle_profile_legacy_ids[os_profile]
+        legacy_desktop_aliases = {
+            "thinclient",
+            "beagle-thinclient",
+            "beagle-stream-client",
+            "desktop",
+            "default",
+            "none",
+        }
+        if desktop and desktop.lower() in legacy_desktop_aliases:
+            desktop = self._ubuntu_beagle_default_desktop
+        if desktop in self._ubuntu_beagle_profile_legacy_ids:
+            desktop = self._ubuntu_beagle_profile_legacy_ids[desktop]
         if os_profile not in {self._ubuntu_beagle_profile_id, *self._ubuntu_beagle_profile_legacy_ids.keys()}:
             raise ValueError(f"unsupported os_profile: {os_profile}")
         normalized = dict(payload)
@@ -1002,12 +1053,7 @@ class UbuntuBeagleProvisioningService:
         )
         extra_packages = self._normalize_package_names(payload.get("extra_packages", []), field_name="extra_packages")
         software_packages = self._expand_software_packages(package_presets, extra_packages)
-        node = str(payload.get("node", "")).strip()
-        if not node:
-            raise ValueError("missing node")
-        known_nodes = {str(item.get("name", "")).strip() for item in self._list_nodes_inventory()}
-        if node not in known_nodes:
-            raise ValueError(f"unknown node: {node}")
+        node = self._resolve_target_node(payload.get("node", ""))
         vmid_value = payload.get("vmid")
         vmid = int(vmid_value) if str(vmid_value or "").strip() else int(self._provider.next_vmid())
         if self._find_vm(vmid, refresh=True) is not None:
@@ -1035,9 +1081,7 @@ class UbuntuBeagleProvisioningService:
         disk_gb = int(payload.get("disk_gb", self._ubuntu_beagle_default_disk_gb))
         if disk_gb < 32:
             raise ValueError("disk_gb must be at least 32")
-        bridge = str(payload.get("bridge", self._ubuntu_beagle_default_bridge)).strip() or self._ubuntu_beagle_default_bridge
-        if not bridge:
-            raise ValueError("missing bridge")
+        bridge = self._resolve_bridge(node, payload.get("bridge", self._ubuntu_beagle_default_bridge))
         iso_storage = self.resolve_storage(
             str(payload.get("iso_storage", self._ubuntu_beagle_iso_storage)).strip() or self._ubuntu_beagle_iso_storage,
             "iso",
