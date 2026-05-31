@@ -75,3 +75,19 @@ Agenten-Struktur + baseline CI als eigenen PR-Slice finalisieren, danach den nae
 	- Ergebnis: `34 passed`.
 - Offenes Risiko: Der bereits gestartete `v8.3.10-alpha.1` Run verwendet den alten Stand; der gefixte Stand braucht einen neuen Alpha-Tag.
 - Naechster Schritt: Commit + Push des Fixes, dann neuen Prerelease-Tag auf den gefixten Commit setzen.
+
+## Session Update 2026-06-01 (Prerelease Downloads on Public Site)
+
+- Analysiert: `scripts/publish-public-update-artifacts.sh`, `public-site/download/index.html`, `public-site/assets/js/build-status.js`, `.github/workflows/public-website.yml`, `.github/workflows/release.yml`.
+- Geaendert: Der Public-Mirror publiziert jetzt stabile und prerelease Artefakte getrennt:
+	- stable bleibt unter `beagle-downloads-status.json` und den bisherigen Top-Level-URLs;
+	- prereleases publizieren unter `beagle-downloads-prerelease-status.json` und `beagle-updates/prereleases/<version>/`.
+- Geaendert: Die Download-Seite zeigt jetzt stabile und prerelease Kanäle nebeneinander und laedt beide per Widget.
+- Geaendert: `public-website.yml` und `release.yml` erlauben Prerelease-Deploys wieder, damit Alpha/Beta/RCs sichtbar veröffentlicht werden.
+- Getestet:
+	- `bash -n scripts/publish-public-update-artifacts.sh`
+	- `node --check public-site/assets/js/build-status.js`
+	- `python3 -m pytest -q tests/unit/test_public_website_workflow_regressions.py tests/unit/test_release_workflow_regressions.py tests/unit/test_download_page_release_channel_regressions.py tests/unit/test_publish_public_update_artifacts_prerelease_regressions.py`
+	- Ergebnis: `12 passed`.
+- Offenes Risiko: Der neue Prerelease-Run muss bis zum Ende beobachtet werden, um die separaten Mirror-URLs live zu verifizieren.
+- Naechster Schritt: Alpha-Run `v8.3.10-alpha.2` fertig beobachten und danach Live-Links/Artefaktpfade gegen die Public-Mirror-URLs pruefen.

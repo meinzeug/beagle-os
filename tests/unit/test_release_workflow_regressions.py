@@ -63,4 +63,5 @@ def test_release_workflow_supports_prerelease_class_and_flags() -> None:
 def test_release_workflow_blocks_public_deploy_for_prereleases() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
-    assert "needs.detect-artifact-changes.outputs.release_class != 'prerelease'" in workflow
+    assert "needs.detect-artifact-changes.outputs.release_class != 'prerelease'" not in workflow
+    assert "Deploy public artifacts to beagle-os.com" in workflow

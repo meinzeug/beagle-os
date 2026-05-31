@@ -729,7 +729,7 @@ jobs:
 
   deploy-public-artifacts:
     name: Deploy public artifacts to beagle-os.com
-    if: (github.ref_type == 'tag' || github.ref == 'refs/heads/main') && needs.detect-artifact-changes.outputs.release_class != 'prerelease' && (github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]'))
+    if: (github.ref_type == 'tag' || github.ref == 'refs/heads/main') && (github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]'))
     needs: [detect-artifact-changes, create-release]
     runs-on: ubuntu-latest
 

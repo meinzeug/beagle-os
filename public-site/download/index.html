@@ -53,6 +53,29 @@
     <section class="section">
         <div class="container">
             <div class="section-header">
+                <h2>Release channels</h2>
+                <p>Stable builds stay on the main mirror. Alpha, beta and rc builds publish into a separate prerelease channel so you can download them without overwriting stable files.</p>
+            </div>
+            <div class="download-grid">
+                <article class="download-card">
+                    <div class="icon-badge">STABLE</div>
+                    <h3>Stable channel</h3>
+                    <div class="build-status-slot" data-build-status-widget data-status-url="https://beagle-os.com/beagle-updates/beagle-downloads-status.json" data-channel-label="Stable"></div>
+                    <p>Use this channel for clean installs and release-gate validation.</p>
+                </article>
+                <article class="download-card">
+                    <div class="icon-badge">PRE</div>
+                    <h3>Prerelease channel</h3>
+                    <div class="build-status-slot" data-build-status-widget data-status-url="https://beagle-os.com/beagle-updates/beagle-downloads-prerelease-status.json" data-channel-label="Prerelease"></div>
+                    <p>Alpha, beta and rc releases are published here with separate URLs under <code>/beagle-updates/prereleases/&lt;version&gt;/</code>.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <div class="section-header">
                 <h2>Operator rollout flow</h2>
                 <p>Recommended sequence for hobby labs and serious validations.</p>
             </div>
@@ -100,5 +123,6 @@ sha256sum beagle-os-endpoint-live-amd64.iso</code></pre>
         <div class="footer-bottom">Copyright 2026 Dennis Wicht</div>
     </div>
 </footer>
+<script defer src="/assets/js/build-status.js"></script>
 </body>
 </html>

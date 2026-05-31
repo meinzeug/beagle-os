@@ -6,9 +6,9 @@
 (function () {
   'use strict';
 
-  const STATUS_URL = 'https://srv1.beagle-os.com/beagle-downloads/beagle-downloads-status.json';
   const POLL_INTERVAL_MS = 60000; // refresh every 60s
-  const WIDGET_ID = 'beagle-build-status';
+  const DEFAULT_STATUS_URL = 'https://beagle-os.com/beagle-updates/beagle-downloads-status.json';
+  const WIDGET_SELECTOR = '[data-build-status-widget]';
 
   function formatBytes(bytes) {
     if (!bytes) return '–';
@@ -30,14 +30,28 @@
     } catch (_) { return iso; }
   }
 
-  function renderWidget(data) {
-    const widget = document.getElementById(WIDGET_ID);
+  function widgetLabel(widget, data) {
+    const channel = (data.release_class || data.channel || 'stable').toLowerCase();
+    const explicitLabel = widget.dataset.channelLabel;
+    if (explicitLabel) return explicitLabel;
+    if (channel === 'prerelease') return 'Prerelease';
+    return 'Stable';
+  }
+
+  function renderWidget(widget, data) {
     if (!widget) return;
 
     const version = data.version || '–';
+    const channel = (data.release_class || data.channel || 'stable').toLowerCase();
+    const channelLabel = widgetLabel(widget, data);
     const generatedAt = formatDate(data.generated_at);
     const payloadSize = formatBytes(data.payload_size);
     const payloadSha = data.payload_sha256 ? data.payload_sha256.slice(0, 16) + '…' : '–';
+    const releaseUrl = data.release_url || `https://github.com/meinzeug/beagle-os/releases/tag/v${version}`;
+    const payloadUrl = data.payload_latest_url || data.payload_url || '#';
+    const installImageUrl = data.server_installimage_url || data.server_installer_iso_url || '#';
+    const checksumsUrl = data.sha256sums_url || '#';
+    const primaryBadgeClass = channel === 'prerelease' ? 'build-badge--warn' : 'build-badge--ok';
     const reinstallRequired = data.endpoint_compatibility?.reinstall_required === true;
     const migrationRequired = data.endpoint_compatibility?.migration_required === true;
 
@@ -45,13 +59,13 @@
       ? '<span class="build-badge build-badge--warn" data-en="Reinstall required" data-de="Neuinstallation erforderlich">Reinstall required</span>'
       : migrationRequired
         ? '<span class="build-badge build-badge--warn" data-en="Migration required" data-de="Migration erforderlich">Migration required</span>'
-        : '<span class="build-badge build-badge--ok" data-en="Compatible update" data-de="Kompatibles Update">Compatible update</span>';
+        : `<span class="build-badge ${primaryBadgeClass}" data-en="${channelLabel}" data-de="${channelLabel}">${channelLabel}</span>`;
 
     widget.innerHTML = `
       <div class="build-status-ticker">
         <div class="build-status-header">
           <span class="build-status-dot build-status-dot--live"></span>
-          <span class="build-status-label" data-en="Live build status" data-de="Live Build-Status">Live build status</span>
+          <span class="build-status-label" data-en="${channelLabel}" data-de="${channelLabel}">${channelLabel}</span>
           <span class="build-status-updated" title="${data.generated_at || ''}">
             <span data-en="Updated" data-de="Aktualisiert">Updated</span>: ${generatedAt}
           </span>
@@ -76,8 +90,20 @@
           <div class="build-stat">
             <span class="build-stat-key" data-en="Full checksums" data-de="Alle Checksummen">Full checksums</span>
             <span class="build-stat-val">
-              <a href="https://srv1.beagle-os.com/beagle-downloads/SHA256SUMS" target="_blank" rel="noreferrer" data-en="SHA256SUMS" data-de="SHA256SUMS">SHA256SUMS ↗</a>
+              <a href="${checksumsUrl}" target="_blank" rel="noreferrer" data-en="SHA256SUMS" data-de="SHA256SUMS">SHA256SUMS ↗</a>
             </span>
+          </div>
+          <div class="build-stat">
+            <span class="build-stat-key" data-en="Primary download" data-de="Primärer Download">Primary download</span>
+            <span class="build-stat-val"><a href="${payloadUrl}" target="_blank" rel="noreferrer" data-en="Payload" data-de="Payload">Payload ↗</a></span>
+          </div>
+          <div class="build-stat">
+            <span class="build-stat-key" data-en="Install image" data-de="Installimage">Install image</span>
+            <span class="build-stat-val"><a href="${installImageUrl}" target="_blank" rel="noreferrer" data-en="Install image" data-de="Installimage">Install image ↗</a></span>
+          </div>
+          <div class="build-stat">
+            <span class="build-stat-key" data-en="Release page" data-de="Release-Seite">Release page</span>
+            <span class="build-stat-val"><a href="${releaseUrl}" target="_blank" rel="noreferrer" data-en="GitHub release" data-de="GitHub-Release">GitHub release ↗</a></span>
           </div>
         </div>
       </div>`;
@@ -88,8 +114,7 @@
     }
   }
 
-  function renderError(msg) {
-    const widget = document.getElementById(WIDGET_ID);
+  function renderError(widget, msg) {
     if (!widget) return;
     widget.innerHTML = `<div class="build-status-ticker build-status-ticker--error">
       <span class="build-status-dot build-status-dot--err"></span>
@@ -97,24 +122,29 @@
     </div>`;
   }
 
-  function fetchStatus() {
-    fetch(STATUS_URL, { cache: 'no-cache' })
+  function fetchStatus(widget) {
+    const statusUrl = widget.dataset.statusUrl || DEFAULT_STATUS_URL;
+    fetch(statusUrl, { cache: 'no-cache' })
       .then(function (res) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
       })
-      .then(renderWidget)
+      .then(function (data) { renderWidget(widget, data); })
       .catch(function (err) {
-        renderError('Build status unavailable (' + err.message + ')');
+        renderError(widget, 'Build status unavailable (' + err.message + ')');
       });
   }
 
-  function init() {
-    const widget = document.getElementById(WIDGET_ID);
-    if (!widget) return;
+  function initWidget(widget) {
     widget.innerHTML = '<div class="build-status-ticker build-status-ticker--loading"><span class="build-status-dot build-status-dot--loading"></span><span class="muted">Loading build status…</span></div>';
-    fetchStatus();
-    setInterval(fetchStatus, POLL_INTERVAL_MS);
+    fetchStatus(widget);
+    setInterval(function () { fetchStatus(widget); }, POLL_INTERVAL_MS);
+  }
+
+  function init() {
+    const widgets = document.querySelectorAll(WIDGET_SELECTOR);
+    if (!widgets.length) return;
+    widgets.forEach(initWidget);
   }
 
   if (document.readyState === 'loading') {

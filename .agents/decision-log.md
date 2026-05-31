@@ -36,3 +36,10 @@
 - Entscheidung: Thin-client live-build installiert Paketabhängigkeiten in den hooks mit Retry-Wrappern und `--fix-missing`.
 - Entscheidung: Eine zusätzliche `apt.conf.d` im live-build-chroot setzt `Acquire::Retries=5` und `Acquire::https::Timeout=60`.
 - Grund: Transiente Deb-/OpenSSL-Resets beim Paketdownload sollen nicht mehr den kompletten Installer-Artifact-Build abbrechen.
+
+## 2026-06-01 - Public prerelease download channels
+
+- Entscheidung: Stable und prerelease Artefakte werden auf beagle-os.com getrennt publiziert, statt Stable-`latest` zu überschreiben.
+- Entscheidung: Prerelease-Artefakte liegen unter `beagle-updates/prereleases/<version>/` und erhalten ein eigenes `beagle-downloads-prerelease-status.json`.
+- Entscheidung: Die Download-Seite zeigt beide Kanäle gleichzeitig an und lädt sie ueber einen wiederverwendbaren Status-Widget-Code.
+- Grund: Alpha/Beta/RC sollen öffentlich downloadbar sein, ohne die stabile Downloadlinie zu verwässern oder zu überschreiben.
