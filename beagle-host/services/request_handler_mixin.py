@@ -841,7 +841,7 @@ class HandlerMixin:
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "DENY")
-        if _svc_registry.HSTS_ENABLED:
+        if bool(getattr(_svc_registry, "HSTS_ENABLED", False)):
             self.send_header("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
         self.send_header(
             "Content-Security-Policy",

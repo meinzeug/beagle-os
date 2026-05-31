@@ -21,5 +21,5 @@ def test_control_plane_hsts_header_is_gated_by_runtime_flag() -> None:
     request_mixin = (ROOT / "beagle-host" / "services" / "request_handler_mixin.py").read_text(encoding="utf-8")
     service_registry = (ROOT / "beagle-host" / "services" / "service_registry.py").read_text(encoding="utf-8")
 
-    assert 'if _svc_registry.HSTS_ENABLED:' in request_mixin
+    assert 'if bool(getattr(_svc_registry, "HSTS_ENABLED", False)):' in request_mixin
     assert 'HSTS_ENABLED = os.environ.get("BEAGLE_ENABLE_HSTS", "0").strip().lower() in {"1", "true", "yes", "on"}' in service_registry
