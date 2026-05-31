@@ -4,14 +4,32 @@ set -e
 DCV_VIEWER_URL="${PVE_THIN_CLIENT_DCV_VIEWER_URL:-https://d1uj6qtbmh3dt5.cloudfront.net/nice-dcv-viewer_amd64.ubuntu2204.deb}"
 WORK_DIR="$(mktemp -d)"
 
+APT_RETRY_ATTEMPTS="${BEAGLE_APT_RETRY_ATTEMPTS:-5}"
+APT_RETRY_DELAY_SECONDS="${BEAGLE_APT_RETRY_DELAY_SECONDS:-5}"
+
+apt_retry() {
+  local attempt=1
+
+  while :; do
+    if "$@"; then
+      return 0
+    fi
+    if [ "$attempt" -ge "$APT_RETRY_ATTEMPTS" ]; then
+      return 1
+    fi
+    attempt=$((attempt + 1))
+    sleep "$APT_RETRY_DELAY_SECONDS"
+  done
+}
+
 cleanup() {
   rm -rf "${WORK_DIR}"
 }
 trap cleanup EXIT INT TERM
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y --no-install-recommends \
+apt_retry apt-get update -qq -o Acquire::Retries=5 -o Acquire::https::Timeout=60
+apt_retry apt-get install -y --fix-missing --no-install-recommends \
   binutils \
   ca-certificates \
   curl \

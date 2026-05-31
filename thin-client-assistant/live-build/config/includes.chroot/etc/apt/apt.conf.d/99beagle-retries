@@ -1,0 +1,2 @@
+Acquire::Retries "5";
+Acquire::https::Timeout "60";

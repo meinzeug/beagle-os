@@ -22,6 +22,7 @@ BUILD_BEAGLE_OS = ROOT / "scripts" / "build-beagle-os.sh"
 PREPARE_HOST_DOWNLOADS = ROOT / "scripts" / "prepare-host-downloads.sh"
 INSTALL_THINCLIENT = ROOT / "thin-client-assistant" / "installer" / "install.sh"
 LIVE_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "008-install-beagle-stream-client.hook.chroot"
+DCV_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "007-install-dcv-viewer.hook.chroot"
 ENABLE_SERVICES_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "010-enable-services.hook.chroot"
 CREATE_THINCLIENT_USER_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "005-create-thinclient-user.hook.chroot"
 BEAGLE_STREAM_CLIENT_TARGETING = ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_targeting.sh"
@@ -132,6 +133,26 @@ def test_live_build_starts_runtime_session_bootstrap_by_default() -> None:
     assert '    pve-thin-client-runtime.service \\' in build_thin_client_text
     assert "ensure_rootfs_wants_link pve-thin-client-runtime.service multi-user.target" in build_thin_client_text
     assert 'multi-user.target.wants/pve-thin-client-runtime.service"' not in prepare_downloads_text
+
+
+def test_live_build_chroot_uses_apt_retry_configuration() -> None:
+    apt_conf = (ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "etc" / "apt" / "apt.conf.d" / "99beagle-retries").read_text(encoding="utf-8")
+
+    assert 'Acquire::Retries "5";' in apt_conf
+    assert 'Acquire::https::Timeout "60";' in apt_conf
+
+
+def test_thin_client_live_hooks_retry_transient_apt_failures() -> None:
+    dcv_hook = DCV_HOOK.read_text(encoding="utf-8")
+    stream_hook = LIVE_HOOK.read_text(encoding="utf-8")
+
+    assert 'APT_RETRY_ATTEMPTS="${BEAGLE_APT_RETRY_ATTEMPTS:-5}"' in dcv_hook
+    assert 'apt_retry apt-get update -qq -o Acquire::Retries=5 -o Acquire::https::Timeout=60' in dcv_hook
+    assert 'apt_retry apt-get install -y --fix-missing --no-install-recommends' in dcv_hook
+
+    assert 'APT_RETRY_ATTEMPTS="${BEAGLE_APT_RETRY_ATTEMPTS:-5}"' in stream_hook
+    assert 'apt_retry apt-get update -qq -o Acquire::Retries=5 -o Acquire::https::Timeout=60' in stream_hook
+    assert 'apt_retry apt-get install -y --fix-missing --no-install-recommends' in stream_hook
 
 
 def test_runtime_service_bootstraps_getty_session_without_owning_x11_tty() -> None:

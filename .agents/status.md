@@ -61,3 +61,17 @@ Agenten-Struktur + baseline CI als eigenen PR-Slice finalisieren, danach den nae
 	- Ergebnis: `17 passed`.
 - Offenes Risiko: Full-E2E fuer echte prerelease Publish-Runs in GitHub Actions muss nach PR-Merge beobachtet werden.
 - Naechster Schritt: PR erstellen/aktualisieren und auf CI-Checks warten; danach auto-merge nur bei komplett gruenen Pflichtchecks.
+
+## Session Update 2026-06-01 (Thin-Client Installer Hardening)
+
+- Analysiert: `scripts/build-thin-client-installer.sh`, thin-client live-build hooks `007-install-dcv-viewer.hook.chroot` und `008-install-beagle-stream-client.hook.chroot`, sowie `tests/unit/test_thin_client_live_build_regressions.py`.
+- Geaendert: Chroot-Apt-Konfiguration fuer live-build um `Acquire::Retries=5` und `Acquire::https::Timeout=60` ergaenzt.
+- Geaendert: Beide paketinstallierenden Live-Hooks nutzen jetzt Retry-Wrapper und `apt-get install --fix-missing --no-install-recommends`.
+- Geaendert: Regressionstests decken die neuen Retry-Guards und die Apt-Config ab.
+- Getestet:
+	- `bash -n thin-client-assistant/live-build/config/hooks/live/007-install-dcv-viewer.hook.chroot`
+	- `bash -n thin-client-assistant/live-build/config/hooks/live/008-install-beagle-stream-client.hook.chroot`
+	- `python3 -m pytest -q tests/unit/test_thin_client_live_build_regressions.py`
+	- Ergebnis: `34 passed`.
+- Offenes Risiko: Der bereits gestartete `v8.3.10-alpha.1` Run verwendet den alten Stand; der gefixte Stand braucht einen neuen Alpha-Tag.
+- Naechster Schritt: Commit + Push des Fixes, dann neuen Prerelease-Tag auf den gefixten Commit setzen.

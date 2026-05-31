@@ -8,6 +8,24 @@ BEAGLE_STREAM_CLIENT_SHA256SUMS_URL="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_SHA2
 WORK_DIR="$(mktemp -d)"
 TARGET_DIR="/opt/beagle-stream-client"
 
+APT_RETRY_ATTEMPTS="${BEAGLE_APT_RETRY_ATTEMPTS:-5}"
+APT_RETRY_DELAY_SECONDS="${BEAGLE_APT_RETRY_DELAY_SECONDS:-5}"
+
+apt_retry() {
+  local attempt=1
+
+  while :; do
+    if "$@"; then
+      return 0
+    fi
+    if [ "$attempt" -ge "$APT_RETRY_ATTEMPTS" ]; then
+      return 1
+    fi
+    attempt=$((attempt + 1))
+    sleep "$APT_RETRY_DELAY_SECONDS"
+  done
+}
+
 cleanup() {
   rm -rf "${WORK_DIR}"
 }
@@ -35,8 +53,8 @@ validate_beagle_stream_client_bundle() {
 }
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y --no-install-recommends \
+apt_retry apt-get update -qq -o Acquire::Retries=5 -o Acquire::https::Timeout=60
+apt_retry apt-get install -y --fix-missing --no-install-recommends \
   ca-certificates \
   curl \
   squashfs-tools

@@ -30,3 +30,9 @@
 - Entscheidung: `public-website.yml` fuehrt fuer Prerelease-Versionen keinen Website-Deploy aus.
 - Entscheidung: `scripts/sync-release-version.py` setzt Extension-Manifest auf numerisches Core-`version` und volle Produktversion in `version_name`.
 - Grund: Stable-Artefakte und `latest`-Signal muessen vor Prerelease-Ueberschreiben geschuetzt bleiben; Extension-Manifest muss kompatibel numerisch bleiben.
+
+## 2026-06-01 - Thin-client installer apt retry hardening
+
+- Entscheidung: Thin-client live-build installiert Paketabhängigkeiten in den hooks mit Retry-Wrappern und `--fix-missing`.
+- Entscheidung: Eine zusätzliche `apt.conf.d` im live-build-chroot setzt `Acquire::Retries=5` und `Acquire::https::Timeout=60`.
+- Grund: Transiente Deb-/OpenSSL-Resets beim Paketdownload sollen nicht mehr den kompletten Installer-Artifact-Build abbrechen.

@@ -13,6 +13,8 @@ Stand: 2026-06-01
 	- [x] `scripts/sync-release-version.py` fuer Extension `version`/`version_name` bei prerelease erweitern.
 	- [x] Zusatztests fuer Workflow-Gating und Sync-Logik.
 	- [ ] CI-Livebeobachtung eines echten prerelease Tags inklusive Mirror- und Release-Verhalten dokumentieren.
+	- [x] Thin-client live-build Apt-Retries und `--fix-missing` fuer Paketdownloads gehärtet.
+	- [ ] Neuen Alpha-Tag auf den gefixten Commit setzen und Release-Run erneut beobachten.
 - [ ] CI-Lint-Haertung vorbereiten (warn-only ruff schrittweise in fail-gates ueberfuehren).
 
 ## P1
