@@ -420,8 +420,21 @@ class UbuntuBeagleProvisioningService:
             )
 
     def local_iso_storage_dir(self) -> Path:
-        self._local_iso_dir.mkdir(parents=True, exist_ok=True)
-        return self._local_iso_dir
+        candidates = [self._local_iso_dir]
+        fallback = Path(os.environ.get("BEAGLE_LIBVIRT_IMAGES_DIR", "/var/lib/libvirt/images").strip() or "/var/lib/libvirt/images")
+        if fallback not in candidates:
+            candidates.append(fallback)
+        for candidate in candidates:
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                continue
+            self._local_iso_dir = candidate
+            return candidate
+        raise RuntimeError(
+            "unable to prepare local Ubuntu ISO cache directory: "
+            + ", ".join(str(path) for path in candidates)
+        )
 
     def ensure_iso_in_storage_pool(self, storage_id: str, iso_path: Path) -> Path:
         """Ensure an ISO exists in the selected storage path when a provider exposes one.

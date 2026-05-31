@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -77,6 +78,27 @@ class UbuntuBeagleAutoinstallIsoTests(unittest.TestCase):
             self.assertIn("replay", remaster_cmd)
             self.assertIn("/boot/grub/grub.cfg", remaster_cmd)
             self.assertTrue((local_iso_dir / "ubuntu-beagle-autoinstall.iso").exists())
+
+    def test_local_iso_storage_dir_falls_back_to_libvirt_images_dir_when_legacy_path_is_unwritable(self) -> None:
+        service = UbuntuBeagleProvisioningService.__new__(UbuntuBeagleProvisioningService)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fallback = Path(temp_dir) / "libvirt-images"
+            legacy = Path("/var/lib/vz/template/iso")
+            service._local_iso_dir = legacy
+            original_mkdir = Path.mkdir
+
+            def fake_mkdir(path_obj, parents=False, exist_ok=False):
+                if path_obj == legacy:
+                    raise PermissionError("legacy proxmox iso path is not writable")
+                return original_mkdir(path_obj, parents=parents, exist_ok=exist_ok)
+
+            with mock.patch.dict("os.environ", {"BEAGLE_LIBVIRT_IMAGES_DIR": str(fallback)}):
+                with mock.patch.object(Path, "mkdir", autospec=True, side_effect=fake_mkdir):
+                    resolved = service.local_iso_storage_dir()
+
+            self.assertEqual(resolved, fallback)
+            self.assertEqual(service._local_iso_dir, fallback)
+            self.assertTrue(fallback.is_dir())
 
 
 if __name__ == "__main__":

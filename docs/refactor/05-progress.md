@@ -8507,3 +8507,32 @@ ersten Start mit `qemu: linux kernel too old to load a ram disk` scheitern.
     und das Entfernen des alten `args`-Pfads sind gruen.
   - Live auf `srv1`: manuell ohne `qemu:commandline` gestartete Test-Definition
     bootet wieder statt direkt im Monitor zu sterben.
+
+## 2026-05-31 - Ubuntu-Beagle-Provisioning faellt auf Proxmox-ISO-Pfad zurueck
+
+**Scope**: neue Ubuntu-Beagle-VMs durften auf Standalone-Hosts nicht mehr schon
+vor dem QEMU-Start an einem alten Proxmox-ISO-Cache-Pfad scheitern.
+
+- **Befund auf `srv1`**:
+  - Nach dem QEMU-Bootfix schlug `create_ubuntu_beagle_vm()` weiterhin fehl,
+    noch bevor eine neue Domain entstand.
+  - Der Provisioning-Service versuchte den lokalen ISO-Cache unter
+    `/var/lib/vz/template/iso` anzulegen.
+  - Das ist ein alter Proxmox-Pfad; auf Standalone-/Libvirt-Hosts wie `srv1`
+    existiert er nicht und ist fuer `beagle-manager` nicht beschreibbar.
+  - Ergebnis: `PermissionError: [Errno 13] Permission denied: '/var/lib/vz'`.
+
+- **Repo-Fix**:
+  - `beagle-host/services/service_registry.py`
+    - nutzt fuer `BEAGLE_UBUNTU_LOCAL_ISO_DIR` jetzt standardmaessig
+      `BEAGLE_LIBVIRT_IMAGES_DIR` bzw. `/var/lib/libvirt/images` statt des
+      alten Proxmox-Defaults.
+  - `beagle-host/services/ubuntu_beagle_provisioning.py`
+    - heilt Alt-Konfigurationen zur Laufzeit selbst, indem bei einem nicht
+      anlegbaren Legacy-Pfad automatisch auf den Libvirt-Images-Pfad
+      ausgewichen wird.
+
+- **Verifikation**:
+  - Lokal: Regressionstest fuer den Fallback von
+    `/var/lib/vz/template/iso` nach `BEAGLE_LIBVIRT_IMAGES_DIR` ist gruen.
+  - Die Ubuntu-Beagle-Provisioning-Tests laufen weiterhin gruen.

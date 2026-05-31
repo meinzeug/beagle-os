@@ -2125,3 +2125,17 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
    - Autoinstall wechselt spaeter serverseitig in `firstboot`/`complete`
 3. Danach die R1-/D1-Clean-Install-Kette mit funktionierender neuer VM erneut
    weiterfahren.
+
+## Naechster Schritt (2026-05-31, Ubuntu-Beagle-Provisioning ohne Proxmox-ISO-Pfad)
+
+1. Den gepushten ISO-Cache-Fix auf `srv1.beagle-os.com` ausrollen und den
+   Control-Plane-Prozess neu laden.
+2. Eine frische Ubuntu-Beagle-VM mit hoher Host-Auslastung erneut anlegen und
+   bestaetigen:
+   - kein Fallback mehr auf `/var/lib/vz/template/iso`
+   - Boot-ISO landet unter `/var/lib/libvirt/images`
+   - keine `args=-kernel ... -initrd ...` mehr im VM-Config/XML
+   - QEMU startet ueber ISO/UEFI
+3. Danach den restlichen Ubuntu-Beagle-Autoinstall-Lauf bis `firstboot` /
+   `complete` beobachten und die verbleibenden Guest-Provisioning-Schritte
+   getrennt von Host-/QEMU-Themen validieren.
