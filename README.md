@@ -1,357 +1,129 @@
-<div align="center">
-
-[![Beagle OS logo](docs/assets/beagle_logo.png)](https://beagle-os.com)
-
 # Beagle OS
 
-**Modern KVM/libvirt-based hypervisor, streaming platform & gaming kiosk**
+Beagle OS is a standalone virtualization and streaming platform built around KVM/libvirt, a host control plane, and reproducible endpoint media.
 
-[![License: Source Available](https://img.shields.io/badge/license-Source%20Available-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/version-8.0.17-green)](VERSION)
-[![Shell](https://img.shields.io/badge/shell-54%25-brightgreen)]()
-[![Python](https://img.shields.io/badge/python-24%25-blue)]()
-[![Platform](https://img.shields.io/badge/platform-Linux-orange)]()
+This repository contains the host services, provider implementation, endpoint tooling, website/docs, and validation assets used to run and release Beagle OS.
 
-[🌐 Website](https://beagle-os.com) • [📥 Download](https://beagle-os.com/download/) • [📖 Docs](docs/) • [🐛 Issues](https://github.com/meinzeug/beagle-os/issues)
+## Product Scope
 
-</div>
+Beagle OS currently focuses on one primary operating model:
 
----
+- Standalone Beagle host running KVM/libvirt
+- WebUI and API for VM and endpoint operations
+- Endpoint media generation and enrollment
+- BeagleStream runtime validation and operations
+- Release and security evidence workflows
 
-## 🚀 What is Beagle OS?
+The active virtualization provider path is providers/beagle.
 
-**Beagle OS** is a standalone, source-available **KVM/libvirt-based virtualization platform** designed for:
-- 💻 **Thin-client endpoints** — Stream desktops via BeagleStream
-- 🎮 **Gaming kiosks** — GeForce NOW & cloud gaming
-- 🖥️ **Enterprise hypervisor** — Self-contained bare-metal stack
-- 🚀 **Fleet management** — Reproducible, automated deployments
+## Repository Overview
 
-Free for private use. Commercial deployments require a license — [visit beagle-os.com](https://beagle-os.com) for details.
+- beagle-host: host control plane, web services, templates and runtime scripts
+- core: shared contracts, provider interfaces, persistence, validation and security components
+- providers/beagle: active provider implementation for KVM/libvirt
+- thin-client-assistant: endpoint runtime and build helpers
+- beagle-os: endpoint profile and overlay assets
+- scripts: installation, build, healthcheck, artifact and operations tooling
+- tests: unit, integration, bats and e2e test suites
+- public-site and website: beagle-os.com content and frontend assets
+- docs: engineering, operations, security, runbooks and release planning docs
 
----
+## Quick Start For Contributors
 
-## ✨ Core Features
+1. Clone and inspect the repository.
+2. Read docs/README.md and docs/lasthope/05-diamond-plan.md for active priorities.
+3. Run local checks for the area you touched.
+4. Keep changes incremental and reproducible.
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| **KVM/libvirt Hypervisor** | ✅ Stable | Native bare-metal virtualization, no third-party deps |
-| **BeagleStream E2E** | ✅ Stable | End-to-end streamed desktops & gaming |
-| **Two-host clustering** | ✅ Stable | Distributed storage & failover |
-| **WireGuard VPN** | ✅ Stable | Encrypted thin-client tunneling |
-| **Backup/Restore** | ✅ Stable | Automated VM snapshots & recovery |
-| **Gaming Kiosk** | ✅ Stable | GeForce NOW integrated shell |
-| **USB provisioning** | ✅ Stable | Live-boot & installer artifacts |
-| **Fleet provisioning** | ✅ In Progress | Auto-enrollment & group policies |
-
----
-
-## 🎯 Three Deployment Modes
-
-### 💻 **Beagle OS Desktop**
-Lightweight endpoint for thin-client environments.
-- Runs Beagle Stream Client
-- Connects to any Beagle Stream Server VM
-- Minimal footprint, max performance
-- **Supports**: USB live-boot, VM-provisioned installers
-
-### 🎮 **Beagle OS Gaming**
-Dedicated gaming kiosk with GeForce NOW integration.
-- Electron-based Electron shell
-- Game library & catalog management
-- Seamless launcher switching
-- **Perfect for**: Gaming lounges, kiosks, casual cloud gaming
-
-### 🖥️ **Beagle OS Server**
-Full hypervisor on bare metal.
-- Own KVM/libvirt stack (default)
-- Optional Beagle host provider overlay
-- Manage VMs, storage, networking
-- **Includes**: Web console, API, clustering support
-
----
-
-## 📂 Repository Structure
-
-```
-beagle-os/
-├── beagle-host/              Control plane, API, provisioning
-├── beagle-kiosk/             Electron gaming kiosk app
-├── thin-client-assistant/    Endpoint runtime & live-build configs
-├── core/                     Shared services & contracts
-├── providers/
-│   └── beagle/               Native KVM/libvirt provider
-├── website/                  beagle-os.com Web UI
-├── scripts/                  Build, deploy, validation utilities
-├── docs/
-│   ├── lasthope/             Product roadmap & release gates
-│   ├── refactor/             Architecture & modernization plan
-│   ├── checklists/           Release & validation checklists
-│   └── deployment/           Host setup & runbooks
-└── tests/                    Unit & integration test suite
-```
-
----
-
-## 🎮 Gaming Kiosk
-
-The **beagle-kiosk** Electron app is now open-source and built into this repo.
-
-**Key highlights:**
-- ✅ GeForce NOW launcher integration
-- ✅ Game library catalog refresh (daily + manual)
-- ✅ Meine Bibliothek & Spielekatalog support
-- ✅ Direct store links (affiliate-free)
-- ✅ Built as AppImage for easy distribution
-- ✅ Source in [`beagle-kiosk/`](beagle-kiosk/)
-
----
-
-## 🚀 Quick Start
-
-### 1️⃣ **Install on Existing Host**
+Example baseline commands:
 
 ```bash
 git clone https://github.com/meinzeug/beagle-os.git
 cd beagle-os
-./scripts/setup-beagle-host.sh
-./scripts/check-beagle-host.sh
-```
-
-**Result:** Full Beagle stack + Web Console on `http://localhost:9088`
-
-### 2️⃣ **Boot New Server (Bare Metal)**
-
-1. Download **Server Installer ISO** from [beagle-os.com/download](https://beagle-os.com/download/)
-2. Boot target machine from USB/PXE
-3. Enter hostname, credentials, target disk
-4. Automated: Debian → Beagle Stack → First Boot Ready ✅
-
-### 3️⃣ **Deploy Thin Clients**
-
-**Option A:** USB Live-Boot Helper
-```bash
-curl -fsSL https://srv1.beagle-os.com/beagle-downloads/pve-thin-client-live-usb-vm-100.sh | bash
-```
-
-**Option B:** VM-specific USB Installer (Beagle Web Console)
-- Navigate to **VM** → **Downloads** → **USB Installer**
-- Download `pve-thin-client-live-usb-vm-100.sh`
-- Run on target machine
-
-**Option C:** Public ISO
-- Download from [beagle-os.com/download](https://beagle-os.com/download/)
-- Boot & install
-
----
-
-## 📡 Architecture & Stack
-
-### Layered Design
-
-```
-┌─────────────────────────────────────┐
-│   Beagle Web Console + API (9088)   │
-├─────────────────────────────────────┤
-│  Beagle Host Control Plane          │
-│  (provisioning, inventory, secrets) │
-├─────────────────────────────────────┤
-│  Provider Interface (contracts)     │
-├─────────────────────────────────────┤
-│  KVM/libvirt (Beagle Provider)      │  ← Native, no Proxmox
-├─────────────────────────────────────┤
-│  Linux Kernel + systemd             │
-├─────────────────────────────────────┤
-│  Bare Metal Hardware                │
-└─────────────────────────────────────┘
-```
-
-### Key Services
-
-| Service | Port | Purpose |
-|---------|------|---------|
-| **Web Console** | 9088 | VM management, provisioning |
-| **Beagle API** | 9088 (unified) | REST API for fleet ops |
-| **libvirt** | 16509 | KVM hypervisor socket |
-| **WireGuard** | 51820 | Thin-client VPN |
-| **Download Cache** | 80/443 | ISO, payload, updates |
-
----
-
-## 🔧 Development & Build
-
-### Prerequisites
-
-- Linux host (Ubuntu 22.04 LTS or Debian 12+)
-- 8+ GB RAM, 50+ GB disk
-- git, Python 3.10+, libvirt-dev, build-essential
-
-### Build Artifacts
-
-```bash
-# Build thin-client ISO + payload
-./scripts/build-thin-client-installer.sh
-
-# Build server installer ISO
-./scripts/build-server-installer.sh
-
-# Generate download artifacts
-./scripts/prepare-host-downloads.sh
-```
-
-### Testing
-
-```bash
-# Install local test/typecheck tooling (once)
-python3 -m pip install pytest mypy
-
-# Quick unit tests
-python3 -m pytest -xvs tests/unit/
-
-# Focused baseline verification
 python3 -m pytest -q tests/unit/test_storage_pool_path_regressions.py
-
-# Integration tests (requires VM runtime)
-python3 -m pytest -xvs tests/integration/
-
-# Type checking
-python3 -m mypy core/ --strict --ignore-missing-imports
+node --check scripts/capture-webui-doc-assets.mjs
 ```
 
----
+## Host Installation Path
 
-## 🌍 Operational Workflows
-
-### 💻 Desktop Streaming Setup
-
-1. **Install Host** — Boot server with Beagle installer ISO → Select *Standalone* mode
-2. **Create Stream VM** — Web Console → New VM → Enable Beagle Stream Server
-3. **Get Endpoint Installer** — Web Console → VM → Downloads → Copy USB installer URL
-4. **Boot Endpoint** — USB stick → Select *Desktop* mode → Auto-connects to stream
-5. ✅ **Live** — Beagle Stream Client connects and displays desktop
-
-### 🎮 Gaming Kiosk Setup
-
-1. **Boot Endpoint** → Select *Gaming* mode
-2. **Kiosk Auto-Launches** → Game library loads
-3. **Select Game** → GeForce NOW launches
-4. **Exit GFN** → Auto-returns to kiosk
-
-### 📦 Fleet Provisioning
+For host installation and validation, use repository scripts and runbooks:
 
 ```bash
-# Automated VM provisioning via Beagle API
-curl -X POST http://localhost:9088/api/v1/vms \
-  -H "X-Beagle-Api-Token: $TOKEN" \
-  -d '{"name":"vm-001","memory":2048,"vcpu":2}'
-
-# Get VM-specific USB installer
-curl http://localhost:9088/api/v1/vms/100/live-usb.sh > usb-vm-100.sh
+scripts/install-beagle-host.sh
+scripts/check-beagle-host.sh
 ```
 
----
+Reference docs:
 
-## 📦 Public Release Artifacts
+- docs/runbooks/installation.md
+- docs/deployment/hetzner-installimage.md
+- public-site/docs/getting-started/index.html
 
-All stable releases are published to **[beagle-os.com/beagle-updates/](https://beagle-os.com/beagle-updates/)**
+## Build And Artifact Workflows
 
-### Available Files
-
-| File | Purpose | Updated |
-|------|---------|---------|
-| `beagle-downloads-status.json` | Current release metadata | Per release |
-| `SHA256SUMS` | Artifact checksums | Per release |
-| `beagle-os-installer-amd64.iso` | Bare-metal installer ISO | Per release |
-| `beagle-os-server-installer-amd64.iso` | Server mode installer | Per release |
-| `pve-thin-client-usb-payload-v*.tar.gz` | Endpoint runtime payload | Per release |
-| `pve-thin-client-usb-bootstrap-v*.tar.gz` | Bootstrap disk image | Per release |
-| `pve-thin-client-live-usb-vm-*.sh` | VM-specific USB helper | On demand |
-| `BeagleStream-latest-x86_64.AppImage` | Kiosk app | Per release |
-
----
-
-## 🏗️ Build & Release Pipeline
-
-### Local Development Build
+Common build entry points:
 
 ```bash
-# Host setup baseline
-./scripts/setup-beagle-host.sh
-./scripts/check-beagle-host.sh
-
-# Build artifacts locally
-./scripts/build-thin-client-installer.sh
-./scripts/build-server-installer.sh
-./scripts/prepare-host-downloads.sh
-
-# Validate before release
-./scripts/validate-project.sh
+scripts/build-server-installer.sh
+scripts/build-server-installimage.sh
+scripts/build-thin-client-installer.sh
+scripts/prepare-host-downloads.sh
 ```
 
-### CI/CD Release Flow
+These scripts support release artifacts, endpoint media, and host download metadata.
 
-```
-commit to main
-  ↓
-GitHub Actions: lint, test, build
-  ↓
-Create GitHub Release
-  ↓
-Publish to beagle-os.com
-  ↓
-Update live servers (srv1, srv2)
-  ↓
-Announce release
-```
+## Testing Strategy
 
-**Monitor:** [github.com/meinzeug/beagle-os/actions](https://github.com/meinzeug/beagle-os/actions)
+Beagle OS uses multiple test layers:
 
----
+- tests/unit: fast regression and helper tests
+- tests/integration: cross-component behavior
+- tests/bats: shell and installer/runtime checks
+- tests/e2e: end-to-end workflows
 
-## 📚 Documentation
+Start with targeted tests for changed code, then run broader suites as needed.
 
-| Doc | Purpose |
-|-----|---------|
-| [📖 docs/README.md](docs/README.md) | Full documentation index |
-| [🗺️ docs/lasthope/](docs/lasthope/) | Product roadmap & release gates |
-| [🔨 docs/refactor/](docs/refactor/) | Architecture & modernization plan |
-| [✅ docs/checklists/](docs/checklists/) | Release & validation checklists |
-| [🚀 docs/deployment/](docs/deployment/) | Host setup & runbooks |
+## Documentation Map
 
----
+Website operator docs:
 
-## 📜 License
+- public-site/docs/index.html
+- public-site/docs/webui/index.html
+- public-site/docs/security/index.html
+- public-site/docs/release-notes/index.html
 
-Beagle OS is licensed under the **[Beagle OS Source Available License](LICENSE)**.
+Engineering and operations docs:
 
-- ✅ **Private use** — Free, no restrictions
-- 🏢 **Commercial use** — Requires license agreement
-- 📧 **Request commercial license** — [contact@beagle-os.com](mailto:contact@beagle-os.com) or [beagle-os.com](https://beagle-os.com)
+- docs/README.md
+- docs/STATUS.md
+- docs/checklists/
+- docs/runbooks/
+- docs/refactor/
+- docs/lasthope/
 
----
+## Contribution Principles
 
-## 🤝 Contributing
+- Keep behavior changes reproducible in repo code.
+- Add or update tests for bugfixes and important regressions.
+- Do not introduce new Proxmox coupling in active paths.
+- Prefer small PRs with clear evidence and rollback awareness.
+- Update relevant docs when runtime behavior changes.
 
-We welcome contributions! Please see [CONTRIBUTING.md](docs/contributing.md) for:
-- Code style & linting rules
-- Pull request process
-- Testing requirements
-- Security reporting guidelines
+## Release And Validation Expectations
 
----
+A stable release should not be treated as complete unless the clean-install and runtime gates are validated from published artifacts:
 
-## 💬 Community & Support
+- Clean host install succeeds
+- Host health checks are green
+- WebUI VM lifecycle is verified
+- First endpoint stream path is verified
+- Security and backup baseline checks are recorded
 
-- **Website** — [beagle-os.com](https://beagle-os.com)
-- **Issues** — [GitHub Issues](https://github.com/meinzeug/beagle-os/issues)
-- **Discussions** — [GitHub Discussions](https://github.com/meinzeug/beagle-os/discussions)
-- **Security** — See [SECURITY.md](SECURITY.md)
+## Links
 
----
+- Website: https://beagle-os.com
+- Docs Hub: https://beagle-os.com/docs/
+- WebUI Guide: https://beagle-os.com/docs/webui/
+- Releases: https://github.com/meinzeug/beagle-os/releases
+- Changelog: https://github.com/meinzeug/beagle-os/blob/main/CHANGELOG.md
 
-<div align="center">
-
-**Built with ❤️ for streaming, gaming, and enterprise virtualization**
-
-[⬆ Back to Top](#-beagle-os)
-
-</div>

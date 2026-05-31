@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beagle OS Docs | WebUI Operator Guide</title>
-    <meta name="description" content="Operator guide for the Beagle OS Web Console: onboarding, health checks, VM provisioning, downloads, endpoints, streams, updates, backups, audit and troubleshooting.">
+    <meta name="description" content="Operational guide for Beagle WebUI: health checks, VM lifecycle, endpoint management, stream operations, updates, backup and incident workflows.">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/css/main.css">
     <link rel="stylesheet" href="/assets/css/docs.css">
@@ -16,28 +16,20 @@
         <a class="brand" href="/"><img src="/logo.svg" alt="Beagle OS"><span>Beagle OS</span></a>
         <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" data-nav-toggle><span></span><span></span><span></span></button>
         <div class="nav-panel" data-nav-panel>
-            <nav class="nav-links">
-                <a href="/download/">Download</a>
-                <a href="/docs/">Documentation</a>
-                <a href="/about/">About</a>
-                <a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a>
-            </nav>
-            <div class="nav-actions">
-                <a class="btn btn-primary" href="/download/">Get Beagle OS</a>
-                <div class="lang-switcher"><button type="button" data-lang-button="en">EN</button><button type="button" data-lang-button="de">DE</button></div>
-            </div>
+            <nav class="nav-links"><a href="/download/">Download</a><a href="/docs/">Documentation</a><a href="/about/">About</a><a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a></nav>
+            <div class="nav-actions"><a class="btn btn-primary" href="/docs/getting-started/">Getting Started</a><div class="lang-switcher"><button type="button" data-lang-button="en">EN</button><button type="button" data-lang-button="de">DE</button></div></div>
         </div>
     </div>
 </header>
 <main>
     <section class="page-hero">
         <div class="container">
-            <div class="eyebrow">Web Console</div>
-            <h1>Operate Beagle OS from the WebUI</h1>
-            <p>The Beagle Web Console is the primary operator surface for a standalone Beagle host. Use it to validate a fresh install, create VMs, follow provisioning, prepare thin-client media, manage endpoints, inspect streams, handle updates, and collect evidence for support.</p>
+            <div class="eyebrow">WebUI Operator Guide</div>
+            <h1>Operate host, VM, endpoint and stream lifecycle</h1>
+            <p>The WebUI is the control surface for day-two operations on a standalone Beagle host. This guide is organized by operator workflow instead of legacy product-era sections.</p>
             <div class="hero-actions">
-                <a class="btn btn-primary btn-lg" href="/download/">Install the host</a>
-                <a class="btn btn-outline btn-lg" href="/docs/getting-started/">Quick start</a>
+                <a class="btn btn-primary btn-lg" href="/docs/getting-started/">Fresh install workflow</a>
+                <a class="btn btn-outline btn-lg" href="/docs/security/">Security baseline</a>
             </div>
         </div>
     </section>
@@ -60,111 +52,72 @@
 
                 <div class="doc-content">
                     <article class="doc-section glass-card">
-                        <h2>First login and install validation</h2>
+                        <h2>Workflow 1: Initial host validation</h2>
                         <ol class="number-list">
-                            <li data-step="1">Open the host URL after installation. A fresh host should expose the Web Console through nginx and the Beagle Control Plane.</li>
-                            <li data-step="2">Complete the initial admin/onboarding flow if the host has no configured administrator yet.</li>
-                            <li data-step="3">Open the health/install checks view and verify that Control Plane, nginx, libvirt, downloads, repo update status, and hosted artifacts are green.</li>
-                            <li data-step="4">If a check fails, inspect the linked detail first. Do not continue to VM provisioning while required host services are red.</li>
+                            <li data-step="1">Login and complete onboarding for a fresh host.</li>
+                            <li data-step="2">Open health checks and resolve all required red states.</li>
+                            <li data-step="3">Confirm update channel and artifact metadata status.</li>
+                            <li data-step="4">Review audit panel for startup anomalies.</li>
                         </ol>
-                        <pre><code>ssh srv1.beagle-os.com
-/opt/beagle/scripts/check-beagle-host.sh
-systemctl --failed --no-pager</code></pre>
-                        <figure class="doc-shot">
-                            <img src="/assets/img/docs/webui/onboarding.png" alt="WebUI onboarding modal">
-                            <figcaption>Fresh host onboarding flow before the first admin account exists.</figcaption>
-                        </figure>
+                        <figure class="doc-shot"><img src="/assets/img/docs/webui/onboarding.png" alt="WebUI onboarding modal"><figcaption>Onboarding and first-admin flow for new installations.</figcaption></figure>
                     </article>
 
                     <article class="doc-section glass-card">
-                        <h2>Main navigation</h2>
-                        <div class="grid-2">
-                            <div class="info-card"><h3>Overview</h3><p>Shows host health, update state, artifact status, virtualization capacity, sessions, and the next risky item that needs operator attention.</p></div>
-                            <div class="info-card"><h3>Virtualization</h3><p>Create, start, stop, delete, inspect and troubleshoot VMs backed by the Beagle libvirt/KVM provider.</p></div>
-                            <div class="info-card"><h3>Endpoints</h3><p>See enrolled thin clients, endpoint identity, policy state, last check-in, assigned VM and generated media.</p></div>
-                            <div class="info-card"><h3>Streams</h3><p>Inspect BeagleStream sessions, allocation results, WireGuard state, health events and stream readiness.</p></div>
-                            <div class="info-card"><h3>Downloads</h3><p>Generate host-local and VM-specific thin-client USB/live media and compare hosted artifact versions.</p></div>
-                            <div class="info-card"><h3>Settings</h3><p>Manage update channel, TLS, users, audit, integrations and host-level runtime policy.</p></div>
-                        </div>
-                        <figure class="doc-shot">
-                            <img src="/assets/img/docs/webui/dashboard-overview.png" alt="WebUI dashboard overview panel">
-                            <figcaption>Overview panel with host health, virtualization capacity and runtime status.</figcaption>
-                        </figure>
-                    </article>
-
-                    <article class="doc-section glass-card">
-                        <h2>Create a VM</h2>
+                        <h2>Workflow 2: VM provisioning and lifecycle</h2>
                         <ol class="number-list">
-                            <li data-step="1">Open Virtualization and choose the Ubuntu Beagle desktop template unless you intentionally need another image.</li>
-                            <li data-step="2">Set CPU, memory and disk within the host capacity shown by the WebUI. Leave host RAM and CPU headroom for libvirt, nginx, control-plane workers and artifact refresh jobs.</li>
-                            <li data-step="3">Choose the Beagle bridge for networking on standalone hosts.</li>
-                            <li data-step="4">Start provisioning and keep the VM detail page open. The expected path is create, autoinstall boot, firstboot, guest agent, desktop services, stream readiness.</li>
-                            <li data-step="5">If provisioning fails, copy the exact WebUI error and check the VM event log before deleting artifacts manually.</li>
+                            <li data-step="1">Open provisioning and create a VM with validated node and bridge values.</li>
+                            <li data-step="2">Follow provisioning phases until guest readiness is green.</li>
+                            <li data-step="3">Run lifecycle smoke: start, stop, restart and state persistence.</li>
+                            <li data-step="4">Confirm VM appears in audit and event streams.</li>
                         </ol>
-                        <figure class="doc-shot">
-                            <img src="/assets/img/docs/webui/provisioning-form.png" alt="WebUI provisioning form with VM create inputs">
-                            <figcaption>Provisioning form with node, bridge and desktop profile selection.</figcaption>
-                        </figure>
-                        <figure class="doc-shot">
-                            <img src="/assets/img/docs/webui/provisioning-create-result.png" alt="WebUI provisioning create result modal">
-                            <figcaption>Result state after triggering VM creation from the provisioning panel.</figcaption>
-                        </figure>
+                        <figure class="doc-shot"><img src="/assets/img/docs/webui/provisioning-form.png" alt="WebUI provisioning form"><figcaption>Provisioning form with explicit VM profile and resource controls.</figcaption></figure>
+                        <figure class="doc-shot"><img src="/assets/img/docs/webui/provisioning-create-result.png" alt="WebUI provisioning result"><figcaption>Creation result panel with immediate action outcomes.</figcaption></figure>
                     </article>
 
                     <article class="doc-section glass-card">
-                        <h2>VM detail workflow</h2>
+                        <h2>Workflow 3: Endpoint media and assignment</h2>
+                        <ol class="number-list">
+                            <li data-step="1">Generate VM-specific endpoint media from Downloads.</li>
+                            <li data-step="2">Boot endpoint and verify enrollment in Endpoints view.</li>
+                            <li data-step="3">Check assignment, heartbeat and policy readiness.</li>
+                            <li data-step="4">Use USB tab for controlled device passthrough actions.</li>
+                        </ol>
+                        <figure class="doc-shot"><img src="/assets/img/docs/webui/vm-usb-tab.png" alt="VM USB tab"><figcaption>VM USB tab with attach and detach controls.</figcaption></figure>
+                    </article>
+
+                    <article class="doc-section glass-card">
+                        <h2>Workflow 4: Stream operations</h2>
                         <ul>
-                            <li><strong>Summary:</strong> power state, node, IP address, guest agent state, provisioning phase and recent actions.</li>
-                            <li><strong>Console:</strong> noVNC access for installation and firstboot observation.</li>
-                            <li><strong>Config:</strong> CPU, memory, boot, firmware, network, storage and Beagle runtime options.</li>
-                            <li><strong>Downloads:</strong> VM-specific USB installer/live media for assigned endpoints.</li>
-                            <li><strong>Stream:</strong> BeagleStream target, allocation, WireGuard requirement and health events.</li>
-                            <li><strong>Backup:</strong> VM-scope backup runs, restore evidence and retention policy.</li>
-                            <li><strong>Audit:</strong> action history for create, start, stop, delete, stream and backup operations.</li>
+                            <li>Verify target VM stream service health.</li>
+                            <li>Confirm endpoint tunnel and network readiness.</li>
+                            <li>Track session allocation and reconnect behavior in Streams view.</li>
+                            <li>Escalate with captured logs and timestamps when sessions fail.</li>
                         </ul>
-                        <figure class="doc-shot">
-                            <img src="/assets/img/docs/webui/vm-usb-tab.png" alt="VM detail USB tab in WebUI">
-                            <figcaption>VM detail USB tab used for device passthrough operations.</figcaption>
-                        </figure>
+                        <figure class="doc-shot"><img src="/assets/img/docs/webui/dashboard-overview.png" alt="Dashboard overview"><figcaption>Dashboard panel for host and stream readiness checks.</figcaption></figure>
                     </article>
 
                     <article class="doc-section glass-card">
-                        <h2>Endpoint and thin-client flow</h2>
-                        <ol class="number-list">
-                            <li data-step="1">Create or select a VM and wait until the VM has a stable runtime profile.</li>
-                            <li data-step="2">Open the VM downloads view and generate a VM-specific Linux or Windows USB writer script.</li>
-                            <li data-step="3">Write the media, boot the thin client, and let enrollment apply the control-plane URL, token, WireGuard state and stream target.</li>
-                            <li data-step="4">Use the Endpoints page to confirm last check-in, assigned VM, tunnel state and stream-client launch state.</li>
-                            <li data-step="5">Use Streams to verify that the desktop is allocated through the BeagleStream path and not through a manual fallback.</li>
-                        </ol>
-                    </article>
-
-                    <article class="doc-section glass-card">
-                        <h2>Updates, releases and channels</h2>
-                        <p>Use the update panel to see installed version, remote version, installed commit, remote commit, update channel and artifact build status. Stable follows published release tags. Rolling follows the current repository branch and is for validation work, not a customer install baseline.</p>
+                        <h2>Workflow 5: Updates, backup and recovery</h2>
                         <ul>
-                            <li>Use stable for clean-install evidence and customer-facing validation.</li>
-                            <li>Use rolling only to validate a repo fix before the next release is published.</li>
-                            <li>Do not rely on a live hotfix unless the same change is committed and pushed.</li>
-                            <li>After an artifact refresh, confirm `beagle-downloads-status.json` and hosted files match `VERSION`.</li>
+                            <li>Apply rolling updates only for controlled validation.</li>
+                            <li>Use stable channel for release-bound evidence runs.</li>
+                            <li>Run backups before high-impact host or VM changes.</li>
+                            <li>Test restore path on non-production VM before claiming backup readiness.</li>
                         </ul>
-                        <figure class="doc-shot">
-                            <img src="/assets/img/docs/webui/settings-security.png" alt="WebUI security settings panel">
-                            <figcaption>Security/settings panel for auth, tokens and control-plane policy checks.</figcaption>
-                        </figure>
+                        <figure class="doc-shot"><img src="/assets/img/docs/webui/settings-security.png" alt="Settings and security panel"><figcaption>Settings view for security and operational policy checks.</figcaption></figure>
                     </article>
 
                     <article class="doc-section glass-card">
-                        <h2>Troubleshooting checklist</h2>
+                        <h2>Troubleshooting matrix</h2>
                         <div class="table-card">
                             <table class="api-table">
-                                <thead><tr><th>Symptom</th><th>Check</th><th>Expected fix path</th></tr></thead>
+                                <thead><tr><th>Issue</th><th>Check first</th><th>Expected next action</th></tr></thead>
                                 <tbody>
-                                    <tr><td>WebUI not reachable</td><td>nginx, TLS, HSTS, control-plane health</td><td>Fix proxy/TLS config in repo, then redeploy</td></tr>
-                                    <tr><td>VM provisioning fails</td><td>VM event log, libvirt logs, ISO/cache file permissions</td><td>Patch provisioning service and add regression test</td></tr>
-                                    <tr><td>Guest agent waits forever</td><td>Console, cloud-init, qemu-guest-agent service</td><td>Observe firstboot logs and fix image bootstrap</td></tr>
-                                    <tr><td>Stream does not start</td><td>Streams page, guest service health, WireGuard state</td><td>Run BeagleStream healthcheck and patch self-heal if needed</td></tr>
-                                    <tr><td>Endpoint not assigned</td><td>Endpoint profile, token, downloads metadata</td><td>Regenerate VM-specific media and verify enrollment</td></tr>
+                                    <tr><td>WebUI unavailable</td><td>Host service health and reverse proxy</td><td>Repair service stack and recheck status</td></tr>
+                                    <tr><td>VM creation fails</td><td>Provisioning event log and permissions</td><td>Apply repo fix and regression test</td></tr>
+                                    <tr><td>Endpoint missing</td><td>Media profile and enrollment logs</td><td>Regenerate media and retest enrollment</td></tr>
+                                    <tr><td>Stream fails</td><td>Guest stream service and endpoint tunnel</td><td>Recover runtime path and capture evidence</td></tr>
+                                    <tr><td>USB attach fails</td><td>Assignment and tunnel key scope</td><td>Revalidate mapping and key ownership</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -177,9 +130,9 @@ systemctl --failed --no-pager</code></pre>
 <footer class="footer">
     <div class="container">
         <div class="footer-grid">
-            <div class="footer-brand"><img src="/logo.svg" alt="Beagle OS" class="footer-logo"><p>Standalone virtualization, endpoints, and streaming control.</p></div>
+            <div class="footer-brand"><img src="/logo.svg" alt="Beagle OS" class="footer-logo"><p>Operator guide for the current Beagle WebUI workflow model.</p></div>
+            <div class="footer-links"><h4>Docs</h4><a href="/docs/">Docs Hub</a><a href="/docs/getting-started/">Getting Started</a><a href="/docs/release-notes/">Release Notes</a></div>
             <div class="footer-links"><h4>Product</h4><a href="/download/">Download</a><a href="/about/">About</a><a href="/contact/">Commercial License</a></div>
-            <div class="footer-links"><h4>Docs</h4><a href="/docs/">Docs Hub</a><a href="/docs/webui/">WebUI Guide</a><a href="/docs/security/">Security</a></div>
             <div class="footer-links"><h4>Resources</h4><a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a><a href="https://github.com/meinzeug/beagle-os/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">Changelog</a></div>
         </div>
         <div class="footer-bottom">Copyright 2026 Dennis Wicht</div>

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beagle OS | Documentation</title>
-    <meta name="description" content="Current Beagle OS documentation for standalone KVM hosts, the Web Console, VM provisioning, thin clients, BeagleStream, updates, security and operations.">
+    <meta name="description" content="Complete Beagle OS documentation for standalone host installation, WebUI operations, VM lifecycle, endpoint media, BeagleStream, security and release validation.">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/css/main.css">
     <script defer src="/assets/js/lang.js"></script>
@@ -24,7 +24,7 @@
                 <a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a>
             </nav>
             <div class="nav-actions">
-                <a class="btn btn-primary" href="/docs/webui/">WebUI Guide</a>
+                <a class="btn btn-primary" href="/docs/getting-started/">Start Here</a>
                 <div class="lang-switcher"><button type="button" data-lang-button="en">EN</button><button type="button" data-lang-button="de">DE</button></div>
             </div>
         </div>
@@ -34,11 +34,11 @@
     <section class="page-hero">
         <div class="container">
             <div class="eyebrow">Documentation</div>
-            <h1>Run Beagle OS without tribal knowledge</h1>
-            <p>These docs track the current Beagle OS direction: standalone KVM/libvirt host, Beagle Web Console, VM lifecycle, BeagleStream, thin-client media, updates, backups and security evidence. The old 5.x SaaS-era wording has been retired.</p>
+            <h1>Beagle OS docs rebuilt for the standalone stack</h1>
+            <p>This documentation set matches the current Beagle OS product direction: standalone KVM/libvirt host, Beagle Web Console, reproducible endpoint media, BeagleStream runtime, and release validation against published artifacts.</p>
             <div class="hero-actions">
-                <a class="btn btn-primary btn-lg" href="/docs/webui/">Start with WebUI</a>
-                <a class="btn btn-outline btn-lg" href="/docs/getting-started/">Install guide</a>
+                <a class="btn btn-primary btn-lg" href="/docs/getting-started/">Install and run your first stream</a>
+                <a class="btn btn-outline btn-lg" href="/docs/webui/">Use the WebUI operator guide</a>
             </div>
         </div>
     </section>
@@ -46,56 +46,67 @@
     <section class="section">
         <div class="container">
             <div class="docs-search">
-                <input type="search" data-doc-search placeholder="Search docs">
+                <input type="search" data-doc-search placeholder="Search documentation pages">
             </div>
             <div class="docs-search-status" data-doc-search-status>8 documentation pages visible</div>
-            <div class="docs-grid">
-                <article class="doc-card" data-doc-card data-search-en="webui web console dashboard operation health vm provisioning streams endpoints updates backups audit troubleshooting">
-                    <div class="icon-badge">UI</div>
-                    <h3>WebUI Operator Guide</h3>
-                    <p>How to use the Beagle Web Console for health checks, VM creation, provisioning, endpoint media, streams, updates, backups and troubleshooting.</p>
-                    <a class="btn btn-link" href="/docs/webui/">Open page</a>
+            <div class="doc-content" style="margin:20px 0 24px">
+                <article class="doc-section glass-card">
+                    <h2>Visual walkthrough</h2>
+                    <p>These screenshots are captured from the current project pages and WebUI guide to make onboarding and operator orientation faster.</p>
+                    <div class="grid-3">
+                        <figure class="doc-shot"><img src="/assets/img/docs/site/site-home.png" alt="Beagle OS homepage screenshot"><figcaption>Homepage overview and platform positioning.</figcaption></figure>
+                        <figure class="doc-shot"><img src="/assets/img/docs/site/site-download.png" alt="Beagle OS download page screenshot"><figcaption>Download page with artifact and rollout guidance.</figcaption></figure>
+                        <figure class="doc-shot"><img src="/assets/img/docs/site/site-docs-hub.png" alt="Beagle OS docs hub screenshot"><figcaption>Documentation hub with current standalone structure.</figcaption></figure>
+                    </div>
                 </article>
-                <article class="doc-card" data-doc-card data-search-en="getting started install clean host setup first vm endpoint stream quick start">
+            </div>
+            <div class="docs-grid">
+                <article class="doc-card" data-doc-card data-search-en="getting started install host clean install first login first vm first endpoint first stream">
                     <div class="icon-badge">01</div>
                     <h3>Getting Started</h3>
-                    <p>Clean host install, first WebUI login, first VM, first endpoint media and first stream.</p>
+                    <p>End-to-end bootstrap from clean host install to first VM lifecycle and first endpoint stream session.</p>
                     <a class="btn btn-link" href="/docs/getting-started/">Open page</a>
                 </article>
-                <article class="doc-card" data-doc-card data-search-en="architecture standalone kvm libvirt control plane provider host vm endpoint stream">
+                <article class="doc-card" data-doc-card data-search-en="webui operator guide dashboard vm endpoint streams downloads updates backups audit">
+                    <div class="icon-badge">UI</div>
+                    <h3>WebUI Operator Guide</h3>
+                    <p>Operational playbook for health checks, VM provisioning, endpoint assignment, stream checks and troubleshooting.</p>
+                    <a class="btn btn-link" href="/docs/webui/">Open page</a>
+                </article>
+                <article class="doc-card" data-doc-card data-search-en="architecture control plane provider kvm libvirt endpoint stream contracts boundaries">
                     <div class="icon-badge">AR</div>
                     <h3>Architecture</h3>
-                    <p>Standalone Beagle host model, KVM/libvirt provider, Control Plane, endpoint OS and BeagleStream path.</p>
+                    <p>System model, component boundaries, runtime dependencies and why the active provider path is KVM/libvirt only.</p>
                     <a class="btn btn-link" href="/docs/architecture/">Open page</a>
                 </article>
-                <article class="doc-card" data-doc-card data-search-en="endpoint os thin client usb live installer enrollment wireguard stream client">
+                <article class="doc-card" data-doc-card data-search-en="endpoint os thin client live boot installer enrollment runtime policies">
                     <div class="icon-badge">OS</div>
                     <h3>Endpoint OS</h3>
-                    <p>Thin-client boot flow, enrollment, VM assignment, BeagleStream client startup and endpoint runtime policy.</p>
+                    <p>Endpoint image types, enrollment, runtime behavior, update flow and field diagnostics.</p>
                     <a class="btn btn-link" href="/docs/endpoint-os/">Open page</a>
                 </article>
-                <article class="doc-card" data-doc-card data-search-en="usb passthrough reverse ssh tunnel attach detach devices vm">
+                <article class="doc-card" data-doc-card data-search-en="usb passthrough reverse ssh tunnel attach detach vm mapping auditing">
                     <div class="icon-badge">USB</div>
                     <h3>USB Passthrough</h3>
-                    <p>Hardened reverse-SSH USB flow from endpoint to host to assigned VM, including attach and detach operations.</p>
+                    <p>Secure reverse tunnel flow for forwarding endpoint USB devices to the assigned VM without open usbip ports.</p>
                     <a class="btn btn-link" href="/docs/usb-passthrough/">Open page</a>
                 </article>
-                <article class="doc-card" data-doc-card data-search-en="security tokens rbac audit tls wireguard secrets no public ports">
+                <article class="doc-card" data-doc-card data-search-en="security trust model tokens rbac wireguard tls audit secrets hardening">
                     <div class="icon-badge">SEC</div>
                     <h3>Security</h3>
-                    <p>Trust model, scoped tokens, tunnel keys, TLS, WireGuard, audit and operational security boundaries.</p>
+                    <p>Trust model, host hardening baseline, identity and token model, audit evidence and incident response routine.</p>
                     <a class="btn btn-link" href="/docs/security/">Open page</a>
                 </article>
-                <article class="doc-card" data-doc-card data-search-en="release notes 8.3.9 clean install provisioning github release artifacts channels">
-                    <div class="icon-badge">8.x</div>
+                <article class="doc-card" data-doc-card data-search-en="release notes stable rolling validation matrix clean install evidence">
+                    <div class="icon-badge">REL</div>
                     <h3>Release Notes</h3>
-                    <p>Current 8.x product state, known 8.3.9 regression, fixed main commit and release artifact expectations.</p>
+                    <p>Current 8.x line, validation expectations, known risks and promotion rules for stable releases.</p>
                     <a class="btn btn-link" href="/docs/release-notes/">Open page</a>
                 </article>
-                <article class="doc-card" data-doc-card data-search-en="download server image installimage iso usb payload checksums artifacts">
+                <article class="doc-card" data-doc-card data-search-en="downloads artifacts iso installimage usb payload checksums">
                     <div class="icon-badge">DL</div>
                     <h3>Downloads</h3>
-                    <p>Server installimage, server ISO, endpoint ISO, USB payloads, checksums and hosted artifact status.</p>
+                    <p>Artifact overview for installimage, ISO and endpoint media plus guidance for checksum and integrity checks.</p>
                     <a class="btn btn-link" href="/download/">Open page</a>
                 </article>
             </div>
@@ -105,9 +116,9 @@
 <footer class="footer">
     <div class="container">
         <div class="footer-grid">
-            <div class="footer-brand"><img src="/logo.svg" alt="Beagle OS" class="footer-logo"><p>Focused documentation for Beagle OS standalone virtualization and streaming.</p></div>
+            <div class="footer-brand"><img src="/logo.svg" alt="Beagle OS" class="footer-logo"><p>Operational documentation for the standalone Beagle OS platform.</p></div>
+            <div class="footer-links"><h4>Docs</h4><a href="/docs/getting-started/">Getting Started</a><a href="/docs/webui/">WebUI Guide</a><a href="/docs/security/">Security</a></div>
             <div class="footer-links"><h4>Product</h4><a href="/download/">Download</a><a href="/about/">About</a><a href="/contact/">Commercial License</a></div>
-            <div class="footer-links"><h4>Docs</h4><a href="/docs/webui/">WebUI Guide</a><a href="/docs/architecture/">Architecture</a><a href="/docs/security/">Security</a></div>
             <div class="footer-links"><h4>Resources</h4><a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a><a href="https://github.com/meinzeug/beagle-os/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">Changelog</a></div>
         </div>
         <div class="footer-bottom">Copyright 2026 Dennis Wicht</div>

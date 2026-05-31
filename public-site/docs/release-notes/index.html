@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beagle OS Docs | Release Notes</title>
-    <meta name="description" content="Current Beagle OS 8.x release notes and known release status for server installimage, VM provisioning, WebUI and BeagleStream validation.">
+    <meta name="description" content="Current Beagle OS release line status, stable and rolling policy, validation gates and known operational risks.">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/css/main.css">
     <link rel="stylesheet" href="/assets/css/docs.css">
@@ -17,74 +17,85 @@
         <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" data-nav-toggle><span></span><span></span><span></span></button>
         <div class="nav-panel" data-nav-panel>
             <nav class="nav-links"><a href="/download/">Download</a><a href="/docs/">Documentation</a><a href="/about/">About</a><a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a></nav>
-            <div class="nav-actions"><a class="btn btn-primary" href="/docs/webui/">WebUI Guide</a><div class="lang-switcher"><button type="button" data-lang-button="en">EN</button><button type="button" data-lang-button="de">DE</button></div></div>
+            <div class="nav-actions"><a class="btn btn-primary" href="https://github.com/meinzeug/beagle-os/releases/latest" target="_blank" rel="noreferrer">Latest Release</a><div class="lang-switcher"><button type="button" data-lang-button="en">EN</button><button type="button" data-lang-button="de">DE</button></div></div>
         </div>
     </div>
 </header>
 <main>
-    <section class="page-hero">
-        <div class="container">
-            <div class="eyebrow">Release Notes</div>
-            <h1>Beagle OS 8.x release line</h1>
-            <p>The current product line is the standalone Beagle host: Debian 13 server installimage, KVM/libvirt provider, Beagle Web Console, VM provisioning, thin-client media, BeagleStream runtime and reproducible public artifacts.</p>
-        </div>
-    </section>
+    <section class="page-hero"><div class="container"><div class="eyebrow">Release Notes</div><h1>Current release policy for Beagle OS 8.x</h1><p>This page tracks release expectations for the standalone Beagle host. Stable release promotion requires clean-install evidence and runtime gate validation, not only rolling host updates.</p></div></section>
 
-    <section class="section">
-        <div class="container">
-            <div class="doc-layout">
-                <aside class="doc-sidebar glass-card">
-                    <h3>Docs</h3>
-                    <nav>
-                        <a href="/docs/getting-started/">Getting Started</a>
-                        <a href="/docs/webui/">WebUI Guide</a>
-                        <a href="/docs/architecture/">Architecture</a>
-                        <a href="/docs/endpoint-os/">Endpoint OS</a>
-                        <a href="/docs/security/">Security</a>
-                        <a class="active" href="/docs/release-notes/">Release Notes</a>
-                    </nav>
-                </aside>
-                <div class="doc-content">
-                    <article class="doc-section glass-card">
-                        <h2>Current status</h2>
-                        <p>`v8.3.9` was published as the latest stable artifact set, but fresh VM provisioning exposed a regression in the Ubuntu autoinstall media path. The repository fix is on `main` as `f05e4b7 Fix Ubuntu autoinstall media permissions`. A new release built from that commit or newer is required before the fixed server image can be treated as the clean-install baseline.</p>
-                    </article>
+    <section class="section"><div class="container"><div class="doc-layout">
+        <aside class="doc-sidebar glass-card"><h3>Docs</h3><nav>
+            <a href="/docs/getting-started/">Getting Started</a>
+            <a href="/docs/webui/">WebUI Guide</a>
+            <a href="/docs/architecture/">Architecture</a>
+            <a href="/docs/endpoint-os/">Endpoint OS</a>
+            <a href="/docs/security/">Security</a>
+            <a class="active" href="/docs/release-notes/">Release Notes</a>
+        </nav></aside>
 
-                    <article class="doc-section glass-card">
-                        <h2>8.3.x highlights</h2>
-                        <div class="release-timeline">
-                            <div class="release-entry"><strong>Standalone Beagle host</strong><p>Beagle OS now targets its own KVM/libvirt platform instead of a Proxmox-backed product variant.</p></div>
-                            <div class="release-entry"><strong>Web Console as operator surface</strong><p>The WebUI covers health, VMs, endpoints, streams, updates, downloads, backups, audit and settings.</p></div>
-                            <div class="release-entry"><strong>Server installimage path</strong><p>Hetzner-style Debian 13 installimage artifacts bootstrap Beagle host services after the first reboot.</p></div>
-                            <div class="release-entry"><strong>Ubuntu Beagle provisioning</strong><p>The VM flow builds autoinstall boot media, seed media and Beagle firstboot state for desktop VMs.</p></div>
-                            <div class="release-entry"><strong>BeagleStream integration</strong><p>Stream server/client integration, endpoint enrollment, WireGuard state and stream health are moving into the product path.</p></div>
-                        </div>
-                    </article>
-
-                    <article class="doc-section glass-card">
-                        <h2>Known release rule</h2>
-                        <p>Public stable artifacts must only be promoted after a clean host install, WebUI login, host health check, VM create/delete lifecycle and first stream path have been validated from the published artifacts. Rolling host updates are useful for live verification, but they do not prove a stable installimage.</p>
-                    </article>
-
-                    <article class="doc-section glass-card">
-                        <h2>Full history</h2>
-                        <p>For commit-level history, release metadata and checksums, use the GitHub release and project changelog.</p>
-                        <div class="section-actions">
-                            <a class="btn btn-primary" href="https://github.com/meinzeug/beagle-os/releases/latest" target="_blank" rel="noreferrer">Current GitHub release</a>
-                            <a class="btn btn-outline" href="https://github.com/meinzeug/beagle-os/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">CHANGELOG.md</a>
-                        </div>
-                    </article>
+        <div class="doc-content">
+            <article class="doc-section glass-card">
+                <h2>Channel model</h2>
+                <div class="release-timeline">
+                    <div class="release-entry"><strong>Stable</strong><p>Published artifacts intended for clean installs and production-like operations. Promotion requires validation matrix evidence.</p></div>
+                    <div class="release-entry"><strong>Rolling</strong><p>Continuous integration path for live validation and early bugfix verification. Not a substitute for clean-install release proof.</p></div>
                 </div>
-            </div>
+            </article>
+
+            <article class="doc-section glass-card">
+                <h2>Release promotion gates</h2>
+                <ul>
+                    <li>Clean host install from release artifact succeeds.</li>
+                    <li>Host health checks pass directly after install.</li>
+                    <li>WebUI login, VM create, VM delete and endpoint path are verified.</li>
+                    <li>BeagleStream first session succeeds with expected runtime health.</li>
+                    <li>Security and backup baseline checks are complete.</li>
+                </ul>
+            </article>
+
+            <article class="doc-section glass-card">
+                <h2>Known risk classes</h2>
+                <div class="table-card">
+                    <table class="api-table">
+                        <thead><tr><th>Risk class</th><th>Typical symptom</th><th>Required response</th></tr></thead>
+                        <tbody>
+                            <tr><td>Provisioning regressions</td><td>Fresh VM creation fails</td><td>Patch in repo with regression test before release</td></tr>
+                            <tr><td>Artifact mismatch</td><td>Hosted files do not match version metadata</td><td>Rebuild and re-publish artifacts with integrity checks</td></tr>
+                            <tr><td>Endpoint enrollment drift</td><td>Wrong VM mapping or missing policy</td><td>Fix profile generation path and revalidate media</td></tr>
+                            <tr><td>Stream runtime drift</td><td>Session fails after update</td><td>Rollback or patch and repeat end-to-end validation</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="doc-section glass-card">
+                <h2>Operator release checklist</h2>
+                <ol class="number-list">
+                    <li data-step="1">Confirm installed and remote version metadata alignment.</li>
+                    <li data-step="2">Run host health checks and archive outputs.</li>
+                    <li data-step="3">Run VM lifecycle smoke and endpoint stream smoke.</li>
+                    <li data-step="4">Validate backups and restore metadata path.</li>
+                    <li data-step="5">Document final evidence before announcing release.</li>
+                </ol>
+            </article>
+
+            <article class="doc-section glass-card">
+                <h2>References</h2>
+                <div class="section-actions">
+                    <a class="btn btn-primary" href="https://github.com/meinzeug/beagle-os/releases/latest" target="_blank" rel="noreferrer">Current GitHub release</a>
+                    <a class="btn btn-outline" href="https://github.com/meinzeug/beagle-os/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">CHANGELOG.md</a>
+                </div>
+            </article>
         </div>
-    </section>
+    </div></div></section>
 </main>
 <footer class="footer">
     <div class="container">
         <div class="footer-grid">
-            <div class="footer-brand"><img src="/logo.svg" alt="Beagle OS" class="footer-logo"><p>Release and product direction reference for the standalone Beagle OS stack.</p></div>
+            <div class="footer-brand"><img src="/logo.svg" alt="Beagle OS" class="footer-logo"><p>Release policy and validation gates for standalone Beagle OS.</p></div>
+            <div class="footer-links"><h4>Docs</h4><a href="/docs/">Docs Hub</a><a href="/docs/getting-started/">Getting Started</a><a href="/docs/security/">Security</a></div>
             <div class="footer-links"><h4>Product</h4><a href="/download/">Download</a><a href="/about/">About</a><a href="/contact/">Commercial License</a></div>
-            <div class="footer-links"><h4>Docs</h4><a href="/docs/">Docs Hub</a><a href="/docs/webui/">WebUI Guide</a><a href="/docs/security/">Security</a></div>
             <div class="footer-links"><h4>Resources</h4><a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a><a href="https://github.com/meinzeug/beagle-os/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">Changelog</a></div>
         </div>
         <div class="footer-bottom">Copyright 2026 Dennis Wicht</div>

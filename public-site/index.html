@@ -3,264 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beagle OS — Standalone Virtualization, Thin Clients, Streaming</title>
-    <meta name="description" content="Beagle OS is a standalone virtualization and thin-client platform with Beagle Control Plane, Beagle Stream Client endpoints, Beagle Stream Server streaming and reproducible release artifacts.">
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <title>Beagle OS | Self-Hosted Virtualization and Streaming</title>
+    <meta name="description" content="Beagle OS is a hobby-driven, self-hosted platform for standalone KVM/libvirt virtualization, endpoint media and managed desktop streaming.">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <script defer src="/assets/js/lang.js"></script>
 </head>
 <body>
-
-<!-- Navigation -->
-<nav class="nav">
-    <div class="nav-inner">
-        <a href="#" class="nav-logo">
-            <img src="logo.svg" alt="Beagle OS" class="nav-logo-img">
-            <span>Beagle OS</span>
-        </a>
-        <div class="nav-links">
-            <a href="#features">Features</a>
-            <a href="#how-it-works">How It Works</a>
-            <a href="#license">License</a>
-            <a href="https://github.com/meinzeug/beagle-os" target="_blank">GitHub</a>
-            <a href="/download/" class="btn btn-nav">Download</a>
-        </div>
-        <button class="nav-toggle" aria-label="Menu">
-            <span></span><span></span><span></span>
-        </button>
-    </div>
-</nav>
-
-<header class="hero">
-    <div class="hero-inner">
-        <div class="hero-badge">Release __BEAGLE_RELEASE_TAG__ &middot; Open Source</div>
-        <h1>Beagle OS</h1>
-        <p class="hero-sub">
-            Standalone virtualization, Beagle Stream Server streaming, Beagle Stream Client thin clients, and a
-            Beagle-native control plane in one neon-lit endpoint stack. Private use is free;
-            companies request a commercial license before rollout.
-        </p>
-        <div class="hero-actions">
-            <a href="/download/" class="btn btn-primary btn-lg">Download __BEAGLE_RELEASE_TAG__</a>
-            <a href="#how-it-works" class="btn btn-outline btn-lg">See How It Works</a>
-        </div>
-        <div class="hero-stats">
-            <div class="stat">
-                <span class="stat-value">&lt;5ms</span>
-                <span class="stat-label">Streaming Latency</span>
-            </div>
-            <div class="stat">
-                <span class="stat-value">4K60</span>
-                <span class="stat-label">Max Resolution</span>
-            </div>
-            <div class="stat">
-                <span class="stat-value">H.265/AV1</span>
-                <span class="stat-label">Video Codecs</span>
+<header class="site-header">
+    <div class="container nav-shell">
+        <a class="brand" href="/"><img src="/logo.svg" alt="Beagle OS"><span>Beagle OS</span></a>
+        <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" data-nav-toggle><span></span><span></span><span></span></button>
+        <div class="nav-panel" data-nav-panel>
+            <nav class="nav-links">
+                <a href="/#platform">Platform</a>
+                <a href="/#workflows">Workflows</a>
+                <a href="/download/">Download</a>
+                <a href="/docs/">Documentation</a>
+                <a href="/about/">About</a>
+                <a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a>
+            </nav>
+            <div class="nav-actions">
+                <a class="btn btn-outline" href="/contact/">Contact</a>
+                <a class="btn btn-primary" href="/docs/getting-started/">Start Here</a>
+                <div class="lang-switcher"><button type="button" data-lang-button="en">EN</button><button type="button" data-lang-button="de">DE</button></div>
             </div>
         </div>
     </div>
 </header>
 
-<!-- Features -->
-<section id="features" class="section">
-    <div class="container">
-        <div class="section-header">
-            <h2>Built for streamed machines that feel local</h2>
-            <p>One platform for the host, fleet, endpoint runtime, and release pipeline.</p>
-        </div>
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+<main>
+    <section class="hero">
+        <div class="container">
+            <div class="hero-panel">
+                <div class="hero-grid">
+                    <div>
+                        <div class="eyebrow">Hobby Project, Real Ops Discipline</div>
+                        <h1>Build your own self-hosted endpoint and stream lab</h1>
+                        <p>Beagle OS is developed as a hobby project, but with serious operational rigor. The stack focuses on one clear path: standalone host virtualization, managed endpoint media, and reproducible stream validation.</p>
+                        <div class="hero-actions">
+                            <a class="btn btn-primary" href="/download/">Open downloads</a>
+                            <a class="btn btn-outline" href="/docs/webui/">WebUI operator guide</a>
+                        </div>
+                    </div>
+                    <div class="hero-aside">
+                        <article class="glass-card hot">
+                            <p class="kicker">What this project is</p>
+                            <h3>Standalone first</h3>
+                            <p>No hosted control-plane dependency required. You run host, VMs, endpoint media and stream workflows in your own environment.</p>
+                        </article>
+                        <article class="glass-card">
+                            <p class="kicker">What this project is not</p>
+                            <h3>No hosted broker dependency</h3>
+                            <p>Beagle OS is intentionally focused on a narrow operating model and avoids old multi-variant product assumptions.</p>
+                        </article>
+                    </div>
                 </div>
-                <h3>Dedicated Endpoint OS</h3>
-                <p>Purpose-built Debian-based thin client OS. Boots directly into Beagle Stream Client &mdash; no desktop, no distractions, no attack surface.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-                </div>
-                <h3>Beagle Control Plane</h3>
-                <p>Manage virtualization, endpoints, updates, policies, and downloads from one Beagle-native control plane.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                </div>
-                <h3>GPU-Accelerated Streaming</h3>
-                <p>Beagle Stream Client + Beagle Stream Server deliver sub-5ms latency with H.264, HEVC, or AV1. Supports up to 4K@120fps.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
-                </div>
-                <h3>Fleet Management</h3>
-                <p>Control plane with health checks, endpoint reporting, bulk actions, and policy management for your entire fleet.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                </div>
-                <h3>Secure by Design</h3>
-                <p>Per-VM SSH tunnel keys, scoped endpoint tokens, enrollment-based onboarding. No open ports, no shared secrets.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M7.5 4.21l4.5 2.6 4.5-2.6"/><path d="M7.5 19.79V14.6L3 12"/><path d="M21 12l-4.5 2.6v5.19"/><path d="M3.27 6.96L12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
-                </div>
-                <h3>USB Passthrough</h3>
-                <p>Securely tunnel local USB devices into your VM through encrypted SSH reverse tunnels. Webcams, printers, security keys.</p>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- How it works -->
-<section id="how-it-works" class="section section-alt">
-    <div class="container">
-        <div class="section-header">
-            <h2>From bare metal to neon desktop</h2>
-            <p>Provision the host, bind the VM, flash the endpoint, and stream.</p>
-        </div>
-        <div class="steps">
-            <div class="step">
-                <div class="step-num">1</div>
-                <div class="step-content">
-                    <h3>Install the host</h3>
-                    <p>Boot the server installer ISO or run the host installer to provision the Beagle host and control plane.</p>
-                </div>
+    <section id="platform" class="section">
+        <div class="container">
+            <div class="section-header">
+                <h2>Platform pillars</h2>
+                <p>Everything in the repository and docs maps back to these four operating pillars.</p>
             </div>
-            <div class="step">
-                <div class="step-num">2</div>
-                <div class="step-content">
-                    <h3>Prepare your VM</h3>
-                    <p>Configure Beagle Stream Server on your Windows or Linux VM. Beagle auto-detects GPU capabilities and optimizes settings.</p>
-                </div>
-            </div>
-            <div class="step">
-                <div class="step-num">3</div>
-                <div class="step-content">
-                    <h3>Download the Installer</h3>
-                    <p>Generate a VM-specific USB live or installer script. The endpoint profile is embedded automatically.</p>
-                </div>
-            </div>
-            <div class="step">
-                <div class="step-num">4</div>
-                <div class="step-content">
-                    <h3>Boot the Endpoint</h3>
-                    <p>Flash to USB, boot your thin client. Beagle OS starts, pairs with Beagle Stream Server, and launches the stream.</p>
-                </div>
-            </div>
-            <div class="step">
-                <div class="step-num">5</div>
-                <div class="step-content">
-                    <h3>Manage from Beagle Control Plane</h3>
-                    <p>Monitor health, push policies, rebuild media, and manage your fleet from the Beagle WebUI.</p>
-                </div>
+            <div class="feature-grid">
+                <article class="feature-card"><div class="icon-badge">HOST</div><h3>Standalone host stack</h3><p>KVM/libvirt host runtime with Beagle control services, health checks and reproducible setup scripts.</p></article>
+                <article class="feature-card"><div class="icon-badge">VM</div><h3>VM lifecycle control</h3><p>Provision, start, stop and inspect VMs through WebUI and API with audited operations.</p></article>
+                <article class="feature-card"><div class="icon-badge">EP</div><h3>Endpoint media</h3><p>Generate VM-specific endpoint USB media for deterministic enrollment and assignment behavior.</p></article>
+                <article class="feature-card"><div class="icon-badge">STRM</div><h3>Stream validation</h3><p>Track first-stream readiness and runtime stability as explicit release and operations gates.</p></article>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- License -->
-<section id="license" class="section">
-    <div class="container">
-        <div class="section-header">
-            <h2>Free for private use. Commercial use by request.</h2>
-            <p>Beagle OS is source available on GitHub. Private and non-commercial use stays free; commercial users should request a license before deployment.</p>
-        </div>
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-                </div>
-                <h3>Private use</h3>
-                <p>Free to use for private and non-commercial deployments. The full Beagle OS endpoint stack stays available without subscription pricing.</p>
+    <section id="workflows" class="section section-alt">
+        <div class="container">
+            <div class="section-header">
+                <h2>Core workflows</h2>
+                <p>Start with a clean host, validate lifecycle behavior, then scale endpoint operations.</p>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                </div>
-                <h3>Commercial use</h3>
-                <p>Companies and organizations should request a commercial license before rollout. The repository LICENSE on GitHub is the source of truth for the terms.</p>
+            <div class="grid-3">
+                <article class="info-card"><p class="kicker">Workflow 1</p><h3>Clean install to healthy host</h3><p>Install host services, validate health checks, and confirm WebUI control path before creating VMs.</p></article>
+                <article class="info-card"><p class="kicker">Workflow 2</p><h3>VM create and stream readiness</h3><p>Provision an Ubuntu Beagle VM, verify guest readiness and complete first lifecycle smoke tests.</p></article>
+                <article class="info-card"><p class="kicker">Workflow 3</p><h3>Endpoint media and assignment</h3><p>Generate media for one VM, boot endpoint, verify enrollment and confirm first stream session health.</p></article>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12.79A9 9 0 1 1 11.2 3.05"/><path d="M21 3v7h-7"/></svg>
-                </div>
-                <h3>License source</h3>
-                <p>Always verify the current terms on GitHub before redistributing, bundling, or embedding Beagle OS in a commercial service.</p>
+            <div class="section-actions" style="margin-top:20px">
+                <a class="btn btn-dark" href="/docs/getting-started/">Follow the complete guide</a>
+                <a class="btn btn-outline" href="/docs/release-notes/">Read release policy</a>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- CTA -->
-<section class="section section-cta">
-    <div class="container">
-        <h2>Ready to use Beagle OS?</h2>
-        <p>Private users can download the current release. Companies should request a commercial license first.</p>
-        <div class="hero-actions">
-            <a href="/download/" class="btn btn-primary btn-lg">Open Downloads</a>
-            <a href="https://github.com/meinzeug/beagle-os/blob/main/LICENSE" target="_blank" class="btn btn-outline-light btn-lg">View License</a>
-            <a href="/contact/" class="btn btn-outline-light btn-lg">Contact Us</a>
+    <section class="section">
+        <div class="container">
+            <div class="section-header">
+                <h2>Project values</h2>
+                <p>The project remains hobby-driven, but quality gates are treated like production engineering constraints.</p>
+            </div>
+            <div class="grid-3">
+                <article class="callout"><h3>Reproducible fixes</h3><p>Live hotfixes only count when changes are committed and testable in the repository.</p></article>
+                <article class="callout"><h3>Explicit evidence</h3><p>Release promotion requires clean-install and runtime evidence, not only passing local smoke tests.</p></article>
+                <article class="callout"><h3>Narrow scope</h3><p>The active provider path is Beagle KVM/libvirt. Scope creep into old system assumptions is avoided.</p></article>
+            </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- Footer -->
+    <section class="section section-cta">
+        <div class="container">
+            <h2>Build your own lab, document it properly</h2>
+            <p>Start with the docs hub, then use the screenshot-based operator guides and runbooks for repeatable results.</p>
+            <div class="hero-actions">
+                <a class="btn btn-primary btn-lg" href="/docs/">Open docs hub</a>
+                <a class="btn btn-outline-light btn-lg" href="/docs/webui/">WebUI with screenshots</a>
+                <a class="btn btn-outline-light btn-lg" href="/contact/">Ask a licensing question</a>
+            </div>
+        </div>
+    </section>
+</main>
+
 <footer class="footer">
     <div class="container">
         <div class="footer-grid">
-            <div class="footer-brand">
-                <img src="logo.svg" alt="Beagle OS" class="footer-logo">
-                <p>Standalone virtualization, endpoints, and streaming control.</p>
-            </div>
-            <div class="footer-links">
-                <h4>Product</h4>
-                <a href="#features">Features</a>
-                <a href="#how-it-works">How It Works</a>
-                <a href="#license">License</a>
-            </div>
-            <div class="footer-links">
-                <h4>Resources</h4>
-                <a href="https://github.com/meinzeug/beagle-os" target="_blank">GitHub</a>
-                <a href="https://github.com/meinzeug/beagle-os/blob/main/docs/architecture.md" target="_blank">Documentation</a>
-                <a href="https://github.com/meinzeug/beagle-os/blob/main/CHANGELOG.md" target="_blank">Changelog</a>
-            </div>
-            <div class="footer-links">
-                <h4>Legal</h4>
-                <a href="https://github.com/meinzeug/beagle-os/blob/main/LICENSE" target="_blank">License</a>
-                <a href="#">Privacy Policy</a>
-                <a href="#">Imprint</a>
-            </div>
+            <div class="footer-brand"><img src="/logo.svg" alt="Beagle OS" class="footer-logo"><p>Hobby-built, operations-focused standalone virtualization and streaming stack.</p></div>
+            <div class="footer-links"><h4>Product</h4><a href="/download/">Download</a><a href="/about/">About</a><a href="/contact/">License</a></div>
+            <div class="footer-links"><h4>Docs</h4><a href="/docs/">Docs Hub</a><a href="/docs/getting-started/">Getting Started</a><a href="/docs/webui/">WebUI Guide</a></div>
+            <div class="footer-links"><h4>Resources</h4><a href="https://github.com/meinzeug/beagle-os" target="_blank" rel="noreferrer">GitHub</a><a href="https://github.com/meinzeug/beagle-os/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">Changelog</a><a href="/contact/">Contact</a></div>
         </div>
-        <div class="footer-bottom">
-            <p>&copy; 2026 Dennis Wicht. All rights reserved.</p>
-        </div>
+        <div class="footer-bottom">Copyright 2026 Dennis Wicht</div>
     </div>
 </footer>
-
-<script>
-document.querySelector('.nav-toggle').addEventListener('click', function() {
-    document.querySelector('.nav-links').classList.toggle('open');
-    this.classList.toggle('open');
-});
-document.querySelectorAll('a[href^="#"]').forEach(a => {
-    a.addEventListener('click', e => {
-        const target = document.querySelector(a.getAttribute('href'));
-        if (target) {
-            e.preventDefault();
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            document.querySelector('.nav-links').classList.remove('open');
-            document.querySelector('.nav-toggle').classList.remove('open');
-        }
-    });
-});
-window.addEventListener('scroll', () => {
-    document.querySelector('.nav').classList.toggle('scrolled', window.scrollY > 40);
-});
-</script>
 </body>
 </html>
