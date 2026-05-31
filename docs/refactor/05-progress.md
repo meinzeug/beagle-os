@@ -8526,7 +8526,9 @@ vor dem QEMU-Start an einem alten Proxmox-ISO-Cache-Pfad scheitern.
   - `beagle-host/services/service_registry.py`
     - nutzt fuer `BEAGLE_UBUNTU_LOCAL_ISO_DIR` jetzt standardmaessig
       `BEAGLE_LIBVIRT_IMAGES_DIR` bzw. `/var/lib/libvirt/images` statt des
-      alten Proxmox-Defaults.
+      alten Proxmox-Defaults,
+    - und nutzt fuer `BEAGLE_UBUNTU_DEFAULT_BRIDGE` jetzt standardmaessig
+      `beagle` statt `vmbr1`.
   - `beagle-host/services/ubuntu_beagle_provisioning.py`
     - heilt Alt-Konfigurationen zur Laufzeit selbst, indem bei einem nicht
       anlegbaren Legacy-Pfad automatisch auf den Libvirt-Images-Pfad
