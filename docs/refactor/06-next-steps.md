@@ -2113,3 +2113,15 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
    - `/opt/beagle/scripts/check-beagle-host.sh`
 3. Falls der Bootstrap trotz `TimeoutStartSec=infinity` noch scheitert, den dann verbleibenden echten Inhaltsfehler isolieren; der alte 10-Minuten-Systemd-Kill gilt danach nicht mehr als Ursache.
 4. Erst nach gruener Host-Validierung den installimage-Pfad erneut als R1-/D1-Clean-Install-Evidence auf `srv1` sammeln.
+
+## Naechster Schritt (2026-05-31, Ubuntu-Beagle-Provisioning ohne QEMU direct-kernel boot)
+
+1. Den gepushten Autoinstall-ISO-Fix auf `srv1.beagle-os.com` ausrollen und den
+   Control-Plane-Prozess auf den neuen Repo-Stand bringen.
+2. Eine frische Ubuntu-Beagle-VM erneut ueber die WebUI/API anlegen und
+   bestaetigen:
+   - kein `qemu: linux kernel too old to load a ram disk`
+   - Domain bootet ueber ISO/UEFI statt `qemu:commandline`
+   - Autoinstall wechselt spaeter serverseitig in `firstboot`/`complete`
+3. Danach die R1-/D1-Clean-Install-Kette mit funktionierender neuer VM erneut
+   weiterfahren.

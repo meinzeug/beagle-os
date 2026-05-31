@@ -12,9 +12,9 @@ from __future__ import annotations
 import base64
 import os
 import secrets
-import shlex
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlparse
@@ -470,6 +470,25 @@ class UbuntuBeagleProvisioningService:
         candidate = Path(urlparse(iso_url).path).name or "ubuntu-live-server-amd64.iso"
         return self._safe_slug(candidate, "ubuntu-live-server-amd64.iso")
 
+    def ubuntu_beagle_autoinstall_boot_iso_filename(self, iso_filename: str) -> str:
+        source = str(iso_filename or "").strip() or "ubuntu-live-server-amd64.iso"
+        if source.lower().endswith(".iso"):
+            return f"{source[:-4]}-beagle-autoinstall.iso"
+        return f"{source}-beagle-autoinstall.iso"
+
+    @staticmethod
+    def patch_autoinstall_grub_cfg(content: str) -> str:
+        patched = str(content or "")
+        patched = patched.replace(
+            "linux\t/casper/vmlinuz  ---",
+            "linux\t/casper/vmlinuz autoinstall ---",
+        )
+        patched = patched.replace(
+            "linux\t/casper/hwe-vmlinuz  ---",
+            "linux\t/casper/hwe-vmlinuz autoinstall ---",
+        )
+        return patched
+
     def ubuntu_beagle_extract_dir(self, iso_filename: str) -> Path:
         # Keep extracted boot assets in the provider ISO storage path so libvirt
         # security profiles can access them without host-wide security downgrades.
@@ -480,6 +499,64 @@ class UbuntuBeagleProvisioningService:
         path.mkdir(parents=True, exist_ok=True)
         path.chmod(0o755)
         return path
+
+    def ensure_ubuntu_beagle_autoinstall_boot_iso(self, iso_path: Path, iso_filename: str) -> dict[str, str]:
+        boot_iso_filename = self.ubuntu_beagle_autoinstall_boot_iso_filename(iso_filename)
+        boot_iso_path = self.local_iso_storage_dir() / boot_iso_filename
+        needs_refresh = (
+            not boot_iso_path.exists()
+            or boot_iso_path.stat().st_size == 0
+            or boot_iso_path.stat().st_mtime < iso_path.stat().st_mtime
+        )
+        if not needs_refresh:
+            return {
+                "boot_iso_filename": boot_iso_filename,
+                "boot_iso_path": str(boot_iso_path),
+            }
+
+        with tempfile.TemporaryDirectory(prefix="beagle-autoinstall-iso-") as temp_dir:
+            temp_root = Path(temp_dir)
+            grub_cfg_path = temp_root / "grub.cfg"
+            self._run_checked(
+                [
+                    "xorriso",
+                    "-osirrox",
+                    "on",
+                    "-indev",
+                    str(iso_path),
+                    "-extract",
+                    "/boot/grub/grub.cfg",
+                    str(grub_cfg_path),
+                ],
+                timeout=None,
+            )
+            patched_grub_cfg = self.patch_autoinstall_grub_cfg(grub_cfg_path.read_text(encoding="utf-8"))
+            grub_cfg_path.write_text(patched_grub_cfg, encoding="utf-8")
+            partial_path = boot_iso_path.with_suffix(boot_iso_path.suffix + ".part")
+            shutil.copy2(iso_path, partial_path)
+            self._run_checked(
+                [
+                    "xorriso",
+                    "-dev",
+                    str(partial_path),
+                    "-boot_image",
+                    "any",
+                    "replay",
+                    "-map",
+                    str(grub_cfg_path),
+                    "/boot/grub/grub.cfg",
+                    "-commit",
+                    "-end",
+                ],
+                timeout=None,
+            )
+            partial_path.replace(boot_iso_path)
+            boot_iso_path.chmod(0o644)
+
+        return {
+            "boot_iso_filename": boot_iso_filename,
+            "boot_iso_path": str(boot_iso_path),
+        }
 
     def ensure_ubuntu_beagle_iso_cached(self, iso_url: str) -> dict[str, str]:
         iso_filename = self.ubuntu_beagle_iso_filename(iso_url)
@@ -555,11 +632,14 @@ class UbuntuBeagleProvisioningService:
         kernel_path.chmod(0o644)
         initrd_path.chmod(0o644)
 
+        boot_iso_assets = self.ensure_ubuntu_beagle_autoinstall_boot_iso(iso_path, iso_filename)
+
         return {
             "iso_filename": iso_filename,
             "iso_path": str(iso_path),
             "kernel_path": str(kernel_path),
             "initrd_path": str(initrd_path),
+            **boot_iso_assets,
         }
 
     @staticmethod
@@ -1015,8 +1095,9 @@ class UbuntuBeagleProvisioningService:
             callback_url=callback_url,
         )
         # Keep storage references reproducible across providers by ensuring
-        # both Ubuntu ISO and generated seed ISO are present in iso_storage.
-        self.ensure_iso_in_storage_pool(iso_storage, Path(iso_assets["iso_path"]))
+        # both the bootable autoinstall ISO and generated seed ISO are present
+        # in iso_storage.
+        self.ensure_iso_in_storage_pool(iso_storage, Path(iso_assets["boot_iso_path"]))
         self.ensure_iso_in_storage_pool(iso_storage, seed_path)
         description = self.build_ubuntu_beagle_description(
             hostname,
@@ -1028,14 +1109,6 @@ class UbuntuBeagleProvisioningService:
             desktop_id=str(desktop["id"]),
             package_presets=package_presets,
             extra_packages=extra_packages,
-        )
-        args = " ".join(
-            [
-                f"-kernel {shlex.quote(iso_assets['kernel_path'])}",
-                f"-initrd {shlex.quote(iso_assets['initrd_path'])}",
-                "-append",
-                shlex.quote("autoinstall console=tty0 console=ttyS0,115200n8 ---"),
-            ]
         )
         tags = "beagle;desktop;ubuntu"
         state = self._save_ubuntu_beagle_state(
@@ -1102,9 +1175,8 @@ class UbuntuBeagleProvisioningService:
                     ("efidisk0", f"{disk_storage}:0,efitype=4m,pre-enrolled-keys=1"),
                     ("serial0", "socket"),
                     ("vga", "std"),
-                    ("ide2", f"{iso_storage}:iso/{iso_assets['iso_filename']},media=cdrom"),
+                    ("ide2", f"{iso_storage}:iso/{iso_assets['boot_iso_filename']},media=cdrom"),
                     ("ide3", f"{iso_storage}:iso/{seed_path.name},media=cdrom"),
-                    ("args", args),
                 ],
                 timeout=None,
             )

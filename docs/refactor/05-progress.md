@@ -8475,3 +8475,35 @@ validieren.
 - **Wichtige Einordnung**:
   - Der Primaerfehler war nicht ein inhaltlicher `debootstrap`-Abbruch, sondern der zu kurze systemd-Starttimeout.
   - Der `dpkg interrupted`-Fehler ist der direkte Sekundaereffekt dieses harten Kill-Szenarios.
+
+## Update (2026-05-31, Ubuntu-Beagle-Provisioning QEMU direct-kernel regression auf srv1)
+
+**Scope**: neue Ubuntu-Beagle-VMs durften auf `srv1` nicht mehr bereits beim
+ersten Start mit `qemu: linux kernel too old to load a ram disk` scheitern.
+
+- **Befund auf `srv1`**:
+  - `POST /api/v1/provisioning/vms` schlug fuer `beagle-100` reproduzierbar mit
+    `virsh start ... failed` fehl.
+  - Die definierte Libvirt-Domain bekam neben Ubuntu-ISO + Seed-ISO zusaetzlich
+    `qemu:commandline` mit `-kernel`, `-initrd` und `-append autoinstall ...`.
+  - QEMU 10 auf Debian 13 brach diesen Direct-Boot-Pfad sofort ab:
+    `qemu: linux kernel too old to load a ram disk`.
+  - Ein Live-Gegencheck zeigte: dieselbe VM startet sauber, sobald der
+    `qemu:commandline`-Kernelpfad entfernt wird und die Installation normal von
+    ISO/UEFI bootet.
+
+- **Repo-Fix**:
+  - `beagle-host/services/ubuntu_beagle_provisioning.py`
+    - erzeugt jetzt zusaetzlich eine gepatchte Ubuntu-Boot-ISO, deren
+      `/boot/grub/grub.cfg` den Kernelparameter `autoinstall` direkt im
+      normalen GRUB-Bootpfad setzt,
+    - legt diese Boot-ISO in `iso_storage` ab,
+    - und konfiguriert neue VMs ohne `args=-kernel ... -initrd ...`.
+  - Der Libvirt-/QEMU-Start laeuft damit wieder ueber den normalen ISO-Bootpfad
+    statt ueber das kaputte Direct-Kernel-Injection-Szenario.
+
+- **Verifikation**:
+  - Lokal: gezielte Regressionstests fuer GRUB-Patching, Boot-ISO-Namensgebung
+    und das Entfernen des alten `args`-Pfads sind gruen.
+  - Live auf `srv1`: manuell ohne `qemu:commandline` gestartete Test-Definition
+    bootet wieder statt direkt im Monitor zu sterben.
