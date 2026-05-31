@@ -26,6 +26,7 @@ WEB_UI_ALLOW_HASH_TOKEN="${BEAGLE_WEB_UI_ALLOW_HASH_TOKEN:-0}"
 WEB_UI_ALLOW_ABSOLUTE_API_TARGETS="${BEAGLE_WEB_UI_ALLOW_ABSOLUTE_API_TARGETS:-0}"
 WEB_UI_SEND_LEGACY_API_TOKEN_HEADER="${BEAGLE_WEB_UI_SEND_LEGACY_API_TOKEN_HEADER:-0}"
 WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="${BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS:-0}"
+BEAGLE_ENABLE_HSTS="${BEAGLE_ENABLE_HSTS:-auto}"
 BEAGLE_CONTROL_USER="${BEAGLE_CONTROL_USER:-beagle-manager}"
 CERT_FILE="${PVE_DCV_PROXY_CERT_FILE:-}"
 KEY_FILE="${PVE_DCV_PROXY_KEY_FILE:-}"
@@ -120,6 +121,37 @@ ensure_root() {
 
 log() {
   echo "[beagle-proxy] $*"
+}
+
+hsts_policy_enabled() {
+  local configured subject issuer
+  configured="$(printf '%s' "${BEAGLE_ENABLE_HSTS:-auto}" | tr '[:upper:]' '[:lower:]')"
+  case "$configured" in
+    1|true|yes|on)
+      return 0
+      ;;
+    0|false|no|off)
+      return 1
+      ;;
+  esac
+
+  if [[ ! -r "$CERT_FILE" ]]; then
+    return 1
+  fi
+  subject="$(openssl x509 -in "$CERT_FILE" -noout -subject 2>/dev/null | sed 's/^subject=//')"
+  issuer="$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null | sed 's/^issuer=//')"
+  if [[ -z "$subject" || -z "$issuer" ]]; then
+    return 1
+  fi
+  [[ "$subject" != "$issuer" ]]
+}
+
+hsts_header_line() {
+  if hsts_policy_enabled; then
+    printf '    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;\n'
+    return 0
+  fi
+  printf '    # HSTS disabled until a CA-issued certificate replaces the bootstrap self-signed cert.\n'
 }
 
 bool_js_literal() {
@@ -350,6 +382,7 @@ BEAGLE_WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS="$WEB_UI_ALLOW_INSECURE_EXTERNAL_URLS
 BEAGLE_PROXY_TLS_DIR="$STANDALONE_TLS_DIR"
 PVE_DCV_PROXY_CERT_FILE="$CERT_FILE"
 PVE_DCV_PROXY_KEY_FILE="$KEY_FILE"
+BEAGLE_ENABLE_HSTS="$BEAGLE_ENABLE_HSTS"
 EOF
 }
 
@@ -508,6 +541,7 @@ cleanup_legacy_port_forward() {
 
 write_nginx_config() {
   local web_redirect_target
+  local hsts_header
   local https_listen_v4="listen ${SITE_PORT} ssl default_server;"
   local https_listen_v6="listen [::]:${SITE_PORT} ssl default_server;"
   if [[ "$SITE_PORT" == "443" ]]; then
@@ -517,6 +551,7 @@ write_nginx_config() {
   else
     web_redirect_target="https://\$host:${SITE_PORT}\$request_uri"
   fi
+  hsts_header="$(hsts_header_line)"
 
   cat > "$NGINX_SITE" <<EOF
 server {
@@ -552,7 +587,7 @@ server {
     ssl_session_tickets off;
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_session_timeout 1d;
-    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+${hsts_header}
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "no-referrer" always;
     add_header X-Frame-Options "DENY" always;
@@ -670,7 +705,7 @@ server {
 
     location / {
       add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self' wss:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" always;
-      add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+${hsts_header}
       add_header X-Content-Type-Options "nosniff" always;
       add_header Referrer-Policy "no-referrer" always;
       add_header X-Frame-Options "DENY" always;
@@ -819,6 +854,7 @@ cp "\${LE_LIVE}/privkey.pem" "${KEY_FILE}"
 chown ${BEAGLE_CONTROL_USER}:${BEAGLE_CONTROL_USER} "${CERT_FILE}" "${KEY_FILE}"
 chmod 644 "${CERT_FILE}"
 chmod 600 "${KEY_FILE}"
+BEAGLE_ENABLE_HSTS=auto /opt/beagle/scripts/install-beagle-proxy.sh
 systemctl reload nginx
 echo "[\$(date -Iseconds)] LE cert deployed to ${CERT_FILE}" >> /var/log/beagle-tls-deploy.log
 HOOK

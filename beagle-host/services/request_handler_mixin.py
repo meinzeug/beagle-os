@@ -841,7 +841,8 @@ class HandlerMixin:
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+        if _svc_registry.HSTS_ENABLED:
+            self.send_header("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
         self.send_header(
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",

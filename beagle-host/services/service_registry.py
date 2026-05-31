@@ -263,6 +263,7 @@ CREDENTIALS_ENV_FILE = Path(os.environ.get("PVE_DCV_CREDENTIALS_ENV_FILE", "/etc
 # Beagle-native default for the management TLS certificate. Operators may still
 # override via BEAGLE_MANAGER_CERT_FILE for legacy installations.
 MANAGER_CERT_FILE = Path(os.environ.get("BEAGLE_MANAGER_CERT_FILE", "/etc/beagle/manager-ssl.pem"))
+HSTS_ENABLED = os.environ.get("BEAGLE_ENABLE_HSTS", "0").strip().lower() in {"1", "true", "yes", "on"}
 CLUSTER_NODE_NAME = os.environ.get("BEAGLE_CLUSTER_NODE_NAME", os.uname().nodename).strip() or os.uname().nodename
 CLUSTER_RPC_LISTEN_HOST = os.environ.get("BEAGLE_CLUSTER_RPC_LISTEN_HOST", "0.0.0.0").strip() or "0.0.0.0"
 CLUSTER_RPC_PORT = int(os.environ.get("BEAGLE_CLUSTER_RPC_PORT", "9089"))

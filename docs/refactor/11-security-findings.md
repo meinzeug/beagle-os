@@ -1510,3 +1510,36 @@ Stand: 2026-04-29 (ergänzt: Network POST fehlende Authentifizierung gepatcht)
   - `docs/architecture/`, `docs/checklists/`, `docs/api/`, `docs/contributing.md` bleiben im Tarball (öffentlich relevante Dokumentation).
 - Verifikation ausstehend:
   - Nächster Package-Build muss bestätigen: `tar -tvzf beagle-os-latest.tar.gz | grep 'docs/refactor'` → keine Treffer.
+
+## S-041 — Self-Signed-Firstboot setzt HSTS und sperrt WebUI-Ausnahmeweg aus (PATCHED)
+
+- Status: **gepatcht** (2026-05-31)
+- Risiko: **Mittel** (frische Hosts koennen vor LetsEncrypt-Ausstellung operativ unzugaenglich werden)
+- Betroffene Dateien:
+  - `scripts/install-beagle-proxy.sh`
+  - `beagle-host/services/request_handler_mixin.py`
+  - `beagle-host/services/service_registry.py`
+  - `scripts/check-beagle-host.sh`
+- Beschreibung:
+  - Der installimage-/Firstboot-Pfad erzeugt zunaechst bewusst ein Self-Signed-
+    Proxy-Zertifikat.
+  - Gleichzeitig lieferten Nginx und die Control-Plane-API bereits
+    `Strict-Transport-Security`.
+  - Browser wie Firefox speichern HSTS domainweit. Sobald ein Operator die
+    WebUI in diesem Zustand einmal aufruft, sind fuer dieselbe Domain keine
+    Zertifikatsausnahmen mehr moeglich.
+  - Ergebnis: vor LetsEncrypt-/CA-Uebernahme kann die frisch installierte WebUI
+    fuer Operatoren effektiv ausgesperrt sein.
+- Fix:
+  - HSTS wird im Proxy-/API-Pfad jetzt nur aktiviert, wenn ein nicht
+    self-signed Zertifikat aktiv ist oder ein explizites Override gesetzt wird.
+  - Der certbot-Deploy-Hook rendert den Proxy nach erfolgreichem LE-Deploy neu,
+    damit HSTS spaeter automatisch wieder aktiv wird.
+  - Host-Healthchecks validieren Self-Signed-Bootstrap-Hosts jetzt passend ueber
+    das Proxy-Zertifikat bzw. bewusst mit `--insecure`.
+- Verifikation:
+  - `curl -kI https://srv1.beagle-os.com/` → kein `Strict-Transport-Security`
+    im Self-Signed-Zustand.
+  - `curl -k https://srv1.beagle-os.com/beagle-api/healthz` → `200`, ebenfalls
+    ohne HSTS-Header.
+  - `/opt/beagle/scripts/check-beagle-host.sh` auf `srv1` → erfolgreich.

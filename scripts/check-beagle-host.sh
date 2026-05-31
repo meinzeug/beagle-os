@@ -81,10 +81,19 @@ host_tls_cert_file() {
     return 0
   fi
   if [[ "$(host_provider_kind)" == "beagle" ]]; then
-    printf '/etc/beagle/manager-ssl.pem\n'
+    printf '%s\n' "${PVE_DCV_PROXY_CERT_FILE:-$BEAGLE_PROXY_TLS_DIR/beagle-proxy.crt}"
     return 0
   fi
   printf '%s/beagle-proxy.crt\n' "$BEAGLE_PROXY_TLS_DIR"
+}
+
+host_tls_is_self_signed() {
+  local tls_cert_file="$1"
+  local subject issuer
+  [[ -r "$tls_cert_file" ]] || return 1
+  subject="$(openssl x509 -in "$tls_cert_file" -noout -subject 2>/dev/null | sed 's/^subject=//')"
+  issuer="$(openssl x509 -in "$tls_cert_file" -noout -issuer 2>/dev/null | sed 's/^issuer=//')"
+  [[ -n "$subject" && "$subject" == "$issuer" ]]
 }
 
 site_origin_url() {
@@ -123,7 +132,11 @@ check_http() {
     curl_args+=(-I)
   fi
   if [[ ( "$url" == "${HOST_ORIGIN_URL}"* || "$url" == "${web_ui_origin}"* ) && -f "$tls_cert_file" ]]; then
-    curl_args+=(--cacert "$tls_cert_file")
+    if [[ "${BEAGLE_ENABLE_HSTS:-0}" =~ ^(1|true|yes|on)$ ]] && ! host_tls_is_self_signed "$tls_cert_file"; then
+      curl_args+=(--cacert "$tls_cert_file")
+    else
+      curl_args+=(--insecure) # tls-bypass-allowlist: first-install host validation must accept bootstrap self-signed proxy certs
+    fi
   fi
   if "${curl_args[@]}" "$url" >/dev/null 2>&1; then
     echo "OK  http  $url"
@@ -245,10 +258,12 @@ check_status_json() {
   local expected_installer_url=""
   local expected_bootstrap_url=""
   local expected_payload_url=""
+  local version=""
 
   expected_installer_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-installer-host-latest.sh")"
-  expected_payload_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-latest.tar.gz")"
-  expected_bootstrap_url="$expected_payload_url"
+  version="$(tr -d ' \n\r' < "$INSTALL_DIR/VERSION")"
+  expected_bootstrap_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-bootstrap-v${version}.tar.gz")"
+  expected_payload_url="$(beagle_hosted_download_url "$DOWNLOADS_BASE_URL" "pve-thin-client-usb-payload-v${version}.tar.gz")"
 
   python3 - "$STATUS_JSON_FILE" "$INSTALL_DIR/VERSION" "$expected_installer_url" "$expected_bootstrap_url" "$expected_payload_url" "$SERVER_NAME" "$LISTEN_PORT" "$DOWNLOADS_PATH" "$INSTALL_DIR/dist/pve-thin-client-usb-installer-host-latest.sh" "$INSTALL_DIR/dist/pve-thin-client-usb-payload-latest.tar.gz" <<'PY'
 import hashlib

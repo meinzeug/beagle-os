@@ -8403,3 +8403,51 @@ USB/IP-Stottern ueber PCM-Bridge.
   `/var/lib/beagle/beagle-manager/vm-secrets/beagle-0-100.json` auf `srv1`
   geholt, als Shell-Variable genutzt und SSH-Login auf `192.168.178.30`
   erfolgreich bestaetigt.
+
+## 2026-05-31 — Hetzner installimage Firstboot-HSTS und Host-Healthchecks gehaertet
+
+**Scope**: frische Hetzner-Installationen duerfen beim ersten Self-Signed-TLS-Start
+die WebUI nicht per HSTS aussperren; gleichzeitig muessen die host-lokalen
+Download-/API-Healthchecks den neuen installimage-/Bootstrap-Pfad korrekt
+validieren.
+
+**Befund**:
+- Das aktuelle installimage bringt den Host reproduzierbar bis Debian 13 +
+  Beagle-Firstboot, aber der frisch generierte Self-Signed-Proxy lieferte schon
+  beim Erststart `Strict-Transport-Security`.
+- Firefox/Browser mit gecachtem HSTS erlauben dann keine Zertifikatsausnahme
+  mehr fuer `https://srv1.beagle-os.com`, obwohl LetsEncrypt zu diesem Zeitpunkt
+  noch nicht ausgestellt ist.
+- `scripts/check-beagle-host.sh` erwartete fuer `bootstrap_url`/`payload_url`
+  noch `latest`-Links, obwohl `prepare-host-downloads.sh` absichtlich
+  versionierte Host-URLs (`...bootstrap-v<version>...`, `...payload-v<version>...`)
+  in `beagle-downloads-status.json` schreibt.
+- Derselbe Host-Check validierte Host-HTTPS-URLs gegen das falsche Zertifikat
+  (`manager-ssl.pem` statt Proxy-Zertifikat) und fiel gegen den Self-Signed-
+  Bootstrap-Proxy unnoetig auf die Nase.
+
+**Umsetzung**:
+- `scripts/install-beagle-proxy.sh`
+  - fuehrt `BEAGLE_ENABLE_HSTS=auto` ein,
+  - aktiviert HSTS nur noch automatisch fuer CA-ausgestellte Zertifikate,
+  - schreibt den Zustand nach `/etc/beagle/beagle-proxy.env`,
+  - und laesst den certbot-Deploy-Hook den Proxy nach LetsEncrypt-Deployment
+    erneut rendern, damit HSTS spaeter automatisch aktiv wird.
+- `beagle-host/services/service_registry.py` und
+  `beagle-host/services/request_handler_mixin.py`
+  - uebernehmen dasselbe Runtime-Flag, damit die API auf `beagle-api/*`
+    waehrend des Self-Signed-Firstboots ebenfalls kein HSTS sendet.
+- `scripts/check-beagle-host.sh`
+  - erwartet jetzt die versionierten Host-URLs im Status-JSON,
+  - nutzt fuer Host-HTTPS-Checks das Proxy-Zertifikat,
+  - und faellt bei Self-Signed-Bootstrap-Zertifikaten bewusst auf
+    `--insecure` zurueck.
+- Live auf `srv1` angewendet und verifiziert.
+
+**Verifikation**:
+- Lokal: `pytest -q tests/unit/test_prepare_host_downloads_status_regressions.py tests/unit/test_proxy_hsts_regressions.py` -> `8 passed`
+- Lokal: `bash -n scripts/check-beagle-host.sh scripts/install-beagle-proxy.sh`
+- Live auf `srv1`:
+  - `curl -kI https://srv1.beagle-os.com/` -> kein `Strict-Transport-Security`
+  - `curl -k https://srv1.beagle-os.com/beagle-api/healthz` -> `200`
+  - `/opt/beagle/scripts/check-beagle-host.sh` -> `Host validation completed successfully.`

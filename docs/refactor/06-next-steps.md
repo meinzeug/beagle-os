@@ -2092,3 +2092,13 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 2. Auf dem TC pruefen, dass Webcam lokal bleibt (`beagle-camera-stream` aktiv, `/dev/video*` vorhanden) und in der VM ueber `beagle-camera-receive` als `v4l2loopback` verfuegbar ist.
 3. Auf dem TC und in der VM den Mikrofonpfad validieren: `beagle_audio_input_bridge.py` aktiv, PCM-Bridge-Port verbunden, keine USB-Audio-Weiterleitung ueber `usbip-host`.
 4. Evidence sichern (`journalctl`, Runtime-Logs, kurzer Stream-Mitschnitt) und die Abnahme in `docs/refactor/05-progress.md` plus den passenden Checklist-/Lasthope-Dateien abhaken.
+
+## Naechster Schritt (2026-05-31, installimage release refresh nach Firstboot-/HSTS-Fix)
+
+1. Einen neuen Release-/Build-Lauf fuer Server-Installimage und Hosted Downloads starten, damit `Debian-1301-trixie-amd64-beagle-server.tar.gz` die neuen Firstboot-HSTS-/Healthcheck-Fixes mitbringt.
+2. Den frischen installimage-Pfad erneut auf leerem Host oder frisch gesetztem Rescue-Host fahren und bestaetigen:
+   - WebUI auf Self-Signed-Firstboot ohne HSTS-Lockout erreichbar,
+   - `beagle-api/healthz` ohne HSTS-Header im Bootstrap-Zustand,
+   - `scripts/check-beagle-host.sh` nach Firstboot gruen.
+3. Danach LetsEncrypt auf demselben Host ausstellen/uebernehmen und verifizieren, dass der certbot-Deploy-Hook den Proxy neu rendert und HSTS automatisch wieder aktiv wird.
+4. Erst danach D1/R1-Clean-Install-Evidence unter `docs/runbooks/evidence/r1-clean-install/` erneut sammeln und die passenden LastHope-/Checklist-Eintraege aktualisieren.

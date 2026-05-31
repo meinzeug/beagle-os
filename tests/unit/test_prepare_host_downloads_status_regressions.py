@@ -47,8 +47,8 @@ def test_write_download_status_omits_server_release_artifacts_when_not_hosted_lo
             live_usb_url="https://srv1/beagle-downloads/pve-thin-client-live-usb-host-latest.sh",
             installer_windows_url="https://srv1/beagle-downloads/pve-thin-client-usb-installer-host-latest.ps1",
             live_usb_windows_url="https://srv1/beagle-downloads/pve-thin-client-live-usb-host-latest.ps1",
-            bootstrap_url="https://srv1/beagle-downloads/pve-thin-client-usb-payload-latest.tar.gz",
-            payload_url="https://srv1/beagle-downloads/pve-thin-client-usb-payload-latest.tar.gz",
+            bootstrap_url="https://srv1/beagle-downloads/pve-thin-client-usb-bootstrap-v8.0.tar.gz",
+            payload_url="https://srv1/beagle-downloads/pve-thin-client-usb-payload-v8.0.tar.gz",
             installer_iso_url="https://beagle-os.com/beagle-updates/beagle-os-installer-amd64.iso",
             status_url="https://srv1/beagle-downloads/beagle-downloads-status.json",
             sha256sums_url="https://srv1/beagle-downloads/SHA256SUMS",
@@ -72,11 +72,22 @@ def test_write_download_status_omits_server_release_artifacts_when_not_hosted_lo
         assert "server_installimage_url" not in payload_json
         assert payload_json["installer_iso_url"].endswith("beagle-os-installer-amd64.iso")
         assert "installer_iso_size" not in payload_json
-        assert payload_json["bootstrap_url"] == payload_json["payload_url"]
-        assert payload_json["bootstrap_filename"] == payload_json["payload_filename"]
+        assert payload_json["bootstrap_url"].endswith("pve-thin-client-usb-bootstrap-v8.0.tar.gz")
+        assert payload_json["payload_url"].endswith("pve-thin-client-usb-payload-v8.0.tar.gz")
+        assert payload_json["bootstrap_filename"] == payload_json["payload_filename"] == "pve-thin-client-usb-payload-latest.tar.gz"
         assert payload_json["endpoint_compatibility"]["foundation_generation"] == "2"
         assert payload_json["endpoint_compatibility"]["minimum_self_update_version"] == "8.0"
         assert payload_json["endpoint_compatibility"]["reinstall_required"] is False
+
+
+def test_check_beagle_host_expects_versioned_host_payload_urls_in_status_json() -> None:
+    script = (ROOT / "scripts" / "check-beagle-host.sh").read_text(encoding="utf-8")
+
+    assert 'version="$(tr -d \' \\n\\r\' < "$INSTALL_DIR/VERSION")"' in script
+    assert 'pve-thin-client-usb-bootstrap-v${version}.tar.gz' in script
+    assert 'pve-thin-client-usb-payload-v${version}.tar.gz' in script
+    assert 'printf \'%s\\n\' "${PVE_DCV_PROXY_CERT_FILE:-$BEAGLE_PROXY_TLS_DIR/beagle-proxy.crt}"' in script
+    assert 'curl_args+=(--insecure) # tls-bypass-allowlist: first-install host validation must accept bootstrap self-signed proxy certs' in script
 
 
 def test_prepare_host_downloads_rebuilds_usb_payload_when_thinclient_runtime_changes() -> None:
