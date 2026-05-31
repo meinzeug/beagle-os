@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  baseline-unit-smoke:
+    name: baseline unit smoke (Python 3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test deps
+        run: |
+          pip install pytest requests cryptography aiohttp boto3
+
+      - name: Run focused unit smoke
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python -m pytest -q \
+            tests/unit/test_storage_pool_path_regressions.py \
+            tests/unit/test_ubuntu_beagle_desktop_profiles.py \
+            tests/unit/test_ubuntu_beagle_provisioning_quota.py
+
+  baseline-js-syntax:
+    name: baseline JS syntax checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check JS automation scripts
+        run: |
+          node --check scripts/capture-webui-doc-assets.mjs
+          node --check extension/common.js
+          node --check extension/content.js
+          node --check extension/options.js
