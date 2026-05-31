@@ -658,27 +658,53 @@ jobs:
             notes_args+=(--generate-notes)
           fi
 
-          set +e
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" --clobber "${assets[@]}" 2>&1 | tee /tmp/beagle-release-create.log
+          release_asset_present() {
+            local release_tag="$1"
+            local asset_name="$2"
+            gh release view "$release_tag" --json assets --jq '.assets[].name' 2>/dev/null | grep -Fx -- "$asset_name" >/dev/null 2>&1
+          }
+
+          upload_release_asset() {
+            local release_tag="$1"
+            local asset_path="$2"
+            local asset_name=""
+            local rc=0
+
+            asset_name="$(basename "$asset_path")"
+            timeout --foreground 45m gh release upload "$release_tag" --clobber "$asset_path" 2>&1 | tee -a /tmp/beagle-release-create.log
             rc=${PIPESTATUS[0]}
             if [ "$rc" -eq 0 ]; then
-              gh release edit "$TAG" \
-                --title "$RELEASE_TITLE" \
-                --latest \
-                "${notes_args[@]}" 2>&1 | tee -a /tmp/beagle-release-create.log
-              rc=${PIPESTATUS[0]}
+              return 0
             fi
-          else
-            gh release create "$TAG" \
+            if release_asset_present "$release_tag" "$asset_name"; then
+              echo "Asset $asset_name is already present on release $release_tag after upload failure/timeout; continuing." | tee -a /tmp/beagle-release-create.log
+              return 0
+            fi
+            return "$rc"
+          }
+
+          set +e
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            timeout --foreground 15m gh release edit "$TAG" \
               --title "$RELEASE_TITLE" \
               --latest \
               "${notes_args[@]}" 2>&1 | tee /tmp/beagle-release-create.log
             rc=${PIPESTATUS[0]}
-            if [ "$rc" -eq 0 ]; then
-              gh release upload "$TAG" --clobber "${assets[@]}" 2>&1 | tee -a /tmp/beagle-release-create.log
-              rc=${PIPESTATUS[0]}
-            fi
+          else
+            timeout --foreground 15m gh release create "$TAG" \
+              --title "$RELEASE_TITLE" \
+              --latest \
+              "${notes_args[@]}" 2>&1 | tee /tmp/beagle-release-create.log
+            rc=${PIPESTATUS[0]}
+          fi
+          if [ "$rc" -eq 0 ]; then
+            for asset in "${assets[@]}"; do
+              upload_release_asset "$TAG" "$asset"
+              rc=$?
+              if [ "$rc" -ne 0 ]; then
+                break
+              fi
+            done
           fi
           if [ "$rc" -ne 0 ]; then
             python - <<'PY'
