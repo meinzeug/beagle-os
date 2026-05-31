@@ -41,3 +41,23 @@ Agenten-Struktur + baseline CI als eigenen PR-Slice finalisieren, danach den nae
 	- Ergebnis: `8 passed`.
 - Offenes Risiko: Workflow-Gating fuer Prerelease-Publishing (`--prerelease --latest=false` und Public-Deploy-Bypass) ist noch offen.
 - Naechster Schritt: `release.yml` und `public-website.yml` auf `release_class` verdrahten und mit Regressionstests absichern.
+
+## Session Update 2026-06-01 (Release Channel Wiring + Extra Tasks)
+
+- Analysiert: `.github/workflows/release.yml`, `.github/workflows/public-website.yml`, `scripts/sync-release-version.py`, `scripts/create-github-release.sh`.
+- Geaendert: Release-Workflow nutzt `release_class` fuer GitHub Release Flags (`--prerelease --latest=false`) und blockiert `deploy-public-artifacts` fuer Prereleases.
+- Geaendert: Public-Website-Workflow erkennt Prerelease-Versionen und ueberspringt Deployment/Verifikation fuer Prereleases.
+- Geaendert: `scripts/sync-release-version.py` akzeptiert Prerelease-SemVer, synchronisiert Root/Kiosk/WebUI mit voller Produktversion und setzt Extension `version` numerisch (Core) plus `version_name` (voll).
+- Geaendert (zusatz): `scripts/create-github-release.sh` mit `BEAGLE_RELEASE_CLASS` + stabilen/prerelease Release-Flags.
+- Tests (zusatz):
+	- `tests/unit/test_sync_release_version.py`
+	- `tests/unit/test_public_website_workflow_regressions.py`
+	- `tests/unit/test_create_github_release_script_regressions.py`
+	- Erweiterung `tests/unit/test_release_workflow_regressions.py`
+- Getestet:
+	- `bash -n scripts/resolve-release-version.sh`
+	- `bash -n scripts/create-github-release.sh`
+	- `python3 -m pytest -q tests/unit/test_resolve_release_version_script.py tests/unit/test_sync_release_version.py tests/unit/test_release_workflow_regressions.py tests/unit/test_public_website_workflow_regressions.py tests/unit/test_create_github_release_script_regressions.py`
+	- Ergebnis: `17 passed`.
+- Offenes Risiko: Full-E2E fuer echte prerelease Publish-Runs in GitHub Actions muss nach PR-Merge beobachtet werden.
+- Naechster Schritt: PR erstellen/aktualisieren und auf CI-Checks warten; danach auto-merge nur bei komplett gruenen Pflichtchecks.

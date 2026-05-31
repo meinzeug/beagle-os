@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: 'Optional SemVer website version, for example 8.0.1'
+        description: 'Optional SemVer website version, for example 8.0.1 or 8.0.1-rc.1'
         required: false
         type: string
 
@@ -32,11 +32,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Resolve VERSION
+        id: version
         run: |
           set -euo pipefail
           if [[ -n "${{ github.event.inputs.release_version }}" ]]; then
             resolved="${{ github.event.inputs.release_version }}"
-          elif [[ "${{ github.ref_type }}" == "tag" && "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          elif [[ "${{ github.ref_type }}" == "tag" && "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
             resolved="${{ github.ref_name }}"
           else
             latest_tag="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1 || true)"
@@ -46,9 +47,15 @@ jobs:
               resolved="$(tr -d ' \n\r' < VERSION)"
             fi
           fi
-          BEAGLE_RELEASE_VERSION="$resolved" bash scripts/resolve-release-version.sh --write VERSION
+          BEAGLE_RELEASE_VERSION="$resolved" bash scripts/resolve-release-version.sh --write VERSION --github-output "$GITHUB_OUTPUT"
+
+      - name: Skip prerelease website deployment
+        if: ${{ steps.version.outputs.release_class == 'prerelease' }}
+        run: |
+          echo "Skipping public website deployment for prerelease version ${{ steps.version.outputs.version }}."
 
       - name: Checkout public website repository
+        if: ${{ steps.version.outputs.release_class != 'prerelease' }}
         uses: actions/checkout@v4
         with:
           repository: meinzeug/beagle-os.com
@@ -56,6 +63,7 @@ jobs:
           token: ${{ secrets.BEAGLE_PUBLIC_WEBSITE_REPO_TOKEN || secrets.COPILOT_ASSIGNMENT_TOKEN || github.token }}
 
       - name: Setup SSH
+        if: ${{ steps.version.outputs.release_class != 'prerelease' }}
         env:
           BEAGLE_PUBLIC_DEPLOY_SSH_KEY: ${{ secrets.BEAGLE_PUBLIC_DEPLOY_SSH_KEY }}
           BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS: ${{ secrets.BEAGLE_PUBLIC_DEPLOY_KNOWN_HOSTS }}
@@ -67,17 +75,20 @@ jobs:
           chmod 0644 ~/.ssh/known_hosts
 
       - name: Install rsync
+        if: ${{ steps.version.outputs.release_class != 'prerelease' }}
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends rsync openssh-client
 
       - name: Publish website
+        if: ${{ steps.version.outputs.release_class != 'prerelease' }}
         env:
           BEAGLE_PUBLIC_SITE_DIR: ${{ github.workspace }}/beagle-os.com
           BEAGLE_PUBLIC_SITE_TARGET: ${{ secrets.BEAGLE_PUBLIC_SITE_TARGET }}
         run: bash scripts/deploy-public-website.sh
 
       - name: Verify rendered website content
+        if: ${{ steps.version.outputs.release_class != 'prerelease' }}
         run: |
           VERSION="$(tr -d ' \n\r' < VERSION)"
           RELEASE_TAG="v${VERSION}"
@@ -95,6 +106,7 @@ jobs:
           grep -qi 'beagleos-gaming.png' "${render_dir}/styles.css"
 
       - name: Verify live website content
+        if: ${{ steps.version.outputs.release_class != 'prerelease' }}
         run: |
           VERSION="$(tr -d ' \n\r' < VERSION)"
           RELEASE_TAG="v${VERSION}"

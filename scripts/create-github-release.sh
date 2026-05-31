@@ -12,6 +12,16 @@ INCLUDE_BEAGLE_OS_ASSETS="${INCLUDE_BEAGLE_OS_ASSETS:-1}"
 SERVER_INSTALLIMAGE_NAME="${BEAGLE_SERVER_INSTALLIMAGE_TARBALL_FILENAME:-Debian-1301-trixie-amd64-beagle-server.tar.gz}"
 BEAGLE_RELEASE_SIGN="${BEAGLE_RELEASE_SIGN:-1}"
 BEAGLE_RELEASE_GPG_KEY="${BEAGLE_RELEASE_GPG_KEY:-}"
+BEAGLE_RELEASE_CLASS="${BEAGLE_RELEASE_CLASS:-}"
+
+resolve_release_class() {
+  local version="$1"
+  if [[ "$version" =~ -(alpha|beta|rc)\.[0-9]+$ ]]; then
+    printf 'prerelease\n'
+  else
+    printf 'stable\n'
+  fi
+}
 
 signing_enabled() {
   case "$(printf '%s' "$BEAGLE_RELEASE_SIGN" | tr '[:upper:]' '[:lower:]')" in
@@ -140,6 +150,25 @@ if [[ -z "$REPO" ]]; then
   exit 1
 fi
 
+if [[ -z "$BEAGLE_RELEASE_CLASS" ]]; then
+  BEAGLE_RELEASE_CLASS="$(resolve_release_class "$VERSION")"
+fi
+case "$BEAGLE_RELEASE_CLASS" in
+  stable|prerelease)
+    ;;
+  *)
+    echo "Invalid BEAGLE_RELEASE_CLASS: $BEAGLE_RELEASE_CLASS" >&2
+    exit 1
+    ;;
+esac
+
+RELEASE_MODE_ARGS=()
+if [[ "$BEAGLE_RELEASE_CLASS" == "prerelease" ]]; then
+  RELEASE_MODE_ARGS+=(--prerelease --latest=false)
+else
+  RELEASE_MODE_ARGS+=(--latest)
+fi
+
 require_clean_tree
 RUN_PACKAGE=1 "$ROOT_DIR/scripts/validate-project.sh"
 
@@ -192,12 +221,14 @@ if [[ -n "$NOTES_FILE" ]]; then
     "${RELEASE_ASSETS[@]}" \
     --repo "$REPO" \
     --title "$TITLE" \
+    "${RELEASE_MODE_ARGS[@]}" \
     --notes-file "$NOTES_FILE"
 else
   gh release create "$TAG" \
     "${RELEASE_ASSETS[@]}" \
     --repo "$REPO" \
     --title "$TITLE" \
+    "${RELEASE_MODE_ARGS[@]}" \
     --notes "$TAG"
 fi
 

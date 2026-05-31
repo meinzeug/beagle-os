@@ -30,6 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_version: ${{ steps.version.outputs.version }}
+      release_class: ${{ steps.version.outputs.release_class }}
       rebuild_server_release: ${{ steps.resolve.outputs.rebuild_server_release }}
       rebuild_thin_client: ${{ steps.resolve.outputs.rebuild_thin_client }}
 
@@ -580,6 +581,7 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_CLASS: ${{ steps.version.outputs.release_class }}
         run: |
           REF_TYPE="${{ github.ref_type }}"
           REF_NAME="${{ github.ref_name }}"
@@ -597,6 +599,13 @@ jobs:
             git push --force origin "refs/tags/$TAG"
           fi
           RELEASE_TITLE="Beagle OS ${VERSION}"
+
+          release_mode_args=()
+          if [[ "${RELEASE_CLASS}" == "prerelease" ]]; then
+            release_mode_args+=(--prerelease --latest=false)
+          else
+            release_mode_args+=(--latest)
+          fi
 
           # Collect all release assets
           assets=()
@@ -687,13 +696,13 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             timeout --foreground 15m gh release edit "$TAG" \
               --title "$RELEASE_TITLE" \
-              --latest \
+              "${release_mode_args[@]}" \
               "${notes_args[@]}" 2>&1 | tee /tmp/beagle-release-create.log
             rc=${PIPESTATUS[0]}
           else
             timeout --foreground 15m gh release create "$TAG" \
               --title "$RELEASE_TITLE" \
-              --latest \
+              "${release_mode_args[@]}" \
               "${notes_args[@]}" 2>&1 | tee /tmp/beagle-release-create.log
             rc=${PIPESTATUS[0]}
           fi
@@ -720,7 +729,7 @@ jobs:
 
   deploy-public-artifacts:
     name: Deploy public artifacts to beagle-os.com
-    if: (github.ref_type == 'tag' || github.ref == 'refs/heads/main') && (github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]'))
+    if: (github.ref_type == 'tag' || github.ref == 'refs/heads/main') && needs.detect-artifact-changes.outputs.release_class != 'prerelease' && (github.event_name != 'push' || github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]'))
     needs: [detect-artifact-changes, create-release]
     runs-on: ubuntu-latest
 

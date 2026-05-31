@@ -48,3 +48,19 @@ def test_release_workflow_does_not_run_for_regular_main_pushes() -> None:
     assert "tags:" in trigger_block
     assert "workflow_dispatch:" in trigger_block
     assert "branches:" not in trigger_block
+
+
+def test_release_workflow_supports_prerelease_class_and_flags() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    assert "release_class: ${{ steps.version.outputs.release_class }}" in workflow
+    assert "RELEASE_CLASS: ${{ steps.version.outputs.release_class }}" in workflow
+    assert "release_mode_args+=(--prerelease --latest=false)" in workflow
+    assert "release_mode_args+=(--latest)" in workflow
+    assert "\"${release_mode_args[@]}\"" in workflow
+
+
+def test_release_workflow_blocks_public_deploy_for_prereleases() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    assert "needs.detect-artifact-changes.outputs.release_class != 'prerelease'" in workflow
