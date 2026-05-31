@@ -79,6 +79,35 @@ class UbuntuBeagleAutoinstallIsoTests(unittest.TestCase):
             self.assertIn("/boot/grub/grub.cfg", remaster_cmd)
             self.assertTrue((local_iso_dir / "ubuntu-beagle-autoinstall.iso").exists())
 
+    def test_create_ubuntu_beagle_boot_iso_handles_read_only_extracted_grub_cfg(self) -> None:
+        service = UbuntuBeagleProvisioningService.__new__(UbuntuBeagleProvisioningService)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            local_iso_dir = root / "iso"
+            local_iso_dir.mkdir()
+            base_iso = local_iso_dir / "ubuntu.iso"
+            base_iso.write_bytes(b"iso")
+
+            def fake_run_checked(command, timeout=None):
+                del timeout
+                if command[:6] == ["xorriso", "-osirrox", "on", "-indev", str(base_iso), "-extract"]:
+                    grub_cfg = Path(command[-1])
+                    grub_cfg.write_text(
+                        'menuentry "Try or Install Ubuntu Server" {\n'
+                        '\tlinux\t/casper/vmlinuz  ---\n'
+                        '}\n',
+                        encoding="utf-8",
+                    )
+                    grub_cfg.chmod(0o444)
+                return ""
+
+            service._run_checked = fake_run_checked
+            service.local_iso_storage_dir = lambda: local_iso_dir
+
+            result = service.ensure_ubuntu_beagle_autoinstall_boot_iso(base_iso, "ubuntu.iso")
+
+            self.assertEqual(Path(result["boot_iso_path"]).stat().st_mode & 0o777, 0o644)
+
     def test_local_iso_storage_dir_falls_back_to_libvirt_images_dir_when_legacy_path_is_unwritable(self) -> None:
         service = UbuntuBeagleProvisioningService.__new__(UbuntuBeagleProvisioningService)
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -99,6 +128,34 @@ class UbuntuBeagleAutoinstallIsoTests(unittest.TestCase):
             self.assertEqual(resolved, fallback)
             self.assertEqual(service._local_iso_dir, fallback)
             self.assertTrue(fallback.is_dir())
+
+    def test_cached_ubuntu_iso_permissions_are_repaired_for_libvirt(self) -> None:
+        service = UbuntuBeagleProvisioningService.__new__(UbuntuBeagleProvisioningService)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            local_iso_dir = root / "iso"
+            local_iso_dir.mkdir()
+            cached_iso = local_iso_dir / "ubuntu.iso"
+            cached_iso.write_bytes(b"iso")
+            cached_iso.chmod(0o600)
+
+            def fake_run_checked(command, timeout=None):
+                del timeout
+                if command[:6] == ["xorriso", "-osirrox", "on", "-indev", str(cached_iso), "-extract"]:
+                    Path(command[-1]).write_text("asset", encoding="utf-8")
+                elif command[:2] == ["xorriso", "-dev"]:
+                    pass
+                return ""
+
+            service._run_checked = fake_run_checked
+            service.local_iso_storage_dir = lambda: local_iso_dir
+            service.ubuntu_beagle_extract_dir = lambda _iso_filename: root / "extract"
+            service._safe_slug = lambda value, _fallback: value
+            service.ubuntu_beagle_extract_dir("ubuntu.iso").mkdir()
+
+            service.ensure_ubuntu_beagle_iso_cached("https://example.invalid/ubuntu.iso")
+
+            self.assertEqual(cached_iso.stat().st_mode & 0o777, 0o644)
 
 
 if __name__ == "__main__":

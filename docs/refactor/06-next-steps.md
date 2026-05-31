@@ -2139,3 +2139,17 @@ Virsh-basierte Live-Migration über `qemu+ssh` deadlockt bei allen Versuch-Kombi
 3. Danach den restlichen Ubuntu-Beagle-Autoinstall-Lauf bis `firstboot` /
    `complete` beobachten und die verbleibenden Guest-Provisioning-Schritte
    getrennt von Host-/QEMU-Themen validieren.
+
+## Naechster Schritt (2026-05-31, Ubuntu-Beagle-Provisioning nach 8.3.9-Rechtefix)
+
+1. Den gepushten Rechte-/Delete-Fix auf `srv1.beagle-os.com` durch den
+   Repo-Auto-Update-Pfad uebernehmen lassen und bestaetigen, dass
+   `/opt/beagle/.beagle-installed-commit` auf den neuen Commit zeigt.
+2. Danach eine echte WebUI-VM mit `start:true` anlegen und bis mindestens
+   libvirt-Start validieren:
+   - kein `Permission denied ... grub.cfg`,
+   - keine `0600`-ISO-Medien unter `/var/lib/libvirt/images`,
+   - `virsh list --all` zeigt die Domain,
+   - Delete entfernt VM-State, Seed-ISO und Seed-Verzeichnis.
+3. Wenn der Host-Create/Start gruen ist, den Gast-Firstboot separat bis
+   `ubuntu-firstboot.done` und BeagleStream-Server-Ports pruefen.

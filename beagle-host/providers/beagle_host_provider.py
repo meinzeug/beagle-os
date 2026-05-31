@@ -1262,14 +1262,24 @@ class BeagleHostProvider:
             raise RuntimeError(f"VM {target_vmid} not found in beagle provider state")
         if self._libvirt_enabled():
             domain_name = self._libvirt_domain_name(target_vmid)
-            try:
-                self._run_virsh("destroy", domain_name)
-            except Exception:
-                pass
-            try:
-                self._run_virsh("undefine", domain_name, "--nvram", "--remove-all-storage")
-            except Exception:
-                self._run_virsh("undefine", domain_name)
+            if self._libvirt_domain_exists(target_vmid):
+                try:
+                    self._run_virsh("destroy", domain_name)
+                except Exception:
+                    pass
+                undefined = False
+                for args in (
+                    ("undefine", domain_name, "--nvram", "--remove-all-storage"),
+                    ("undefine", domain_name),
+                ):
+                    try:
+                        self._run_virsh(*args)
+                        undefined = True
+                        break
+                    except Exception:
+                        pass
+                if not undefined and self._libvirt_domain_exists(target_vmid):
+                    raise RuntimeError(f"failed to undefine libvirt domain {domain_name}")
 
         remaining = [
             item

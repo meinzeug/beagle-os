@@ -80,6 +80,22 @@ class BeagleHostProviderContractExtensionsTests(unittest.TestCase):
         self.assertFalse(payload.get("available"))
         self.assertEqual(payload.get("scheme"), "vnc")
 
+    def test_delete_vm_removes_skeleton_state_when_libvirt_domain_is_absent(self):
+        with mock.patch.object(
+            BeagleHostProvider,
+            "_libvirt_enabled",
+            return_value=True,
+        ), mock.patch.object(
+            self.provider,
+            "_run_virsh",
+            side_effect=RuntimeError("Domain not found"),
+        ):
+            msg = self.provider.delete_vm(101)
+
+        self.assertIn("deleted beagle vm 101", msg)
+        self.assertIsNone(self.provider._find_vm(101))
+        self.assertFalse((Path(self._tmp.name) / "vm-configs" / "beagle-0" / "101.json").exists())
+
     def test_guest_exec_bash_uses_libvirt_qemu_agent_when_available(self):
         with mock.patch.object(BeagleHostProvider, "_find_vm", return_value={"vmid": 101, "node": "beagle-0"}), mock.patch.object(
             BeagleHostProvider,

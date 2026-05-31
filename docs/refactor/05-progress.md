@@ -8538,3 +8538,42 @@ vor dem QEMU-Start an einem alten Proxmox-ISO-Cache-Pfad scheitern.
   - Lokal: Regressionstest fuer den Fallback von
     `/var/lib/vz/template/iso` nach `BEAGLE_LIBVIRT_IMAGES_DIR` ist gruen.
   - Die Ubuntu-Beagle-Provisioning-Tests laufen weiterhin gruen.
+
+## 2026-05-31 - Ubuntu-Beagle Autoinstall-ISO Dateirechte und Skeleton-Delete
+
+**Scope**: Release `8.3.9` installierte `srv1` sauber, aber neue VMs scheiterten
+im WebUI-Provisioning mit `Permission denied: '/tmp/beagle-autoinstall-iso-.../grub.cfg'`.
+
+- **Root-Cause**:
+  - Der neue Autoinstall-Boot-ISO-Pfad extrahiert `/boot/grub/grub.cfg` per
+    `xorriso`.
+  - Auf `srv1` lief `beagle-control-plane` als `beagle-manager`; die von
+    `xorriso` extrahierte Datei konnte schreibgeschuetzt landen und der
+    anschliessende `write_text()`-Patch brach mit `EACCES` ab.
+  - Zusaetzlich lag die gecachte Ubuntu-ISO nach dem ersten Download als
+    `0600 beagle-manager:beagle-manager` unter `/var/lib/libvirt/images`; fuer
+    libvirt/QEMU muessen diese Medien hostweit lesbar sein.
+  - Beim API-Smoke fiel danach auf, dass `DELETE /api/v1/provisioning/vms/{id}`
+    bei nicht gestarteten Skeleton-VMs mit aktiviertem libvirt an einer fehlenden
+    Domain haengen blieb und Seed-Artefakte nicht vollstaendig entfernte.
+
+- **Repo-Fix**:
+  - `beagle-host/services/ubuntu_beagle_provisioning.py`
+    - macht extrahierte GRUB-Dateien, gecachte Ubuntu-ISOs, partielle Boot-ISOs,
+      fertige Boot-ISOs, Kernel-/Initrd-Assets und Seed-ISOs explizit `0644`.
+  - `beagle-host/providers/beagle_host_provider.py`
+    - loescht Skeleton-State idempotent, wenn noch keine libvirt-Domain
+      existiert.
+  - `beagle-host/services/runtime_cleanup.py`
+    - entfernt beim VM-Delete auch Seed-ISO, `ubuntu-beagle-install/seed/<vmid>`
+      und Secret-Lockfiles.
+
+- **Verifikation**:
+  - Lokal: `25 passed` fuer Runtime-Cleanup, Autoinstall-ISO,
+    Beagle-Provider-Delete und VM-API-Regressions.
+  - Live auf `srv1`: Release `8.3.9`, Bootstrap `done`,
+    `beagle-control-plane`, `nginx`, `libvirtd` aktiv,
+    `/opt/beagle/scripts/check-beagle-host.sh` erfolgreich.
+  - Live-API-Smoke: `POST /api/v1/provisioning/vms` liefert wieder `201`
+    statt `Permission denied ... grub.cfg`; der Test erzeugte eine nicht
+    gestartete Skeleton-VM und wurde danach bereinigt.

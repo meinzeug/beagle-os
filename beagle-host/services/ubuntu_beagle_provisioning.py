@@ -436,6 +436,13 @@ class UbuntuBeagleProvisioningService:
             + ", ".join(str(path) for path in candidates)
         )
 
+    @staticmethod
+    def _make_libvirt_readable(path: Path) -> None:
+        try:
+            path.chmod(0o644)
+        except OSError:
+            pass
+
     def ensure_iso_in_storage_pool(self, storage_id: str, iso_path: Path) -> Path:
         """Ensure an ISO exists in the selected storage path when a provider exposes one.
 
@@ -543,10 +550,12 @@ class UbuntuBeagleProvisioningService:
                 ],
                 timeout=None,
             )
+            self._make_libvirt_readable(grub_cfg_path)
             patched_grub_cfg = self.patch_autoinstall_grub_cfg(grub_cfg_path.read_text(encoding="utf-8"))
             grub_cfg_path.write_text(patched_grub_cfg, encoding="utf-8")
             partial_path = boot_iso_path.with_suffix(boot_iso_path.suffix + ".part")
             shutil.copy2(iso_path, partial_path)
+            self._make_libvirt_readable(partial_path)
             self._run_checked(
                 [
                     "xorriso",
@@ -564,7 +573,7 @@ class UbuntuBeagleProvisioningService:
                 timeout=None,
             )
             partial_path.replace(boot_iso_path)
-            boot_iso_path.chmod(0o644)
+            self._make_libvirt_readable(boot_iso_path)
 
         return {
             "boot_iso_filename": boot_iso_filename,
@@ -591,6 +600,7 @@ class UbuntuBeagleProvisioningService:
                 timeout=None,
             )
             partial_path.replace(iso_path)
+        self._make_libvirt_readable(iso_path)
 
         extract_dir = self.ubuntu_beagle_extract_dir(iso_filename)
         kernel_path = extract_dir / "vmlinuz"
@@ -609,7 +619,7 @@ class UbuntuBeagleProvisioningService:
                 ],
                 timeout=None,
             )
-            kernel_path.chmod(0o644)
+            self._make_libvirt_readable(kernel_path)
         if not initrd_path.exists():
             try:
                 self._run_checked(
@@ -639,11 +649,11 @@ class UbuntuBeagleProvisioningService:
                     ],
                     timeout=None,
                 )
-            initrd_path.chmod(0o644)
+            self._make_libvirt_readable(initrd_path)
 
         # Ensure existing files are readable by the libvirt worker account.
-        kernel_path.chmod(0o644)
-        initrd_path.chmod(0o644)
+        self._make_libvirt_readable(kernel_path)
+        self._make_libvirt_readable(initrd_path)
 
         boot_iso_assets = self.ensure_ubuntu_beagle_autoinstall_boot_iso(iso_path, iso_filename)
 
@@ -918,6 +928,7 @@ class UbuntuBeagleProvisioningService:
         if wallpaper_filename:
             iso_command.append(str(work_dir / wallpaper_filename))
         self._run_checked(iso_command, timeout=None)
+        self._make_libvirt_readable(seed_path)
         return seed_path
 
     def finalize_ubuntu_beagle_install(self, state: dict[str, Any], *, restart: bool = True) -> dict[str, Any]:

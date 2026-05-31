@@ -36,12 +36,19 @@ class RuntimeCleanupTests(unittest.TestCase):
                 actions_dir / "beagle-0-100-queue.json",
                 actions_dir / "beagle-0-100-last-result.json",
                 secrets_dir / "beagle-0-100.json",
+                secrets_dir / "beagle-0-100.json.lock",
                 usb_dir / "beagle-0-100.pub",
             ]
             for path in targets:
                 path.write_text("{}", encoding="utf-8")
 
-            (tokens_dir / "old-100.json").write_text(json.dumps({"vmid": 100}), encoding="utf-8")
+            seed_iso = root / "beagle-ubuntu-autoinstall-vm100.iso"
+            seed_iso.write_text("iso", encoding="utf-8")
+            seed_dir = tokens_dir / "seed" / "100"
+            seed_dir.mkdir(parents=True)
+            (seed_dir / "user-data").write_text("user-data", encoding="utf-8")
+            (seed_dir / "meta-data").write_text("meta-data", encoding="utf-8")
+            (tokens_dir / "old-100.json").write_text(json.dumps({"vmid": 100, "seed_iso": str(seed_iso)}), encoding="utf-8")
             (tokens_dir / "old-100.json.lock").write_text("", encoding="utf-8")
             (tokens_dir / "old-101.json").write_text(json.dumps({"vmid": 101}), encoding="utf-8")
 
@@ -61,6 +68,8 @@ class RuntimeCleanupTests(unittest.TestCase):
                 self.assertFalse(path.exists(), path)
             self.assertFalse((tokens_dir / "old-100.json").exists())
             self.assertFalse((tokens_dir / "old-100.json.lock").exists())
+            self.assertFalse(seed_iso.exists())
+            self.assertFalse(seed_dir.exists())
             self.assertTrue((tokens_dir / "old-101.json").exists())
 
 
