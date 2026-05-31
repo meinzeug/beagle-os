@@ -16,3 +16,9 @@
 
 - Entscheidung: Bestehenden Copilot-Automerge-Pfad beibehalten und Owner-Schritte in `.agents/auto-merge-setup.md` explizit dokumentieren.
 - Grund: Repo hat bereits konservative Automerge-Mechanik fuer `copilot/*`, aber allgemeiner Auto-Merge braucht Repo-Settings/Labels durch Owner.
+
+## 2026-06-01 - Release resolver prerelease support (slice)
+
+- Entscheidung: `scripts/resolve-release-version.sh` erweitert auf SemVer-Prereleases (`x.y.z-alpha.N`, `x.y.z-beta.N`, `x.y.z-rc.N`) und `release_class` GitHub-Output (`stable|prerelease`).
+- Grund: Erster P0-Teil aus `projectleader/todo.md` soll reproduzierbar abgeschlossen werden, bevor Workflow-Gates umgestellt werden.
+- Guardrails: Auto-bump-Pfad bleibt stabil (`x.y.z`), Prerelease wird nur ueber expliziten Input/Tag aufgeloest.

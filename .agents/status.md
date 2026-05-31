@@ -29,3 +29,15 @@ Stand: 2026-06-01
 ## Naechster sinnvoller Schritt
 
 Agenten-Struktur + baseline CI als eigenen PR-Slice finalisieren, danach den naechsten kleinen P0/P1-Schritt aus `projectleader/todo.md` umsetzen (Release-Versionierung stable/prerelease).
+
+## Session Update 2026-06-01 (Release Resolver Slice)
+
+- Analysiert: `scripts/resolve-release-version.sh`, `tests/unit/test_release_workflow_regressions.py`, `projectleader/todo.md`, Release-Workflows.
+- Geaendert: `scripts/resolve-release-version.sh` akzeptiert nun Stable und Prerelease-SemVer (`alpha|beta|rc`) und schreibt `release_class` in GitHub-Outputs.
+- Geaendert: Neuer Regressionstest `tests/unit/test_resolve_release_version_script.py` fuer stable/prerelease/tag-ref/invalid-4-part.
+- Getestet:
+	- `bash -n scripts/resolve-release-version.sh`
+	- `python3 -m pytest -q tests/unit/test_resolve_release_version_script.py tests/unit/test_release_workflow_regressions.py`
+	- Ergebnis: `8 passed`.
+- Offenes Risiko: Workflow-Gating fuer Prerelease-Publishing (`--prerelease --latest=false` und Public-Deploy-Bypass) ist noch offen.
+- Naechster Schritt: `release.yml` und `public-website.yml` auf `release_class` verdrahten und mit Regressionstests absichern.

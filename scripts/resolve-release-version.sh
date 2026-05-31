@@ -13,7 +13,7 @@ Resolves the Beagle OS release version.
 
 Precedence:
   1. BEAGLE_RELEASE_VERSION, with optional leading "v"
-  2. Git tag refs named vX.Y.Z
+  2. Git tag refs named vX.Y.Z[-alpha.N|-beta.N|-rc.N]
   3. max(VERSION file, latest vX.Y.Z git tag) with patch bumped by one
 EOF
 }
@@ -43,11 +43,20 @@ normalize_version() {
   local value="$1"
   value="${value#v}"
   value="$(printf '%s' "$value" | tr -d ' \n\r\t')"
-  if [[ ! "$value" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Invalid SemVer core version: $value" >&2
+  if [[ ! "$value" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+    echo "Invalid SemVer version: $value" >&2
     exit 1
   fi
   printf '%s\n' "$value"
+}
+
+release_class() {
+  local version="$1"
+  if [[ "$version" == *-* ]]; then
+    printf 'prerelease\n'
+  else
+    printf 'stable\n'
+  fi
 }
 
 semver_key() {
@@ -73,15 +82,17 @@ bump_patch() {
 
 if [[ -n "${BEAGLE_RELEASE_VERSION:-}" ]]; then
   VERSION="$(normalize_version "$BEAGLE_RELEASE_VERSION")"
-elif [[ "${GITHUB_REF_TYPE:-}" == "tag" && "${GITHUB_REF_NAME:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+elif [[ "${GITHUB_REF_TYPE:-}" == "tag" && "${GITHUB_REF_NAME:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
   VERSION="$(normalize_version "$GITHUB_REF_NAME")"
 else
   BASE_VERSION="$(normalize_version "$(cat "$ROOT_DIR/VERSION")")"
+  BASE_VERSION="${BASE_VERSION%%-*}"
   if git -C "$ROOT_DIR" rev-parse --git-dir >/dev/null 2>&1; then
     git -C "$ROOT_DIR" fetch --tags --force --quiet origin '+refs/tags/v*:refs/tags/v*' 2>/dev/null || true
     HEAD_TAG="$(git -C "$ROOT_DIR" tag --points-at HEAD -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1 || true)"
     if [[ -n "$HEAD_TAG" ]]; then
       VERSION="$(normalize_version "$HEAD_TAG")"
+      RELEASE_CLASS="$(release_class "$VERSION")"
       if [[ -n "$WRITE_FILE" ]]; then
         printf '%s\n' "$VERSION" > "$WRITE_FILE"
       fi
@@ -89,6 +100,7 @@ else
         {
           printf 'version=%s\n' "$VERSION"
           printf 'tag=v%s\n' "$VERSION"
+          printf 'release_class=%s\n' "$RELEASE_CLASS"
         } >> "$GITHUB_OUTPUT_FILE"
       fi
       printf '%s\n' "$VERSION"
@@ -102,6 +114,8 @@ else
   VERSION="$(bump_patch "$BASE_VERSION")"
 fi
 
+RELEASE_CLASS="$(release_class "$VERSION")"
+
 if [[ -n "$WRITE_FILE" ]]; then
   printf '%s\n' "$VERSION" > "$WRITE_FILE"
 fi
@@ -110,6 +124,7 @@ if [[ -n "$GITHUB_OUTPUT_FILE" ]]; then
   {
     printf 'version=%s\n' "$VERSION"
     printf 'tag=v%s\n' "$VERSION"
+    printf 'release_class=%s\n' "$RELEASE_CLASS"
   } >> "$GITHUB_OUTPUT_FILE"
 fi
 
