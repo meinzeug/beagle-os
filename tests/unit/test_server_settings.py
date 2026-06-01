@@ -441,6 +441,31 @@ class ServerSettingsGeneralTests(unittest.TestCase):
         self.assertEqual(result["settings"]["public_url"], "https://srv1.beagle-os.com")
         self.assertEqual(result["settings"]["hostname"], "srv1.beagle-os.com")
 
+    def test_update_general_skips_hostnamectl_when_hostname_unchanged(self):
+        service = self.make_service()
+        calls: list[list[str]] = []
+
+        def fake_run_cmd(cmd, *args, **kwargs):
+            calls.append(cmd)
+            if cmd == ["hostname", "-f"]:
+                return "srv1.beagle-os.com"
+            if cmd == ["hostname"]:
+                return "srv1.beagle-os.com"
+            if cmd[:2] == ["hostnamectl", "set-hostname"]:
+                return None
+            return ""
+
+        with mock.patch.object(MODULE, "_run_cmd", side_effect=fake_run_cmd):
+            result = service.update_general(
+                {
+                    "hostname": "srv1.beagle-os.com",
+                    "public_url": "https://srv1.beagle-os.com",
+                }
+            )
+
+        self.assertTrue(result["ok"], result)
+        self.assertNotIn(["hostnamectl", "set-hostname", "srv1.beagle-os.com"], calls)
+
     def test_update_general_rejects_invalid_hostname(self):
         service = self.make_service()
 

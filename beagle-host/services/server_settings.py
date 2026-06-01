@@ -200,9 +200,11 @@ class ServerSettingsService:
             if not _SAFE_HOSTNAME_PATTERN.match(h):
                 errors.append("invalid hostname format")
             else:
-                result = _run_cmd(["hostnamectl", "set-hostname", h], check=True)
-                if result is None:
-                    errors.append("failed to set hostname")
+                current_hostname = _run_cmd(["hostname", "-f"], fallback=_run_cmd(["hostname"], fallback=""))
+                if h != str(current_hostname or "").strip():
+                    result = _run_cmd(["hostnamectl", "set-hostname", h], check=True)
+                    if result is None:
+                        errors.append("failed to set hostname")
 
         if "timezone" in payload:
             tz = str(payload["timezone"]).strip()
