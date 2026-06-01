@@ -14,10 +14,13 @@ if str(SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(SERVICES_DIR))
 
 from device_registry import DeviceRegistryService
+from device_log_service import DeviceLogService
 from fleet_http_surface import FleetHttpSurfaceService
 from fleet_telemetry_service import DeviceTelemetry, FleetTelemetryService
 from mdm_policy_service import MDMPolicy, MDMPolicyService
 from alert_service import AlertRule, AlertService
+from core.persistence.sqlite_db import BeagleDb
+from core.repository.device_log_repository import DeviceLogRepository
 
 
 HW = {
@@ -36,6 +39,8 @@ def make_services(
     endpoint_reports: list[dict[str, object]] | None = None,
 ) -> tuple[DeviceRegistryService, MDMPolicyService, FleetTelemetryService, AlertService, FleetHttpSurfaceService]:
     audit_events: list[tuple[str, str, dict[str, object]]] = []
+    db = BeagleDb(tmp_path / "state.db")
+    db.migrate(ROOT_DIR / "core" / "persistence" / "migrations")
     registry = DeviceRegistryService(
         state_file=tmp_path / "device-registry.json",
         utcnow=lambda: "2026-04-28T06:00:00Z",
@@ -44,8 +49,10 @@ def make_services(
     telemetry = FleetTelemetryService(state_dir=tmp_path / "fleet-telemetry", utcnow=lambda: "2026-04-28T06:00:00Z")
     alerts = AlertService(state_file=tmp_path / "alerts.json", utcnow=lambda: "2026-04-28T06:00:00Z")
     alerts.ensure_default_rules()
+    logs = DeviceLogService(repository=DeviceLogRepository(db), utcnow=lambda: "2026-04-28T06:00:00Z")
     service = FleetHttpSurfaceService(
         device_registry_service=registry,
+        device_log_service=logs,
         mdm_policy_service=mdm,
         fleet_telemetry_service=telemetry,
         alert_service=alerts,
@@ -115,6 +122,46 @@ def test_register_device_and_fetch_detail(tmp_path: Path) -> None:
     assert detail["payload"]["device"]["wipe_confirmed_at"] == ""
     assert detail["payload"]["device"]["last_wipe_report"] == {}
     assert detail["payload"]["device"]["last_runtime_report"] == {}
+
+
+def test_device_log_route_returns_recent_entries(tmp_path: Path) -> None:
+    db = BeagleDb(tmp_path / "state.db")
+    db.migrate(ROOT_DIR / "core" / "persistence" / "migrations")
+    registry = DeviceRegistryService(
+        state_file=tmp_path / "device-registry.json",
+        utcnow=lambda: "2026-04-28T06:00:00Z",
+    )
+    logs = DeviceLogService(repository=DeviceLogRepository(db), utcnow=lambda: "2026-04-28T06:00:00Z")
+    service = FleetHttpSurfaceService(
+        device_registry_service=registry,
+        device_log_service=logs,
+        utcnow=lambda: "2026-04-28T06:00:00Z",
+        version="test",
+    )
+
+    registry.register_device("dev-001", "tc-001", HW)
+    logs.ingest(
+        "dev-001",
+        {
+            "captured_at": "2026-04-28T06:05:00Z",
+            "entries": [
+                {
+                    "source": "runtime-trace.log",
+                    "level": "info",
+                    "content": "[2026-04-28T06:05:00Z] phase=heartbeat streaming=0",
+                }
+            ],
+        },
+    )
+
+    response = service.route_get("/api/v1/fleet/devices/dev-001/logs", query={"limit": ["10"]})
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    assert response["payload"]["count"] == 1
+    assert response["payload"]["total_count"] == 1
+    assert response["payload"]["logs"][0]["source"] == "runtime-trace.log"
+    assert "heartbeat" in response["payload"]["logs"][0]["content"]
 
 
 def test_list_devices_returns_groups_and_filters(tmp_path: Path) -> None:

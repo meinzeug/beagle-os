@@ -56,6 +56,7 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "data-mdm-action" in js
     assert "triggerDeviceAction" in js
     assert "savePolicy" in js
+    assert "data-device-logs" in js
     assert "assignPolicy" in js
     assert "assignBulkDevices" in js
     assert "submitBulkDeviceAction" in js
@@ -94,6 +95,10 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "Auto-Remediation" in js
     assert "Remediation History" in js
     assert "Wipe Status" in js
+    assert "ThinClient Logs" in js
+    assert "Logs konnten nicht geladen werden" in js
+    assert "fleet-device-logs-modal" in js
+    assert "fleet-log-pre" in js
     assert "Effektiv vs Default" in js
     assert "Bulk Device IDs" in js
     assert "Bulk Standort" in js

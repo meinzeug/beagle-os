@@ -13,6 +13,7 @@ class EndpointHttpSurfaceService:
         build_vm_profile: Callable[[Any], dict[str, Any]],
         dequeue_vm_actions: Callable[[str, int], list[dict[str, Any]]],
         device_registry_service: Any,
+        device_log_service: Any | None,
         mdm_policy_service: Any,
         attestation_service: Any,
         fleet_telemetry_service: Any | None,
@@ -36,6 +37,7 @@ class EndpointHttpSurfaceService:
         self._build_vm_profile = build_vm_profile
         self._dequeue_vm_actions = dequeue_vm_actions
         self._device_registry = device_registry_service
+        self._device_log_service = device_log_service
         self._mdm_policy = mdm_policy_service
         self._attestation = attestation_service
         self._fleet_telemetry = fleet_telemetry_service
@@ -307,6 +309,12 @@ class EndpointHttpSurfaceService:
                 device = self._device_registry.update_wipe_report(device_id, wipe_report)
             if runtime_report:
                 device = self._device_registry.update_runtime_report(device_id, runtime_report)
+            logs_payload = payload.get("logs") if isinstance(payload.get("logs"), dict) else {}
+            if logs_payload and self._device_log_service is not None:
+                try:
+                    self._device_log_service.ingest(device_id, logs_payload)
+                except Exception:
+                    pass
 
             if usb_tunnel_public_key and callable(self._sync_usb_tunnel_authorized_key_for_endpoint):
                 try:

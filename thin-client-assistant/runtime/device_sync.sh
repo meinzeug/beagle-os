@@ -208,6 +208,66 @@ print(total)
 PY
 }
 
+runtime_device_log_bundle_json() {
+  local state_dir enabled
+  state_dir="$(beagle_state_dir)"
+  enabled="${PVE_THIN_CLIENT_BEAGLE_LOG_CAPTURE_ENABLED:-1}"
+  python3 - "$state_dir" "$enabled" <<'PY'
+import json
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+state_dir = Path(sys.argv[1])
+enabled = str(sys.argv[2] or "1").strip().lower() not in {"0", "false", "no", "off"}
+if not enabled:
+  print(json.dumps({"captured_at": "", "entries": []}))
+  raise SystemExit(0)
+
+captured_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+entries: list[dict[str, str]] = []
+
+def add_entry(source: str, level: str, content: str) -> None:
+  text = str(content or "").strip()
+  if text:
+    entries.append({"source": source, "level": level, "captured_at": captured_at, "content": text})
+
+def tail_text(path: Path, *, lines: int = 40) -> str:
+  if not path.exists():
+    return ""
+  try:
+    items = path.read_text(encoding="utf-8", errors="replace").splitlines()
+  except Exception:
+    return ""
+  return "\n".join(items[-lines:])
+
+add_entry("runtime-heartbeat.status", "info", tail_text(state_dir / "runtime-heartbeat.status", lines=80))
+add_entry("runtime-trace.log", "info", tail_text(state_dir / "runtime-trace.log", lines=80))
+
+journalctl = shutil.which("journalctl")
+if journalctl:
+  journal_specs = [
+    ("journal:beagle-runtime", [journalctl, "-b", "--no-pager", "-o", "short-iso", "-u", "beagle-runtime-heartbeat", "-u", "beagle-usb-tunnel", "-u", "beagle-kiosk", "-u", "pve-thin-client-runtime", "-u", "pve-thin-client-prepare"], "info"),
+    ("journal:kernel", [journalctl, "-k", "-b", "--no-pager", "-o", "short-iso"], "warn"),
+    ("journal:warnings", [journalctl, "-b", "--no-pager", "-p", "warning..alert", "-o", "short-iso"], "warn"),
+  ]
+  for source, command, level in journal_specs:
+    try:
+      result = subprocess.run(command, check=False, text=True, capture_output=True)
+    except Exception:
+      continue
+    text = (result.stdout or "").strip()
+    if not text:
+      continue
+    lines = text.splitlines()
+    add_entry(source, level, "\n".join(lines[-60:]))
+
+print(json.dumps({"captured_at": captured_at, "entries": entries}))
+PY
+}
+
 runtime_usb_tunnel_public_key() {
   local key_path="${PVE_THIN_CLIENT_USB_TUNNEL_KEY_PATH:-/etc/pve-thin-client/usb-tunnel.key}"
   if [[ ! -r "$key_path" ]] || ! command -v ssh-keygen >/dev/null 2>&1; then
@@ -409,11 +469,12 @@ runtime_device_sync_payload() {
   local wg_iface="${3:-wg-beagle}"
   local wg_active="${4:-0}"
   local wg_ip="${5:-}"
-  local wipe_report_json runtime_report_json interfaces_json cpu_model cpu_cores ram_gb gpu_model os_version
+  local wipe_report_json runtime_report_json logs_json interfaces_json cpu_model cpu_cores ram_gb gpu_model os_version
   local uptime_hours reboot_count_7d cpu_temp_c network_errors usb_tunnel_public_key
 
   wipe_report_json="$(runtime_wipe_report_json)"
   runtime_report_json="$(runtime_report_json)"
+  logs_json="$(runtime_device_log_bundle_json)"
   interfaces_json="$(runtime_network_interfaces_json)"
   cpu_model="$(runtime_cpu_model)"
   cpu_cores="$(nproc 2>/dev/null || printf '0')"
@@ -426,11 +487,15 @@ runtime_device_sync_payload() {
   network_errors="$(runtime_network_errors)"
   usb_tunnel_public_key="$(runtime_usb_tunnel_public_key)"
 
-  python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" "$wipe_report_json" "$runtime_report_json" "$uptime_hours" "$reboot_count_7d" "$cpu_temp_c" "$network_errors" "$usb_tunnel_public_key" <<'PY'
+  python3 - "$device_id" "$hostname_value" "$os_version" "$cpu_model" "$cpu_cores" "$ram_gb" "$gpu_model" "$interfaces_json" "$wg_iface" "$wg_active" "$wg_ip" "$wipe_report_json" "$runtime_report_json" "$uptime_hours" "$reboot_count_7d" "$cpu_temp_c" "$network_errors" "$usb_tunnel_public_key" "$logs_json" <<'PY'
 import json, sys
 runtime_report = json.loads(sys.argv[13] or "{}")
 stream_report = runtime_report.get("stream") if isinstance(runtime_report, dict) else {}
 streaming_active = bool(stream_report.get("active")) if isinstance(stream_report, dict) else False
+logs_bundle = json.loads(sys.argv[19] or "{}")
+log_entries = logs_bundle.get("entries") if isinstance(logs_bundle, dict) else []
+if not isinstance(log_entries, list):
+    log_entries = []
 
 payload = {
     "device_id": sys.argv[1],
@@ -464,6 +529,10 @@ payload = {
     "reports": {
         "wipe": json.loads(sys.argv[12] or "{}"),
       "runtime": runtime_report,
+    },
+    "logs": {
+      "captured_at": str(logs_bundle.get("captured_at") or "") if isinstance(logs_bundle, dict) else "",
+      "entries": log_entries,
     },
     "usb_tunnel_public_key": sys.argv[18],
 }

@@ -17,6 +17,7 @@ const fleetState = {
   groups: [],
   selectedGroupFilter: '__all__',
   editingDeviceId: '',
+  deviceLogs: { deviceId: '', entries: [], count: 0, loading: false, error: '' },
   alerts: [],
   alertRules: [],
   policies: [],
@@ -67,6 +68,7 @@ function deviceActionButtons(device) {
   const status = String(device.status ?? '').trim().toLowerCase();
   const buttons = [];
   buttons.push(`<button type="button" class="btn btn-primary" data-custom-device-edit="${escapeHtml(deviceId)}">Konfigurieren</button>`);
+  buttons.push(`<button type="button" class="btn btn-ghost" data-device-logs="${escapeHtml(deviceId)}">Logs</button>`);
   buttons.push(actionButton('Policy', 'policy-select', 'ghost', deviceId));
   if (status === 'locked') {
     buttons.push(actionButton('Entsperren', 'unlock', 'ghost', deviceId));
@@ -646,6 +648,109 @@ function fleetExpertModal(id, title, description, content) {
     </div>`;
 }
 
+function deviceLogsContentMarkup() {
+  const state = fleetState.deviceLogs || { deviceId: '', entries: [], count: 0, loading: false, error: '' };
+  const entries = Array.isArray(state.entries) ? state.entries : [];
+  if (state.loading) {
+    return '<div class="empty-card">Logs werden geladen…</div>';
+  }
+  if (state.error) {
+    return `<div class="empty-card">${escapeHtml(state.error)}</div>`;
+  }
+  if (!entries.length) {
+    return '<div class="empty-card">Keine Logs fuer dieses Geraet vorhanden.</div>';
+  }
+  return entries.map((entry) => {
+    const level = String(entry.level || 'info').trim().toLowerCase();
+    const tone = level === 'error' || level === 'critical' ? 'danger' : level === 'warn' || level === 'warning' ? 'warn' : 'info';
+    return `<article class="card compact-card">
+      <div class="button-row compact-row section-spaced-tight">
+        <span class="badge tone-${tone}">${escapeHtml(level || 'info')}</span>
+        <span class="badge tone-muted">${escapeHtml(String(entry.source || 'runtime'))}</span>
+        <span class="muted">${escapeHtml(String(entry.captured_at || ''))}</span>
+      </div>
+      <pre class="fleet-log-pre">${escapeHtml(String(entry.content || ''))}</pre>
+    </article>`;
+  }).join('');
+}
+
+function deviceLogsModalMarkup() {
+  const state = fleetState.deviceLogs || { deviceId: '', entries: [], count: 0, loading: false, error: '' };
+  return `
+    <div class="modal fleet-registry-modal" id="fleet-device-logs-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog fleet-registry-dialog fleet-device-logs-dialog" role="dialog" aria-modal="true" aria-labelledby="fleet-device-logs-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Thin Clients</span>
+            <h2 id="fleet-device-logs-title">ThinClient Logs</h2>
+            <p>Gespeicherte Log-Chunks und Systemausgaben des ausgewaehlten Geraets.</p>
+          </div>
+          <button class="icon-button" type="button" data-fleet-modal-close aria-label="Schliessen">×</button>
+        </div>
+        <div class="fleet-modal-body">
+          <div class="fleet-log-toolbar">
+            <div>
+              <strong id="fleet-device-logs-device">${escapeHtml(state.deviceId || 'Kein Geraet gewaehlt')}</strong>
+              <div id="fleet-device-logs-count" class="muted">${escapeHtml(String(state.count || 0))} gespeicherte Eintraege</div>
+            </div>
+          </div>
+          <div id="fleet-device-logs-body" class="fleet-log-list">${deviceLogsContentMarkup()}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function openDeviceLogsModal(deviceId) {
+  const cleanDeviceId = String(deviceId || '').trim();
+  if (!cleanDeviceId) {
+    return;
+  }
+  fleetState.deviceLogs = { deviceId: cleanDeviceId, entries: [], count: 0, loading: true, error: '' };
+  setFleetModalState('fleet-device-logs-modal', true);
+  const deviceLabel = qs('fleet-device-logs-device');
+  if (deviceLabel) {
+    deviceLabel.textContent = cleanDeviceId;
+  }
+  const countLabel = qs('fleet-device-logs-count');
+  if (countLabel) {
+    countLabel.textContent = '0 gespeicherte Eintraege';
+  }
+  const body = qs('fleet-device-logs-body');
+  if (body) {
+    body.innerHTML = deviceLogsContentMarkup();
+  }
+  try {
+    const response = await request(`/fleet/devices/${encodeURIComponent(cleanDeviceId)}/logs?limit=120`);
+    const logs = Array.isArray(response?.logs) ? response.logs : [];
+    fleetState.deviceLogs = {
+      deviceId: cleanDeviceId,
+      entries: logs,
+      count: Number(response?.total_count ?? response?.count ?? logs.length ?? 0),
+      loading: false,
+      error: '',
+    };
+  } catch (error) {
+    fleetState.deviceLogs = {
+      deviceId: cleanDeviceId,
+      entries: [],
+      count: 0,
+      loading: false,
+      error: 'Logs konnten nicht geladen werden: ' + String(error.message ?? error),
+    };
+  }
+  const deviceLabelAfter = qs('fleet-device-logs-device');
+  if (deviceLabelAfter) {
+    deviceLabelAfter.textContent = cleanDeviceId;
+  }
+  const countLabelAfter = qs('fleet-device-logs-count');
+  if (countLabelAfter) {
+    countLabelAfter.textContent = `${String(fleetState.deviceLogs?.count || 0)} gespeicherte Eintraege`;
+  }
+  if (body) {
+    body.innerHTML = deviceLogsContentMarkup();
+  }
+}
+
 function fleetGuidedWorkspace(devices, onlineCount, anomalyCount, maintCount) {
   const devicesOffline = Math.max(0, Number(devices.length || 0) - Number(onlineCount || 0));
   return `
@@ -1151,6 +1256,14 @@ export async function renderFleetHealth() {
       setFleetModalState(modalId, true);
       return;
     }
+    const logsButton = event.target.closest('[data-device-logs]');
+    if (logsButton) {
+      const deviceId = String(logsButton.getAttribute('data-device-logs') || '').trim();
+      openDeviceLogsModal(deviceId).catch((error) => {
+        fleetHooks.setBanner('Logs konnten nicht geladen werden: ' + String(error.message ?? error), 'warn');
+      });
+      return;
+    }
     if (event.target.classList && event.target.classList.contains('fleet-registry-modal')) {
       closeFleetModals();
       return;
@@ -1347,7 +1460,8 @@ export async function renderFleetHealth() {
       <div class="fleet-policy-backing">${policyEditorSection()}</div>
       ${fleetExpertModal('fleet-alerts-modal', 'Alerts und Regeln', 'Predictive Alerts und Regelpflege an einem Ort.', predictiveAlertsMarkup(anomalies))}
       ${fleetExpertModal('fleet-remediation-modal', 'Remediation und Drift', 'Sichere Reparaturen, Drift-Analyse und Verlauf getrennt von der Hauptansicht.', remediationDriftMarkup())}
-      ${fleetExpertModal('fleet-topology-modal', 'Standorte und Gruppen', 'Standort- und Gruppenansicht für organisatorische Übersicht.', locationTreeSection())}`;
+        ${fleetExpertModal('fleet-topology-modal', 'Standorte und Gruppen', 'Standort- und Gruppenansicht für organisatorische Übersicht.', locationTreeSection())}
+        ${deviceLogsModalMarkup()}`;
   }
 
   container.querySelectorAll('[data-policy-id]').forEach((item) => {

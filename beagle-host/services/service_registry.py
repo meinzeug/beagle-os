@@ -58,6 +58,7 @@ from endpoint_token_store import EndpointTokenStoreService
 from enrollment_token_store import EnrollmentTokenStoreService
 from attestation_service import AttestationService
 from device_registry import DeviceRegistryService
+from device_log_service import DeviceLogService
 from fleet_inventory import FleetInventoryService
 from fleet_http_surface import FleetHttpSurfaceService
 from fleet_telemetry_service import FleetTelemetryService
@@ -138,6 +139,7 @@ from vm_state import VmStateService
 from vm_usb import VmUsbService
 from core.virtualization.desktop_pool import SessionRecordingPolicy
 from core.persistence.sqlite_db import BeagleDb
+from core.repository.device_log_repository import DeviceLogRepository
 from core.repository.pool_repository import PoolRepository
 from core.repository.device_repository import DeviceRepository
 from core.repository.vm_repository import VmRepository
@@ -1122,6 +1124,10 @@ def _device_repository() -> DeviceRepository:
     return DeviceRepository(_beagle_db())
 
 
+def _device_log_repository() -> DeviceLogRepository:
+    return DeviceLogRepository(_beagle_db())
+
+
 def _vm_repository() -> VmRepository:
     return VmRepository(_beagle_db())
 
@@ -1380,6 +1386,7 @@ MDM_POLICY_SERVICE: MDMPolicyService | None = None
 ATTESTATION_SERVICE: AttestationService | None = None
 FLEET_HTTP_SURFACE_SERVICE: FleetHttpSurfaceService | None = None
 FLEET_TELEMETRY_SERVICE: FleetTelemetryService | None = None
+DEVICE_LOG_SERVICE: DeviceLogService | None = None
 ALERT_SERVICE: AlertService | None = None
 MDM_POLICY_HTTP_SURFACE_SERVICE: MDMPolicyHttpSurfaceService | None = None
 CLUSTER_INVENTORY_SERVICE: ClusterInventoryService | None = None
@@ -3749,6 +3756,7 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
             build_vm_profile=build_profile,
             dequeue_vm_actions=dequeue_vm_actions,
             device_registry_service=device_registry_service(),
+            device_log_service=device_log_service(),
             mdm_policy_service=mdm_policy_service(),
             attestation_service=attestation_service(),
             fleet_telemetry_service=fleet_telemetry_service(),
@@ -5288,6 +5296,16 @@ def fleet_telemetry_service() -> FleetTelemetryService:
     return FLEET_TELEMETRY_SERVICE
 
 
+def device_log_service() -> DeviceLogService:
+    global DEVICE_LOG_SERVICE
+    if DEVICE_LOG_SERVICE is None:
+        DEVICE_LOG_SERVICE = DeviceLogService(
+            repository=_device_log_repository(),
+            utcnow=utcnow,
+        )
+    return DEVICE_LOG_SERVICE
+
+
 def alert_service() -> AlertService:
     global ALERT_SERVICE
     if ALERT_SERVICE is None:
@@ -5308,6 +5326,7 @@ def fleet_http_surface_service() -> FleetHttpSurfaceService:
     if FLEET_HTTP_SURFACE_SERVICE is None:
         FLEET_HTTP_SURFACE_SERVICE = FleetHttpSurfaceService(
             device_registry_service=device_registry_service(),
+            device_log_service=device_log_service(),
             mdm_policy_service=mdm_policy_service(),
             fleet_telemetry_service=fleet_telemetry_service(),
             alert_service=alert_service(),

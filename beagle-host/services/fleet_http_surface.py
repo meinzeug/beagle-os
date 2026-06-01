@@ -24,6 +24,7 @@ class FleetHttpSurfaceService:
     _FLEET_REMEDIATION_CONFIG = "/api/v1/fleet/remediation/config"
     _FLEET_REMEDIATION_HISTORY = "/api/v1/fleet/remediation/history"
     _FLEET_REMEDIATION_RUN = "/api/v1/fleet/remediation/run"
+    _DEVICE_LOGS = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/logs$")
     _DEVICE_DETAIL = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)$")
     _DEVICE_EFFECTIVE_POLICY = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/effective-policy$")
     _DEVICE_REMEDIATION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/remediation/execute$")
@@ -37,6 +38,7 @@ class FleetHttpSurfaceService:
         self,
         *,
         device_registry_service: Any,
+        device_log_service: Any | None = None,
         mdm_policy_service: Any | None = None,
         fleet_telemetry_service: Any | None = None,
         alert_service: Any | None = None,
@@ -49,6 +51,7 @@ class FleetHttpSurfaceService:
         version: str = "",
     ) -> None:
         self._registry = device_registry_service
+        self._device_logs = device_log_service
         self._mdm_policy = mdm_policy_service
         self._telemetry = fleet_telemetry_service
         self._alerts = alert_service
@@ -430,6 +433,8 @@ class FleetHttpSurfaceService:
             return True
         if path == self._DEVICE_GROUPS:
             return True
+        if self._DEVICE_LOGS.match(path):
+            return True
         if self._DEVICE_EFFECTIVE_POLICY.match(path):
             return True
         return self._DEVICE_DETAIL.match(path) is not None
@@ -578,6 +583,26 @@ class FleetHttpSurfaceService:
                         remediation_hints=bundle["remediation_hints"],
                         remediation_actions=bundle["remediation_actions"],
                         policy=bundle["policy"],
+                    ),
+                },
+            )
+        match = self._DEVICE_LOGS.match(path)
+        if match is not None:
+            device = self._registry.get_device(match.group("device_id"))
+            if device is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
+            limit = int(str((params.get("limit") or ["200"])[0] or "200"))
+            source = str((params.get("source") or [""])[0] or "").strip() or None
+            logs = self._device_logs.list_recent(device.device_id, limit=limit, source=source) if self._device_logs is not None else []
+            return self._json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        device_id=str(device.device_id),
+                        logs=logs,
+                        count=len(logs),
+                        total_count=self._device_logs.count(device.device_id) if self._device_logs is not None else len(logs),
                     ),
                 },
             )

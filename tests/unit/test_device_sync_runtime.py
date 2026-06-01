@@ -217,3 +217,42 @@ def test_runtime_device_sync_payload_includes_runtime_report(tmp_path: Path) -> 
     assert runtime_report["lock_screen_backend"] == "zenity"
     assert runtime_report["session_type"] == "x11"
     assert runtime_report["x11_displays"] == [":0", ":1"]
+
+
+def test_runtime_device_sync_payload_includes_log_bundle(tmp_path: Path) -> None:
+    bindir = tmp_path / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    _write_stub(
+        bindir / "nproc",
+        "#!/usr/bin/env bash\nprintf '4\\n'\n",
+    )
+    _write_stub(
+        bindir / "journalctl",
+        "#!/usr/bin/env bash\ncat <<'EOF'\n2026-04-28T06:05:00Z thinclient beagle-runtime-heartbeat: heartbeat ok\n2026-04-28T06:05:01Z thinclient beagle-kiosk: kiosk started\nEOF\n",
+    )
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "runtime-heartbeat.status").write_text(
+        "timestamp='2026-04-28T06:05:00Z'\nstreaming='1'\n",
+        encoding="utf-8",
+    )
+    (state_dir / "runtime-trace.log").write_text(
+        "[2026-04-28T06:05:00Z] phase=heartbeat xorg=1\n",
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    cmd = (
+        f"source {SCRIPT}\n"
+        f"export BEAGLE_STATE_DIR={state_dir}\n"
+        "runtime_device_sync_payload endpoint-001 thin-01 wg-beagle 0 ''\n"
+    )
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, text=True, capture_output=True, check=True)
+    payload = json.loads(result.stdout)
+    logs = payload["logs"]
+    assert logs["captured_at"]
+    assert any(entry["source"] == "runtime-heartbeat.status" for entry in logs["entries"])
+    assert any(entry["source"] == "runtime-trace.log" for entry in logs["entries"])
+    assert any(entry["source"] == "journal:beagle-runtime" for entry in logs["entries"])
