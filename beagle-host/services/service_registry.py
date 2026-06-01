@@ -5328,10 +5328,12 @@ def fleet_http_surface_service() -> FleetHttpSurfaceService:
         FLEET_HTTP_SURFACE_SERVICE = FleetHttpSurfaceService(
             device_registry_service=device_registry_service(),
             device_log_service=device_log_service(),
+            find_vm=lambda vmid: VIRTUALIZATION_INVENTORY.find_vm(vmid),
             mdm_policy_service=mdm_policy_service(),
             fleet_telemetry_service=fleet_telemetry_service(),
             alert_service=alert_service(),
             list_endpoint_reports=list_endpoint_reports,
+            queue_vm_action=queue_vm_action,
             audit_event=audit_log_service().write_event,
             requester_identity=lambda: "",
             service_name="beagle-control-plane",

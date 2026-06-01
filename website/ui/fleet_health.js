@@ -55,6 +55,45 @@ function actionButton(label, action, tone, deviceId) {
   return `<button type="button" class="btn btn-${escapeHtml(tone)}" data-fleet-action="${escapeHtml(action)}" data-device-id="${escapeHtml(deviceId)}">${escapeHtml(label)}</button>`;
 }
 
+function fleetActionIcon(name) {
+  if (name === 'configure') {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-.4-1.1 1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.8a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.1-.4 1.7 1.7 0 0 0 .6-1A1.7 1.7 0 0 0 4.26 6.3l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6h.1a1.7 1.7 0 0 0 1.1-.4 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 .4 1.1 1.7 1.7 0 0 0 1 .6 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.25.3.5.66.6 1 .07.35.1.71.1 1.1s-.03.75-.1 1.1c-.1.34-.35.7-.6 1Z"></path></svg>';
+  }
+  if (name === 'logs') {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h6"></path><path d="M8 9h2"></path></svg>';
+  }
+  if (name === 'policy') {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4Z"></path><path d="m9.5 12 1.7 1.7 3.8-3.8"></path></svg>';
+  }
+  if (name === 'lock') {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 1 1 8 0v3"></path></svg>';
+  }
+  if (name === 'unlock') {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 7.2-2.4"></path></svg>';
+  }
+  if (name === 'restart-launcher') {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path><path d="M12 8v4l3 2"></path></svg>';
+  }
+  if (name === 'reboot') {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3.2-6.9"></path><path d="M21 3v6h-6"></path></svg>';
+  }
+  if (name === 'shutdown') {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v10"></path><path d="M18.4 5.6a9 9 0 1 1-12.8 0"></path></svg>';
+  }
+  if (name === 'wipe') {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>';
+}
+
+function fleetDeviceIconButton({ action = '', deviceId = '', label = '', tone = '', dataAttr = 'data-fleet-action' } = {}) {
+  const classes = ['icon-button', 'fleet-device-action'];
+  if (tone) classes.push(tone);
+  const attributeName = String(dataAttr || 'data-fleet-action');
+  const iconName = action === 'policy-select' ? 'policy' : action;
+  return `<button type="button" class="${escapeHtml(classes.join(' '))}" ${escapeHtml(attributeName)}="${escapeHtml(deviceId)}" data-device-id="${escapeHtml(deviceId)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${fleetActionIcon(iconName)}</button>`;
+}
+
 function policyBadge(device) {
   const deviceAssignments = fleetState.assignments?.device_assignments || {};
   const groupAssignments = fleetState.assignments?.group_assignments || {};
@@ -69,18 +108,23 @@ function deviceActionButtons(device) {
   const deviceId = String(device.device_id ?? '');
   const status = String(device.status ?? '').trim().toLowerCase();
   const buttons = [];
-  buttons.push(`<button type="button" class="btn btn-primary" data-custom-device-edit="${escapeHtml(deviceId)}">Konfigurieren</button>`);
-  buttons.push(`<button type="button" class="btn btn-ghost" data-device-logs="${escapeHtml(deviceId)}">Logs</button>`);
-  buttons.push(actionButton('Policy', 'policy-select', 'ghost', deviceId));
+  buttons.push(fleetDeviceIconButton({ deviceId, label: 'ThinClient konfigurieren', tone: 'primary', dataAttr: 'data-custom-device-edit', action: 'configure' }));
+  buttons.push(fleetDeviceIconButton({ deviceId, label: 'ThinClient Logs anzeigen', dataAttr: 'data-device-logs', action: 'logs' }));
+  buttons.push(fleetDeviceIconButton({ deviceId, label: 'Effective Policy anzeigen', action: 'policy-select' }));
   if (status === 'locked') {
-    buttons.push(actionButton('Entsperren', 'unlock', 'ghost', deviceId));
+    buttons.push(fleetDeviceIconButton({ deviceId, label: 'ThinClient entsperren', action: 'unlock' }));
   } else if (status !== 'wiped') {
-    buttons.push(actionButton('Sperren', 'lock', 'ghost', deviceId));
+    buttons.push(fleetDeviceIconButton({ deviceId, label: 'ThinClient sperren', action: 'lock' }));
+  }
+  if (status !== 'wiped') {
+    buttons.push(fleetDeviceIconButton({ deviceId, label: 'Launcher auf dem ThinClient neu starten', action: 'restart-launcher' }));
+    buttons.push(fleetDeviceIconButton({ deviceId, label: 'ThinClient neu starten', action: 'reboot' }));
+    buttons.push(fleetDeviceIconButton({ deviceId, label: 'ThinClient ausschalten', action: 'shutdown' }));
   }
   if (status !== 'wiped' && status !== 'wipe_pending') {
-    buttons.push(actionButton('Wipe', 'wipe', 'danger', deviceId));
+    buttons.push(fleetDeviceIconButton({ deviceId, label: 'Remote-Wipe vormerken', tone: 'danger', action: 'wipe' }));
   }
-  return buttons.length ? `<div class="button-row compact-row">${buttons.join('')}</div>` : '<span class="badge tone-muted">-</span>';
+  return buttons.length ? `<div class="button-row compact-row fleet-device-actions">${buttons.join('')}</div>` : '<span class="badge tone-muted">-</span>';
 }
 
 function deviceGroups() {
@@ -640,6 +684,31 @@ function locationTreeSection() {
 }
 
 function actionMeta(action) {
+  if (action === 'restart-launcher') {
+    return {
+      title: 'Launcher neu starten',
+      message: 'Den Launcher auf dem ThinClient neu starten?',
+      confirmLabel: 'Launcher neu starten',
+      success: 'Launcher-Neustart eingereiht.'
+    };
+  }
+  if (action === 'reboot') {
+    return {
+      title: 'ThinClient neu starten',
+      message: 'Den ThinClient neu starten?',
+      confirmLabel: 'Neu starten',
+      success: 'ThinClient-Neustart eingereiht.'
+    };
+  }
+  if (action === 'shutdown') {
+    return {
+      title: 'ThinClient ausschalten',
+      message: 'Den ThinClient herunterfahren?',
+      confirmLabel: 'Ausschalten',
+      danger: true,
+      success: 'ThinClient-Herunterfahren eingereiht.'
+    };
+  }
   if (action === 'unlock') {
     return {
       title: 'Geraet entsperren',

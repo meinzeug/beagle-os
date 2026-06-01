@@ -37,6 +37,8 @@ def make_services(
     tmp_path: Path,
     *,
     endpoint_reports: list[dict[str, object]] | None = None,
+    find_vm=None,
+    queue_vm_action=None,
 ) -> tuple[DeviceRegistryService, MDMPolicyService, FleetTelemetryService, AlertService, FleetHttpSurfaceService]:
     audit_events: list[tuple[str, str, dict[str, object]]] = []
     db = BeagleDb(tmp_path / "state.db")
@@ -53,10 +55,12 @@ def make_services(
     service = FleetHttpSurfaceService(
         device_registry_service=registry,
         device_log_service=logs,
+        find_vm=find_vm,
         mdm_policy_service=mdm,
         fleet_telemetry_service=telemetry,
         alert_service=alerts,
         list_endpoint_reports=lambda: list(endpoint_reports or []),
+        queue_vm_action=queue_vm_action,
         audit_event=lambda event_type, outcome, **details: audit_events.append((event_type, outcome, details)),
         requester_identity=lambda: "admin",
         remediation_state_file=tmp_path / "fleet-remediation.json",
@@ -245,6 +249,60 @@ def test_post_actions_change_state(tmp_path: Path) -> None:
     wiped = service.route_post("/api/v1/fleet/devices/dev-001/confirm-wiped", json_payload={})
     assert wiped is not None
     assert wiped["payload"]["device"]["status"] == "wiped"
+
+
+def test_post_endpoint_actions_queue_runtime_commands(tmp_path: Path) -> None:
+    queued: list[dict[str, object]] = []
+
+    class VmStub:
+        vmid = 101
+        node = "beagle-0"
+
+    def queue_runtime_action(vm, action_name: str, requested_by: str, params=None) -> dict[str, object]:
+        payload = {
+            "action_id": f"{vm.node}-{vm.vmid}-1",
+            "action": action_name,
+            "vmid": vm.vmid,
+            "node": vm.node,
+            "requested_by": requested_by,
+        }
+        queued.append(payload)
+        return payload
+
+    registry, _, _, _, service = make_services(
+        tmp_path,
+        endpoint_reports=[
+            {
+                "endpoint_id": "dev-001",
+                "hostname": "tc-001",
+                "reported_at": "2026-04-28T06:05:00Z",
+                "vmid": 101,
+                "node": "beagle-0",
+            }
+        ],
+        find_vm=lambda vmid: VmStub() if int(vmid) == 101 else None,
+        queue_vm_action=queue_runtime_action,
+    )
+    registry.register_device("dev-001", "tc-001", HW)
+
+    response = service.route_post("/api/v1/fleet/devices/dev-001/restart-launcher", json_payload={}, requester="operator")
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.ACCEPTED
+    assert response["payload"]["queued_action"]["action"] == "restart-session"
+    assert response["payload"]["queued_action"]["vmid"] == 101
+    assert queued[0]["requested_by"] == "operator"
+
+
+def test_post_endpoint_actions_require_endpoint_mapping(tmp_path: Path) -> None:
+    registry, _, _, _, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+
+    response = service.route_post("/api/v1/fleet/devices/dev-001/reboot", json_payload={})
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.CONFLICT
+    assert response["payload"]["error"] == "device endpoint is not currently mapped to a VM"
 
 
 def test_put_and_actions_emit_audit_events(tmp_path: Path) -> None:

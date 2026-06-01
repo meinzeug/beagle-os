@@ -176,6 +176,7 @@ while IFS= read -r action_json; do
   stored_artifact_download_path=""
   stored_artifact_size="0"
   post_action_reboot="0"
+  post_action_shutdown="0"
   case "$action_name" in
     healthcheck)
       /usr/local/sbin/beagle-healthcheck >/dev/null 2>&1 || ok="0"
@@ -193,6 +194,18 @@ while IFS= read -r action_json; do
       systemctl restart beagle-thin-client-prepare.service >/dev/null 2>&1 || systemctl restart pve-thin-client-prepare.service >/dev/null 2>&1 || ok="0"
       systemctl restart beagle-autologin.service >/dev/null 2>&1 || ok="0"
       message="runtime preparation restarted"
+      ;;
+    restart-launcher)
+      systemctl restart beagle-autologin.service >/dev/null 2>&1 || ok="0"
+      message="thin client launcher restarted"
+      ;;
+    reboot)
+      message="thin client reboot queued"
+      [[ "$ok" == "1" ]] && post_action_reboot="1"
+      ;;
+    shutdown)
+      message="thin client shutdown queued"
+      [[ "$ok" == "1" ]] && post_action_shutdown="1"
       ;;
     support-bundle)
       artifact_path="$(/usr/local/sbin/beagle-support-bundle 2>/dev/null || true)"
@@ -309,6 +322,10 @@ EOF
   rm -f "$result_payload"
   if [[ "$post_action_reboot" == "1" ]]; then
     systemctl reboot >/dev/null 2>&1 || true
+    break
+  fi
+  if [[ "$post_action_shutdown" == "1" ]]; then
+    systemctl poweroff >/dev/null 2>&1 || true
     break
   fi
 done <"$STATE_DIR/.beagle-endpoint-actions.list"

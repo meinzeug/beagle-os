@@ -71,7 +71,15 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "loadRemediationControlState" in js
     assert "saveRemediationConfig" in js
     assert "requestConfirm" in js
+    assert "fleetDeviceIconButton" in js
+    assert "fleet-device-action" in js
     assert "Remote-Wipe anfordern" in js
+    assert "Launcher neu starten" in js
+    assert "ThinClient neu starten" in js
+    assert "ThinClient ausschalten" in js
+    assert "restart-launcher" in js
+    assert "reboot" in js
+    assert "shutdown" in js
     assert "MDM Policies" in js
     assert "Policy Editor" in js
     assert "Policy Validierung" in js

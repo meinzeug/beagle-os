@@ -11,6 +11,10 @@
 .button.small, .btn.btn-small { min-height: 30px; padding: 0 10px; font-size: 0.78rem; }
 .icon-button { width: 36px; height: 36px; padding: 0; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all var(--transition); }
 .icon-button:hover { background: var(--bg-card-hover); color: var(--text); }
+.icon-button.danger { color: var(--danger); border-color: rgba(255, 111, 94, 0.35); background: var(--danger-soft); }
+.icon-button.danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+.icon-button.primary { background: linear-gradient(135deg, var(--orange) 0%, var(--magenta) 100%); color: #fff; border-color: var(--orange); box-shadow: 0 8px 18px rgba(255, 138, 61, 0.25); }
+.icon-button.primary:hover { background: linear-gradient(135deg, var(--orange) 10%, var(--magenta-dim) 100%); border-color: var(--orange); color: #fff; }
 .icon-button svg { width: 18px; height: 18px; }
 .account-shell { position: relative; }
 .avatar-button { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); cursor: pointer; font-weight: 600; font-size: 0.82rem; transition: all var(--transition); }

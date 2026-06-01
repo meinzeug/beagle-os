@@ -28,7 +28,7 @@ class FleetHttpSurfaceService:
     _DEVICE_DETAIL = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)$")
     _DEVICE_EFFECTIVE_POLICY = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/effective-policy$")
     _DEVICE_REMEDIATION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/remediation/execute$")
-    _DEVICE_ACTION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/(?P<action>heartbeat|lock|unlock|wipe|confirm-wiped)$")
+    _DEVICE_ACTION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/(?P<action>heartbeat|lock|unlock|wipe|confirm-wiped|restart-launcher|reboot|shutdown)$")
     _DEVICE_BULK_ACTIONS = "/api/v1/fleet/devices/actions/bulk"
     _DEVICE_GROUPS = "/api/v1/fleet/devices/groups"
     _FLEET_ALERT_RULE = re.compile(r"^/api/v1/fleet/alerts/rules/(?P<rule_id>[A-Za-z0-9._:-]+)$")
@@ -39,10 +39,12 @@ class FleetHttpSurfaceService:
         *,
         device_registry_service: Any,
         device_log_service: Any | None = None,
+        find_vm: Callable[[int], Any | None] | None = None,
         mdm_policy_service: Any | None = None,
         fleet_telemetry_service: Any | None = None,
         alert_service: Any | None = None,
         list_endpoint_reports: Callable[[], list[dict[str, Any]]] | None = None,
+        queue_vm_action: Callable[[Any, str, str, dict[str, Any] | None], dict[str, Any]] | None = None,
         audit_event: Callable[..., None] | None = None,
         requester_identity: Callable[[], str] | None = None,
         remediation_state_file: Path | None = None,
@@ -52,10 +54,12 @@ class FleetHttpSurfaceService:
     ) -> None:
         self._registry = device_registry_service
         self._device_logs = device_log_service
+        self._find_vm = find_vm or (lambda _vmid: None)
         self._mdm_policy = mdm_policy_service
         self._telemetry = fleet_telemetry_service
         self._alerts = alert_service
         self._list_endpoint_reports = list_endpoint_reports or (lambda: [])
+        self._queue_vm_action = queue_vm_action
         self._audit_event = audit_event
         self._requester_identity = requester_identity or (lambda: "")
         self._service_name = str(service_name or "beagle-control-plane")
@@ -360,6 +364,31 @@ class FleetHttpSurfaceService:
     def _endpoint_update_payload(report: dict[str, Any]) -> dict[str, Any]:
         update = report.get("update") if isinstance(report.get("update"), dict) else {}
         return update if isinstance(update, dict) else {}
+
+    def _queue_endpoint_action(
+        self,
+        *,
+        device: Any,
+        action_name: str,
+        requested_by: str,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        report = self._endpoint_report_for_device(device)
+        try:
+            vmid = int(report.get("vmid") or 0)
+        except (TypeError, ValueError):
+            vmid = 0
+        if vmid <= 0:
+            raise LookupError("device endpoint is not currently mapped to a VM")
+        if self._queue_vm_action is None:
+            raise ValueError("endpoint action queue unavailable")
+        vm = self._find_vm(vmid)
+        if vm is None:
+            raise LookupError(f"VM {vmid} not found")
+        return self._queue_vm_action(vm, action_name, requested_by, params)
+
+    def _queue_endpoint_action_for_device(self, *, device: Any, action: str, requester: str) -> dict[str, Any]:
+        return self._queue_endpoint_action(device=device, action_name=action, requested_by=requester or self._requester_identity())
 
     def _effective_engine_update_status(self, device: Any, report: dict[str, Any]) -> str:
         registry_status = str(getattr(device, "update_status", "idle") or "idle")
@@ -675,6 +704,8 @@ class FleetHttpSurfaceService:
             return {"status": str(updated.status), "changed": True}, action
         if action == "await-wipe-confirmation":
             return {"changed": False, "status": str(getattr(device, "status", "") or "")}, action
+        if action in {"restart-launcher", "restart-thin-client", "shutdown-thin-client"}:
+            raise ValueError("unsupported remediation action: device control actions must be queued from the fleet device row")
         if action in {"restrict-allowed-pools", "restrict-allowed-networks", "restrict-allowed-codecs"}:
             if self._mdm_policy is None:
                 raise ValueError("mdm policy service unavailable")
@@ -914,6 +945,60 @@ class FleetHttpSurfaceService:
             return None
         device_id = match.group("device_id")
         action = match.group("action")
+        if action in {"restart-launcher", "restart-thin-client", "shutdown-thin-client"}:
+            device = self._registry.get_device(device_id)
+            if device is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
+            action_name = {
+                "restart-launcher": "restart-session",
+                "restart-thin-client": "restart-runtime",
+                "shutdown-thin-client": "shutdown-thin-client",
+            }[action]
+            try:
+                queued = self._queue_endpoint_action(
+                    device=device,
+                    action_name=action_name,
+                    requested_by=requester_name or self._requester_identity(),
+                    params={"device_id": device_id},
+                )
+            except LookupError as exc:
+                return self._json(HTTPStatus.CONFLICT, {"ok": False, "error": str(exc)})
+            except ValueError as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._safe_audit_event(
+                f"fleet.device.{action}",
+                "success",
+                username=requester_name or self._requester_identity(),
+                device_id=device_id,
+                vmid=int(queued.get("vmid") or 0),
+                action_id=str(queued.get("action_id") or ""),
+            )
+            return self._json(
+                HTTPStatus.ACCEPTED,
+                {"ok": True, "action": action, **self._envelope(queued_action=queued, device=self._device_to_dict(device))}
+            )
+        if action in {"restart-launcher", "reboot", "shutdown"}:
+            device = self._registry.get_device(device_id)
+            if device is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
+            try:
+                queued_action = self._queue_endpoint_action_for_device(device=device, action=action, requester=requester_name)
+            except LookupError as exc:
+                return self._json(HTTPStatus.CONFLICT, {"ok": False, "error": str(exc)})
+            except ValueError as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._safe_audit_event(
+                f"fleet.device.{action}",
+                "success",
+                username=requester_name or self._requester_identity(),
+                device_id=device_id,
+                vmid=int(queued_action.get("vmid") or 0),
+                queued_action=str(queued_action.get("action") or action),
+            )
+            return self._json(
+                HTTPStatus.ACCEPTED,
+                {"ok": True, "action": action, **self._envelope(device=self._device_to_dict(device), queued_action=queued_action)},
+            )
         try:
             if action == "heartbeat":
                 device = self._registry.update_heartbeat(device_id, metrics=payload.get("metrics"))
