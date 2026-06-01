@@ -795,7 +795,7 @@ jobs:
               f"expected release class {expected_release_class}, got {data.get('release_class')!r}/{data.get('channel')!r}"
             )
           for key in ('payload_url', 'bootstrap_url'):
-              value = str(data.get(key) or '')
+            value = str(data.get(key) or '')
             if not value.startswith(expected_base_url + '/'):
               raise SystemExit(
                 f"expected {key} to stay in {expected_base_url}/ mirror, got {value!r}"
