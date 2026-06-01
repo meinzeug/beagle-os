@@ -104,3 +104,14 @@ class DeviceLogRepository:
                 (str(device_id), str(device_id), keep),
             )
             return int(cursor.rowcount or 0)
+
+    def prune_older_than(self, device_id: str, *, cutoff: str) -> int:
+        cutoff_value = str(cutoff or "").strip()
+        if not cutoff_value:
+            return 0
+        with self._db.connect():
+            cursor = self._db.connect().execute(
+                "DELETE FROM device_logs WHERE device_id = ? AND captured_at <> '' AND captured_at < ?",
+                (str(device_id), cutoff_value),
+            )
+            return int(cursor.rowcount or 0)

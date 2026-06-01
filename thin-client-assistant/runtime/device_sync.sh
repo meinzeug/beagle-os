@@ -209,9 +209,27 @@ PY
 }
 
 runtime_device_log_bundle_json() {
-  local state_dir enabled
+  local state_dir enabled update_env_file
   state_dir="$(beagle_state_dir)"
+  update_env_file="$state_dir/device-updates.env"
   enabled="${PVE_THIN_CLIENT_BEAGLE_LOG_CAPTURE_ENABLED:-1}"
+  if [[ -z "${PVE_THIN_CLIENT_BEAGLE_LOG_CAPTURE_ENABLED+x}" && -r "$update_env_file" ]]; then
+    enabled="$(python3 - "$update_env_file" <<'PY'
+import sys
+from pathlib import Path
+
+value = ""
+for line in Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines():
+    line = line.strip()
+    if not line.startswith("export PVE_THIN_CLIENT_BEAGLE_LOG_CAPTURE_ENABLED="):
+        continue
+    value = line.split("=", 1)[1].strip().strip("'\"")
+    break
+print(value)
+PY
+)"
+  fi
+  [[ -n "$enabled" ]] || enabled="1"
   python3 - "$state_dir" "$enabled" <<'PY'
 import json
 import shutil
@@ -631,6 +649,8 @@ update_env = {
   "PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN": beagle_os.get("target_version", "") or "",
   "PVE_THIN_CLIENT_SYSTEM_UPDATE_ENABLED": "1" if system.get("auto_update", False) else "0",
   "PVE_THIN_CLIENT_SYSTEM_UPDATE_TARGET": system.get("target", "") or "",
+  "PVE_THIN_CLIENT_BEAGLE_LOG_CAPTURE_ENABLED": "1" if bool((updates.get("logging") or {}).get("enabled", True)) else "0",
+  "PVE_THIN_CLIENT_BEAGLE_LOG_RETENTION_SECONDS": str((updates.get("logging") or {}).get("retention_seconds", 86400) or 86400),
 }
 update_env_content = "".join(f"export {key}={shell_value(value)}\n" for key, value in update_env.items())
 old_update_env = update_env_file.read_text(encoding="utf-8") if update_env_file.exists() else ""

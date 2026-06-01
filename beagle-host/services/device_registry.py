@@ -56,6 +56,19 @@ class Device:
     auto_sys_update: bool = False          # System-Updates (apt)
     sys_update_status: str = "idle"        # System update status
     target_sys_update: str = ""
+    log_capture_enabled: bool = True
+    log_retention_seconds: int = 86400
+
+
+def normalize_log_retention_seconds(value: Any) -> int:
+    allowed = {3600, 7200, 18000, 43200, 86400, 604800, 2592000}
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        normalized = 86400
+    if normalized not in allowed:
+        raise ValueError("log_retention_seconds must be one of 3600, 7200, 18000, 43200, 86400, 604800, 2592000")
+    return normalized
 
 
 def device_hardware_from_dict(d: dict[str, Any]) -> DeviceHardware:
@@ -98,6 +111,8 @@ def device_from_dict(d: dict[str, Any]) -> Device:
         auto_sys_update=bool(d.get("auto_sys_update", False)),
         sys_update_status=str(d.get("sys_update_status", "idle") or "idle"),
         target_sys_update=str(d.get("target_sys_update", "") or ""),
+        log_capture_enabled=bool(d.get("log_capture_enabled", True)),
+        log_retention_seconds=normalize_log_retention_seconds(d.get("log_retention_seconds", 86400)),
     )
 
 
@@ -310,6 +325,8 @@ class DeviceRegistryService:
         auto_sys_update: bool | None = None,
         sys_update_status: str | None = None,
         target_sys_update: str | None = None,
+        log_capture_enabled: bool | None = None,
+        log_retention_seconds: int | None = None,
     ) -> Device:
         dev = self._require(device_id)
         if auto_update is not None:
@@ -326,6 +343,10 @@ class DeviceRegistryService:
             dev["sys_update_status"] = str(sys_update_status)
         if target_sys_update is not None:
             dev["target_sys_update"] = str(target_sys_update)
+        if log_capture_enabled is not None:
+            dev["log_capture_enabled"] = bool(log_capture_enabled)
+        if log_retention_seconds is not None:
+            dev["log_retention_seconds"] = normalize_log_retention_seconds(log_retention_seconds)
         self._save()
         return device_from_dict(dev)
 

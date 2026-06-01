@@ -565,6 +565,8 @@ def test_fleet_system_updates_and_auto_updates(tmp_path: Path) -> None:
             "target_sys_update": "security",
             "auto_update": False,
             "target_os_version": "v1.2.3",
+            "log_capture_enabled": False,
+            "log_retention_seconds": 43200,
         }
     )
     assert response is not None
@@ -575,6 +577,8 @@ def test_fleet_system_updates_and_auto_updates(tmp_path: Path) -> None:
     assert dev["target_sys_update"] == "security"
     assert dev["auto_update"] is False
     assert dev["target_os_version"] == "v1.2.3"
+    assert dev["log_capture_enabled"] is False
+    assert dev["log_retention_seconds"] == 43200
 
     # 2. Test Bulk action endpoint for installing both system updates (apt) & os engine updates
     bulk_resp = service.route_post(

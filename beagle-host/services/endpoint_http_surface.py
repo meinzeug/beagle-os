@@ -147,6 +147,10 @@ class EndpointHttpSurfaceService:
                 "status": system_status,
                 "install_requested": bool(system_target) or system_status == "installing",
             },
+            "logging": {
+                "enabled": bool(getattr(device, "log_capture_enabled", True)),
+                "retention_seconds": int(getattr(device, "log_retention_seconds", 86400) or 86400),
+            },
         }
 
     def _network_mode_for_pool(self, pool_id: str) -> str:

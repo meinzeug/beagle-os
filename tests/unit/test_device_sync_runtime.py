@@ -102,6 +102,10 @@ def test_apply_runtime_sync_response_persists_update_targets_and_markers(tmp_pat
                         "status": "installing",
                         "install_requested": True,
                     },
+                    "logging": {
+                        "enabled": False,
+                        "retention_seconds": 43200,
+                    },
                 },
                 "policy": {},
             }
@@ -124,8 +128,40 @@ def test_apply_runtime_sync_response_persists_update_targets_and_markers(tmp_pat
     assert "PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN='v8.4.0'" in update_env
     assert "PVE_THIN_CLIENT_SYSTEM_UPDATE_ENABLED='1'" in update_env
     assert "PVE_THIN_CLIENT_SYSTEM_UPDATE_TARGET='security'" in update_env
+    assert "PVE_THIN_CLIENT_BEAGLE_LOG_CAPTURE_ENABLED='0'" in update_env
+    assert "PVE_THIN_CLIENT_BEAGLE_LOG_RETENTION_SECONDS='43200'" in update_env
     assert (state_dir / "beagle-os-update.requested").read_text(encoding="utf-8").strip() == "v8.4.0"
     assert (state_dir / "system-update.requested").read_text(encoding="utf-8").strip() == "security"
+
+
+def test_runtime_device_sync_payload_respects_log_capture_flag_from_update_env(tmp_path: Path) -> None:
+    bindir = tmp_path / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    _write_stub(
+        bindir / "nproc",
+        "#!/usr/bin/env bash\nprintf '4\\n'\n",
+    )
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "device-updates.env").write_text(
+        "export PVE_THIN_CLIENT_BEAGLE_LOG_CAPTURE_ENABLED='0'\n",
+        encoding="utf-8",
+    )
+    (state_dir / "runtime-trace.log").write_text("trace-entry\n", encoding="utf-8")
+    (state_dir / "runtime-heartbeat.status").write_text("heartbeat-entry\n", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    cmd = (
+        f"source {SCRIPT}\n"
+        f"export BEAGLE_STATE_DIR={state_dir}\n"
+        "runtime_device_sync_payload endpoint-001 thin-01 wg-beagle 0 ''\n"
+    )
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, text=True, capture_output=True, check=True)
+    payload = json.loads(result.stdout)
+
+    assert payload["logs"]["entries"] == []
 
 
 def test_runtime_device_sync_payload_marks_wireguard_state(tmp_path: Path) -> None:

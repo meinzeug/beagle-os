@@ -89,6 +89,8 @@ def _service(
                 "auto_sys_update": self.devices.get(device_id, {}).get("auto_sys_update", False),
                 "sys_update_status": self.devices.get(device_id, {}).get("sys_update_status", "idle"),
                 "target_sys_update": self.devices.get(device_id, {}).get("target_sys_update", ""),
+                "log_capture_enabled": self.devices.get(device_id, {}).get("log_capture_enabled", True),
+                "log_retention_seconds": self.devices.get(device_id, {}).get("log_retention_seconds", 86400),
             }
             return type("Device", (), self.devices[device_id])()
 
@@ -567,6 +569,8 @@ def test_device_sync_route_returns_persisted_offline_update_targets() -> None:
         auto_sys_update=True,
         target_sys_update="security",
         sys_update_status="installing",
+        log_capture_enabled=False,
+        log_retention_seconds=604800,
     )
 
     response = service.route_post(
@@ -590,6 +594,10 @@ def test_device_sync_route_returns_persisted_offline_update_targets() -> None:
         "target": "security",
         "status": "installing",
         "install_requested": True,
+    }
+    assert response["payload"]["updates"]["logging"] == {
+        "enabled": False,
+        "retention_seconds": 604800,
     }
     assert response["payload"]["commands"]["install_update"] is True
     assert response["payload"]["commands"]["install_sys_update"] is True

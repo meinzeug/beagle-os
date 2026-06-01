@@ -965,6 +965,26 @@
                             <button type="button" class="button primary small" id="trigger-device-sys-update">System-Updates starten</button>
                           </div>
                         </div>
+
+                        <div>
+                          <h4 class="settings-update-section-title">ThinClient Logging</h4>
+                          <label class="settings-switch settings-switch-spaced">
+                            <input type="checkbox" id="edit-device-log-capture-enabled">
+                            <span class="settings-switch-track" aria-hidden="true"></span>
+                            <span><strong>Logging aktiv</strong><small>ThinClient-Logs live erfassen und in der Fleet-Ansicht anzeigen</small></span>
+                          </label>
+                          <label class="field"><span>Log-Aufbewahrung</span>
+                            <select id="edit-device-log-retention-seconds">
+                              <option value="3600">1 Stunde</option>
+                              <option value="7200">2 Stunden</option>
+                              <option value="18000">5 Stunden</option>
+                              <option value="43200">12 Stunden</option>
+                              <option value="86400">24 Stunden</option>
+                              <option value="604800">7 Tage</option>
+                              <option value="2592000">1 Monat</option>
+                            </select>
+                          </label>
+                        </div>
                       </div>
                     </div>
                   </div>

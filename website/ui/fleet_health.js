@@ -15,6 +15,8 @@ const fleetHooks = {
 const fleetState = {
   devices: [],
   groups: [],
+  anomalies: [],
+  maintenance: [],
   selectedGroupFilter: '__all__',
   editingDeviceId: '',
   deviceLogs: { deviceId: '', entries: [], count: 0, loading: false, error: '' },
@@ -205,6 +207,338 @@ function filteredDevicesByGroup(devices) {
   if (selected === '__all__') return devices;
   if (selected === '__none__') return devices.filter((device) => !String(device.group || '').trim());
   return devices.filter((device) => String(device.group || '').trim() === selected);
+}
+
+function fleetRegistryStats(devices, anomalies, maintenance) {
+  return {
+    anomalyCount: Array.isArray(anomalies) ? anomalies.length : 0,
+    maintCount: Array.isArray(maintenance) ? maintenance.filter((item) => item.status === 'pending').length : 0,
+    onlineCount: Array.isArray(devices) ? devices.filter((item) => String(item.status || '').trim() === 'online').length : 0,
+  };
+}
+
+function fleetRegistryLiveShellMarkup(devices, anomalies, maintenance, policies) {
+  if (!devices.length) {
+    return '<div class="empty-card">Keine Geräte erfasst.</div>';
+  }
+
+  const visibleDevices = filteredDevicesByGroup(devices);
+  const rows = visibleDevices.map((device) => deviceRow(device, anomalies, maintenance)).join('');
+  const { anomalyCount, maintCount, onlineCount } = fleetRegistryStats(devices, anomalies, maintenance);
+
+  return `
+      ${fleetGuidedWorkspace(devices, onlineCount, anomalyCount, maintCount)}
+
+      <section class="section-spaced fleet-summary-section">
+        <h3 style="margin-bottom:12px;">Thin Clients Fleet</h3>
+        <div class="fleet-kpi-strip section-spaced-tight">
+          <div class="fleet-metric-card">
+            <span>Registrierte Thin-Clients</span>
+            <strong>${escapeHtml(String(devices.length))}</strong>
+          </div>
+          <div class="fleet-metric-card">
+            <span>Geräte Online</span>
+            <strong style="color: #1fc17f;">${escapeHtml(String(onlineCount))}</strong>
+          </div>
+          <div class="fleet-metric-card">
+            <span>Anomale Zustände</span>
+            <strong style="color: ${anomalyCount > 0 ? '#f17f7f' : '#1fc17f'};">${escapeHtml(String(anomalyCount))}</strong>
+          </div>
+          <div class="fleet-metric-card">
+            <span>Wartungen geplatzt/offen</span>
+            <strong style="color: ${maintCount > 0 ? '#f7b955' : 'var(--text-muted)'};">${escapeHtml(String(maintCount))}</strong>
+          </div>
+        </div>
+      </section>
+
+      ${fleetActionGuide()}
+
+      ${groupFilterBar(devices)}
+
+      <div class="fleet-bulk-bar" id="fleet-mass-toolbar">
+        <div class="fleet-bulk-controls">
+          <span class="fleet-bulk-label" id="fleet-bulk-selection-count">0 Geräte deselektiert</span>
+          
+          <select id="fleet-mass-action-type" class="fleet-bulk-select">
+            <option value="">Aktion wählen...</option>
+            <option value="set-group">Gruppe setzen</option>
+            <option value="set-location">Standort setzen</option>
+            <option value="set-update-channel">Beagle OS Update-Kanal festlegen</option>
+            <option value="install-update">Beagle OS Engine Update einspielen</option>
+            <option value="set-auto-update">Beagle OS Engine Auto-Update umschalten</option>
+            <option value="install-sys-update">System-Updates (apt) starten</option>
+            <option value="set-auto-sys-update">System Auto-Update (apt) umschalten</option>
+            <option value="lock">Geräte sperren (Lock)</option>
+            <option value="unlock">Geräte entsperren</option>
+          </select>
+
+          <input type="text" id="fleet-mass-action-value" class="fleet-bulk-input" placeholder="Wert..." title="Wert für die Bulk Aktion">
+
+          <button type="button" class="button primary" id="execute-fleet-mass-action">Bulk ausführen</button>
+        </div>
+        <button type="button" class="button ghost small" id="clear-fleet-selection">Abbrechen</button>
+      </div>
+
+      <section class="section-spaced">
+      <div class="fleet-table-head">
+        <div>
+          <span class="eyebrow">Geräteliste</span>
+          <h3>Alle Thin Clients auf einen Blick</h3>
+          <p class="muted-text">Status, Versionen und Updates bleiben in einer einzigen Tabelle sichtbar. Gruppenfilter blenden Geräte gezielt ein oder aus.</p>
+        </div>
+        <div class="button-row compact-row">
+          <button type="button" class="button ghost small" data-fleet-modal="fleet-policy-preview-modal">Aktive Policy prüfen</button>
+          <button type="button" class="button ghost small" data-fleet-modal="fleet-topology-modal">Standorte ansehen</button>
+        </div>
+      </div>
+      <div class="table-wrap compact fleet-table-wrap">
+      <table class="vm-table compact-table">
+        <thead>
+          <tr>
+            <th class="table-checkbox-col"><input type="checkbox" id="fleet-select-all-checkbox"></th>
+            <th>Geräte ID</th>
+            <th>Hostname</th>
+            <th>Status</th>
+            <th>Standort / Gruppe</th>
+            <th>CPU / RAM</th>
+            <th>MDM Policy</th>
+            <th>Letzter Heartbeat</th>
+            <th>Update-Zustand &amp; Modi</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="10"><div class="empty-card">Keine ThinClients in dieser Gruppe.</div></td></tr>'}</tbody>
+      </table>
+      </div>
+      </section>
+
+      <section class="fleet-expert-launchers section-spaced-tight">
+        <article class="fleet-expert-card">
+          <h3>Richtlinien & Freigaben</h3>
+          <p>MDM-Policies, Gruppenzuweisungen und Effective Preview getrennt in einem Dialog.</p>
+          <div class="button-row compact-row"><button type="button" class="button primary small" data-fleet-modal="fleet-policy-editor-modal">Policy Dialog öffnen</button></div>
+        </article>
+        <article class="fleet-expert-card">
+          <h3>Alerts & Vorhersagen</h3>
+          <p>Predictive Alerts und Regeln liegen außerhalb der Hauptansicht, bleiben aber schnell erreichbar.</p>
+          <div class="button-row compact-row"><button type="button" class="button ghost small" data-fleet-modal="fleet-alerts-modal">Alerts öffnen</button></div>
+        </article>
+        <article class="fleet-expert-card">
+          <h3>Remediation & Diagnose</h3>
+          <p>Drift, Safe Remediation und History nur für Admin-Aufgaben sichtbar.</p>
+          <div class="button-row compact-row"><button type="button" class="button ghost small" data-fleet-modal="fleet-remediation-modal">Remediation öffnen</button></div>
+        </article>
+      </section>`;
+}
+
+function openDeviceEditModal(deviceId) {
+  const cleanDeviceId = String(deviceId || '').trim();
+  if (!cleanDeviceId) {
+    return;
+  }
+  const device = fleetState.devices.find((item) => String(item.device_id || '') === cleanDeviceId);
+  const deviceEditModal = qs('fleet-device-edit-modal');
+  if (!device || !deviceEditModal) {
+    return;
+  }
+
+  fleetState.editingDeviceId = cleanDeviceId;
+  qs('edit-device-eyebrow').textContent = `ID: ${cleanDeviceId}`;
+  qs('edit-device-hostname').value = device.hostname || '';
+  qs('edit-device-location').value = device.location || '';
+  const groupInput = qs('edit-device-group');
+  groupInput.value = device.group || '';
+  groupInput.oninput = () => updateDeviceGroupOptions(groupInput.value);
+  updateDeviceGroupOptions(device.group || '');
+  qs('edit-device-notes').value = device.notes || '';
+
+  qs('edit-device-auto-update').checked = !!device.auto_update;
+  qs('edit-device-update-channel').value = device.update_channel || 'stable';
+  qs('edit-device-target-os').value = device.target_os_version || '';
+  qs('edit-device-auto-sys-update').checked = !!device.auto_sys_update;
+  qs('edit-device-target-sys-update').value = device.target_sys_update || 'all';
+  qs('edit-device-log-capture-enabled').checked = device.log_capture_enabled !== false;
+  qs('edit-device-log-retention-seconds').value = String(device.log_retention_seconds || 86400);
+
+  deviceEditModal.hidden = false;
+  deviceEditModal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('modal-open');
+}
+
+function closeEditModal() {
+  const deviceEditModal = qs('fleet-device-edit-modal');
+  if (!deviceEditModal) {
+    return;
+  }
+  fleetState.editingDeviceId = '';
+  deviceEditModal.hidden = true;
+  deviceEditModal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('modal-open');
+}
+
+function getSelectedDeviceIds(container) {
+  return Array.from(container.querySelectorAll('.fleet-row-checkbox:checked')).map((checkbox) => checkbox.value);
+}
+
+function updateBulkBarVisibility(container) {
+  const selected = getSelectedDeviceIds(container);
+  const massToolbar = qs('fleet-mass-toolbar');
+  const bulkCountSpan = qs('fleet-bulk-selection-count');
+  if (selected.length > 0) {
+    if (massToolbar) massToolbar.classList.add('is-active');
+    if (bulkCountSpan) bulkCountSpan.textContent = `${selected.length} Geräte ausgewählt`;
+  } else {
+    if (massToolbar) massToolbar.classList.remove('is-active');
+    if (bulkCountSpan) bulkCountSpan.textContent = '0 Geräte deselektiert';
+  }
+}
+
+function bindFleetRegistryShellControls(container) {
+  const selectAllCheckbox = qs('fleet-select-all-checkbox');
+  if (selectAllCheckbox) {
+    selectAllCheckbox.onchange = () => {
+      container.querySelectorAll('.fleet-row-checkbox').forEach((checkbox) => {
+        checkbox.checked = selectAllCheckbox.checked;
+      });
+      updateBulkBarVisibility(container);
+    };
+  }
+
+  container.querySelectorAll('.fleet-row-checkbox').forEach((checkbox) => {
+    checkbox.onchange = () => {
+      if (!checkbox.checked && selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+      }
+      updateBulkBarVisibility(container);
+    };
+  });
+
+  const clearSelectionBtn = qs('clear-fleet-selection');
+  if (clearSelectionBtn) {
+    clearSelectionBtn.onclick = () => {
+      container.querySelectorAll('.fleet-row-checkbox').forEach((checkbox) => {
+        checkbox.checked = false;
+      });
+      if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+      }
+      updateBulkBarVisibility(container);
+    };
+  }
+
+  const executeBulkBtn = qs('execute-fleet-mass-action');
+  if (executeBulkBtn) {
+    executeBulkBtn.onclick = async () => {
+      const selectedIds = getSelectedDeviceIds(container);
+      if (selectedIds.length === 0) return;
+      const type = qs('fleet-mass-action-type').value;
+      if (!type) {
+        fleetHooks.setBanner('Bitte wähle eine Bulk-Aktion aus.', 'warn');
+        return;
+      }
+      const val = qs('fleet-mass-action-value').value.trim();
+
+      const confirmed = await fleetHooks.requestConfirm({
+        title: 'Massenaktion ausführen',
+        message: `${selectedIds.length} Thin-Clients wirklich massenhaft aktualisieren/konfigurieren?`,
+        confirmLabel: 'Absenden'
+      });
+      if (!confirmed) return;
+
+      try {
+        let action = type;
+        let finalVal = val;
+        if (type === 'install-update') {
+          finalVal = val || 'latest';
+        } else if (type === 'install-sys-update') {
+          finalVal = val || 'all';
+        } else if (type === 'set-auto-update' || type === 'set-auto-sys-update') {
+          finalVal = (val.toLowerCase() in { 'true': 1, 'yes': 1, '1': 1, 'ein': 1, 'on': 1, 'active': 1 }) ? 'true' : 'false';
+        }
+
+        await request('/fleet/devices/actions/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: action,
+            target_ids: selectedIds,
+            value: finalVal
+          })
+        });
+
+        fleetHooks.setBanner('Massenaktion erfolgreich an Backend gesendet.', 'ok');
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
+        container.querySelectorAll('.fleet-row-checkbox').forEach((checkbox) => {
+          checkbox.checked = false;
+        });
+        updateBulkBarVisibility(container);
+        await fleetHooks.loadDashboard({ force: true });
+      } catch (err) {
+        fleetHooks.setBanner('Massenaktion fehlgeschlagen: ' + String(err.message ?? err), 'warn');
+      }
+    };
+  }
+}
+
+function applyLiveShellSelection(container, selectedIds) {
+  const selected = new Set((selectedIds || []).map((item) => String(item || '')));
+  container.querySelectorAll('.fleet-row-checkbox').forEach((checkbox) => {
+    checkbox.checked = selected.has(String(checkbox.value || ''));
+  });
+  const selectAllCheckbox = qs('fleet-select-all-checkbox');
+  if (selectAllCheckbox) {
+    const rows = Array.from(container.querySelectorAll('.fleet-row-checkbox'));
+    selectAllCheckbox.checked = rows.length > 0 && rows.every((checkbox) => checkbox.checked);
+  }
+  updateBulkBarVisibility(container);
+}
+
+function applyFleetSnapshotState(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return false;
+  }
+
+  let changed = false;
+  if (Array.isArray(snapshot.fleet_devices)) {
+    fleetState.devices = snapshot.fleet_devices;
+    changed = true;
+  }
+  if (Array.isArray(snapshot.fleet_groups)) {
+    fleetState.groups = normalizeGroupNames(snapshot.fleet_groups);
+    changed = true;
+  }
+  if (Array.isArray(snapshot.fleet_anomalies)) {
+    fleetState.anomalies = snapshot.fleet_anomalies;
+    changed = true;
+  }
+  if (Array.isArray(snapshot.fleet_maintenance)) {
+    fleetState.maintenance = snapshot.fleet_maintenance;
+    changed = true;
+  }
+  return changed;
+}
+
+export function applyFleetLiveSnapshot(snapshot) {
+  if (!applyFleetSnapshotState(snapshot)) {
+    return;
+  }
+  if (state.activePanel !== 'fleet_registry') {
+    return;
+  }
+  const container = qs('fleet-health-panel');
+  const liveShell = qs('fleet-registry-live-shell');
+  if (!container || !liveShell) {
+    return;
+  }
+  const selectedIds = getSelectedDeviceIds(container);
+  liveShell.innerHTML = fleetRegistryLiveShellMarkup(
+    fleetState.devices,
+    fleetState.anomalies,
+    fleetState.maintenance,
+    fleetState.policies,
+  );
+  bindFleetRegistryShellControls(container);
+  applyLiveShellSelection(container, selectedIds);
 }
 
 function deviceRow(device, anomalies, maintenance) {
@@ -1264,6 +1598,11 @@ export async function renderFleetHealth() {
       });
       return;
     }
+    const editButton = event.target.closest('[data-custom-device-edit]');
+    if (editButton) {
+      openDeviceEditModal(editButton.getAttribute('data-custom-device-edit'));
+      return;
+    }
     if (event.target.classList && event.target.classList.contains('fleet-registry-modal')) {
       closeFleetModals();
       return;
@@ -1321,6 +1660,8 @@ export async function renderFleetHealth() {
 
   fleetState.devices = devices;
   fleetState.groups = groups;
+  fleetState.anomalies = anomalies;
+  fleetState.maintenance = maintenance;
   fleetState.alerts = alerts;
   fleetState.alertRules = alertRules;
   fleetState.policies = policies;
@@ -1329,11 +1670,7 @@ export async function renderFleetHealth() {
   fleetState.remediationConfig = remediationConfig?.config || { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} };
   fleetState.remediationHistory = Array.isArray(remediationHistory?.history) ? remediationHistory.history : [];
 
-  const visibleDevices = filteredDevicesByGroup(devices);
-  const rows = visibleDevices.map((d) => deviceRow(d, anomalies, maintenance)).join('');
-  const anomalyCount = anomalies.length;
-  const maintCount = maintenance.filter((m) => m.status === 'pending').length;
-  const onlineCount = devices.filter((item) => String(item.status || '').trim() === 'online').length;
+  const { anomalyCount, maintCount, onlineCount } = fleetRegistryStats(devices, anomalies, maintenance);
 
   if (compactMode) {
     container.innerHTML = `
@@ -1351,112 +1688,15 @@ export async function renderFleetHealth() {
   }
 
   if (devices.length === 0) {
-    container.innerHTML = `${policyEditorSection()}<div class="empty-card">Keine Geräte erfasst.</div>`;
+    container.innerHTML = `<div id="fleet-registry-live-shell">${fleetRegistryLiveShellMarkup(devices, anomalies, maintenance, policies)}</div>
+      <div class="fleet-policy-backing">${policyEditorSection()}</div>
+      ${fleetExpertModal('fleet-alerts-modal', 'Alerts und Regeln', 'Predictive Alerts und Regelpflege an einem Ort.', predictiveAlertsMarkup(anomalies))}
+      ${fleetExpertModal('fleet-remediation-modal', 'Remediation und Drift', 'Sichere Reparaturen, Drift-Analyse und Verlauf getrennt von der Hauptansicht.', remediationDriftMarkup())}
+      ${fleetExpertModal('fleet-topology-modal', 'Standorte und Gruppen', 'Standort- und Gruppenansicht für organisatorische Übersicht.', locationTreeSection())}
+      ${deviceLogsModalMarkup()}`;
   } else {
     container.innerHTML = `
-      ${fleetGuidedWorkspace(devices, onlineCount, anomalyCount, maintCount)}
-
-      <section class="section-spaced fleet-summary-section">
-        <h3 style="margin-bottom:12px;">Thin Clients Fleet</h3>
-        <div class="fleet-kpi-strip section-spaced-tight">
-          <div class="fleet-metric-card">
-            <span>Registrierte Thin-Clients</span>
-            <strong>${escapeHtml(String(devices.length))}</strong>
-          </div>
-          <div class="fleet-metric-card">
-            <span>Geräte Online</span>
-            <strong style="color: #1fc17f;">${escapeHtml(String(onlineCount))}</strong>
-          </div>
-          <div class="fleet-metric-card">
-            <span>Anomale Zustände</span>
-            <strong style="color: ${anomalyCount > 0 ? '#f17f7f' : '#1fc17f'};">${escapeHtml(String(anomalyCount))}</strong>
-          </div>
-          <div class="fleet-metric-card">
-            <span>Wartungen geplatzt/offen</span>
-            <strong style="color: ${maintCount > 0 ? '#f7b955' : 'var(--text-muted)'};">${escapeHtml(String(maintCount))}</strong>
-          </div>
-        </div>
-      </section>
-
-      ${fleetActionGuide()}
-
-      ${groupFilterBar(devices)}
-
-      <div class="fleet-bulk-bar" id="fleet-mass-toolbar">
-        <div class="fleet-bulk-controls">
-          <span class="fleet-bulk-label" id="fleet-bulk-selection-count">0 Geräte deselektiert</span>
-          
-          <select id="fleet-mass-action-type" class="fleet-bulk-select">
-            <option value="">Aktion wählen...</option>
-            <option value="set-group">Gruppe setzen</option>
-            <option value="set-location">Standort setzen</option>
-            <option value="set-update-channel">Beagle OS Update-Kanal festlegen</option>
-            <option value="install-update">Beagle OS Engine Update einspielen</option>
-            <option value="set-auto-update">Beagle OS Engine Auto-Update umschalten</option>
-            <option value="install-sys-update">System-Updates (apt) starten</option>
-            <option value="set-auto-sys-update">System Auto-Update (apt) umschalten</option>
-            <option value="lock">Geräte sperren (Lock)</option>
-            <option value="unlock">Geräte entsperren</option>
-          </select>
-
-          <input type="text" id="fleet-mass-action-value" class="fleet-bulk-input" placeholder="Wert..." title="Wert für die Bulk Aktion">
-
-          <button type="button" class="button primary" id="execute-fleet-mass-action">Bulk ausführen</button>
-        </div>
-        <button type="button" class="button ghost small" id="clear-fleet-selection">Abbrechen</button>
-      </div>
-
-      <section class="section-spaced">
-      <div class="fleet-table-head">
-        <div>
-          <span class="eyebrow">Geräteliste</span>
-          <h3>Alle Thin Clients auf einen Blick</h3>
-          <p class="muted-text">Status, Versionen und Updates bleiben in einer einzigen Tabelle sichtbar. Gruppenfilter blenden Geräte gezielt ein oder aus.</p>
-        </div>
-        <div class="button-row compact-row">
-          <button type="button" class="button ghost small" data-fleet-modal="fleet-policy-preview-modal">Aktive Policy prüfen</button>
-          <button type="button" class="button ghost small" data-fleet-modal="fleet-topology-modal">Standorte ansehen</button>
-        </div>
-      </div>
-      <div class="table-wrap compact fleet-table-wrap">
-      <table class="vm-table compact-table">
-        <thead>
-          <tr>
-            <th class="table-checkbox-col"><input type="checkbox" id="fleet-select-all-checkbox"></th>
-            <th>Geräte ID</th>
-            <th>Hostname</th>
-            <th>Status</th>
-            <th>Standort / Gruppe</th>
-            <th>CPU / RAM</th>
-            <th>MDM Policy</th>
-            <th>Letzter Heartbeat</th>
-            <th>Update-Zustand &amp; Modi</th>
-            <th>Aktionen</th>
-          </tr>
-        </thead>
-        <tbody>${rows || '<tr><td colspan="10"><div class="empty-card">Keine ThinClients in dieser Gruppe.</div></td></tr>'}</tbody>
-      </table>
-      </div>
-      </section>
-
-      <section class="fleet-expert-launchers section-spaced-tight">
-        <article class="fleet-expert-card">
-          <h3>Richtlinien & Freigaben</h3>
-          <p>MDM-Policies, Gruppenzuweisungen und Effective Preview getrennt in einem Dialog.</p>
-          <div class="button-row compact-row"><button type="button" class="button primary small" data-fleet-modal="fleet-policy-editor-modal">Policy Dialog öffnen</button></div>
-        </article>
-        <article class="fleet-expert-card">
-          <h3>Alerts & Vorhersagen</h3>
-          <p>Predictive Alerts und Regeln liegen außerhalb der Hauptansicht, bleiben aber schnell erreichbar.</p>
-          <div class="button-row compact-row"><button type="button" class="button ghost small" data-fleet-modal="fleet-alerts-modal">Alerts öffnen</button></div>
-        </article>
-        <article class="fleet-expert-card">
-          <h3>Remediation & Diagnose</h3>
-          <p>Drift, Safe Remediation und History nur für Admin-Aufgaben sichtbar.</p>
-          <div class="button-row compact-row"><button type="button" class="button ghost small" data-fleet-modal="fleet-remediation-modal">Remediation öffnen</button></div>
-        </article>
-      </section>
-
+      <div id="fleet-registry-live-shell">${fleetRegistryLiveShellMarkup(devices, anomalies, maintenance, policies)}</div>
       <div class="fleet-policy-backing">${policyEditorSection()}</div>
       ${fleetExpertModal('fleet-alerts-modal', 'Alerts und Regeln', 'Predictive Alerts und Regelpflege an einem Ort.', predictiveAlertsMarkup(anomalies))}
       ${fleetExpertModal('fleet-remediation-modal', 'Remediation und Drift', 'Sichere Reparaturen, Drift-Analyse und Verlauf getrennt von der Hauptansicht.', remediationDriftMarkup())}
@@ -1575,21 +1815,9 @@ export async function renderFleetHealth() {
   });
 
   // Modal Setup
-  const deviceEditModal = qs('fleet-device-edit-modal');
-  let currentEditingDeviceId = null;
-
-  const closeEditModalFn = () => {
-    if (deviceEditModal) {
-      fleetState.editingDeviceId = '';
-      deviceEditModal.hidden = true;
-      deviceEditModal.setAttribute('aria-hidden', 'true');
-      document.body.classList.remove('modal-open');
-    }
-  };
-
   const closeButton = qs('close-device-edit-modal');
   if (closeButton) {
-    closeButton.onclick = closeEditModalFn;
+    closeButton.onclick = closeEditModal;
   }
   const closeGroupButton = qs('close-group-create-modal');
   const cancelGroupButton = qs('cancel-create-group-btn');
@@ -1615,43 +1843,10 @@ export async function renderFleetHealth() {
       }
     };
   }
-
-  container.querySelectorAll('[data-custom-device-edit]').forEach((item) => {
-    item.addEventListener('click', () => {
-      const deviceId = item.getAttribute('data-custom-device-edit');
-      const device = fleetState.devices.find((d) => d.device_id === deviceId);
-      if (!device) return;
-
-      currentEditingDeviceId = deviceId;
-      fleetState.editingDeviceId = deviceId;
-      qs('edit-device-eyebrow').textContent = `ID: ${deviceId}`;
-      qs('edit-device-hostname').value = device.hostname || '';
-      qs('edit-device-location').value = device.location || '';
-      const groupInput = qs('edit-device-group');
-      groupInput.value = device.group || '';
-      groupInput.oninput = () => updateDeviceGroupOptions(groupInput.value);
-      updateDeviceGroupOptions(device.group || '');
-      qs('edit-device-notes').value = device.notes || '';
-
-      qs('edit-device-auto-update').checked = !!device.auto_update;
-      qs('edit-device-update-channel').value = device.update_channel || 'stable';
-      qs('edit-device-target-os').value = device.target_os_version || '';
-      
-      qs('edit-device-auto-sys-update').checked = !!device.auto_sys_update;
-      qs('edit-device-target-sys-update').value = device.target_sys_update || 'all';
-
-      if (deviceEditModal) {
-        deviceEditModal.hidden = false;
-        deviceEditModal.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('modal-open');
-      }
-    });
-  });
-
   const saveDeviceSettingsBtn = qs('save-device-settings-btn');
   if (saveDeviceSettingsBtn) {
     saveDeviceSettingsBtn.onclick = async () => {
-      if (!currentEditingDeviceId) return;
+      if (!fleetState.editingDeviceId) return;
       try {
         const payload = {
           location: qs('edit-device-location').value.trim(),
@@ -1662,16 +1857,18 @@ export async function renderFleetHealth() {
           target_os_version: qs('edit-device-target-os').value.trim(),
           auto_sys_update: qs('edit-device-auto-sys-update').checked,
           target_sys_update: qs('edit-device-target-sys-update').value,
+          log_capture_enabled: qs('edit-device-log-capture-enabled').checked,
+          log_retention_seconds: Number(qs('edit-device-log-retention-seconds').value || 86400),
         };
 
-        await request(`/fleet/devices/${encodeURIComponent(currentEditingDeviceId)}`, {
+        await request(`/fleet/devices/${encodeURIComponent(fleetState.editingDeviceId)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
         fleetHooks.setBanner('Geräteeinstellungen erfolgreich gespeichert.', 'ok');
-        closeEditModalFn();
+        closeEditModal();
         await fleetHooks.loadDashboard({ force: true });
       } catch (err) {
         fleetHooks.setBanner('Speichern fehlgeschlagen: ' + String(err.message ?? err), 'warn');
@@ -1682,10 +1879,10 @@ export async function renderFleetHealth() {
   const triggerEngineUpdateBtn = qs('trigger-device-engine-update');
   if (triggerEngineUpdateBtn) {
     triggerEngineUpdateBtn.onclick = async () => {
-      if (!currentEditingDeviceId) return;
+      if (!fleetState.editingDeviceId) return;
       try {
         const targetVer = qs('edit-device-target-os').value.trim() || 'latest';
-        await request(`/fleet/devices/${encodeURIComponent(currentEditingDeviceId)}`, {
+        await request(`/fleet/devices/${encodeURIComponent(fleetState.editingDeviceId)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1694,7 +1891,7 @@ export async function renderFleetHealth() {
           })
         });
         fleetHooks.setBanner('Beagle OS Engine Update-Installation angestoßen.', 'ok');
-        closeEditModalFn();
+        closeEditModal();
         await fleetHooks.loadDashboard({ force: true });
       } catch (err) {
         fleetHooks.setBanner('Engine-Update Trigger fehlgeschlagen: ' + String(err.message ?? err), 'warn');
@@ -1705,10 +1902,10 @@ export async function renderFleetHealth() {
   const triggerSysUpdateBtn = qs('trigger-device-sys-update');
   if (triggerSysUpdateBtn) {
     triggerSysUpdateBtn.onclick = async () => {
-      if (!currentEditingDeviceId) return;
+      if (!fleetState.editingDeviceId) return;
       try {
         const targetSys = qs('edit-device-target-sys-update').value;
-        await request(`/fleet/devices/${encodeURIComponent(currentEditingDeviceId)}`, {
+        await request(`/fleet/devices/${encodeURIComponent(fleetState.editingDeviceId)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1717,7 +1914,7 @@ export async function renderFleetHealth() {
           })
         });
         fleetHooks.setBanner('System-Updates (apt) Installation angestoßen.', 'ok');
-        closeEditModalFn();
+        closeEditModal();
         await fleetHooks.loadDashboard({ force: true });
       } catch (err) {
         fleetHooks.setBanner('System-Update Trigger fehlgeschlagen: ' + String(err.message ?? err), 'warn');
@@ -1725,102 +1922,7 @@ export async function renderFleetHealth() {
     };
   }
 
-  // Multi-Selection Tracking logic
-  const selectAllCheckbox = qs('fleet-select-all-checkbox');
-  const massToolbar = qs('fleet-mass-toolbar');
-  const bulkCountSpan = qs('fleet-bulk-selection-count');
-  
-  const getSelectedDeviceIds = () => {
-    return Array.from(container.querySelectorAll('.fleet-row-checkbox:checked')).map(cb => cb.value);
-  };
-
-  const updateBulkBarVisibility = () => {
-    const selected = getSelectedDeviceIds();
-    if (selected.length > 0) {
-      if (massToolbar) massToolbar.classList.add('is-active');
-      if (bulkCountSpan) bulkCountSpan.textContent = `${selected.length} Geräte ausgewählt`;
-    } else {
-      if (massToolbar) massToolbar.classList.remove('is-active');
-    }
-  };
-
-  if (selectAllCheckbox) {
-    selectAllCheckbox.onchange = () => {
-      container.querySelectorAll('.fleet-row-checkbox').forEach(cb => {
-        cb.checked = selectAllCheckbox.checked;
-      });
-      updateBulkBarVisibility();
-    };
-  }
-
-  container.querySelectorAll('.fleet-row-checkbox').forEach(cb => {
-    cb.onchange = () => {
-      if (!cb.checked && selectAllCheckbox) {
-        selectAllCheckbox.checked = false;
-      }
-      updateBulkBarVisibility();
-    };
-  });
-
-  const clearSelectionBtn = qs('clear-fleet-selection');
-  if (clearSelectionBtn) {
-    clearSelectionBtn.onclick = () => {
-      container.querySelectorAll('.fleet-row-checkbox').forEach(cb => cb.checked = false);
-      if (selectAllCheckbox) selectAllCheckbox.checked = false;
-      updateBulkBarVisibility();
-    };
-  }
-
-  const executeBulkBtn = qs('execute-fleet-mass-action');
-  if (executeBulkBtn) {
-    executeBulkBtn.onclick = async () => {
-      const selectedIds = getSelectedDeviceIds();
-      if (selectedIds.length === 0) return;
-      const type = qs('fleet-mass-action-type').value;
-      if (!type) {
-        fleetHooks.setBanner('Bitte wähle eine Bulk-Aktion aus.', 'warn');
-        return;
-      }
-      const val = qs('fleet-mass-action-value').value.trim();
-
-      const confirmed = await fleetHooks.requestConfirm({
-        title: 'Massenaktion ausführen',
-        message: `${selectedIds.length} Thin-Clients wirklich massenhaft aktualisieren/konfigurieren?`,
-        confirmLabel: 'Absenden'
-      });
-      if (!confirmed) return;
-
-      try {
-        let action = type;
-        let finalVal = val;
-        if (type === 'install-update') {
-          finalVal = val || 'latest';
-        } else if (type === 'install-sys-update') {
-          finalVal = val || 'all';
-        } else if (type === 'set-auto-update' || type === 'set-auto-sys-update') {
-          finalVal = (val.toLowerCase() in { 'true': 1, 'yes': 1, '1': 1, 'ein': 1, 'on': 1, 'active': 1 }) ? 'true' : 'false';
-        }
-
-        await request('/fleet/devices/actions/bulk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: action,
-            target_ids: selectedIds,
-            value: finalVal
-          })
-        });
-
-        fleetHooks.setBanner('Massenaktion erfolgreich an Backend gesendet.', 'ok');
-        if (selectAllCheckbox) selectAllCheckbox.checked = false;
-        container.querySelectorAll('.fleet-row-checkbox').forEach(cb => cb.checked = false);
-        updateBulkBarVisibility();
-        await fleetHooks.loadDashboard({ force: true });
-      } catch (err) {
-        fleetHooks.setBanner('Massenaktion fehlgeschlagen: ' + String(err.message ?? err), 'warn');
-      }
-    };
-  }
+  bindFleetRegistryShellControls(container);
 
   container.querySelectorAll('[data-fleet-alert-action]').forEach((item) => {
     item.addEventListener('click', async () => {

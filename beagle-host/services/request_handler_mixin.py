@@ -643,6 +643,31 @@ class HandlerMixin:
             pass
 
         try:
+            if self._live_can_read(principal, "/api/v1/fleet/devices"):
+                fleet_payload = self._live_extract_payload(fleet_http_surface_service().route_get("/api/v1/fleet/devices", query={}))
+                if isinstance(fleet_payload, dict):
+                    snapshot["fleet_devices"] = list(fleet_payload.get("devices") or [])
+                    snapshot["fleet_groups"] = list(fleet_payload.get("group_records") or fleet_payload.get("groups") or [])
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/fleet/anomalies"):
+                anomalies_payload = self._live_extract_payload(fleet_http_surface_service().route_get("/api/v1/fleet/anomalies", query={}))
+                if isinstance(anomalies_payload, dict):
+                    snapshot["fleet_anomalies"] = list(anomalies_payload.get("anomalies") or [])
+        except Exception:
+            pass
+
+        try:
+            if self._live_can_read(principal, "/api/v1/fleet/maintenance"):
+                maintenance_payload = self._live_extract_payload(fleet_http_surface_service().route_get("/api/v1/fleet/maintenance", query={}))
+                if isinstance(maintenance_payload, dict):
+                    snapshot["fleet_maintenance"] = list(maintenance_payload.get("maintenance") or [])
+        except Exception:
+            pass
+
+        try:
             if self._live_can_read(principal, "/api/v1/policies"):
                 policies_payload = self._live_extract_payload(control_plane_read_surface_service().route_get("/api/v1/policies", query={}))
                 if isinstance(policies_payload, dict):

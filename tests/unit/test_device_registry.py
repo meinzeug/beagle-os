@@ -205,6 +205,8 @@ def test_device_registry_update_settings_and_system_updates(tmp_path):
         auto_sys_update=True,
         sys_update_status="idle",
         target_sys_update="security",
+        log_capture_enabled=False,
+        log_retention_seconds=604800,
     )
     assert updated.auto_update is False
     assert updated.update_channel == "rolling"
@@ -213,6 +215,8 @@ def test_device_registry_update_settings_and_system_updates(tmp_path):
     assert updated.auto_sys_update is True
     assert updated.sys_update_status == "idle"
     assert updated.target_sys_update == "security"
+    assert updated.log_capture_enabled is False
+    assert updated.log_retention_seconds == 604800
 
 
 def test_device_groups_are_persisted_independently_from_devices(tmp_path):

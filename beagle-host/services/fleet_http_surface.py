@@ -412,6 +412,8 @@ class FleetHttpSurfaceService:
             "auto_sys_update": bool(getattr(device, "auto_sys_update", False)),
             "sys_update_status": str(getattr(device, "sys_update_status", "idle") or "idle"),
             "target_sys_update": str(getattr(device, "target_sys_update", "") or ""),
+            "log_capture_enabled": bool(getattr(device, "log_capture_enabled", True)),
+            "log_retention_seconds": int(getattr(device, "log_retention_seconds", 86400) or 86400),
         }
 
     def handles_get(self, path: str) -> bool:
@@ -1029,7 +1031,7 @@ class FleetHttpSurfaceService:
                 raw["notes"] = str(payload.get("notes") or "").strip()
                 self._registry._save()
                 device = self._registry.get_device(device_id)
-            if "auto_update" in payload or "update_channel" in payload or "target_os_version" in payload or "update_status" in payload or "auto_sys_update" in payload or "sys_update_status" in payload or "target_sys_update" in payload:
+            if "auto_update" in payload or "update_channel" in payload or "target_os_version" in payload or "update_status" in payload or "auto_sys_update" in payload or "sys_update_status" in payload or "target_sys_update" in payload or "log_capture_enabled" in payload or "log_retention_seconds" in payload:
                 device = self._registry.set_update_settings(
                     device_id,
                     auto_update=payload.get("auto_update") if "auto_update" in payload else None,
@@ -1039,11 +1041,15 @@ class FleetHttpSurfaceService:
                     auto_sys_update=payload.get("auto_sys_update") if "auto_sys_update" in payload else None,
                     sys_update_status=str(payload["sys_update_status"]).strip() if "sys_update_status" in payload else None,
                     target_sys_update=str(payload["target_sys_update"]).strip() if "target_sys_update" in payload else None,
+                    log_capture_enabled=payload.get("log_capture_enabled") if "log_capture_enabled" in payload else None,
+                    log_retention_seconds=int(payload["log_retention_seconds"]) if "log_retention_seconds" in payload else None,
                 )
             if device is None:
                 return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
         except KeyError:
             return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
+        except ValueError as exc:
+            return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
         self._safe_audit_event(
             "fleet.device.update",
             "success",

@@ -8,6 +8,7 @@ INDEX_HTML = ROOT / "website" / "index.html"
 DASHBOARD_JS = ROOT / "website" / "ui" / "dashboard.js"
 MAIN_JS = ROOT / "website" / "main.js"
 FLEET_JS = ROOT / "website" / "ui" / "fleet_health.js"
+REQUEST_HANDLER_MIXIN = ROOT / "beagle-host" / "services" / "request_handler_mixin.py"
 
 
 def test_dashboard_wires_fleet_health_panel() -> None:
@@ -126,6 +127,9 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "request('/fleet/devices/groups'" in js
     assert "function groupFilterBar" in js
     assert "function filteredDevicesByGroup" in js
+    assert "function fleetRegistryLiveShellMarkup" in js
+    assert "export function applyFleetLiveSnapshot(snapshot)" in js
+    assert "id=\"fleet-registry-live-shell\"" in js
     assert "data-fleet-group-filter" in js
     assert "Keine ThinClients in dieser Gruppe." in js
     assert "Gruppe ${group} gespeichert und ausgewaehlt." in js
@@ -145,13 +149,16 @@ def test_thin_client_config_modal_uses_interactive_group_picker() -> None:
     assert 'id="new-device-group-name"' in html
     assert 'id="confirm-create-group-btn"' in html
     assert 'Erstellen und auswählen' in html
+    assert 'id="edit-device-log-capture-enabled"' in html
+    assert 'id="edit-device-log-retention-seconds"' in html
+    assert 'ThinClient Logging' in html
 
 
 def test_group_create_modal_stacks_above_config_modal() -> None:
     css = (ROOT / "website" / "styles" / "panels" / "_policies.css").read_text(encoding="utf-8")
 
     assert ".fleet-group-create-modal" in css
-    assert "z-index: 260;" in css
+    assert "z-index: 10030;" in css
 
 
 def test_fleet_registry_table_and_log_modal_allow_horizontal_overflow_and_fit_viewport() -> None:
@@ -164,7 +171,7 @@ def test_fleet_registry_table_and_log_modal_allow_horizontal_overflow_and_fit_vi
     assert "calc(100vw - 32px)" in css
     assert "flex-wrap: wrap;" in css
     assert ".fleet-registry-modal" in css
-    assert "z-index: 1600;" in css
+    assert "z-index: 10020;" in css
 
 
 def test_enterprise_dashboard_modules_use_operator_routes() -> None:
@@ -222,6 +229,28 @@ def test_live_snapshots_do_not_rerender_interactive_panels_every_five_seconds() 
     main = MAIN_JS.read_text(encoding="utf-8")
 
     assert "Full panel rerenders on every 5s SSE snapshot" in main
+    assert "applyFleetLiveSnapshot(snapshot);" in main
     assert "if (String(state.activePanel || 'overview') === 'overview')" in main
     assert "renderActivePanel('overview');" in main
     assert "updateFleetHealthAlert();" in main
+
+
+def test_silent_dashboard_refresh_keeps_interactive_panels_stable() -> None:
+    dashboard = DASHBOARD_JS.read_text(encoding="utf-8")
+
+    assert "if (!silent) {" in dashboard
+    assert "} else if (String(state.activePanel || 'overview') === 'overview') {" in dashboard
+    assert "renderActivePanelWidgets();" in dashboard
+    assert "dashboardHooks.updateFleetHealthAlert();" in dashboard
+
+
+def test_live_snapshot_includes_fleet_registry_payloads() -> None:
+    mixin = REQUEST_HANDLER_MIXIN.read_text(encoding="utf-8")
+
+    assert 'fleet_http_surface_service().route_get("/api/v1/fleet/devices", query={})' in mixin
+    assert 'snapshot["fleet_devices"]' in mixin
+    assert 'snapshot["fleet_groups"]' in mixin
+    assert 'fleet_http_surface_service().route_get("/api/v1/fleet/anomalies", query={})' in mixin
+    assert 'snapshot["fleet_anomalies"]' in mixin
+    assert 'fleet_http_surface_service().route_get("/api/v1/fleet/maintenance", query={})' in mixin
+    assert 'snapshot["fleet_maintenance"]' in mixin

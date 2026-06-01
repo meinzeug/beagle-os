@@ -227,7 +227,11 @@ export function loadDashboard(options) {
       dashboardHooks.setAuthMode(true);
       dashboardHooks.updateSettingsVisibility();
       statCardFromHealth(health, state.virtualizationOverview);
-      renderActivePanelWidgets();
+      if (!silent) {
+        renderActivePanelWidgets();
+      } else if (String(state.activePanel || 'overview') === 'overview') {
+        renderActivePanelWidgets();
+      }
       dashboardHooks.updateFleetHealthAlert();
       if (silent) {
         return null;

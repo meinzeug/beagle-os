@@ -5302,6 +5302,7 @@ def device_log_service() -> DeviceLogService:
         DEVICE_LOG_SERVICE = DeviceLogService(
             repository=_device_log_repository(),
             utcnow=utcnow,
+            device_lookup=lambda device_id: device_registry_service().get_device(device_id),
         )
     return DEVICE_LOG_SERVICE
 

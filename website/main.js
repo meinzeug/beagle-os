@@ -70,6 +70,7 @@ import {
   renderIam
 } from './ui/iam.js';
 import {
+  applyFleetLiveSnapshot,
   configureFleetHealth,
   renderFleetHealth
 } from './ui/fleet_health.js';
@@ -742,6 +743,8 @@ function applyLiveSnapshot(snapshot) {
   if (Array.isArray(snapshot.sessions)) {
     state.sessions = snapshot.sessions;
   }
+
+  applyFleetLiveSnapshot(snapshot);
 
   // Full panel rerenders on every 5s SSE snapshot reset forms, filters, and modal
   // context. Keep interactive workspaces stable and only live-rerender the passive
