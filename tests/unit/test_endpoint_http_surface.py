@@ -4,7 +4,11 @@ import sys
 from pathlib import Path
 
 
-SERVICES_DIR = Path(__file__).resolve().parents[2] / "beagle-host" / "services"
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+SERVICES_DIR = ROOT_DIR / "beagle-host" / "services"
 if str(SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(SERVICES_DIR))
 
@@ -25,6 +29,7 @@ def _service(
     network_mode: str = "vpn_preferred",
     store_action_result=None,
     usb_key_sync_hook=None,
+    device_log_service=None,
 ) -> EndpointHttpSurfaceService:
     vm = _Vm(100, "beagle-0")
     profiles = {
@@ -202,6 +207,7 @@ def _service(
         build_vm_profile=lambda found_vm: profiles.get(int(found_vm.vmid), {}),
         dequeue_vm_actions=lambda node, vmid: [],
         device_registry_service=_DeviceRegistry(),
+        device_log_service=device_log_service,
         mdm_policy_service=type("Mdm", (), {"resolve_policy": staticmethod(lambda device_id, group="": _Policy())})(),
         attestation_service=_AttestationService(),
         fleet_telemetry_service=_FleetTelemetry(),
@@ -458,6 +464,41 @@ def test_device_sync_route_persists_runtime_report() -> None:
     assert int(response["status"]) == 200
     assert response["payload"]["device"]["last_runtime_report"]["lock_active"] is True
     assert response["payload"]["device"]["last_runtime_report"]["lock_screen_backend"] == "zenity"
+
+
+def test_device_sync_route_persists_device_logs(tmp_path: Path) -> None:
+    from core.persistence.sqlite_db import BeagleDb
+    from core.repository.device_log_repository import DeviceLogRepository
+    from device_log_service import DeviceLogService
+
+    db = BeagleDb(tmp_path / "state.db")
+    db.migrate(Path(__file__).resolve().parents[2] / "core" / "persistence" / "migrations")
+    logs = DeviceLogService(repository=DeviceLogRepository(db), utcnow=lambda: "2026-04-22T00:00:00Z")
+    service = _service(device_log_service=logs)
+
+    response = service.route_post(
+        "/api/v1/endpoints/device/sync",
+        endpoint_identity={"endpoint_id": "endpoint-a", "vmid": 100, "node": "beagle-0", "hostname": "endpoint-a"},
+        query={},
+        json_payload={
+            "logs": {
+                "captured_at": "2026-04-22T00:00:00Z",
+                "entries": [
+                    {
+                        "source": "runtime-trace.log",
+                        "level": "info",
+                        "content": "[2026-04-22T00:00:00Z] phase=device.sync.ok status=200",
+                    }
+                ],
+            }
+        },
+    )
+
+    assert int(response["status"]) == 200
+    assert logs.count("endpoint-a") == 1
+    persisted = logs.list_recent("endpoint-a", limit=5)
+    assert persisted[0]["source"] == "runtime-trace.log"
+    assert "device.sync.ok" in persisted[0]["content"]
 
 
 def test_device_sync_route_calls_usb_tunnel_key_sync_hook() -> None:
