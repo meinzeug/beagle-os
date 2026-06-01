@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -40,6 +41,14 @@ RECENT_SCAN_SECONDS = int(os.environ.get("BEAGLE_UPDATE_RECENT_SCAN_SECONDS", "2
 SESSION_MONITOR_INTERVAL_SECONDS = int(os.environ.get("BEAGLE_UPDATE_SESSION_MONITOR_INTERVAL_SECONDS", "60"))
 PROMPT_COOLDOWN_SECONDS = int(os.environ.get("BEAGLE_UPDATE_PROMPT_COOLDOWN_SECONDS", "43200"))
 PERSISTENT_MIN_FREE_BYTES = int(os.environ.get("BEAGLE_UPDATE_PERSISTENT_MIN_FREE_BYTES", "536870912"))
+PAYLOAD_DOWNLOAD_MAX_TIME_SECONDS = int(os.environ.get("BEAGLE_UPDATE_PAYLOAD_MAX_TIME_SECONDS", "900"))
+PAYLOAD_DOWNLOAD_LOW_SPEED_LIMIT = int(os.environ.get("BEAGLE_UPDATE_PAYLOAD_LOW_SPEED_LIMIT", "16384"))
+PAYLOAD_DOWNLOAD_LOW_SPEED_TIME = int(os.environ.get("BEAGLE_UPDATE_PAYLOAD_LOW_SPEED_TIME", "60"))
+LOCK_FILE = Path("/run/beagle-os/update-client.lock")
+
+
+class BusyError(RuntimeError):
+    pass
 
 
 def utcnow() -> str:
@@ -66,6 +75,32 @@ def ensure_dirs() -> None:
     ensure_persistent_update_paths()
     STATE_ROOT.mkdir(parents=True, exist_ok=True)
     CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+
+
+def acquire_command_lock(command: str) -> int | None:
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lock_handle = os.open(str(LOCK_FILE), os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(lock_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(lock_handle)
+        raise BusyError("another update command is running")
+    os.ftruncate(lock_handle, 0)
+    os.write(lock_handle, f"pid={os.getpid()} command={command} at={utcnow()}\n".encode("utf-8"))
+    return lock_handle
+
+
+def release_command_lock(lock_handle: int | None) -> None:
+    if lock_handle is None:
+        return
+    try:
+        fcntl.flock(lock_handle, fcntl.LOCK_UN)
+    except OSError:
+        pass
+    try:
+        os.close(lock_handle)
+    except OSError:
+        pass
 
 
 def free_bytes(path: Path) -> int:
@@ -688,14 +723,26 @@ def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
     if not payload_pin and same_host(payload_url, manager_url):
         payload_pin = config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY", "").strip()
         payload_ca_cert = manager_ca_cert
-    args = curl_args_for_url(payload_url, pinned_pubkey=payload_pin, ca_cert=payload_ca_cert, max_time=0)
-    args.extend(["-L", "--retry", "4", "--retry-delay", "3", "--continue-at", "-", "-o", str(archive_path), payload_url])
+    args = curl_args_for_url(
+        payload_url,
+        pinned_pubkey=payload_pin,
+        ca_cert=payload_ca_cert,
+        max_time=PAYLOAD_DOWNLOAD_MAX_TIME_SECONDS,
+    )
+    args.extend(["-L", "--retry", "4", "--retry-delay", "3", "--continue-at", "-"])
+    if PAYLOAD_DOWNLOAD_LOW_SPEED_LIMIT > 0 and PAYLOAD_DOWNLOAD_LOW_SPEED_TIME > 0:
+        args.extend(["--speed-limit", str(PAYLOAD_DOWNLOAD_LOW_SPEED_LIMIT), "--speed-time", str(PAYLOAD_DOWNLOAD_LOW_SPEED_TIME)])
+    args.extend(["-o", str(archive_path), payload_url])
     try:
         subprocess.run(args, check=True)
     except subprocess.CalledProcessError as exc:
         if exc.returncode == 23:
             raise RuntimeError(
                 f"payload download failed while writing to {archive_path}; free disk space under {CACHE_ROOT} and retry"
+            ) from exc
+        if exc.returncode in {28, 47}:
+            raise RuntimeError(
+                "payload download timed out or stalled; scan aborted to keep the thin client responsive"
             ) from exc
         raise
     verify_sha256(archive_path, str(feed.get("payload_sha256", "")).strip())
@@ -1218,6 +1265,7 @@ def main() -> int:
     args = parser.parse_args()
     ensure_dirs()
 
+    lock_handle: int | None = None
     try:
         config_dir, config = load_config()
         log(f"command={args.command} config_dir={config_dir}")
@@ -1228,6 +1276,7 @@ def main() -> int:
         if args.command == "session-monitor":
             return session_monitor(config, once=args.once)
         require_root()
+        lock_handle = acquire_command_lock(args.command)
         if args.command == "scan":
             payload = scan_command(config, auto_apply_if_idle=args.auto_apply_if_idle, force=args.force)
         elif args.command == "apply":
@@ -1250,6 +1299,8 @@ def main() -> int:
             pass
         print(f"beagle-update-client: {exc}", file=sys.stderr)
         return 1
+    finally:
+        release_command_lock(lock_handle)
 
     print(json.dumps(payload, indent=2))
     return 0

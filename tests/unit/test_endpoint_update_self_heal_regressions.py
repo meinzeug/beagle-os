@@ -41,6 +41,18 @@ def test_update_client_persists_state_and_cache_on_live_medium() -> None:
     assert "replace_with_symlink(CACHE_ROOT, persistent_cache)" in script
 
 
+def test_update_client_prevents_parallel_update_commands_and_stalled_downloads() -> None:
+    script = UPDATE_CLIENT.read_text(encoding="utf-8")
+
+    assert "LOCK_FILE = Path(\"/run/beagle-os/update-client.lock\")" in script
+    assert "def acquire_command_lock(command: str)" in script
+    assert "another update command is running" in script
+    assert "PAYLOAD_DOWNLOAD_MAX_TIME_SECONDS" in script
+    assert "--speed-limit" in script
+    assert "--speed-time" in script
+    assert "payload download timed out or stalled" in script
+
+
 def test_update_client_preserves_live_usb_kernel_flags_when_rewriting_grub() -> None:
     script = UPDATE_CLIENT.read_text(encoding="utf-8")
 
