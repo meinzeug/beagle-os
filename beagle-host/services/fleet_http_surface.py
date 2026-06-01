@@ -26,6 +26,8 @@ class FleetHttpSurfaceService:
     _FLEET_REMEDIATION_RUN = "/api/v1/fleet/remediation/run"
     _DEVICE_LOGS = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/logs$")
     _DEVICE_DETAIL = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)$")
+    _DEVICE_USB = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/usb$")
+    _DEVICE_USB_ACTION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/usb/(?P<action>refresh|bind|unbind)$")
     _DEVICE_EFFECTIVE_POLICY = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/effective-policy$")
     _DEVICE_REMEDIATION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/remediation/execute$")
     _DEVICE_ACTION = re.compile(r"^/api/v1/fleet/devices/(?P<device_id>[A-Za-z0-9._:-]+)/(?P<action>heartbeat|lock|unlock|wipe|confirm-wiped|restart-launcher|reboot|shutdown)$")
@@ -365,6 +367,11 @@ class FleetHttpSurfaceService:
         update = report.get("update") if isinstance(report.get("update"), dict) else {}
         return update if isinstance(update, dict) else {}
 
+    @staticmethod
+    def _endpoint_usb_payload(report: dict[str, Any]) -> dict[str, Any]:
+        usb = report.get("usb") if isinstance(report.get("usb"), dict) else {}
+        return usb if isinstance(usb, dict) else {}
+
     def _queue_endpoint_action(
         self,
         *,
@@ -413,6 +420,7 @@ class FleetHttpSurfaceService:
     def _device_to_dict(self, device: Any) -> dict[str, Any]:
         endpoint_report = self._endpoint_report_for_device(device)
         endpoint_update = self._endpoint_update_payload(endpoint_report)
+        endpoint_usb = self._endpoint_usb_payload(endpoint_report)
         return {
             "device_id": str(getattr(device, "device_id", "") or ""),
             "hostname": str(getattr(device, "hostname", "") or ""),
@@ -433,6 +441,7 @@ class FleetHttpSurfaceService:
             "last_wipe_report": dict(getattr(device, "last_wipe_report", {}) or {}),
             "last_runtime_report": dict(getattr(device, "last_runtime_report", {}) or {}),
             "endpoint_update_report": dict(endpoint_update),
+            "endpoint_usb_report": dict(endpoint_usb),
             "auto_update": bool(getattr(device, "auto_update", True)),
             "update_channel": str(getattr(device, "update_channel", "stable") or "stable"),
             "target_os_version": self._effective_target_os_version(device, endpoint_report),
@@ -467,6 +476,8 @@ class FleetHttpSurfaceService:
         if self._DEVICE_LOGS.match(path):
             return True
         if self._DEVICE_EFFECTIVE_POLICY.match(path):
+            return True
+        if self._DEVICE_USB.match(path):
             return True
         return self._DEVICE_DETAIL.match(path) is not None
 
@@ -617,6 +628,31 @@ class FleetHttpSurfaceService:
                     ),
                 },
             )
+        usb_match = self._DEVICE_USB.match(path)
+        if usb_match is not None:
+            device = self._registry.get_device(usb_match.group("device_id"))
+            if device is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
+            endpoint_report = self._endpoint_report_for_device(device)
+            usb = self._endpoint_usb_payload(endpoint_report)
+            usb_devices = usb.get("devices") if isinstance(usb.get("devices"), list) else []
+            return self._json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        device_id=str(getattr(device, "device_id", "") or ""),
+                        usb={
+                            "tunnel_state": str(usb.get("tunnel_state", "") or ""),
+                            "tunnel_port": str(usb.get("tunnel_port", "") or ""),
+                            "device_count": int(usb.get("device_count", len(usb_devices)) or 0),
+                            "bound_count": int(usb.get("bound_count", 0) or 0),
+                            "devices": usb_devices,
+                            "reported_at": str(endpoint_report.get("reported_at", "") or ""),
+                        },
+                    ),
+                },
+            )
         match = self._DEVICE_LOGS.match(path)
         if match is not None:
             device = self._registry.get_device(match.group("device_id"))
@@ -663,6 +699,8 @@ class FleetHttpSurfaceService:
         if self._FLEET_ALERT_RESOLVE.match(path):
             return True
         if self._DEVICE_REMEDIATION.match(path):
+            return True
+        if self._DEVICE_USB_ACTION.match(path):
             return True
         return self._DEVICE_ACTION.match(path) is not None
 
@@ -827,6 +865,55 @@ class FleetHttpSurfaceService:
             return self._json(
                 HTTPStatus.OK,
                 {"ok": True, **self._envelope(action=action, result=result, device=self._device_to_dict(updated_device))},
+            )
+        usb_action_match = self._DEVICE_USB_ACTION.match(path)
+        if usb_action_match is not None:
+            device_id = usb_action_match.group("device_id")
+            action = usb_action_match.group("action")
+            device = self._registry.get_device(device_id)
+            if device is None:
+                return self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "device not found"})
+            action_name = {
+                "refresh": "usb-refresh",
+                "bind": "usb-bind",
+                "unbind": "usb-unbind",
+            }[action]
+            params: dict[str, Any] = {"device_id": device_id}
+            if action in {"bind", "unbind"}:
+                busid = str(payload.get("busid") or "").strip()
+                if not busid:
+                    return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "busid required"})
+                params["busid"] = busid
+            try:
+                queued_action = self._queue_endpoint_action(
+                    device=device,
+                    action_name=action_name,
+                    requested_by=requester_name or self._requester_identity(),
+                    params=params,
+                )
+            except LookupError as exc:
+                return self._json(HTTPStatus.CONFLICT, {"ok": False, "error": str(exc)})
+            except ValueError as exc:
+                return self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
+            self._safe_audit_event(
+                f"fleet.device.usb.{action}",
+                "success",
+                username=requester_name or self._requester_identity(),
+                device_id=device_id,
+                action=action_name,
+                busid=str(params.get("busid") or ""),
+                vmid=int(queued_action.get("vmid") or 0),
+            )
+            return self._json(
+                HTTPStatus.ACCEPTED,
+                {
+                    "ok": True,
+                    **self._envelope(
+                        device=self._device_to_dict(device),
+                        queued_action=queued_action,
+                        action=action,
+                    ),
+                },
             )
         if path == "/api/v1/fleet/devices/register":
             device_id = str(payload.get("device_id") or "").strip()

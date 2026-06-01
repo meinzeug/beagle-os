@@ -1,4 +1,4 @@
-import { request } from './api.js';
+import { isSafeExternalUrl, request } from './api.js';
 import { chip, escapeHtml, formatDate, qs } from './dom.js';
 import { hasPermission, state } from './state.js';
 
@@ -28,6 +28,7 @@ const fleetState = {
   remediationDrift: { devices: [], drifted_count: 0, safe_candidate_count: 0 },
   remediationConfig: { enabled: false, safe_actions: [], excluded_device_ids: [], last_run: {} },
   remediationHistory: [],
+  usbManager: { deviceId: '', payload: null, loading: false, error: '', customUrl: '' },
 };
 
 export function configureFleetHealth(nextHooks) {
@@ -61,6 +62,9 @@ function fleetActionIcon(name) {
   }
   if (name === 'logs') {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h6"></path><path d="M8 9h2"></path></svg>';
+  }
+  if (name === 'usb-manager') {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v9"></path><path d="m9.5 8.5 2.5 2.5 2.5-2.5"></path><path d="M12 11v11"></path><circle cx="12" cy="18" r="2"></circle><path d="M7 16H4a2 2 0 0 1 0-4h3"></path><path d="M17 12h3a2 2 0 0 1 0 4h-3"></path></svg>';
   }
   if (name === 'policy') {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4Z"></path><path d="m9.5 12 1.7 1.7 3.8-3.8"></path></svg>';
@@ -110,6 +114,7 @@ function deviceActionButtons(device) {
   const status = String(device.status ?? '').trim().toLowerCase();
   const buttons = [];
   buttons.push(fleetDeviceIconButton({ deviceId, label: 'ThinClient konfigurieren', tone: 'primary', dataAttr: 'data-custom-device-edit', action: 'configure' }));
+  buttons.push(fleetDeviceIconButton({ deviceId, label: 'USB Geraete verwalten', tone: 'primary', dataAttr: 'data-device-usb-manager', action: 'usb-manager' }));
   buttons.push(fleetDeviceIconButton({ deviceId, label: 'ThinClient Logs anzeigen', dataAttr: 'data-device-logs', action: 'logs' }));
   buttons.push(fleetDeviceIconButton({ deviceId, label: 'Effective Policy anzeigen', action: 'policy-select' }));
   if (status === 'locked') {
@@ -1104,6 +1109,214 @@ function deviceLogsModalMarkup() {
     </div>`;
 }
 
+function normalizeUsbDevices(usbPayload) {
+  const devices = Array.isArray(usbPayload?.devices) ? usbPayload.devices : [];
+  return devices.map((device) => {
+    const item = device && typeof device === 'object' ? device : {};
+    return {
+      busid: String(item.busid || item.id || '').trim(),
+      name: String(item.name || item.product || item.description || 'USB Device').trim(),
+      vendor: String(item.vendor || item.manufacturer || '').trim(),
+      product: String(item.product || '').trim(),
+      classes: Array.isArray(item.classes) ? item.classes.map((entry) => String(entry || '').trim()).filter(Boolean) : [],
+      bound: Boolean(item.bound),
+    };
+  });
+}
+
+function detectUsbDeviceKind(device) {
+  const text = [device.name, device.vendor, device.product, ...(device.classes || [])].join(' ').toLowerCase();
+  if (/(printer|laserjet|epson|brother|hp|canon|zebra)/.test(text)) return 'printer';
+  if (/(scan|scanner|twain|sane|image)/.test(text)) return 'scanner';
+  if (/(camera|webcam|uvc|capture)/.test(text)) return 'camera';
+  if (/(android|iphone|phone|smartphone|mtp|adb)/.test(text)) return 'smartphone';
+  if (/(microphone|mic|audio|headset)/.test(text)) return 'audio';
+  return 'generic';
+}
+
+function usbGuideLinksMarkup() {
+  return `
+    <div class="fleet-usb-guides">
+      <a href="https://wiki.archlinux.org/title/USB/IP" target="_blank" rel="noopener noreferrer">USB/IP Praxis-Guide (ArchWiki)</a>
+      <a href="https://openprinting.github.io/cups/doc/admin.html" target="_blank" rel="noopener noreferrer">CUPS Admin (Drucker Setup + Web UI :631)</a>
+      <a href="https://openprinting.github.io/cups/doc/network.html" target="_blank" rel="noopener noreferrer">CUPS Netzwerkdrucker</a>
+      <a href="https://www.sane-project.org/sane-mfgs.html" target="_blank" rel="noopener noreferrer">SANE Scanner Kompatibilitaet</a>
+      <a href="https://developer.android.com/tools/adb" target="_blank" rel="noopener noreferrer">Android ADB (Smartphone Debug/Forward)</a>
+    </div>`;
+}
+
+function usbManagerContentMarkup() {
+  const state = fleetState.usbManager || { deviceId: '', payload: null, loading: false, error: '', customUrl: '' };
+  const payload = state.payload && typeof state.payload === 'object' ? state.payload : {};
+  const devices = normalizeUsbDevices(payload);
+  const tunnelState = String(payload.tunnel_state || '').trim() || 'unknown';
+  const tunnelPort = String(payload.tunnel_port || '').trim() || '-';
+  const reportedAt = String(payload.reported_at || '').trim();
+
+  if (state.loading) {
+    return '<div class="empty-card">USB-Status wird geladen…</div>';
+  }
+  if (state.error) {
+    return `<div class="empty-card">${escapeHtml(state.error)}</div>`;
+  }
+
+  const deviceRows = devices.length ? devices.map((device) => {
+    const kind = detectUsbDeviceKind(device);
+    const kindLabel = {
+      printer: 'Drucker',
+      scanner: 'Scanner',
+      camera: 'Kamera',
+      smartphone: 'Smartphone',
+      audio: 'Audio/Mikrofon',
+      generic: 'USB Geraet',
+    }[kind];
+    const busid = String(device.busid || '').trim();
+    const bindDisabled = !busid || device.bound;
+    const unbindDisabled = !busid || !device.bound;
+    return `<article class="card compact-card fleet-usb-device-card">
+      <div class="fleet-usb-device-head">
+        <strong>${escapeHtml(device.name || 'USB Device')}</strong>
+        <div class="button-row compact-row">
+          ${chip(kindLabel, 'info')}
+          ${chip(device.bound ? 'verbunden' : 'frei', device.bound ? 'ok' : 'muted')}
+        </div>
+      </div>
+      <div class="fleet-usb-device-meta">
+        <span>BusID: ${escapeHtml(busid || '-')}</span>
+        <span>Vendor: ${escapeHtml(device.vendor || '-')}</span>
+        <span>Produkt: ${escapeHtml(device.product || '-')}</span>
+      </div>
+      <div class="button-row compact-row">
+        <button type="button" class="button ghost small" data-usb-manager-action="bind" data-device-id="${escapeHtml(state.deviceId)}" data-busid="${escapeHtml(busid)}"${bindDisabled ? ' disabled' : ''}>Mit VM verbinden</button>
+        <button type="button" class="button ghost small" data-usb-manager-action="unbind" data-device-id="${escapeHtml(state.deviceId)}" data-busid="${escapeHtml(busid)}"${unbindDisabled ? ' disabled' : ''}>Von VM trennen</button>
+      </div>
+    </article>`;
+  }).join('') : '<div class="empty-card">Keine USB-Geraete gemeldet. Bitte USB einstecken und USB-Inventar aktualisieren.</div>';
+
+  return `
+    <div class="fleet-usb-hero">
+      <div>
+        <strong id="fleet-usb-device-id">${escapeHtml(state.deviceId || 'Kein Geraet gewaehlt')}</strong>
+        <div class="muted">Live-Monitoring fuer USB Tunnel, Device-Liste und Verbindungsstatus.</div>
+      </div>
+      <div class="button-row compact-row">
+        ${chip(`Tunnel ${tunnelState}`, tunnelState === 'up' ? 'ok' : tunnelState === 'down' ? 'warn' : 'muted')}
+        ${chip(`Port ${escapeHtml(tunnelPort)}`, 'info')}
+        ${chip(`Zuletzt ${escapeHtml(formatDate(reportedAt || '')) || '-'}`, 'muted')}
+      </div>
+    </div>
+    <div class="button-row compact-row fleet-usb-toolbar">
+      <button type="button" class="button primary" data-usb-manager-action="refresh" data-device-id="${escapeHtml(state.deviceId)}">USB-Liste aktualisieren</button>
+      <button type="button" class="button ghost" data-usb-manager-action="reload" data-device-id="${escapeHtml(state.deviceId)}">Neu laden</button>
+    </div>
+    <section class="fleet-usb-device-grid">${deviceRows}</section>
+    <section class="card compact-card fleet-usb-links-card">
+      <h3>Anleitungen und Plug-and-Play Hilfe</h3>
+      <p class="muted">Direkte Referenzen fuer USB/IP, Drucker-Admin, Scanner-Check und Smartphone-Bridge.</p>
+      ${usbGuideLinksMarkup()}
+      <div class="fleet-usb-local-links">
+        <label class="field field-wide">
+          <span>Lokale Webadmin URL (z. B. http://192.168.178.50)</span>
+          <input id="fleet-usb-custom-url" type="text" autocomplete="off" placeholder="http://192.168.178.50" value="${escapeHtml(state.customUrl || '')}">
+        </label>
+        <div class="button-row compact-row">
+          <button type="button" class="button ghost" data-usb-manager-action="open-custom-link" data-device-id="${escapeHtml(state.deviceId)}">Lokale Weboberflaeche oeffnen</button>
+          <a class="button ghost" href="http://localhost:631" target="_blank" rel="noopener noreferrer">CUPS Webadmin (:631)</a>
+        </div>
+      </div>
+    </section>`;
+}
+
+function usbManagerModalMarkup() {
+  const state = fleetState.usbManager || { deviceId: '', payload: null, loading: false, error: '', customUrl: '' };
+  return `
+    <div class="modal fleet-registry-modal" id="fleet-device-usb-modal" aria-hidden="true" hidden>
+      <div class="modal-dialog fleet-registry-dialog fleet-device-usb-dialog" role="dialog" aria-modal="true" aria-labelledby="fleet-device-usb-title">
+        <div class="modal-dialog-head">
+          <div>
+            <span class="eyebrow">Thin Clients</span>
+            <h2 id="fleet-device-usb-title">USB Manager pro ThinClient</h2>
+            <p>USB Geraete sehen, mit der VM verbinden/trennen, Tunnelstatus monitoren und Hilfe-Links direkt nutzen.</p>
+          </div>
+          <button class="icon-button" type="button" data-fleet-modal-close aria-label="Schliessen">×</button>
+        </div>
+        <div class="fleet-modal-body" id="fleet-device-usb-body">${usbManagerContentMarkup()}</div>
+        <div class="button-row compact-row fleet-usb-footer">
+          <span class="muted">Device: <strong>${escapeHtml(state.deviceId || '-')}</strong></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function rerenderUsbManagerBody() {
+  const body = qs('fleet-device-usb-body');
+  if (!body) {
+    return;
+  }
+  body.innerHTML = usbManagerContentMarkup();
+}
+
+async function loadUsbManagerDevice(deviceId) {
+  const cleanDeviceId = String(deviceId || '').trim();
+  if (!cleanDeviceId) {
+    return;
+  }
+  fleetState.usbManager = {
+    deviceId: cleanDeviceId,
+    payload: null,
+    loading: true,
+    error: '',
+    customUrl: String(fleetState.usbManager?.customUrl || ''),
+  };
+  rerenderUsbManagerBody();
+  try {
+    const response = await request(`/fleet/devices/${encodeURIComponent(cleanDeviceId)}/usb`);
+    fleetState.usbManager = {
+      deviceId: cleanDeviceId,
+      payload: response?.usb && typeof response.usb === 'object' ? response.usb : {},
+      loading: false,
+      error: '',
+      customUrl: String(fleetState.usbManager?.customUrl || ''),
+    };
+  } catch (error) {
+    fleetState.usbManager = {
+      deviceId: cleanDeviceId,
+      payload: null,
+      loading: false,
+      error: 'USB-Daten konnten nicht geladen werden: ' + String(error.message || error),
+      customUrl: String(fleetState.usbManager?.customUrl || ''),
+    };
+  }
+  rerenderUsbManagerBody();
+}
+
+async function openDeviceUsbManagerModal(deviceId) {
+  const cleanDeviceId = String(deviceId || '').trim();
+  if (!cleanDeviceId) {
+    return;
+  }
+  setFleetModalState('fleet-device-usb-modal', true);
+  await loadUsbManagerDevice(cleanDeviceId);
+}
+
+async function queueUsbManagerAction(deviceId, action, busid) {
+  const cleanDeviceId = String(deviceId || '').trim();
+  const cleanAction = String(action || '').trim();
+  if (!cleanDeviceId || !cleanAction) {
+    return;
+  }
+  const endpoint = `/fleet/devices/${encodeURIComponent(cleanDeviceId)}/usb/${encodeURIComponent(cleanAction)}`;
+  const payload = cleanAction === 'bind' || cleanAction === 'unbind' ? { busid: String(busid || '').trim() } : {};
+  await request(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  fleetHooks.setBanner(`USB Aktion ${cleanAction} fuer ${cleanDeviceId} eingereiht.`, 'ok');
+  await loadUsbManagerDevice(cleanDeviceId);
+  await fleetHooks.loadDashboard({ force: true });
+}
+
 async function openDeviceLogsModal(deviceId) {
   const cleanDeviceId = String(deviceId || '').trim();
   if (!cleanDeviceId) {
@@ -1668,6 +1881,50 @@ export async function renderFleetHealth() {
       });
       return;
     }
+    const usbButton = event.target.closest('[data-device-usb-manager]');
+    if (usbButton) {
+      const deviceId = String(usbButton.getAttribute('data-device-usb-manager') || '').trim();
+      openDeviceUsbManagerModal(deviceId).catch((error) => {
+        fleetHooks.setBanner('USB Manager konnte nicht geoeffnet werden: ' + String(error.message ?? error), 'warn');
+      });
+      return;
+    }
+    const usbActionButton = event.target.closest('[data-usb-manager-action]');
+    if (usbActionButton) {
+      const action = String(usbActionButton.getAttribute('data-usb-manager-action') || '').trim();
+      const deviceId = String(usbActionButton.getAttribute('data-device-id') || '').trim();
+      if (action === 'open-custom-link') {
+        const field = qs('fleet-usb-custom-url');
+        const rawUrl = String(field?.value || '').trim();
+        if (!rawUrl) {
+          fleetHooks.setBanner('Bitte zuerst eine lokale URL eingeben.', 'warn');
+          return;
+        }
+        let target = rawUrl;
+        if (!/^https?:\/\//i.test(target)) {
+          target = 'http://' + target;
+        }
+        if (!isSafeExternalUrl(target)) {
+          fleetHooks.setBanner('Unsichere oder ungueltige URL blockiert.', 'warn');
+          return;
+        }
+        fleetState.usbManager.customUrl = target;
+        window.open(target, '_blank', 'noopener');
+        rerenderUsbManagerBody();
+        return;
+      }
+      if (action === 'reload') {
+        loadUsbManagerDevice(deviceId).catch((error) => {
+          fleetHooks.setBanner('USB Daten konnten nicht neu geladen werden: ' + String(error.message ?? error), 'warn');
+        });
+        return;
+      }
+      const busid = String(usbActionButton.getAttribute('data-busid') || '').trim();
+      queueUsbManagerAction(deviceId, action, busid).catch((error) => {
+        fleetHooks.setBanner('USB Aktion fehlgeschlagen: ' + String(error.message ?? error), 'warn');
+      });
+      return;
+    }
     const editButton = event.target.closest('[data-custom-device-edit]');
     if (editButton) {
       openDeviceEditModal(editButton.getAttribute('data-custom-device-edit'));
@@ -1763,7 +2020,8 @@ export async function renderFleetHealth() {
       ${fleetExpertModal('fleet-alerts-modal', 'Alerts und Regeln', 'Predictive Alerts und Regelpflege an einem Ort.', predictiveAlertsMarkup(anomalies))}
       ${fleetExpertModal('fleet-remediation-modal', 'Remediation und Drift', 'Sichere Reparaturen, Drift-Analyse und Verlauf getrennt von der Hauptansicht.', remediationDriftMarkup())}
       ${fleetExpertModal('fleet-topology-modal', 'Standorte und Gruppen', 'Standort- und Gruppenansicht für organisatorische Übersicht.', locationTreeSection())}
-      ${deviceLogsModalMarkup()}`;
+        ${deviceLogsModalMarkup()}
+        ${usbManagerModalMarkup()}`;
   } else {
     container.innerHTML = `
       <div id="fleet-registry-live-shell">${fleetRegistryLiveShellMarkup(devices, anomalies, maintenance, policies)}</div>
@@ -1771,7 +2029,8 @@ export async function renderFleetHealth() {
       ${fleetExpertModal('fleet-alerts-modal', 'Alerts und Regeln', 'Predictive Alerts und Regelpflege an einem Ort.', predictiveAlertsMarkup(anomalies))}
       ${fleetExpertModal('fleet-remediation-modal', 'Remediation und Drift', 'Sichere Reparaturen, Drift-Analyse und Verlauf getrennt von der Hauptansicht.', remediationDriftMarkup())}
         ${fleetExpertModal('fleet-topology-modal', 'Standorte und Gruppen', 'Standort- und Gruppenansicht für organisatorische Übersicht.', locationTreeSection())}
-        ${deviceLogsModalMarkup()}`;
+        ${deviceLogsModalMarkup()}
+        ${usbManagerModalMarkup()}`;
   }
 
   container.querySelectorAll('[data-policy-id]').forEach((item) => {

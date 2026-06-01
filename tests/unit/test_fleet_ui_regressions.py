@@ -108,6 +108,17 @@ def test_fleet_health_uses_fleet_registry_api_surface() -> None:
     assert "Logs konnten nicht geladen werden" in js
     assert "fleet-device-logs-modal" in js
     assert "fleet-log-pre" in js
+    assert "fleet-device-usb-modal" in js
+    assert "data-device-usb-manager" in js
+    assert "USB Manager pro ThinClient" in js
+    assert "request(`/fleet/devices/${encodeURIComponent(cleanDeviceId)}/usb`)" in js
+    assert "data-usb-manager-action=\"bind\"" in js
+    assert "data-usb-manager-action=\"unbind\"" in js
+    assert "request(endpoint, {" in js
+    assert "https://wiki.archlinux.org/title/USB/IP" in js
+    assert "https://openprinting.github.io/cups/doc/admin.html" in js
+    assert "https://developer.android.com/tools/adb" in js
+    assert "CUPS Webadmin (:631)" in js
     assert "Effektiv vs Default" in js
     assert "Bulk Device IDs" in js
     assert "Bulk Standort" in js
@@ -180,6 +191,9 @@ def test_fleet_registry_table_and_log_modal_allow_horizontal_overflow_and_fit_vi
     assert "flex-wrap: wrap;" in css
     assert ".fleet-registry-modal" in css
     assert "z-index: 10020;" in css
+    assert ".fleet-device-usb-dialog" in css
+    assert ".fleet-usb-device-grid" in css
+    assert ".fleet-usb-guides" in css
 
 
 def test_enterprise_dashboard_modules_use_operator_routes() -> None:

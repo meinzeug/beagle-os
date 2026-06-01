@@ -294,6 +294,102 @@ def test_post_endpoint_actions_queue_runtime_commands(tmp_path: Path) -> None:
     assert queued[0]["requested_by"] == "operator"
 
 
+def test_get_device_usb_inventory_from_endpoint_report(tmp_path: Path) -> None:
+    registry, _, _, _, service = make_services(
+        tmp_path,
+        endpoint_reports=[
+            {
+                "endpoint_id": "dev-001",
+                "hostname": "tc-001",
+                "reported_at": "2026-04-28T06:05:00Z",
+                "usb": {
+                    "tunnel_state": "up",
+                    "tunnel_port": "43100",
+                    "device_count": 2,
+                    "bound_count": 1,
+                    "devices": [
+                        {"busid": "1-1", "name": "Brother HL-L2350DW", "bound": True},
+                        {"busid": "2-2", "name": "Logitech Webcam C920", "bound": False},
+                    ],
+                },
+            }
+        ],
+    )
+    registry.register_device("dev-001", "tc-001", HW)
+
+    response = service.route_get("/api/v1/fleet/devices/dev-001/usb")
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    assert response["payload"]["usb"]["tunnel_state"] == "up"
+    assert response["payload"]["usb"]["device_count"] == 2
+    assert response["payload"]["usb"]["bound_count"] == 1
+    assert response["payload"]["usb"]["devices"][0]["busid"] == "1-1"
+
+
+def test_post_device_usb_actions_queue_runtime_commands(tmp_path: Path) -> None:
+    queued: list[dict[str, object]] = []
+
+    class VmStub:
+        vmid = 101
+        node = "beagle-0"
+
+    def queue_runtime_action(vm, action_name: str, requested_by: str, params=None) -> dict[str, object]:
+        payload = {
+            "action_id": f"{vm.node}-{vm.vmid}-{len(queued) + 1}",
+            "action": action_name,
+            "vmid": vm.vmid,
+            "node": vm.node,
+            "requested_by": requested_by,
+            "params": params or {},
+        }
+        queued.append(payload)
+        return payload
+
+    registry, _, _, _, service = make_services(
+        tmp_path,
+        endpoint_reports=[
+            {
+                "endpoint_id": "dev-001",
+                "hostname": "tc-001",
+                "reported_at": "2026-04-28T06:05:00Z",
+                "vmid": 101,
+                "node": "beagle-0",
+            }
+        ],
+        find_vm=lambda vmid: VmStub() if int(vmid) == 101 else None,
+        queue_vm_action=queue_runtime_action,
+    )
+    registry.register_device("dev-001", "tc-001", HW)
+
+    refresh = service.route_post("/api/v1/fleet/devices/dev-001/usb/refresh", json_payload={}, requester="operator")
+    bind = service.route_post("/api/v1/fleet/devices/dev-001/usb/bind", json_payload={"busid": "1-1"}, requester="operator")
+    unbind = service.route_post("/api/v1/fleet/devices/dev-001/usb/unbind", json_payload={"busid": "1-1"}, requester="operator")
+
+    assert refresh is not None
+    assert bind is not None
+    assert unbind is not None
+    assert refresh["status"] == HTTPStatus.ACCEPTED
+    assert bind["status"] == HTTPStatus.ACCEPTED
+    assert unbind["status"] == HTTPStatus.ACCEPTED
+    assert queued[0]["action"] == "usb-refresh"
+    assert queued[1]["action"] == "usb-bind"
+    assert queued[1]["params"]["busid"] == "1-1"
+    assert queued[2]["action"] == "usb-unbind"
+    assert queued[2]["params"]["busid"] == "1-1"
+
+
+def test_post_device_usb_bind_requires_busid(tmp_path: Path) -> None:
+    registry, _, _, _, service = make_services(tmp_path)
+    registry.register_device("dev-001", "tc-001", HW)
+
+    response = service.route_post("/api/v1/fleet/devices/dev-001/usb/bind", json_payload={})
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.BAD_REQUEST
+    assert response["payload"]["error"] == "busid required"
+
+
 def test_post_endpoint_actions_require_endpoint_mapping(tmp_path: Path) -> None:
     registry, _, _, _, service = make_services(tmp_path)
     registry.register_device("dev-001", "tc-001", HW)
