@@ -159,9 +159,12 @@ def test_fleet_registry_table_and_log_modal_allow_horizontal_overflow_and_fit_vi
 
     assert ".fleet-table-wrap" in css
     assert "overflow-x: auto;" in css
+    assert "table-layout: fixed;" in css
     assert ".fleet-device-logs-dialog" in css
     assert "calc(100vw - 32px)" in css
     assert "flex-wrap: wrap;" in css
+    assert ".fleet-registry-modal" in css
+    assert "z-index: 1600;" in css
 
 
 def test_enterprise_dashboard_modules_use_operator_routes() -> None:

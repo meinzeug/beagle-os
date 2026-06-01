@@ -41,6 +41,7 @@
 .fleet-registry-control-head h3 { margin: 0; font-size: 0.98rem; }
 .fleet-registry-dialog { width: min(1040px, 100%); }
 .fleet-device-logs-dialog { width: min(1180px, calc(100vw - 32px)); max-width: calc(100vw - 32px); }
+.fleet-registry-modal { z-index: 1600; }
 .fleet-modal-body { display: grid; gap: 14px; min-width: 0; }
 .fleet-log-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); flex-wrap: wrap; }
 .fleet-log-list { display: grid; gap: 12px; min-width: 0; }
@@ -487,6 +488,21 @@
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+}
+.fleet-table-wrap .vm-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.fleet-table-wrap .vm-table th,
+.fleet-table-wrap .vm-table td {
+  min-width: 0;
+}
+.fleet-table-wrap .vm-table td:last-child .button-row.compact-row {
+  flex-wrap: wrap;
+}
+.fleet-table-wrap .vm-table td:last-child .button-row.compact-row .button,
+.fleet-table-wrap .vm-table td:last-child .button-row.compact-row .btn {
+  white-space: normal;
 }
 .fleet-expert-launchers {
   display: grid;
