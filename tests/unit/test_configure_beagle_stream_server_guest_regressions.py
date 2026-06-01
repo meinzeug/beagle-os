@@ -129,6 +129,8 @@ def test_configure_beagle_stream_server_guest_installs_thinclient_microphone_bri
     assert 'Environment=BEAGLE_TC_MIC_BRIDGE_PORT=\\$BEAGLE_TC_MIC_BRIDGE_PORT' in content
     assert 'systemctl enable --now beagle-tc-mic-bridge.service' in content
     service_template = (ROOT_DIR / "scripts" / "lib" / "beagle-tc-mic-bridge.service").read_text(encoding="utf-8")
+    assert 'Environment=XDG_RUNTIME_DIR=/run/user/%U' in service_template
+    assert 'ExecStartPre=/usr/bin/systemctl --user start pipewire.service pipewire-pulse.service wireplumber.service' in service_template
     assert 'WantedBy=graphical.target' in service_template
     assert 'WantedBy=multi-user.target' not in service_template
 
