@@ -232,9 +232,23 @@ export RSYNC_RSH="ssh -i $SSH_KEY_FILE -o IdentitiesOnly=yes -o StrictHostKeyChe
 write_public_status_json
 prepare_publish_stage
 
-rsync -av --progress --delete-before --inplace \
-  --exclude '.htaccess' \
-  "$PUBLISH_STAGE_DIR/" \
-  "$REMOTE_TARGET/"
+if [[ "$RELEASE_CLASS" == "prerelease" ]]; then
+  rsync -av --progress --delete-before --inplace \
+    --exclude '.htaccess' \
+    "$PUBLISH_STAGE_DIR/" \
+    "$REMOTE_TARGET/prereleases/$VERSION/"
 
-echo "Published public update artifacts to $REMOTE_TARGET"
+  rsync -av --progress --inplace \
+    --exclude '.htaccess' \
+    "$PUBLISH_STAGE_ROOT/$STATUS_JSON_NAME" \
+    "$REMOTE_TARGET/$STATUS_JSON_NAME"
+
+  echo "Published prerelease artifacts to $REMOTE_TARGET/prereleases/$VERSION and updated $STATUS_JSON_NAME"
+else
+  rsync -av --progress --delete-before --inplace \
+    --exclude '.htaccess' \
+    "$PUBLISH_STAGE_DIR/" \
+    "$REMOTE_TARGET/"
+
+  echo "Published stable public update artifacts to $REMOTE_TARGET"
+fi

@@ -6,18 +6,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_download_page_shows_stable_and_prerelease_widgets() -> None:
-    page = (ROOT / "public-site" / "download" / "index.html").read_text(encoding="utf-8")
+def test_release_workflow_verifies_stable_and_prerelease_status_files() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
-    assert 'data-build-status-widget' in page
-    assert 'beagle-downloads-status.json' in page
-    assert 'beagle-downloads-prerelease-status.json' in page
-    assert 'prereleases/&lt;version&gt;' in page or '/beagle-updates/prereleases/&lt;version&gt;/' in page
+    assert 'STATUS_FILE="beagle-downloads-status.json"' in workflow
+    assert 'STATUS_FILE="beagle-downloads-prerelease-status.json"' in workflow
+    assert 'EXPECTED_BASE_URL="https://beagle-os.com/beagle-updates/prereleases/${VERSION}"' in workflow
 
 
-def test_download_page_loads_build_status_widget_script() -> None:
-    page = (ROOT / "public-site" / "download" / "index.html").read_text(encoding="utf-8")
+def test_publish_public_update_script_preserves_stable_when_prerelease_syncs() -> None:
+    script = (ROOT / "scripts" / "publish-public-update-artifacts.sh").read_text(encoding="utf-8")
 
-    assert '/assets/js/build-status.js' in page
-    assert 'Latest GitHub release' in page
-    assert 'Release channels' in page
+    assert '"$REMOTE_TARGET/prereleases/$VERSION/"' in script
+    assert '"$PUBLISH_STAGE_ROOT/$STATUS_JSON_NAME"' in script
+    assert 'Published prerelease artifacts to $REMOTE_TARGET/prereleases/$VERSION and updated $STATUS_JSON_NAME' in script

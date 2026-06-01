@@ -771,20 +771,35 @@ jobs:
       - name: Verify public update mirror
         run: |
           VERSION="$(tr -d ' \n\r' < VERSION)"
-          curl -fsSL https://beagle-os.com/beagle-updates/beagle-downloads-status.json >/tmp/beagle-downloads-status.json
-          python3 - "$VERSION" <<'PY'
+          RELEASE_CLASS="${{ needs.detect-artifact-changes.outputs.release_class }}"
+          STATUS_FILE="beagle-downloads-status.json"
+          EXPECTED_BASE_URL="https://beagle-os.com/beagle-updates"
+          if [[ "$RELEASE_CLASS" == "prerelease" ]]; then
+          STATUS_FILE="beagle-downloads-prerelease-status.json"
+          EXPECTED_BASE_URL="https://beagle-os.com/beagle-updates/prereleases/${VERSION}"
+          fi
+          curl -fsSL "https://beagle-os.com/beagle-updates/${STATUS_FILE}" >/tmp/beagle-downloads-status.json
+          python3 - "$VERSION" "$RELEASE_CLASS" "$EXPECTED_BASE_URL" <<'PY'
           import json
           import sys
           from pathlib import Path
 
           expected_version = sys.argv[1]
+          expected_release_class = sys.argv[2]
+          expected_base_url = sys.argv[3]
           data = json.loads(Path('/tmp/beagle-downloads-status.json').read_text())
           if data.get('version') != expected_version:
               raise SystemExit(f"expected public mirror version {expected_version}, got {data.get('version')!r}")
+          if str(data.get('release_class') or data.get('channel') or '').lower() != expected_release_class:
+            raise SystemExit(
+              f"expected release class {expected_release_class}, got {data.get('release_class')!r}/{data.get('channel')!r}"
+            )
           for key in ('payload_url', 'bootstrap_url'):
               value = str(data.get(key) or '')
-              if not value.startswith('https://beagle-os.com/beagle-updates/'):
-                  raise SystemExit(f"expected {key} to stay in beagle-updates mirror, got {value!r}")
+            if not value.startswith(expected_base_url + '/'):
+              raise SystemExit(
+                f"expected {key} to stay in {expected_base_url}/ mirror, got {value!r}"
+              )
           urls = [
               str(data.get('payload_url') or ''),
               str(data.get('bootstrap_url') or ''),
@@ -799,21 +814,3 @@ jobs:
             [[ -n "$url" ]] || continue
             curl -fsSI "$url" >/dev/null
           done < /tmp/public-artifact-urls.txt
-
-      - name: Publish public website
-        env:
-          BEAGLE_PUBLIC_SITE_DIR: ${{ github.workspace }}/public-site
-          BEAGLE_PUBLIC_SITE_TARGET: ${{ secrets.BEAGLE_PUBLIC_SITE_TARGET }}
-        run: bash scripts/deploy-public-website.sh
-
-      - name: Verify live website content
-        run: |
-          VERSION="$(tr -d ' \n\r' < VERSION)"
-          RELEASE_TAG="v${VERSION}"
-          curl -fsSL https://beagle-os.com/ >/tmp/beagle-homepage.html
-          curl -fsSL https://beagle-os.com/download/ >/tmp/beagle-download.html
-          curl -fsSL https://beagle-os.com/styles.css >/tmp/beagle-styles.css
-          curl -fsSI https://beagle-os.com/assets/img/beagleos-gaming.png >/tmp/beagle-wallpaper.headers
-          grep -q "Release ${RELEASE_TAG}" /tmp/beagle-homepage.html
-          grep -q "Current release: ${RELEASE_TAG}" /tmp/beagle-download.html
-          grep -qi 'beagleos-gaming.png' /tmp/beagle-styles.css
