@@ -131,17 +131,25 @@ usb_status_json() {
 
 run_usb_tunnel_daemon() {
   local ssh_cmd camera_pid=""
+  local tunnel_user tunnel_host tunnel_attach_host tunnel_port
+  local tunnel_audio_port
+  local rc
   local -a reverse_forwards=()
 
   require_enabled
   [[ -n "$(usb_host)" && -n "$(usb_port)" && -n "$(usb_user)" ]] || exit 0
   [[ -r "$(usb_key_file)" && -r "$(usb_known_hosts_file)" ]] || exit 0
+  tunnel_user="$(usb_user)"
+  tunnel_host="$(usb_host)"
+  tunnel_attach_host="$(usb_attach_host)"
+  tunnel_port="$(usb_port)"
+  tunnel_audio_port="$(audio_input_remote_port)"
   ssh_cmd="$(ssh_bin)"
   # Auto-bind all eligible USB devices before syncing manually-bound list.
   auto_bind_eligible_devices || true
   sync_bound_devices
   start_audio_input_bridge || true
-  reverse_forwards+=("-R" "$(usb_attach_host):$(usb_port):127.0.0.1:3240")
+  reverse_forwards+=("-R" "${tunnel_attach_host}:${tunnel_port}:127.0.0.1:3240")
   if audio_input_bridge_enabled; then
     reverse_forwards+=("-R" "$(usb_attach_host):$(audio_input_remote_port):127.0.0.1:$(audio_input_local_port)")
   fi
@@ -159,20 +167,59 @@ run_usb_tunnel_daemon() {
       -o StrictHostKeyChecking=yes \
       -o UserKnownHostsFile="$(usb_known_hosts_file)" \
       -i "$(usb_key_file)" \
-      -R "$(usb_attach_host):${camera_remote_port}:127.0.0.1:${camera_local_port}" \
-      "$(usb_user)@$(usb_host)" >/dev/null 2>&1 &
+      -R "${tunnel_attach_host}:${camera_remote_port}:127.0.0.1:${camera_local_port}" \
+      "${tunnel_user}@${tunnel_host}" >/dev/null 2>&1 &
     camera_pid="$!"
-    trap '[[ -n "$camera_pid" ]] && kill "$camera_pid" >/dev/null 2>&1 || true' EXIT INT TERM
+    trap '[[ -n "${camera_pid:-}" ]] && kill "${camera_pid}" >/dev/null 2>&1 || true' EXIT INT TERM
   fi
 
-  exec "$ssh_cmd" -N \
-    -o BatchMode=yes \
-    -o ExitOnForwardFailure=yes \
-    -o ServerAliveInterval=20 \
-    -o ServerAliveCountMax=3 \
-    -o StrictHostKeyChecking=yes \
-    -o UserKnownHostsFile="$(usb_known_hosts_file)" \
-    -i "$(usb_key_file)" \
-    "${reverse_forwards[@]}" \
-    "$(usb_user)@$(usb_host)"
+  reap_stale_tunnel_clients() {
+    # Stale ssh tunnel clients can survive abrupt restarts and keep remote
+    # reverse ports occupied. Reap matching local tunnel clients first.
+    local pgrep_cmd
+    local pid=""
+    local -a stale_tunnel_pids=()
+    local -a _audio_pids=()
+    pgrep_cmd="$(pgrep_bin)"
+    mapfile -t stale_tunnel_pids < <("$pgrep_cmd" -f "ssh .*${tunnel_user}@${tunnel_host}.*-R ${tunnel_attach_host}:${tunnel_port}:127.0.0.1:3240" 2>/dev/null || true)
+    mapfile -t _audio_pids < <("$pgrep_cmd" -f "ssh .*${tunnel_user}@${tunnel_host}.*-R ${tunnel_attach_host}:${tunnel_audio_port}:127.0.0.1:${tunnel_audio_port}" 2>/dev/null || true)
+    stale_tunnel_pids+=("${_audio_pids[@]}")
+    if [[ "${#stale_tunnel_pids[@]}" -eq 0 ]]; then
+      return 0
+    fi
+    for pid in "${stale_tunnel_pids[@]}"; do
+      [[ "$pid" == "$$" ]] && continue
+      [[ -n "${camera_pid:-}" && "$pid" == "${camera_pid}" ]] && continue
+      kill "$pid" >/dev/null 2>&1 || true
+    done
+    "$(sleep_bin)" 1
+    for pid in "${stale_tunnel_pids[@]}"; do
+      [[ "$pid" == "$$" ]] && continue
+      [[ -n "${camera_pid:-}" && "$pid" == "${camera_pid}" ]] && continue
+      kill -0 "$pid" >/dev/null 2>&1 || continue
+      kill -9 "$pid" >/dev/null 2>&1 || true
+    done
+  }
+
+  while true; do
+    reap_stale_tunnel_clients
+    set +e
+    "$ssh_cmd" -N \
+      -o BatchMode=yes \
+      -o ExitOnForwardFailure=yes \
+      -o ServerAliveInterval=20 \
+      -o ServerAliveCountMax=3 \
+      -o StrictHostKeyChecking=yes \
+      -o UserKnownHostsFile="$(usb_known_hosts_file)" \
+      -i "$(usb_key_file)" \
+      "${reverse_forwards[@]}" \
+      "${tunnel_user}@${tunnel_host}"
+    rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+      break
+    fi
+    echo "beagle-usb-tunnel: ssh exited with rc=${rc}; retrying" >&2
+    "$(sleep_bin)" 3
+  done
 }

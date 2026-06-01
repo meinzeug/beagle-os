@@ -440,6 +440,11 @@ def test_usbip_autobind_keeps_usb_audio_local_for_mic_bridge() -> None:
     assert 'printf \'%s\\n\' "/usr/sbin/usbipd"' in actions_text
     assert 'beagle_audio_input_bridge.py' in actions_text
     assert '$(usb_attach_host):$(audio_input_remote_port):127.0.0.1:$(audio_input_local_port)' in actions_text
+    assert 'stale_tunnel_pids' in actions_text
+    assert 'remote reverse port occupied' in actions_text
+    assert 'kill -9 "$pid"' in actions_text
+    assert '"$ssh_cmd" -N \\' in actions_text
+    assert 'exec "$ssh_cmd" -N \\' not in actions_text
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT:-43200' in actions_text
     assert '"PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT", config.get("usb_audio_input_port", "")' in apply_enrollment_text
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT="$BEAGLE_AUDIO_INPUT_PORT"' in write_config_text
