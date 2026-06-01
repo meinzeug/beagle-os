@@ -90,8 +90,9 @@ function fleetDeviceIconButton({ action = '', deviceId = '', label = '', tone = 
   const classes = ['icon-button', 'fleet-device-action'];
   if (tone) classes.push(tone);
   const attributeName = String(dataAttr || 'data-fleet-action');
+  const attributeValue = attributeName === 'data-fleet-action' ? String(action || '').trim() : String(deviceId || '').trim();
   const iconName = action === 'policy-select' ? 'policy' : action;
-  return `<button type="button" class="${escapeHtml(classes.join(' '))}" ${escapeHtml(attributeName)}="${escapeHtml(deviceId)}" data-device-id="${escapeHtml(deviceId)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${fleetActionIcon(iconName)}</button>`;
+  return `<button type="button" class="${escapeHtml(classes.join(' '))}" ${escapeHtml(attributeName)}="${escapeHtml(attributeValue)}" data-device-id="${escapeHtml(deviceId)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${fleetActionIcon(iconName)}</button>`;
 }
 
 function policyBadge(device) {
