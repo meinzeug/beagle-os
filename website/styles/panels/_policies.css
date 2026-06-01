@@ -40,10 +40,10 @@
 .fleet-registry-control-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .fleet-registry-control-head h3 { margin: 0; font-size: 0.98rem; }
 .fleet-registry-dialog { width: min(1040px, 100%); }
-.fleet-device-logs-dialog { width: min(1180px, 100%); }
-.fleet-modal-body { display: grid; gap: 14px; }
-.fleet-log-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
-.fleet-log-list { display: grid; gap: 12px; }
+.fleet-device-logs-dialog { width: min(1180px, calc(100vw - 32px)); max-width: calc(100vw - 32px); }
+.fleet-modal-body { display: grid; gap: 14px; min-width: 0; }
+.fleet-log-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); flex-wrap: wrap; }
+.fleet-log-list { display: grid; gap: 12px; min-width: 0; }
 .fleet-log-pre { margin: 0; padding: 14px; border-radius: 10px; background: rgba(0, 0, 0, 0.22); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; }
 .fleet-policy-card { text-align: left; color: var(--text); cursor: pointer; }
 .fleet-policy-card.selected { border-color: var(--amber); box-shadow: 0 0 0 1px rgba(241, 192, 93, 0.2); }
@@ -484,7 +484,9 @@
 .fleet-table-wrap {
   border: 1px solid var(--border);
   border-radius: 16px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 .fleet-expert-launchers {
   display: grid;

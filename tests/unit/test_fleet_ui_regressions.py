@@ -154,6 +154,16 @@ def test_group_create_modal_stacks_above_config_modal() -> None:
     assert "z-index: 260;" in css
 
 
+def test_fleet_registry_table_and_log_modal_allow_horizontal_overflow_and_fit_viewport() -> None:
+    css = (ROOT / "website" / "styles" / "panels" / "_policies.css").read_text(encoding="utf-8")
+
+    assert ".fleet-table-wrap" in css
+    assert "overflow-x: auto;" in css
+    assert ".fleet-device-logs-dialog" in css
+    assert "calc(100vw - 32px)" in css
+    assert "flex-wrap: wrap;" in css
+
+
 def test_enterprise_dashboard_modules_use_operator_routes() -> None:
     scheduler_js = (ROOT / "website" / "ui" / "scheduler_insights.js").read_text(encoding="utf-8")
     cost_js = (ROOT / "website" / "ui" / "cost_dashboard.js").read_text(encoding="utf-8")
