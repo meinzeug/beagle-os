@@ -584,12 +584,12 @@ cat >"$USB_TUNNEL_AUTH_COMMAND" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 
-user="4{1:-}"
-[[ "4user" == "$USB_TUNNEL_USER" ]] || exit 0
+user="${1:-}"
+[[ "$user" == "$USB_TUNNEL_USER" ]] || exit 0
 
 auth_file="$USB_TUNNEL_AUTH_ROOT/authorized_keys"
-[[ -r "4auth_file" ]] || exit 0
-cat "4auth_file"
+[[ -r "$auth_file" ]] || exit 0
+cat "$auth_file"
 EOF
 chmod 0755 "$USB_TUNNEL_AUTH_COMMAND"
 chown root:root "$USB_TUNNEL_AUTH_COMMAND"
