@@ -448,6 +448,8 @@ def test_usbip_autobind_keeps_usb_audio_local_for_mic_bridge() -> None:
     assert '--format=s16le' in bridge_text
     assert '--rate={rate}' in bridge_text
     assert '--channels={channels}' in bridge_text
+    assert '--frame-msec", type=int' in bridge_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_FRAME_MSEC", "20"' in bridge_text
 
 
 def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -> None:

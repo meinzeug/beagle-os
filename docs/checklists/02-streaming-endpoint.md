@@ -44,6 +44,7 @@
 - [x] Beagle Stream Server Stream-Prep unattended (`ensure-vm-stream-ready.sh`) — VM100 PASS
 - [x] BeagleStream Produktions-Baseline eingefroren (2026-05-07): VM100/srv1/Thinclient fluessig ueber Broker/WireGuard, 1080p60/32Mbps, SDL/OpenGL, Vulkan aus, Software-Decoding, Public-DNAT entfernt, Regressionstests gruen.
 - [x] VM102 Provider-State unblocken + Rerun (externe Inventar-Diskrepanz) — auf `srv1` als echte zweite VM `beagle-102` neu aufgebaut, eigene Guest-IP `192.168.123.116` gesetzt, `ensure-vm-stream-ready.sh --vmid 102 --node beagle-0` mit `RC=0`.
+- [ ] Mikrofon-Bridge (Thinclient -> VM100) auf 20ms/48k/mono/s16le + Jitterbuffer umgestellt (2026-06-01): Sender-Frameing und VM-Ringbuffer inkl. Prebuffer/Silence/Stats umgesetzt, Unit-Regressionen gruen. Live-Validierung in `beagle-100` zeigte Runtime-Fix fuer eingebetteten Python-Indentation-Fehler; E2E gegen echten Thinclient bleibt offen (aktuelles Ziel-Inventory/Route liefert kein verifizierbares Thinclient-Endpoint, VM100 -> `192.168.123.1:43200` laeuft in TCP-Timeout).
 - [ ] Endpoint-Update-Architektur live in Hardware-Test-Matrix
 
 ## Gaming Kiosk

@@ -13,6 +13,9 @@ import time
 from pathlib import Path
 
 
+SAMPLE_WIDTH_BYTES = 2
+
+
 def log(message: str) -> None:
     stamp = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     print(f"{stamp} beagle-audio-input-bridge: {message}", file=sys.stderr, flush=True)
@@ -94,15 +97,45 @@ def start_parec(user: str, source: str, rate: int, channels: int, latency_msec: 
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
+def frame_bytes(rate: int, channels: int, frame_msec: int, configured_chunk_bytes: int) -> int:
+    if configured_chunk_bytes > 0:
+        return configured_chunk_bytes
+    bytes_per_sec = rate * channels * SAMPLE_WIDTH_BYTES
+    return max(2, (bytes_per_sec * frame_msec) // 1000)
+
+
+def read_exact(stream: object, size: int) -> bytes:
+    if size <= 0:
+        return b""
+    out = bytearray()
+    while len(out) < size:
+        chunk = stream.read(size - len(out))
+        if not chunk:
+            break
+        out.extend(chunk)
+    return bytes(out)
+
+
 def serve_client(conn: socket.socket, args: argparse.Namespace) -> None:
     source = select_source(args.user, args.source)
-    log(f"client connected source={source} rate={args.rate} channels={args.channels}")
+    chunk_bytes = frame_bytes(args.rate, args.channels, args.frame_msec, args.chunk_bytes)
+    log(
+        f"client connected source={source} rate={args.rate} channels={args.channels} "
+        f"frame_msec={args.frame_msec} chunk_bytes={chunk_bytes}"
+    )
     process = start_parec(args.user, source, args.rate, args.channels, args.latency_msec)
     assert process.stdout is not None
     try:
+        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    except OSError:
+        pass
+    try:
         while True:
-            chunk = process.stdout.read(args.chunk_bytes)
+            chunk = read_exact(process.stdout, chunk_bytes)
             if not chunk:
+                break
+            if len(chunk) != chunk_bytes:
+                log(f"short frame from parec: expected={chunk_bytes} got={len(chunk)}")
                 break
             conn.sendall(chunk)
     except (BrokenPipeError, ConnectionResetError, OSError):
@@ -127,8 +160,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source", default=os.environ.get("PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_SOURCE", ""))
     parser.add_argument("--rate", type=int, default=int(os.environ.get("PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_RATE", "48000")))
     parser.add_argument("--channels", type=int, default=int(os.environ.get("PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_CHANNELS", "1")))
+    parser.add_argument("--frame-msec", type=int, default=int(os.environ.get("PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_FRAME_MSEC", "20")))
     parser.add_argument("--latency-msec", type=int, default=int(os.environ.get("PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_LATENCY_MSEC", "20")))
-    parser.add_argument("--chunk-bytes", type=int, default=int(os.environ.get("PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_CHUNK_BYTES", "1920")))
+    parser.add_argument("--chunk-bytes", type=int, default=int(os.environ.get("PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_CHUNK_BYTES", "0")))
     return parser.parse_args()
 
 

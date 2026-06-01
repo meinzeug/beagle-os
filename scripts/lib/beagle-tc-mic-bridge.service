@@ -12,6 +12,9 @@ Environment=BEAGLE_TC_MIC_BRIDGE_HOST=192.168.123.1
 Environment=BEAGLE_TC_MIC_BRIDGE_PORT=43200
 Environment=BEAGLE_TC_MIC_RATE=48000
 Environment=BEAGLE_TC_MIC_CHANNELS=1
+Environment=BEAGLE_TC_MIC_FRAME_MSEC=20
+Environment=BEAGLE_TC_MIC_PREBUFFER_MSEC=60
+Environment=BEAGLE_TC_MIC_MAX_BUFFER_MSEC=200
 RuntimeDirectory=beagle
 RuntimeDirectoryMode=0755
 ExecStart=/usr/local/bin/beagle-tc-mic-bridge
