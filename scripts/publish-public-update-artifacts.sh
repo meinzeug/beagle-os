@@ -31,6 +31,26 @@ PUBLISH_STAGE_DIR="$PUBLISH_STAGE_ROOT"
 if [[ "$RELEASE_CLASS" == "prerelease" ]]; then
   PUBLISH_STAGE_DIR="$PUBLISH_STAGE_ROOT/prereleases/$VERSION"
 fi
+REMOTE_TARGET_TRIMMED="${REMOTE_TARGET%/}"
+
+ensure_remote_directory() {
+  local remote_dir="$1"
+  local ssh_host=""
+  local ssh_path=""
+
+  if [[ "$REMOTE_TARGET_TRIMMED" == *:* ]]; then
+    ssh_host="${REMOTE_TARGET_TRIMMED%%:*}"
+    ssh_path="${REMOTE_TARGET_TRIMMED#*:}"
+    ssh -i "$SSH_KEY_FILE" \
+      -o IdentitiesOnly=yes \
+      -o StrictHostKeyChecking=yes \
+      -o UserKnownHostsFile="$SSH_KNOWN_HOSTS_FILE" \
+      -o BatchMode=yes \
+      "$ssh_host" "mkdir -p -- '$ssh_path/$remote_dir'"
+  else
+    mkdir -p "$REMOTE_TARGET_TRIMMED/$remote_dir"
+  fi
+}
 
 require_file() {
   local path="$1"
@@ -233,22 +253,24 @@ write_public_status_json
 prepare_publish_stage
 
 if [[ "$RELEASE_CLASS" == "prerelease" ]]; then
+  ensure_remote_directory "prereleases/$VERSION"
   rsync -av --progress --delete-before --inplace \
     --exclude '.htaccess' \
     "$PUBLISH_STAGE_DIR/" \
-    "$REMOTE_TARGET/prereleases/$VERSION/"
+    "$REMOTE_TARGET_TRIMMED/prereleases/$VERSION/"
 
   rsync -av --progress --inplace \
     --exclude '.htaccess' \
     "$PUBLISH_STAGE_ROOT/$STATUS_JSON_NAME" \
-    "$REMOTE_TARGET/$STATUS_JSON_NAME"
+    "$REMOTE_TARGET_TRIMMED/$STATUS_JSON_NAME"
 
-  echo "Published prerelease artifacts to $REMOTE_TARGET/prereleases/$VERSION and updated $STATUS_JSON_NAME"
+  echo "Published prerelease artifacts to $REMOTE_TARGET_TRIMMED/prereleases/$VERSION and updated $STATUS_JSON_NAME"
 else
+  ensure_remote_directory ""
   rsync -av --progress --delete-before --inplace \
     --exclude '.htaccess' \
     "$PUBLISH_STAGE_DIR/" \
-    "$REMOTE_TARGET/"
+    "$REMOTE_TARGET_TRIMMED/"
 
-  echo "Published stable public update artifacts to $REMOTE_TARGET"
+  echo "Published stable public update artifacts to $REMOTE_TARGET_TRIMMED"
 fi
