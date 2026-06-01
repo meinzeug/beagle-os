@@ -579,15 +579,30 @@ chmod 0600 "$USB_TUNNEL_AUTH_ROOT/authorized_keys"
 chown root:"$BEAGLE_CONTROL_USER" "$USB_TUNNEL_AUTH_ROOT"
 chown "$BEAGLE_CONTROL_USER":"$BEAGLE_CONTROL_USER" "$USB_TUNNEL_AUTH_ROOT/authorized_keys" "$USB_TUNNEL_AUTH_ROOT/authorized_keys.d"
 
+install -d -m 0755 "$(dirname "$USB_TUNNEL_AUTH_COMMAND")"
+cat >"$USB_TUNNEL_AUTH_COMMAND" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+user="4{1:-}"
+[[ "4user" == "$USB_TUNNEL_USER" ]] || exit 0
+
+auth_file="$USB_TUNNEL_AUTH_ROOT/authorized_keys"
+[[ -r "4auth_file" ]] || exit 0
+cat "4auth_file"
+EOF
+chmod 0755 "$USB_TUNNEL_AUTH_COMMAND"
+chown root:root "$USB_TUNNEL_AUTH_COMMAND"
+
 cat >"$USB_TUNNEL_SSHD_DROPIN" <<EOF
-# StrictModes off for beagle-manager-owned authorized_keys (managed service account)
-StrictModes no
 Match User $USB_TUNNEL_USER
     AuthenticationMethods publickey
     PasswordAuthentication no
     KbdInteractiveAuthentication no
     PubkeyAuthentication yes
-    AuthorizedKeysFile $USB_TUNNEL_AUTH_ROOT/authorized_keys .ssh/authorized_keys
+  AuthorizedKeysFile none
+  AuthorizedKeysCommand $USB_TUNNEL_AUTH_COMMAND
+  AuthorizedKeysCommandUser root
     AllowTcpForwarding remote
     AllowAgentForwarding no
     PermitTTY yes
@@ -701,7 +716,7 @@ for template_file in "$ROOT_DIR"/beagle-host/templates/ubuntu-beagle/*; do
   install_file_if_needed 0644 "$template_file" "$HOST_RUNTIME_DIR/templates/ubuntu-beagle/$(basename "$template_file")"
 done
 repair_host_runtime_links
-rm -f "$USB_TUNNEL_TEST_DROPIN" "$USB_TUNNEL_AUTH_COMMAND"
+rm -f "$USB_TUNNEL_TEST_DROPIN"
 
 # The artifact refresh service runs as beagle-manager and rebuilds package
 # outputs directly from the deployed repo checkout under /opt/beagle.

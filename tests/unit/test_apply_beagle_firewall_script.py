@@ -76,3 +76,20 @@ def test_firewall_write_only_includes_public_stream_drop_guard(tmp_path: Path) -
     assert "type filter hook prerouting priority -110; policy accept;" in rendered
     assert "ip daddr 46.4.96.80 tcp dport { 49995, 50000, 50001, 50021 } drop" in rendered
     assert "ip daddr 46.4.96.80 udp dport { 50009, 50010, 50011, 50012, 50013, 50014, 50015 } drop" in rendered
+
+
+def test_firewall_write_only_allows_vm_usb_audio_camera_reverse_ports(tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    nft_conf = tmp_path / "nftables.conf"
+    nft_rules = tmp_path / "beagle-firewall.nft"
+    config_dir.mkdir(parents=True)
+
+    env = os.environ.copy()
+    env["PVE_DCV_CONFIG_DIR"] = str(config_dir)
+    env["BEAGLE_NFTABLES_CONF"] = str(nft_conf)
+    env["BEAGLE_FIREWALL_RULE_FILE"] = str(nft_rules)
+
+    subprocess.run(["bash", str(SCRIPT), "--write-only"], cwd=str(ROOT_DIR), env=env, check=True)
+
+    rendered = nft_rules.read_text(encoding="utf-8")
+    assert "tcp dport { 43100, 43200, 53100, 8091 }" in rendered
