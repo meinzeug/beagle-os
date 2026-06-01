@@ -59,6 +59,15 @@ def _load_update_client_module():
     return module
 
 
+def _load_guest_updater_module():
+    loader = importlib.machinery.SourceFileLoader("beagle_guest_updater_test", str(GUEST_UPDATER))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
 def test_update_client_resolves_live_media_uuid_from_cmdline_when_root_is_tmpfs(monkeypatch) -> None:
     module = _load_update_client_module()
 
@@ -166,6 +175,29 @@ def test_desktop_guest_updater_prompts_before_required_reboot() -> None:
     assert "zenity" in firstboot
     assert "beagle-guest-updater-actions.timer" in firstboot
     assert "beagle-guest-updater scan --auto-apply-if-idle" in firstboot
+
+
+def test_desktop_guest_updater_supports_launcher_reboot_shutdown_actions(monkeypatch) -> None:
+    module = _load_guest_updater_module()
+
+    calls: list[tuple[str, bool, str]] = []
+    reboot_scheduled: list[bool] = []
+    shutdown_scheduled: list[bool] = []
+
+    monkeypatch.setattr(module, "post_action_result", lambda _config, action, ok, message, _status=None: calls.append((str(action.get("action", "")), bool(ok), str(message))))
+    monkeypatch.setattr(module, "restart_desktop_launcher", lambda: True)
+    monkeypatch.setattr(module, "schedule_reboot", lambda: reboot_scheduled.append(True))
+    monkeypatch.setattr(module, "schedule_shutdown", lambda: shutdown_scheduled.append(True))
+
+    config: dict[str, str] = {}
+    module.handle_action(config, {"action": "restart-session", "action_id": "a-1"})
+    module.handle_action(config, {"action": "reboot", "action_id": "a-2"})
+    module.handle_action(config, {"action": "shutdown", "action_id": "a-3"})
+
+    assert [item[0] for item in calls] == ["restart-session", "reboot", "shutdown"]
+    assert all(item[1] is True for item in calls)
+    assert reboot_scheduled == [True]
+    assert shutdown_scheduled == [True]
 
 
 def test_update_feed_can_require_reinstall_for_old_foundation() -> None:

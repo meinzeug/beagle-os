@@ -339,6 +339,25 @@ def schedule_reboot() -> None:
         subprocess.Popen(["/bin/sh", "-c", "sleep 5; systemctl reboot || reboot"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def schedule_shutdown() -> None:
+    if shutil.which("systemd-run"):
+        subprocess.run(["systemd-run", "--on-active=5", "--unit=beagle-guest-updater-shutdown", "/usr/bin/systemctl", "poweroff"], check=False)
+    else:
+        subprocess.Popen(["/bin/sh", "-c", "sleep 5; systemctl poweroff || poweroff"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def restart_desktop_launcher() -> bool:
+    candidates = [
+        ["systemctl", "restart", "beagle-autologin.service"],
+        ["systemctl", "restart", "display-manager.service"],
+    ]
+    for command in candidates:
+        completed = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        if completed.returncode == 0:
+            return True
+    return False
+
+
 def apply_update(config: dict[str, str], *, feed: dict | None = None, interactive_reboot: bool = True) -> dict:
     update = feed or update_feed(config)
     latest = str(update.get("latest_version", "") or "").strip()
@@ -480,6 +499,17 @@ def handle_action(config: dict[str, str], action: dict) -> None:
         elif name == "recheckin":
             check_in(config)
             post_action_result(config, action, True, "desktop guest checked in")
+        elif name in {"restart-session", "restart-launcher"}:
+            if restart_desktop_launcher():
+                post_action_result(config, action, True, "desktop launcher restart requested")
+            else:
+                post_action_result(config, action, False, "desktop launcher restart failed: no supported launcher service")
+        elif name == "reboot":
+            post_action_result(config, action, True, "desktop guest reboot scheduled")
+            schedule_reboot()
+        elif name == "shutdown":
+            post_action_result(config, action, True, "desktop guest shutdown scheduled")
+            schedule_shutdown()
         else:
             post_action_result(config, action, False, f"unsupported desktop guest action: {name}")
     except Exception as exc:
