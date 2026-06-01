@@ -64,6 +64,7 @@
   "BEAGLE_USB_TUNNEL_USER": "beagle",
   "BEAGLE_USB_TUNNEL_PORT": "",
   "BEAGLE_AUDIO_INPUT_PORT": "",
+  "BEAGLE_USB_EXTRA_REVERSE_FORWARDS": "",
   "BEAGLE_USB_ATTACH_HOST": "10.10.10.1",
   "BEAGLE_USB_TUNNEL_PRIVATE_KEY_FILE": "/etc/pve-thin-client/usb-tunnel.key",
   "BEAGLE_USB_TUNNEL_KNOWN_HOSTS_FILE": "/etc/pve-thin-client/usb-tunnel-known_hosts",

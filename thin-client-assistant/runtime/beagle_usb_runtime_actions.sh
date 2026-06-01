@@ -65,6 +65,51 @@ audio_input_remote_port() {
   printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT:-43200}"
 }
 
+usb_extra_reverse_forwards_raw() {
+  printf '%s\n' "${PVE_THIN_CLIENT_BEAGLE_USB_EXTRA_REVERSE_FORWARDS:-}"
+}
+
+append_validated_reverse_forward() {
+  local attach_host="$1"
+  local remote_port="$2"
+  local local_host="$3"
+  local local_port="$4"
+  local -n reverse_forwards_ref="$5"
+
+  [[ "$remote_port" =~ ^[0-9]+$ ]] || return 1
+  [[ "$local_port" =~ ^[0-9]+$ ]] || return 1
+  (( remote_port >= 1 && remote_port <= 65535 )) || return 1
+  (( local_port >= 1 && local_port <= 65535 )) || return 1
+  [[ -n "$local_host" ]] || local_host="127.0.0.1"
+
+  reverse_forwards_ref+=("-R" "${attach_host}:${remote_port}:${local_host}:${local_port}")
+}
+
+append_extra_reverse_forwards() {
+  local attach_host="$1"
+  local extra_specs raw spec label remote_port local_host local_port
+  local -n reverse_forwards_ref="$2"
+
+  extra_specs="$(usb_extra_reverse_forwards_raw)"
+  [[ -n "$extra_specs" ]] || return 0
+
+  while IFS= read -r raw; do
+    spec="${raw//[[:space:]]/}"
+    [[ -n "$spec" ]] || continue
+
+    label=""
+    remote_port=""
+    local_host=""
+    local_port=""
+    IFS=':' read -r label remote_port local_host local_port _ <<<"$spec"
+    if ! append_validated_reverse_forward "$attach_host" "$remote_port" "$local_host" "$local_port" reverse_forwards_ref; then
+      echo "beagle-usb-tunnel: ignoring invalid extra reverse forward: ${raw}" >&2
+      continue
+    fi
+    echo "beagle-usb-tunnel: enabled extra reverse forward ${label:-extra} ${attach_host}:${remote_port} -> ${local_host}:${local_port}" >&2
+  done < <(printf '%s\n' "$extra_specs" | tr ',;' '\n')
+}
+
 start_audio_input_bridge() {
   local python_cmd log_dir log_file bridge_script
 
@@ -132,8 +177,8 @@ usb_status_json() {
 run_usb_tunnel_daemon() {
   local ssh_cmd camera_pid=""
   local tunnel_user tunnel_host tunnel_attach_host tunnel_port
-  local tunnel_audio_port
   local rc
+  local ssh_output=""
   local -a reverse_forwards=()
 
   require_enabled
@@ -143,7 +188,6 @@ run_usb_tunnel_daemon() {
   tunnel_host="$(usb_host)"
   tunnel_attach_host="$(usb_attach_host)"
   tunnel_port="$(usb_port)"
-  tunnel_audio_port="$(audio_input_remote_port)"
   ssh_cmd="$(ssh_bin)"
   # Auto-bind all eligible USB devices before syncing manually-bound list.
   auto_bind_eligible_devices || true
@@ -153,6 +197,7 @@ run_usb_tunnel_daemon() {
   if audio_input_bridge_enabled; then
     reverse_forwards+=("-R" "$(usb_attach_host):$(audio_input_remote_port):127.0.0.1:$(audio_input_local_port)")
   fi
+  append_extra_reverse_forwards "$tunnel_attach_host" reverse_forwards
 
   # Keep camera forwarding optional so a busy remote camera port does not break
   # USB passthrough for microphones or other attached USB peripherals.
@@ -204,7 +249,7 @@ run_usb_tunnel_daemon() {
   while true; do
     reap_stale_tunnel_clients
     set +e
-    "$ssh_cmd" -N \
+    ssh_output="$("$ssh_cmd" -N \
       -o BatchMode=yes \
       -o ExitOnForwardFailure=yes \
       -o ServerAliveInterval=20 \
@@ -213,11 +258,17 @@ run_usb_tunnel_daemon() {
       -o UserKnownHostsFile="$(usb_known_hosts_file)" \
       -i "$(usb_key_file)" \
       "${reverse_forwards[@]}" \
-      "${tunnel_user}@${tunnel_host}"
+      "${tunnel_user}@${tunnel_host}" 2>&1)"
     rc=$?
     set -e
     if [[ "$rc" -eq 0 ]]; then
       break
+    fi
+    if [[ -n "$ssh_output" ]]; then
+      printf '%s\n' "$ssh_output" >&2
+    fi
+    if printf '%s\n' "$ssh_output" | grep -q "remote port forwarding failed for listen port"; then
+      echo "beagle-usb-tunnel: remote reverse port occupied; waiting for host stale-session reaper" >&2
     fi
     echo "beagle-usb-tunnel: ssh exited with rc=${rc}; retrying" >&2
     "$(sleep_bin)" 3

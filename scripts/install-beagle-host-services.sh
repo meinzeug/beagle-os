@@ -608,6 +608,9 @@ Match User $USB_TUNNEL_USER
     PermitTTY yes
     X11Forwarding no
     GatewayPorts clientspecified
+    TCPKeepAlive yes
+    ClientAliveInterval 20
+    ClientAliveCountMax 2
 EOF
 chmod 0644 "$USB_TUNNEL_SSHD_DROPIN"
 

@@ -440,15 +440,23 @@ def test_usbip_autobind_keeps_usb_audio_local_for_mic_bridge() -> None:
     assert 'printf \'%s\\n\' "/usr/sbin/usbipd"' in actions_text
     assert 'beagle_audio_input_bridge.py' in actions_text
     assert '$(usb_attach_host):$(audio_input_remote_port):127.0.0.1:$(audio_input_local_port)' in actions_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_USB_EXTRA_REVERSE_FORWARDS' in actions_text
+    assert 'append_extra_reverse_forwards "$tunnel_attach_host" reverse_forwards' in actions_text
+    assert "ignoring invalid extra reverse forward" in actions_text
+    assert "enabled extra reverse forward" in actions_text
     assert 'stale_tunnel_pids' in actions_text
     assert 'remote reverse port occupied' in actions_text
+    assert 'waiting for host stale-session reaper' in actions_text
     assert 'kill -9 "$pid"' in actions_text
     assert '"$ssh_cmd" -N \\' in actions_text
     assert 'exec "$ssh_cmd" -N \\' not in actions_text
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT:-43200' in actions_text
+    assert '"PVE_THIN_CLIENT_BEAGLE_USB_EXTRA_REVERSE_FORWARDS", config.get("usb_extra_reverse_forwards", "")' in apply_enrollment_text
     assert '"PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT", config.get("usb_audio_input_port", "")' in apply_enrollment_text
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT="$BEAGLE_AUDIO_INPUT_PORT"' in write_config_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_USB_EXTRA_REVERSE_FORWARDS="$BEAGLE_USB_EXTRA_REVERSE_FORWARDS"' in write_config_text
     assert '"BEAGLE_AUDIO_INPUT_PORT": ""' in defaults_text
+    assert '"BEAGLE_USB_EXTRA_REVERSE_FORWARDS": ""' in defaults_text
     assert 'parec' in bridge_text
     assert '--format=s16le' in bridge_text
     assert '--rate={rate}' in bridge_text

@@ -6,7 +6,39 @@ if [[ -n "${SSH_ORIGINAL_COMMAND:-}" ]]; then
   exit 126
 fi
 
+USB_TUNNEL_STALE_SECONDS="${BEAGLE_USB_TUNNEL_STALE_SECONDS:-120}"
+USB_TUNNEL_PORTS="${BEAGLE_USB_TUNNEL_PORTS:-43100 43200 53100}"
+SELF_SESSION_PID="$(ps -o ppid= -p $$ 2>/dev/null | tr -d '[:space:]')"
+
+reap_stale_reverse_listener_sessions() {
+  local port pid etimes raw
+  local -a pids=()
+
+  for port in $USB_TUNNEL_PORTS; do
+    [[ "$port" =~ ^[0-9]+$ ]] || continue
+    while IFS= read -r raw; do
+      pid="${raw//[[:space:]]/}"
+      [[ "$pid" =~ ^[0-9]+$ ]] || continue
+      pids+=("$pid")
+    done < <(ss -ltnp "sport = :${port}" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' || true)
+  done
+
+  [[ "${#pids[@]}" -gt 0 ]] || return 0
+  mapfile -t pids < <(printf '%s\n' "${pids[@]}" | sort -u)
+
+  for pid in "${pids[@]}"; do
+    [[ -n "$SELF_SESSION_PID" && "$pid" == "$SELF_SESSION_PID" ]] && continue
+    etimes="$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d '[:space:]' || true)"
+    [[ "$etimes" =~ ^[0-9]+$ ]] || continue
+    if (( etimes < USB_TUNNEL_STALE_SECONDS )); then
+      continue
+    fi
+    kill "$pid" >/dev/null 2>&1 || true
+  done
+}
+
 trap 'exit 0' TERM INT
-while sleep 3600; do
-  :
+while true; do
+  reap_stale_reverse_listener_sessions || true
+  sleep 30
 done
