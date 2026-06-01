@@ -205,6 +205,7 @@ def test_endpoint_dispatch_supports_launcher_reboot_shutdown_with_fallback_servi
     script = ENDPOINT_DISPATCH.read_text(encoding="utf-8")
 
     assert "restart_launcher_session()" in script
+    assert "beagle-kiosk.service" in script
     assert "beagle-autologin.service" in script
     assert "pve-thin-client-autologin.service" in script
     assert "display-manager.service" in script
