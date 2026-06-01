@@ -19,6 +19,7 @@ UPDATE_CLIENT = ROOT / "beagle-os" / "overlay" / "usr" / "local" / "sbin" / "bea
 GUEST_UPDATER = ROOT / "beagle-host" / "bin" / "beagle-guest-updater"
 UBUNTU_FIRSTBOOT = ROOT / "beagle-host" / "templates" / "ubuntu-beagle" / "firstboot-provision.sh.tpl"
 HEALTHCHECK = ROOT / "beagle-os" / "overlay" / "usr" / "local" / "sbin" / "beagle-healthcheck"
+ENDPOINT_DISPATCH = ROOT / "beagle-os" / "overlay" / "usr" / "local" / "sbin" / "beagle-endpoint-dispatch"
 PREPARE_RUNTIME = ROOT / "thin-client-assistant" / "runtime" / "prepare-runtime.sh"
 SYSTEMD_UNITS = [
     ROOT / "beagle-os" / "overlay" / "etc" / "systemd" / "system" / "beagle-update-scan.service",
@@ -198,6 +199,19 @@ def test_desktop_guest_updater_supports_launcher_reboot_shutdown_actions(monkeyp
     assert all(item[1] is True for item in calls)
     assert reboot_scheduled == [True]
     assert shutdown_scheduled == [True]
+
+
+def test_endpoint_dispatch_supports_launcher_reboot_shutdown_with_fallback_services() -> None:
+    script = ENDPOINT_DISPATCH.read_text(encoding="utf-8")
+
+    assert "restart_launcher_session()" in script
+    assert "beagle-autologin.service" in script
+    assert "pve-thin-client-autologin.service" in script
+    assert "display-manager.service" in script
+    assert "restart-session|restart-launcher" in script
+    assert "restart-runtime|restart-thin-client" in script
+    assert "reboot|reboot-thin-client" in script
+    assert "shutdown|shutdown-thin-client" in script
 
 
 def test_update_feed_can_require_reinstall_for_old_foundation() -> None:

@@ -95,6 +95,13 @@ upload_support_bundle() {
   printf '%s\t%s\t%s\t%s\n' "$bundle_id" "$stored_path" "$stored_download_path" "$stored_size"
 }
 
+restart_launcher_session() {
+  systemctl restart beagle-autologin.service >/dev/null 2>&1 && return 0
+  systemctl restart pve-thin-client-autologin.service >/dev/null 2>&1 && return 0
+  systemctl restart display-manager.service >/dev/null 2>&1 && return 0
+  return 1
+}
+
 if [[ -r "$ENDPOINT_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$ENDPOINT_FILE"
@@ -186,24 +193,24 @@ while IFS= read -r action_json; do
       /usr/local/sbin/beagle-endpoint-report >/dev/null 2>&1 || ok="0"
       message="endpoint re-check-in completed"
       ;;
-    restart-session)
-      systemctl restart beagle-autologin.service >/dev/null 2>&1 || ok="0"
-      message="autologin session restarted"
+    restart-session|restart-launcher)
+      if restart_launcher_session; then
+        message="launcher session restarted"
+      else
+        ok="0"
+        message="launcher restart failed: no supported autologin/display service"
+      fi
       ;;
-    restart-runtime)
+    restart-runtime|restart-thin-client)
       systemctl restart beagle-thin-client-prepare.service >/dev/null 2>&1 || systemctl restart pve-thin-client-prepare.service >/dev/null 2>&1 || ok="0"
-      systemctl restart beagle-autologin.service >/dev/null 2>&1 || ok="0"
+      restart_launcher_session || ok="0"
       message="runtime preparation restarted"
       ;;
-    restart-launcher)
-      systemctl restart beagle-autologin.service >/dev/null 2>&1 || ok="0"
-      message="thin client launcher restarted"
-      ;;
-    reboot)
+    reboot|reboot-thin-client)
       message="thin client reboot queued"
       [[ "$ok" == "1" ]] && post_action_reboot="1"
       ;;
-    shutdown)
+    shutdown|shutdown-thin-client)
       message="thin client shutdown queued"
       [[ "$ok" == "1" ]] && post_action_shutdown="1"
       ;;
