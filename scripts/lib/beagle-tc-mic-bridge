@@ -31,9 +31,19 @@ source_exists() {
   pactl list short sources 2>/dev/null | awk '{print $2}' | grep -Fxq "$SOURCE_NAME"
 }
 
+unload_pipe_source() {
+  local module_id
+  while read -r module_id; do
+    [[ -n "$module_id" ]] || continue
+    pactl unload-module "$module_id" >/dev/null 2>&1 || true
+  done < <(
+    pactl list short modules 2>/dev/null \
+      | awk -v src="source_name=$SOURCE_NAME" '$2 == "module-pipe-source" && index($0, src) {print $1}'
+  )
+}
+
 load_pipe_source() {
   local filler_pid=""
-  source_exists && return 0
 
   # module-pipe-source opens the FIFO while loading. Keep a short-lived writer
   # present so module load cannot block when the network stream is not connected yet.
@@ -177,6 +187,7 @@ PY
 }
 
 ensure_fifo
+unload_pipe_source
 load_pipe_source
 normalize_source
 log "ready host=$BRIDGE_HOST port=$BRIDGE_PORT source=$SOURCE_NAME fifo=$FIFO_PATH rate=$RATE channels=$CHANNELS frame_msec=$FRAME_MSEC prebuffer_msec=$PREBUFFER_MSEC"

@@ -28,3 +28,12 @@ def test_tc_mic_bridge_writes_silence_on_underrun() -> None:
     assert 'if started and frame_buffer:' in script
     assert 'frame = silence' in script
     assert 'time.sleep(0.002)' in script
+
+
+def test_tc_mic_bridge_reloads_pipe_source_module() -> None:
+    script = (ROOT / "scripts" / "lib" / "beagle-tc-mic-bridge").read_text(encoding="utf-8")
+
+    assert 'unload_pipe_source()' in script
+    assert 'pactl list short modules' in script
+    assert 'pactl unload-module "$module_id"' in script
+    assert 'unload_pipe_source' in script
