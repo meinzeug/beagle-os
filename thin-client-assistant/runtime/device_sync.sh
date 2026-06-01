@@ -646,6 +646,7 @@ update_file.write_text(json.dumps(updates, indent=2), encoding="utf-8")
 update_env = {
   "PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED": "1" if beagle_os.get("auto_update", True) else "0",
   "PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL": beagle_os.get("channel", "stable") or "stable",
+  "PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR": beagle_os.get("behavior", "prompt") or "prompt",
   "PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN": beagle_os.get("target_version", "") or "",
   "PVE_THIN_CLIENT_SYSTEM_UPDATE_ENABLED": "1" if system.get("auto_update", False) else "0",
   "PVE_THIN_CLIENT_SYSTEM_UPDATE_TARGET": system.get("target", "") or "",

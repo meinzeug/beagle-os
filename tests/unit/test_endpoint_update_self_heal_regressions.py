@@ -99,6 +99,49 @@ def test_update_client_ignores_unknown_manifest_version_for_build_info_fallback(
     assert module.current_version({}, Path("/run/live/medium")) == "8.3.1"
 
 
+def test_update_client_load_config_applies_runtime_update_env_overrides(tmp_path: Path, monkeypatch) -> None:
+    module = _load_update_client_module()
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "thinclient.conf").write_text(
+        "\n".join(
+            [
+                "PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED='1'",
+                "PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL='stable'",
+                "PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR='prompt'",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    runtime_env = tmp_path / "state" / "device-updates.env"
+    runtime_env.parent.mkdir(parents=True, exist_ok=True)
+    runtime_env.write_text(
+        "\n".join(
+            [
+                "export PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED='0'",
+                "export PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL='rolling'",
+                "export PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR='auto'",
+                "export PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN='8.4.0'",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(module, "CONFIG_DIR_CANDIDATES", [config_dir])
+    monkeypatch.setattr(module, "DEVICE_UPDATE_ENV_CANDIDATES", [runtime_env])
+
+    _, config = module.load_config()
+
+    assert config["PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED"] == "0"
+    assert config["PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL"] == "rolling"
+    assert config["PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR"] == "auto"
+    assert config["PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN"] == "8.4.0"
+
+
 def test_installed_thinclient_ab_update_path_keeps_two_slots_and_pending_manifest() -> None:
     script = UPDATE_CLIENT.read_text(encoding="utf-8")
 

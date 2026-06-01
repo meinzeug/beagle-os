@@ -92,6 +92,7 @@ def test_apply_runtime_sync_response_persists_update_targets_and_markers(tmp_pat
                     "beagle_os": {
                         "auto_update": False,
                         "channel": "rolling",
+                        "behavior": "auto",
                         "target_version": "v8.4.0",
                         "status": "installing",
                         "install_requested": True,
@@ -125,6 +126,7 @@ def test_apply_runtime_sync_response_persists_update_targets_and_markers(tmp_pat
     update_env = (state_dir / "device-updates.env").read_text(encoding="utf-8")
     assert "PVE_THIN_CLIENT_BEAGLE_UPDATE_ENABLED='0'" in update_env
     assert "PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL='rolling'" in update_env
+    assert "PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR='auto'" in update_env
     assert "PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN='v8.4.0'" in update_env
     assert "PVE_THIN_CLIENT_SYSTEM_UPDATE_ENABLED='1'" in update_env
     assert "PVE_THIN_CLIENT_SYSTEM_UPDATE_TARGET='security'" in update_env

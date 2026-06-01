@@ -20,6 +20,11 @@ CONFIG_DIR_CANDIDATES = [
     Path("/run/live/medium/pve-thin-client/state"),
     Path("/lib/live/mount/medium/pve-thin-client/state"),
 ]
+DEVICE_UPDATE_ENV_CANDIDATES = [
+    Path(os.environ.get("BEAGLE_STATE_DIR", "/var/lib/beagle-os")) / "device-updates.env",
+    Path("/run/live/medium/pve-thin-client/state/device-updates.env"),
+    Path("/lib/live/mount/medium/pve-thin-client/state/device-updates.env"),
+]
 LIVE_MEDIUM_CANDIDATES = [
     Path("/run/live/medium"),
     Path("/lib/live/mount/medium"),
@@ -132,6 +137,8 @@ def read_env_file(path: Path) -> dict[str, str]:
         return data
     for raw_line in lines:
         line = raw_line.strip()
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
@@ -152,6 +159,9 @@ def load_config() -> tuple[Path, dict[str, str]]:
         merged.update(read_env_file(config_dir / "network.env"))
         merged.update(read_env_file(config_dir / "credentials.env"))
         merged.update(read_env_file(config_dir / "local-auth.env"))
+        # Runtime sync writes update policy overrides here (auto_update/channel/pin).
+        for env_path in DEVICE_UPDATE_ENV_CANDIDATES:
+            merged.update(read_env_file(env_path))
         return config_dir, merged
     raise RuntimeError("thin-client configuration not found")
 
