@@ -419,6 +419,42 @@ class ServerSettingsLetsEncryptTests(unittest.TestCase):
         self.assertEqual(int(response["status"]), 202)
         self.assertTrue(response["payload"]["ok"])
 
+
+class ServerSettingsGeneralTests(unittest.TestCase):
+    def make_service(self) -> ServerSettingsService:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        return ServerSettingsService(data_dir=Path(temp_dir.name))
+
+    def test_update_general_accepts_fqdn_hostname_and_public_url(self):
+        service = self.make_service()
+
+        with mock.patch.object(MODULE, "_run_cmd", return_value="srv1.beagle-os.com"):
+            result = service.update_general(
+                {
+                    "hostname": "srv1.beagle-os.com",
+                    "public_url": "https://srv1.beagle-os.com",
+                }
+            )
+
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["settings"]["public_url"], "https://srv1.beagle-os.com")
+        self.assertEqual(result["settings"]["hostname"], "srv1.beagle-os.com")
+
+    def test_update_general_rejects_invalid_hostname(self):
+        service = self.make_service()
+
+        with mock.patch.object(MODULE, "_run_cmd", return_value="srv1.beagle-os.com"):
+            result = service.update_general(
+                {
+                    "hostname": "srv1..beagle-os.com",
+                    "public_url": "https://srv1.beagle-os.com",
+                }
+            )
+
+        self.assertFalse(result["ok"])
+        self.assertIn("invalid hostname format", result["errors"])
+
     def test_enable_auto_maintenance_recovers_from_invalid_legacy_repo_values(self):
         service = self.make_service()
         service._settings_path.write_text(
