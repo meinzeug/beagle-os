@@ -5,6 +5,7 @@ Wants=beagle-healthcheck.service network-online.target
 
 [Service]
 Type=oneshot
+TimeoutStartSec=20min
 ExecStart=/usr/local/sbin/beagle-update-client scan --force --auto-apply-if-idle
 
 [Install]

@@ -178,6 +178,11 @@ def test_management_timers_run_after_prepare_network_and_health() -> None:
             if line.startswith("Wants="):
                 assert "beagle-thin-client-prepare.service" not in line
 
+    scan_service = (ROOT / "beagle-os" / "overlay" / "etc" / "systemd" / "system" / "beagle-update-scan.service").read_text(encoding="utf-8")
+    boot_scan_service = (ROOT / "beagle-os" / "overlay" / "etc" / "systemd" / "system" / "beagle-update-boot-scan.service").read_text(encoding="utf-8")
+    assert "TimeoutStartSec=20min" in scan_service
+    assert "TimeoutStartSec=20min" in boot_scan_service
+
 
 def test_healthcheck_marks_update_status_for_repair_reporting() -> None:
     script = HEALTHCHECK.read_text(encoding="utf-8")
