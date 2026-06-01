@@ -13,7 +13,6 @@ class EndpointHttpSurfaceService:
         build_vm_profile: Callable[[Any], dict[str, Any]],
         dequeue_vm_actions: Callable[[str, int], list[dict[str, Any]]],
         device_registry_service: Any,
-        device_log_service: Any | None,
         mdm_policy_service: Any,
         attestation_service: Any,
         fleet_telemetry_service: Any | None,
@@ -33,6 +32,7 @@ class EndpointHttpSurfaceService:
         summarize_action_result: Callable[[dict[str, Any] | None], dict[str, Any]],
         utcnow: Callable[[], str],
         version: str,
+        device_log_service: Any | None = None,
     ) -> None:
         self._build_vm_profile = build_vm_profile
         self._dequeue_vm_actions = dequeue_vm_actions

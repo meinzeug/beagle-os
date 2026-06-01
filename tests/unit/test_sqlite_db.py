@@ -80,6 +80,7 @@ def test_repo_initial_schema_creates_expected_tables_and_indexes(tmp_path: Path)
     db = BeagleDb(tmp_path / "state.db")
 
     applied = db.migrate(SCHEMA_DIR)
+    expected_migrations = sorted(path.name for path in SCHEMA_DIR.glob("*.sql"))
     table_rows = db.connect().execute(
         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
     ).fetchall()
@@ -87,9 +88,10 @@ def test_repo_initial_schema_creates_expected_tables_and_indexes(tmp_path: Path)
         "SELECT name FROM sqlite_master WHERE type='index' ORDER BY name"
     ).fetchall()
 
-    assert applied == ["001_init.sql"]
+    assert applied == expected_migrations
     assert {row[0] for row in table_rows} >= {
         "audit_events",
+        "device_logs",
         "devices",
         "gpus",
         "pools",
@@ -99,6 +101,9 @@ def test_repo_initial_schema_creates_expected_tables_and_indexes(tmp_path: Path)
         "vms",
     }
     assert {row[0] for row in index_rows} >= {
+        "idx_device_logs_device_captured_at",
+        "idx_device_logs_device_id",
+        "idx_device_logs_source",
         "idx_devices_fingerprint",
         "idx_gpus_pci_address",
         "idx_sessions_user_id",
