@@ -3841,10 +3841,12 @@ def register_wireguard_peer(endpoint_identity: dict[str, Any], payload: dict[str
     if not configured_defaults:
         raise PermissionError("wireguard mesh is not enabled on this server")
 
+    requested_device_id = str(request.get("device_id", "") or "").strip()
     endpoint_id = str(identity.get("endpoint_id") or identity.get("hostname") or "").strip()
+    if not endpoint_id and requested_device_id and identity.get("vmid") is not None and str(identity.get("node", "")).strip():
+        endpoint_id = requested_device_id
     if not endpoint_id:
         raise PermissionError("missing endpoint identity")
-    requested_device_id = str(request.get("device_id", "") or "").strip()
     if requested_device_id and requested_device_id != endpoint_id:
         raise PermissionError("endpoint scope mismatch")
     public_key = str(request.get("public_key", "") or "").strip()
@@ -5564,12 +5566,21 @@ def installer_script_service() -> InstallerScriptService:
     return INSTALLER_SCRIPT_SERVICE
 
 
-def build_installer_preset(vm: VmSummary, profile: dict[str, Any], config: dict[str, Any], *, enrollment_token: str, thinclient_password: str) -> dict[str, str]:
+def build_installer_preset(
+    vm: VmSummary,
+    profile: dict[str, Any],
+    config: dict[str, Any],
+    *,
+    enrollment_token: str,
+    manager_token: str = "",
+    thinclient_password: str,
+) -> dict[str, str]:
     return installer_script_service().build_preset(
         vm,
         profile,
         config,
         enrollment_token=enrollment_token,
+        manager_token=manager_token,
         thinclient_password=thinclient_password,
     )
 

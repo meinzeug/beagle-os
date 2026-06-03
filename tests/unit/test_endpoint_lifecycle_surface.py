@@ -18,7 +18,7 @@ def _service() -> EndpointLifecycleSurfaceService:
         enroll_endpoint=lambda payload: {"ok": True, "config": payload},
         register_wireguard_peer=lambda identity, payload: {
             "ok": True,
-            "device_id": identity.get("endpoint_id", ""),
+            "device_id": identity.get("endpoint_id", "") or payload.get("device_id", ""),
             "server_endpoint": "srv1.beagle-os.com:51820",
             "client_ip": "10.88.1.10/32",
             "allowed_ips": "10.88.0.0/16, 192.168.123.0/24",
@@ -48,3 +48,15 @@ def test_vpn_register_returns_mesh_payload() -> None:
     assert response["payload"]["ok"] is True
     assert response["payload"]["device_id"] == "thin-01"
     assert response["payload"]["allowed_ips"] == "10.88.0.0/16, 192.168.123.0/24"
+
+
+def test_vpn_register_accepts_vm_scoped_pending_installer_identity() -> None:
+    response = _service().route_post(
+        "/api/v1/vpn/register",
+        endpoint_identity={"endpoint_id": "", "vmid": 100, "node": "beagle-0", "role": "thin-client-installer"},
+        json_payload={"device_id": "ubuntu-beagle-100-100", "public_key": "PUBKEY=="},
+        remote_addr="127.0.0.1",
+    )
+
+    assert int(response["status"]) == int(HTTPStatus.OK)
+    assert response["payload"]["device_id"] == "ubuntu-beagle-100-100"

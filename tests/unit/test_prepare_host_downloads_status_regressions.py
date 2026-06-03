@@ -80,6 +80,37 @@ def test_write_download_status_omits_server_release_artifacts_when_not_hosted_lo
         assert payload_json["endpoint_compatibility"]["reinstall_required"] is False
 
 
+def test_vm_catalog_preset_carries_default_manager_token() -> None:
+    captured: dict[str, str] = {}
+    original_encode = MODULE._encode_preset
+
+    def capture_preset(preset):
+        captured.update(dict(preset))
+        return original_encode(preset)
+
+    MODULE._encode_preset = capture_preset
+    try:
+        MODULE._build_vm_catalog_entry(
+            vm={"vmid": 100, "node": "srv1"},
+            config={
+                "name": "ubuntu-beagle-100",
+                "description": "beagle-stream-client-host=46.4.96.80",
+            },
+            load_vm_config=lambda _node, _vmid: {},
+            metadata_support=MODULE.MetadataSupportService(),
+            server_name="srv1.beagle-os.com",
+            installer_iso_url="https://downloads.example/installer.iso",
+            default_beagle_username="",
+            default_beagle_password="",
+            default_beagle_token="manager-token-xyz",
+            beagle_manager_url="https://srv1.beagle-os.com/beagle-api",
+        )
+    finally:
+        MODULE._encode_preset = original_encode
+
+    assert captured["PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN"] == "manager-token-xyz"
+
+
 def test_check_beagle_host_expects_versioned_host_payload_urls_in_status_json() -> None:
     script = (ROOT / "scripts" / "check-beagle-host.sh").read_text(encoding="utf-8")
 

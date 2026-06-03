@@ -65,6 +65,7 @@ class EndpointEnrollmentService:
     def issue_enrollment_token(self, vm: Any) -> tuple[str, dict[str, Any]]:
         record = self._ensure_vm_secret(vm)
         token = self._token_urlsafe(32)
+        endpoint_token = self._token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=max(0, self._enrollment_token_ttl_seconds))
         payload = {
             "vmid": vm.vmid,
@@ -75,8 +76,20 @@ class EndpointEnrollmentService:
             "used_at": "",
         }
         self._store_enrollment_token(token, payload)
+        self._store_endpoint_token(
+            endpoint_token,
+            {
+                "endpoint_id": "",
+                "hostname": "",
+                "vmid": vm.vmid,
+                "node": vm.node,
+                "role": "thin-client-installer",
+                "pending_enrollment_token": token,
+            },
+        )
         response_payload = dict(payload)
         response_payload["thinclient_password"] = str(record.get("thinclient_password", ""))
+        response_payload["beagle_manager_token"] = endpoint_token
         return token, response_payload
 
     def enroll_endpoint(self, payload: dict[str, Any]) -> dict[str, Any]:

@@ -198,7 +198,7 @@ def _build_vm_catalog_entry(
         "PVE_THIN_CLIENT_PRESET_BEAGLE_PASSWORD": "",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_TOKEN": "",
         "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_URL": str(beagle_manager_url or ""),
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": "",
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN": str(default_beagle_token or ""),
         "PVE_THIN_CLIENT_PRESET_SPICE_METHOD": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_URL": "",
         "PVE_THIN_CLIENT_PRESET_SPICE_USERNAME": "",

@@ -224,6 +224,12 @@ class TestEnrollmentTokenIssuance:
         assert payload["node"] == "srv1"
         assert payload["expires_at"] != ""
         assert payload["thinclient_password"] != ""
+        assert payload["beagle_manager_token"] != ""
+        stored_endpoint = endpoint_store.load(payload["beagle_manager_token"])
+        assert stored_endpoint is not None
+        assert stored_endpoint["vmid"] == 100
+        assert stored_endpoint["node"] == "srv1"
+        assert stored_endpoint["role"] == "thin-client-installer"
 
     def test_issued_token_is_stored_in_enrollment_store(
         self, enrollment_store, endpoint_store
