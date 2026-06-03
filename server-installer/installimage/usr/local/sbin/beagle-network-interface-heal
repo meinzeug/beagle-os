@@ -85,6 +85,7 @@ from __future__ import annotations
 
 import re
 import sys
+import ipaddress
 from pathlib import Path
 
 path = Path(sys.argv[1])
@@ -95,7 +96,8 @@ def repl(match: re.Match[str]) -> str:
     netmask = match.group("netmask")
     gateway = match.group("gateway")
     iface = match.group("iface")
-    return f"  up ip route replace {network}/{netmask} via {gateway} dev {iface} || true"
+    prefix = ipaddress.IPv4Network(f"0.0.0.0/{netmask}", strict=False).prefixlen
+    return f"  up ip route replace {network}/{prefix} via {gateway} dev {iface} || true"
 
 updated = re.sub(
     r"^\s*up\s+route\s+add\s+-net\s+(?P<network>\S+)\s+netmask\s+(?P<netmask>\S+)\s+gw\s+(?P<gateway>\S+)\s+dev\s+(?P<iface>\S+)\s*$",

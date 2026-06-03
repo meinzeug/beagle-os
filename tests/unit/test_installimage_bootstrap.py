@@ -10,6 +10,8 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 BOOTSTRAP_SCRIPT = ROOT_DIR / "server-installer" / "installimage" / "usr" / "local" / "bin" / "beagle-installimage-bootstrap"
 BOOTSTRAP_SERVICE = ROOT_DIR / "server-installer" / "installimage" / "etc" / "systemd" / "system" / "beagle-installimage-bootstrap.service"
 NETWORK_HEAL_SERVICE = ROOT_DIR / "server-installer" / "installimage" / "etc" / "systemd" / "system" / "beagle-network-interface-heal.service"
+NETWORK_HEAL_SCRIPT = ROOT_DIR / "server-installer" / "installimage" / "usr" / "local" / "sbin" / "beagle-network-interface-heal"
+BUILD_SCRIPT = ROOT_DIR / "scripts" / "build-server-installimage.sh"
 
 
 class BootstrapServiceUnitTests(unittest.TestCase):
@@ -96,6 +98,31 @@ class BootstrapScriptSyntaxTests(unittest.TestCase):
     def test_bootstrap_uses_noninteractive_install_mode(self) -> None:
         text = BOOTSTRAP_SCRIPT.read_text(encoding="utf-8")
         self.assertIn("BEAGLE_INSTALL_NONINTERACTIVE=1", text)
+
+
+class InstallimageNetworkHealTests(unittest.TestCase):
+    def test_network_heal_converts_legacy_netmask_routes_to_cidr(self) -> None:
+        text = NETWORK_HEAL_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("import ipaddress", text)
+        self.assertIn('IPv4Network(f"0.0.0.0/{netmask}", strict=False).prefixlen', text)
+        self.assertIn('ip route replace {network}/{prefix}', text)
+        self.assertNotIn('ip route replace {network}/{netmask}', text)
+
+    def test_network_heal_script_passes_bash_syntax_check(self) -> None:
+        result = subprocess.run(
+            ["bash", "-n", str(NETWORK_HEAL_SCRIPT)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, f"bash -n failed: {result.stderr}")
+
+
+class InstallimageBuildScriptTests(unittest.TestCase):
+    def test_grub_defaults_allow_slow_or_degraded_raid_root_boot(self) -> None:
+        text = BUILD_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn('GRUB_CMDLINE_LINUX="consoleblank=0 rootdelay=10 bootdegraded=true"', text)
 
 
 class BootstrapEarlyExitTests(unittest.TestCase):
