@@ -5,6 +5,7 @@ import json
 import os
 import re
 import socket
+import ssl
 import subprocess
 import secrets
 import shlex
@@ -274,15 +275,16 @@ def _resolve_public_hostname(name: str) -> str:
     """Normalise a configured public hostname for use in outward-facing URLs.
 
     Rules (same as vm_console_access and runtime_environment):
-    - IP literal      → return as-is
-    - FQDN (has dot)  → return as-is so Let's Encrypt / public TLS stays valid
-    - Bare hostname   → resolve to a non-loopback IPv4 so thin clients without
+    - IP literal      -> return as-is
+    - FQDN (has dot)  -> return as-is so Let's Encrypt / public TLS stays valid
+    - Bare hostname   -> prefer certificate CN/SAN (when available), otherwise
+                        resolve to a non-loopback IPv4 so thin clients without
                         local DNS can reach the server; fall back to the primary
                         outbound IPv4 if the name resolves to loopback.
     """
     import ipaddress as _ipaddress
 
-    candidate = str(name or "").strip()
+    candidate = str(name or '').strip()
     if not candidate:
         return candidate
     try:
@@ -290,8 +292,35 @@ def _resolve_public_hostname(name: str) -> str:
         return candidate
     except ValueError:
         pass
-    if "." in candidate:
+    if '.' in candidate:
         return candidate
+
+    cert_file = os.environ.get('PVE_DCV_PROXY_CERT_FILE', '/etc/beagle/tls/beagle-proxy.crt').strip() or '/etc/beagle/tls/beagle-proxy.crt'
+    try:
+        cert_info = ssl._ssl._test_decode_cert(cert_file)
+    except Exception:
+        cert_info = {}
+
+    cert_candidates: list[str] = []
+    for subject in cert_info.get('subject', []) or []:
+        for key, value in subject:
+            if key == 'commonName':
+                cert_candidates.append(str(value or '').strip())
+    for key, value in cert_info.get('subjectAltName', []) or []:
+        if key == 'DNS':
+            cert_candidates.append(str(value or '').strip())
+
+    for host in cert_candidates:
+        if not host or host.startswith('*.'):
+            continue
+        try:
+            _ipaddress.ip_address(host)
+            continue
+        except ValueError:
+            pass
+        if '.' in host:
+            return host
+
     try:
         resolved = socket.gethostbyname(candidate)
         if not _ipaddress.ip_address(resolved).is_loopback:
@@ -300,10 +329,10 @@ def _resolve_public_hostname(name: str) -> str:
         pass
     try:
         _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        _s.connect(("1.1.1.1", 80))
+        _s.connect(('1.1.1.1', 80))
         _ip = _s.getsockname()[0]
         _s.close()
-        if _ip and not _ip.startswith("127."):
+        if _ip and not _ip.startswith('127.'):
             return _ip
     except OSError:
         pass
