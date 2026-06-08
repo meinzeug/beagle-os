@@ -595,6 +595,7 @@ chmod 0755 "$USB_TUNNEL_AUTH_COMMAND"
 chown root:root "$USB_TUNNEL_AUTH_COMMAND"
 
 cat >"$USB_TUNNEL_SSHD_DROPIN" <<EOF
+TCPKeepAlive yes
 Match User $USB_TUNNEL_USER
     AuthenticationMethods publickey
     PasswordAuthentication no
@@ -608,7 +609,6 @@ Match User $USB_TUNNEL_USER
     PermitTTY yes
     X11Forwarding no
     GatewayPorts clientspecified
-    TCPKeepAlive yes
     ClientAliveInterval 20
     ClientAliveCountMax 2
 EOF

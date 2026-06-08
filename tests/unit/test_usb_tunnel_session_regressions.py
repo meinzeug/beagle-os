@@ -32,3 +32,9 @@ def test_install_script_enforces_ssh_keepalive_for_usb_tunnel_user() -> None:
     assert "TCPKeepAlive yes" in text
     assert "ClientAliveInterval 20" in text
     assert "ClientAliveCountMax 2" in text
+
+    # TCPKeepAlive is a global directive and is rejected inside a Match block
+    # (sshd refuses to start). It must be emitted before the Match block.
+    keepalive_index = text.index("TCPKeepAlive yes")
+    match_index = text.index("Match User $USB_TUNNEL_USER")
+    assert keepalive_index < match_index
