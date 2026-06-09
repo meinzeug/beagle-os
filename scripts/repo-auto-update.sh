@@ -368,7 +368,7 @@ def reset_runtime_git_checkout(install_dir: Path, repo_url: str, branch: str, co
             remove_runtime_git_metadata(install_dir)
             return False
 
-    fetch_runtime = run_git_network(["git", "fetch", "--prune", "--tags", "origin", branch], cwd=install_dir, timeout=1800)
+    fetch_runtime = run_git_network(["git", "fetch", "--prune", "--tags", "--force", "origin", branch], cwd=install_dir, timeout=1800)
     if fetch_runtime.returncode != 0:
         remove_runtime_git_metadata(install_dir)
         return False
@@ -394,7 +394,7 @@ def initialize_runtime_git_checkout(install_dir: Path, repo_url: str, branch: st
     if remote_add.returncode != 0:
         remove_runtime_git_metadata(install_dir)
         return False
-    fetch_runtime = run_git_network(["git", "fetch", "--prune", "--tags", "origin", branch], cwd=install_dir, timeout=1800)
+    fetch_runtime = run_git_network(["git", "fetch", "--prune", "--tags", "--force", "origin", branch], cwd=install_dir, timeout=1800)
     if fetch_runtime.returncode != 0:
         remove_runtime_git_metadata(install_dir)
         return False
@@ -537,9 +537,9 @@ if fetch.returncode != 0:
 
 tag_fetch = None
 if config["channel"] == "stable":
-    tag_fetch = run_git_network(["git", "fetch", "--tags", "--prune", "origin"], cwd=worktree_dir, timeout=1800)
+    tag_fetch = run_git_network(["git", "fetch", "--tags", "--force", "--prune", "origin"], cwd=worktree_dir, timeout=1800)
 elif not run(["git", "tag", "--list", "v*"], cwd=worktree_dir, timeout=60).stdout.strip():
-    tag_fetch = run_git_network(["git", "fetch", "--tags", "--prune", "origin"], cwd=worktree_dir, timeout=180)
+    tag_fetch = run_git_network(["git", "fetch", "--tags", "--force", "--prune", "origin"], cwd=worktree_dir, timeout=180)
 
 if tag_fetch is not None and tag_fetch.returncode != 0:
     payload["state"] = "error"

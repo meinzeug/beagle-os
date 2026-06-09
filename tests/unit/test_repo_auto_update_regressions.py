@@ -136,7 +136,7 @@ def test_repo_auto_update_supports_stable_tag_channel() -> None:
     assert 'def latest_stable_tag(repo_dir: Path) -> tuple[str, str]:' in script
     assert '"channel": normalize_update_channel(settings.get("repo_auto_update_channel"), legacy_default_channel)' in script
     assert 'if config["channel"] == "stable":' in script
-    assert 'tag_fetch = run_git_network(["git", "fetch", "--tags", "--prune", "origin"], cwd=worktree_dir, timeout=1800)' in script
+    assert 'tag_fetch = run_git_network(["git", "fetch", "--tags", "--force", "--prune", "origin"], cwd=worktree_dir, timeout=1800)' in script
     assert 'elif not run(["git", "tag", "--list", "v*"], cwd=worktree_dir, timeout=60).stdout.strip():' in script
     assert 'if config["channel"] == "stable":' in script
     assert 'remote_ref = stable_tag' in script
@@ -144,6 +144,21 @@ def test_repo_auto_update_supports_stable_tag_channel() -> None:
     assert 'payload["stable_channel_holding"] = True' in script
     assert 'payload["reaction"] = "stable_channel_holds_newer_installed_commit"' in script
     assert 'Kein Downgrade wird ausgefuehrt' in script
+
+
+def test_repo_auto_update_force_fetches_tags_to_survive_moved_release_tags() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    # A re-pointed release tag (for example a re-cut v8.3.14) otherwise makes
+    # `git fetch --tags` abort with "would clobber existing tag", which
+    # permanently bricks the auto-updater on every deployed server. Every
+    # tag-aware fetch must use --force so moved tags are accepted.
+    import re
+
+    tag_fetches = re.findall(r'run_git_network\(\["git", "fetch"[^\]]*"--tags"[^\]]*\]', script)
+    assert tag_fetches, "expected at least one tag-aware git fetch"
+    for fetch in tag_fetches:
+        assert '"--force"' in fetch, f"tag fetch missing --force: {fetch}"
 
 
 def test_host_check_validates_diamond_d0_repo_update_status() -> None:
