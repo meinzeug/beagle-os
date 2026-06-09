@@ -174,6 +174,24 @@ configure_base_system() {
 ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 EOF
+  # The build copied the build host's /etc/resolv.conf into the image so
+  # apt could resolve mirrors inside the chroot. On a systemd-resolved
+  # build host that file is the 127.0.0.53 stub resolver, but the shipped
+  # image does not install systemd-resolved, so the stub has no backing
+  # service and every DNS lookup fails on first boot. Replace it with a
+  # static resolver (Hetzner recursive resolvers + public fallbacks) so a
+  # freshly provisioned server always resolves names. DHCP clients may
+  # still overwrite this later with lease-provided nameservers.
+  rm -f "$ROOTFS_DIR/etc/resolv.conf"
+  cat >"$ROOTFS_DIR/etc/resolv.conf" <<EOF
+# Beagle OS static resolver (systemd-resolved is not installed)
+nameserver 185.12.64.1
+nameserver 185.12.64.2
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+options edns0 trust-ad
+EOF
+  chmod 0644 "$ROOTFS_DIR/etc/resolv.conf"
   install -d -m 0755 "$ROOTFS_DIR/etc/ssh/sshd_config.d"
   cat >"$ROOTFS_DIR/etc/ssh/sshd_config.d/99-beagle-installimage.conf" <<EOF
 PermitRootLogin ${INSTALLIMAGE_ROOT_LOGIN}

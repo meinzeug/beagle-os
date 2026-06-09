@@ -124,6 +124,17 @@ class InstallimageBuildScriptTests(unittest.TestCase):
 
         self.assertIn('GRUB_CMDLINE_LINUX="consoleblank=0 rootdelay=10 bootdegraded=true"', text)
 
+    def test_image_ships_static_resolver_not_systemd_resolved_stub(self) -> None:
+        text = BUILD_SCRIPT.read_text(encoding="utf-8")
+
+        # The shipped image must not rely on the systemd-resolved stub
+        # (127.0.0.53) because that service is not installed; a static
+        # resolver must be written into the rootfs instead.
+        self.assertIn('cat >"$ROOTFS_DIR/etc/resolv.conf"', text)
+        self.assertIn('nameserver 185.12.64.1', text)
+        self.assertIn('nameserver 1.1.1.1', text)
+        self.assertNotIn('nameserver 127.0.0.53', text)
+
 
 class BootstrapEarlyExitTests(unittest.TestCase):
     """
