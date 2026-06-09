@@ -54,6 +54,7 @@ USB_TUNNEL_ATTACH_HOST="${BEAGLE_USB_TUNNEL_ATTACH_HOST:-10.10.10.1}"
 USB_TUNNEL_SSHD_DROPIN="/etc/ssh/sshd_config.d/90-beagle-usb-tunnel.conf"
 USB_TUNNEL_TEST_DROPIN="/etc/ssh/sshd_config.d/91-beagle-tunnel-test.conf"
 USB_TUNNEL_AUTH_COMMAND="/usr/local/libexec/beagle-usb-authorized-keys"
+SSHD_BIN="$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)"
 KVM_UDEV_RULE_FILE="/etc/udev/rules.d/65-beagle-kvm.rules"
 INSTALLED_COMMIT_FILE="$INSTALL_DIR/.beagle-installed-commit"
 BEAGLE_LIBVIRT_IMAGES_DIR="${BEAGLE_LIBVIRT_IMAGES_DIR:-}"
@@ -614,6 +615,19 @@ Match User $USB_TUNNEL_USER
 EOF
 chmod 0644 "$USB_TUNNEL_SSHD_DROPIN"
 
+# Validate the generated sshd drop-in immediately. A malformed drop-in (for
+# example a global-only directive placed inside a Match block) makes sshd refuse
+# to start, which silently locks every operator out of the server on the next
+# sshd restart or reboot. Remove the offending drop-in so the on-disk sshd
+# configuration always stays bootable, then fail loudly instead of shipping a
+# host that bricks its own SSH.
+if ! "$SSHD_BIN" -t 2>/tmp/beagle-usb-tunnel-sshd-test.log; then
+  echo "ERROR: generated $USB_TUNNEL_SSHD_DROPIN failed sshd validation; removing it to avoid SSH lockout:" >&2
+  cat /tmp/beagle-usb-tunnel-sshd-test.log >&2
+  rm -f "$USB_TUNNEL_SSHD_DROPIN"
+  exit 1
+fi
+
 install -d -m 0755 "$SYSTEMD_DIR"
 install -d -m 0755 "$HOST_RUNTIME_DIR/bin"
 install -d -m 0755 "$HOST_RUNTIME_DIR/providers"
@@ -1028,7 +1042,16 @@ if grep -q '^BEAGLE_ENDPOINT_SHARED_TOKEN=' "$BEAGLE_CONTROL_ENV_FILE"; then
 fi
 
 systemctl daemon-reload 2>/dev/null || true
-systemctl restart ssh.service >/dev/null 2>&1 || systemctl restart sshd.service >/dev/null 2>&1 || true
+# Never restart sshd into an invalid configuration: if validation fails the
+# daemon exits on start and the operator is locked out of the server. Validate
+# first and only restart when the config is known-good; otherwise keep the
+# currently running sshd alive and surface the error.
+if "$SSHD_BIN" -t 2>/tmp/beagle-sshd-restart-test.log; then
+  systemctl restart ssh.service >/dev/null 2>&1 || systemctl restart sshd.service >/dev/null 2>&1 || true
+else
+  echo "ERROR: refusing to restart sshd because configuration validation failed; keeping the running sshd:" >&2
+  cat /tmp/beagle-sshd-restart-test.log >&2
+fi
 restart_unit_if_active "$BEAGLE_CONTROL_SERVICE"
 restart_unit_if_active "$BEAGLE_PUBLIC_STREAM_SERVICE"
 restart_unit_if_active "$BEAGLE_NOVNC_PROXY_SERVICE"
