@@ -141,6 +141,107 @@ class BeagleHostProviderContractExtensionsTests(unittest.TestCase):
         self.assertEqual(stdout, "ok\n")
         self.assertEqual(stderr, "err\n")
 
+    def test_ensure_beagle_dhcp_reservation_pins_current_lease(self):
+        self.provider.create_vm(
+            100,
+            {
+                "node": "beagle-0",
+                "name": "vm-100",
+                "status": "running",
+                "scsi0": "local:20",
+                "net0": "virtio,bridge=beagle,macaddr=52:54:00:00:00:64",
+            },
+        )
+        calls = []
+
+        def fake_virsh(*args, input_data=None):
+            calls.append(args)
+            if args[:1] == ("net-list",):
+                return "beagle\n"
+            if args[:1] == ("net-dumpxml",):
+                return "<network><name>beagle</name></network>"
+            if args[:2] == ("domifaddr", "beagle-100"):
+                return " vnet0  52:54:00:00:00:64  ipv4  192.168.123.114/24\n"
+            return ""
+
+        with mock.patch.object(BeagleHostProvider, "_libvirt_enabled", return_value=True), mock.patch.object(
+            self.provider, "_run_virsh", side_effect=fake_virsh
+        ):
+            ip = self.provider._ensure_beagle_dhcp_reservation(100)
+
+        self.assertEqual(ip, "192.168.123.114")
+        update = next(a for a in calls if a[:1] == ("net-update",))
+        self.assertEqual(update[1], "beagle")
+        self.assertIn("ip-dhcp-host", update)
+        joined = " ".join(str(part) for part in update)
+        self.assertIn("52:54:00:00:00:64", joined)
+        self.assertIn("192.168.123.114", joined)
+
+    def test_ensure_beagle_dhcp_reservation_is_idempotent(self):
+        self.provider.create_vm(
+            100,
+            {
+                "node": "beagle-0",
+                "name": "vm-100",
+                "status": "running",
+                "scsi0": "local:20",
+                "net0": "virtio,bridge=beagle,macaddr=52:54:00:00:00:64",
+            },
+        )
+
+        def fake_virsh(*args, input_data=None):
+            if args[:1] == ("net-list",):
+                return "beagle\n"
+            if args[:1] == ("net-dumpxml",):
+                return (
+                    "<network><name>beagle</name><ip><dhcp>"
+                    "<host mac=\x27\x35\x32:54:00:00:00:64\x27 name=\x27ubuntu-beagle-100\x27 ip=\x27192.168.123.115\x27/>"
+                    "</dhcp></ip></network>"
+                )
+            if args[:1] == ("net-update",):
+                raise AssertionError("net-update must not run when reservation exists")
+            return ""
+
+        with mock.patch.object(BeagleHostProvider, "_libvirt_enabled", return_value=True), mock.patch.object(
+            self.provider, "_run_virsh", side_effect=fake_virsh
+        ):
+            ip = self.provider._ensure_beagle_dhcp_reservation(100)
+
+        self.assertEqual(ip, "192.168.123.115")
+
+    def test_ensure_beagle_dhcp_reservation_uses_deterministic_fallback(self):
+        self.provider.create_vm(
+            105,
+            {
+                "node": "beagle-0",
+                "name": "vm-105",
+                "status": "stopped",
+                "scsi0": "local:20",
+                "net0": "virtio,bridge=beagle,macaddr=52:54:00:00:00:69",
+            },
+        )
+        captured = {}
+
+        def fake_virsh(*args, input_data=None):
+            if args[:1] == ("net-list",):
+                return "beagle\n"
+            if args[:1] == ("net-dumpxml",):
+                return "<network><name>beagle</name></network>"
+            if args[:2] == ("domifaddr", "beagle-105"):
+                raise RuntimeError("no lease")
+            if args[:1] == ("net-update",):
+                captured["update"] = args
+                return ""
+            return ""
+
+        with mock.patch.object(BeagleHostProvider, "_libvirt_enabled", return_value=True), mock.patch.object(
+            self.provider, "_run_virsh", side_effect=fake_virsh
+        ):
+            ip = self.provider._ensure_beagle_dhcp_reservation(105)
+
+        self.assertEqual(ip, "192.168.123.9")
+        self.assertIn("192.168.123.9", " ".join(str(part) for part in captured["update"]))
+
 
 if __name__ == "__main__":
     unittest.main()

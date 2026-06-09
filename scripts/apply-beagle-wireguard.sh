@@ -230,10 +230,34 @@ ensure_libvirt_wireguard_no_snat_rules() {
   done < <(detect_vm_bridge_cidrs)
 }
 
+ensure_libvirt_wireguard_forward_rules() {
+  local bridge
+  local marker="beagle-wireguard-forward-to-vm-bridges"
+
+  command -v nft >/dev/null 2>&1 || return 0
+  nft list chain ip filter FORWARD >/dev/null 2>&1 || return 0
+
+  # libvirt's LIBVIRT_FWI chain rejects new inbound connections to the VM
+  # bridges, which blocks thin-client -> guest stream traffic arriving over the
+  # WireGuard tunnel. Insert accept rules at the head of the filter FORWARD
+  # chain (before the libvirt jumps) so tunnelled clients can reach guests and
+  # the guests can reply back through the tunnel.
+  while read -r bridge; do
+    [[ -n "$bridge" ]] || continue
+    if ! nft list chain ip filter FORWARD 2>/dev/null | grep -Fq "$marker:in:$bridge"; then
+      nft insert rule ip filter FORWARD iifname "$WG_IFACE" oifname "$bridge" accept comment "$marker:in:$bridge" >/dev/null 2>&1 || true
+    fi
+    if ! nft list chain ip filter FORWARD 2>/dev/null | grep -Fq "$marker:out:$bridge"; then
+      nft insert rule ip filter FORWARD iifname "$bridge" oifname "$WG_IFACE" accept comment "$marker:out:$bridge" >/dev/null 2>&1 || true
+    fi
+  done < <(detect_vm_bridges | sed '/^$/d' | sort -u)
+}
+
 apply_nat_rules() {
   nft delete table ip "$WG_NFT_TABLE" >/dev/null 2>&1 || true
   nft -f "$WG_NFT_FILE"
   ensure_libvirt_wireguard_no_snat_rules
+  ensure_libvirt_wireguard_forward_rules
 }
 
 enable_wireguard() {

@@ -17,6 +17,13 @@ def test_wireguard_script_renders_registered_mesh_peers_into_server_config() -> 
     assert 'ip daddr != { ${bridge_cidr_set} }' not in script
     assert "ensure_libvirt_wireguard_no_snat_rules" in script
     assert "beagle-wireguard-no-snat-from-vm-bridges" in script
+    assert "ensure_libvirt_wireguard_forward_rules" in script
+    assert "beagle-wireguard-forward-to-vm-bridges" in script
+    assert (
+        'nft insert rule ip filter FORWARD iifname "$WG_IFACE" oifname '
+        '"$bridge" accept comment "$marker:in:$bridge"'
+    ) in script
+    assert "  ensure_libvirt_wireguard_forward_rules\n}" in script
     assert "append_mesh_peers()" in script
     assert 'print(f"AllowedIPs = {assigned_ip}/32")' in script
     assert 'append_mesh_peers >>"$WG_CONF"' in script

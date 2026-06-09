@@ -1323,6 +1323,93 @@ class BeagleHostProvider:
         del timeout
         return self.set_vm_options(vmid, {"boot": str(order or "")})
 
+    @staticmethod
+    def _beagle_reservation_ip_for_vmid(vmid: int) -> str:
+        # Deterministic address inside the static band 192.168.123.2-99, which
+        # sits OUTSIDE the dynamic DHCP range (.100-.254), so a pinned VM can
+        # never collide with a dynamically allocated lease.
+        octet = 2 + (int(vmid) % 98)
+        return f"192.168.123.{octet}"
+
+    def _beagle_network_mac(self, vmid: int, config: dict[str, Any] | None = None) -> str:
+        if config is not None:
+            net0 = str(config.get("net0", "") or "")
+            match = re.search(r"macaddr=([0-9A-Fa-f:]{17})", net0)
+            if match:
+                return match.group(1).lower()
+        value = int(vmid) & 0xFFFFFF
+        return "52:54:00:%02x:%02x:%02x" % (
+            (value >> 16) & 0xFF,
+            (value >> 8) & 0xFF,
+            value & 0xFF,
+        )
+
+    def _beagle_existing_reservation_ip(self, mac: str) -> str:
+        try:
+            xml = self._run_virsh("net-dumpxml", "beagle")
+        except Exception:
+            return ""
+        mac_lower = str(mac or "").lower()
+        for host in re.findall(r"<host\b[^>]*/?>", xml):
+            mac_match = re.search(r"mac=([\x27\"])([^\x27\"]+)\1", host)
+            ip_match = re.search(r"ip=([\x27\"])([^\x27\"]+)\1", host)
+            if mac_match and ip_match and mac_match.group(2).lower() == mac_lower:
+                return ip_match.group(2)
+        return ""
+
+    def _ensure_beagle_dhcp_reservation(self, vmid: int) -> str:
+        """Pin a beagle VM to a stable DHCP IP so its LAN stream address does not
+        drift across reboots. A dynamic lease change would otherwise silently
+        break thin clients that target the VM by its previous address. Returns
+        the reserved IP, or an empty string when no reservation is applicable."""
+        if not self._libvirt_enabled():
+            return ""
+        if not self._libvirt_network_exists("beagle"):
+            return ""
+        config: dict[str, Any] = {}
+        record = self._find_vm(vmid)
+        if record is not None:
+            node = str(record.get("node") or self._default_node_name).strip() or self._default_node_name
+            try:
+                config = self.get_vm_config(node, vmid)
+            except Exception:
+                config = {}
+        net0 = str(config.get("net0", "") or "")
+        bridge_match = re.search(r"bridge=([^\s,]+)", net0)
+        if bridge_match:
+            try:
+                if self._resolve_network_name(bridge_match.group(1)) != "beagle":
+                    return ""
+            except Exception:
+                return ""
+        mac = self._beagle_network_mac(vmid, config)
+        existing = self._beagle_existing_reservation_ip(mac)
+        if existing:
+            return existing
+        # Prefer the VM current lease so already-enrolled clients stay valid;
+        # fall back to a deterministic static-band address for fresh VMs.
+        ip = ""
+        try:
+            lease_ip = self._libvirt_guest_ipv4(vmid)
+        except Exception:
+            lease_ip = ""
+        if lease_ip.startswith("192.168.123."):
+            ip = lease_ip
+        if not ip:
+            ip = self._beagle_reservation_ip_for_vmid(vmid)
+        host_xml = "<host mac=\x27%s\x27 name=\x27%s\x27 ip=\x27%s\x27/>" % (
+            mac,
+            self._libvirt_domain_name(vmid),
+            ip,
+        )
+        for scope in (("--live", "--config"), ("--config",)):
+            try:
+                self._run_virsh("net-update", "beagle", "add-last", "ip-dhcp-host", host_xml, *scope)
+                return ip
+            except Exception:
+                continue
+        return ip
+
     def start_vm(
         self,
         vmid: int,
@@ -1347,6 +1434,10 @@ class BeagleHostProvider:
             # Keep libvirt XML aligned with the latest provider config (boot order,
             # installer media cleanup, qemu args) before every start.
             self._provision_libvirt_vm(vmid)
+            try:
+                self._ensure_beagle_dhcp_reservation(vmid)
+            except Exception:
+                pass
             try:
                 self._run_virsh("start", domain_name)
             except RuntimeError as exc:
