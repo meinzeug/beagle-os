@@ -13,6 +13,8 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
+# Persist manual devices added through the in-VM manager under /var/lib/beagle/netbridge.
+StateDirectory=beagle/netbridge
 
 [Install]
 WantedBy=multi-user.target

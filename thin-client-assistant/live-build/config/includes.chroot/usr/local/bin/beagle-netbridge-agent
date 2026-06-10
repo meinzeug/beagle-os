@@ -20,8 +20,11 @@ minimal thin-client image.
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+import re
+import select
 import socket
 import struct
 import sys
@@ -45,6 +48,11 @@ PROXY_PORT_RANGE = range(47101, 48000)
 CONTROL_PORT = int(os.environ.get("BEAGLE_NETBRIDGE_CONTROL_PORT", "47100"))
 DISCOVERY_INTERVAL = int(os.environ.get("BEAGLE_NETBRIDGE_DISCOVERY_INTERVAL", "30"))
 DISCOVERY_WINDOW = float(os.environ.get("BEAGLE_NETBRIDGE_DISCOVERY_WINDOW", "3.0"))
+
+# Manual devices added through the in-VM manager are persisted here so they
+# survive restarts and are bridged alongside the auto-discovered ones.
+STATE_DIR = os.environ.get("BEAGLE_NETBRIDGE_STATE_DIR", "/var/lib/beagle/netbridge")
+STATIC_FILE = os.path.join(STATE_DIR, "static-devices.json")
 
 
 def log(message: str) -> None:
@@ -149,51 +157,112 @@ def _decode_txt(rdata: bytes) -> dict[str, str]:
     return result
 
 
+def _iface_ipv4(ifname: str) -> str | None:
+    """Return the primary IPv4 address of an interface (SIOCGIFADDR)."""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        packed = struct.pack("256s", ifname[:15].encode("utf-8"))
+        res = fcntl.ioctl(probe.fileno(), 0x8915, packed)  # SIOCGIFADDR
+        return socket.inet_ntoa(res[20:24])
+    except OSError:
+        return None
+    finally:
+        probe.close()
+
+
+def _discovery_source_ips() -> list[str]:
+    """LAN-facing source addresses to send mDNS queries from.
+
+    The thin client's default route can point at the WireGuard tunnel
+    (``default dev wg-beagle``), which would send multicast out the wrong
+    interface. We therefore enumerate the real interface addresses and query
+    from each LAN interface explicitly, skipping loopback, link-local and the
+    WireGuard mesh address.
+    """
+    override_ip = os.environ.get("BEAGLE_NETBRIDGE_LAN_IP", "").strip()
+    if override_ip:
+        return [override_ip]
+    iface_override = os.environ.get("BEAGLE_NETBRIDGE_LAN_IFACE", "").strip()
+    try:
+        names = [iface_override] if iface_override else [n for _, n in socket.if_nameindex()]
+    except OSError:
+        names = []
+    ips: list[str] = []
+    for name in names:
+        if not name or name == "lo" or name.startswith("wg"):
+            continue
+        ip = _iface_ipv4(name)
+        if not ip or ip in ips:
+            continue
+        if ip.startswith("127.") or ip.startswith("169.254.") or ip.startswith("10.88."):
+            continue
+        ips.append(ip)
+    return ips or ["0.0.0.0"]
+
+
 def browse(window: float = DISCOVERY_WINDOW) -> list[dict]:
     """Browse the LAN for printer services and return resolved device records."""
     service_types = list(PRINTER_SERVICES.keys())
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
-    sock.bind(("", 0))
-    sock.settimeout(0.5)
+    query = _build_query(service_types)
+
+    socks: list[socket.socket] = []
+    for source_ip in _discovery_source_ips():
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
+            if source_ip != "0.0.0.0":
+                # Force multicast egress + unicast-response source onto the LAN.
+                sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF,
+                                socket.inet_aton(source_ip))
+            sock.bind((source_ip, 0))
+            sock.setblocking(False)
+            socks.append(sock)
+        except OSError as exc:
+            log(f"mdns socket on {source_ip} failed: {exc}")
+    if not socks:
+        return []
 
     ptr: dict[str, set[str]] = {}        # service type -> {instance names}
     srv: dict[str, tuple[str, int]] = {}  # instance -> (target host, port)
     txt: dict[str, dict[str, str]] = {}   # instance -> txt map
     addrs: dict[str, str] = {}            # host -> ipv4
 
-    query = _build_query(service_types)
     deadline = time.time() + window
     last_send = 0.0
     while time.time() < deadline:
         now = time.time()
         if now - last_send > 0.9:
-            try:
-                sock.sendto(query, (MCAST_ADDR, MCAST_PORT))
-            except OSError as exc:
-                log(f"mdns send failed: {exc}")
+            for sock in socks:
+                try:
+                    sock.sendto(query, (MCAST_ADDR, MCAST_PORT))
+                except OSError as exc:
+                    log(f"mdns send failed: {exc}")
             last_send = now
         try:
-            data, _src = sock.recvfrom(9000)
-        except socket.timeout:
-            continue
+            readable, _, _ = select.select(socks, [], [], 0.3)
         except OSError:
             continue
-        for name, rtype, rdata, rdata_offset in _parse_records(data):
-            if rtype == 12:  # PTR -> service instance name
-                target, _ = _read_name(data, rdata_offset)
-                base = name if name.endswith(".local.") else name + "."
-                ptr.setdefault(base, set()).add(target)
-            elif rtype == 33 and len(rdata) >= 6:  # SRV -> target host + port
-                _prio, _weight, port = struct.unpack(">HHH", rdata[:6])
-                target_name, _ = _read_name(data, rdata_offset + 6)
-                srv[name] = (target_name, port)
-            elif rtype == 16:  # TXT
-                txt[name] = _decode_txt(rdata)
-            elif rtype == 1 and len(rdata) == 4:  # A -> IPv4
-                addrs[name] = socket.inet_ntoa(rdata)
-    sock.close()
+        for sock in readable:
+            try:
+                data, _src = sock.recvfrom(9000)
+            except OSError:
+                continue
+            for name, rtype, rdata, rdata_offset in _parse_records(data):
+                if rtype == 12:  # PTR -> service instance name
+                    target, _ = _read_name(data, rdata_offset)
+                    base = name if name.endswith(".local.") else name + "."
+                    ptr.setdefault(base, set()).add(target)
+                elif rtype == 33 and len(rdata) >= 6:  # SRV -> target host + port
+                    _prio, _weight, port = struct.unpack(">HHH", rdata[:6])
+                    target_name, _ = _read_name(data, rdata_offset + 6)
+                    srv[name] = (target_name, port)
+                elif rtype == 16:  # TXT
+                    txt[name] = _decode_txt(rdata)
+                elif rtype == 1 and len(rdata) == 4:  # A -> IPv4
+                    addrs[name] = socket.inet_ntoa(rdata)
+    for sock in socks:
+        sock.close()
 
     return _assemble_devices(ptr, srv, txt, addrs)
 
@@ -380,6 +449,100 @@ class Agent:
         self.catalog: list[dict] = []
         self.proxies: dict[tuple[str, str], Proxy] = {}
         self.used_ports: set[int] = set()
+        self.static_devices: list[dict] = self._load_static_devices()
+        self._rescan = threading.Event()
+
+    # ------------------------------------------------------------------ #
+    # Manual ("static") devices added through the in-VM manager app
+    # ------------------------------------------------------------------ #
+    def _load_static_devices(self) -> list[dict]:
+        try:
+            with open(STATIC_FILE, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, ValueError):
+            return []
+        return [d for d in data if isinstance(d, dict)] if isinstance(data, list) else []
+
+    def _save_static_devices(self) -> None:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        tmp = STATIC_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(self.static_devices, handle, indent=2)
+        os.replace(tmp, STATIC_FILE)
+
+    @staticmethod
+    def _make_static_device(req: dict) -> dict | None:
+        address = str(req.get("address", "")).strip()
+        if not re.match(r"^[0-9A-Za-z._-]+$", address):
+            return None
+        try:
+            port = int(req.get("port", 9100))
+        except (TypeError, ValueError):
+            return None
+        if not 1 <= port <= 65535:
+            return None
+        rp = str(req.get("rp", "ipp/print")).strip().lstrip("/")
+        name = str(req.get("name", "")).strip() or f"printer-{address.split('.')[-1]}"
+        kind = "raw" if port == 9100 else "ipp"
+        service: dict = {"device_port": port}
+        if kind == "ipp":
+            service["rp"] = rp or "ipp/print"
+        slug = re.sub(r"[^A-Za-z0-9]+", "-", f"{address}-{port}").strip("-")
+        return {
+            "id": f"static-{slug}",
+            "kind": "printer",
+            "address": address,
+            "name": name,
+            "make_model": str(req.get("make_model", "")).strip(),
+            "manual": True,
+            "services": {kind: service},
+        }
+
+    def add_static_device(self, req: dict) -> dict:
+        device = self._make_static_device(req)
+        if device is None:
+            return {"ok": False, "error": "invalid device (address/port)"}
+        with self.lock:
+            self.static_devices = [d for d in self.static_devices
+                                   if d.get("id") != device["id"]]
+            self.static_devices.append(device)
+            self._save_static_devices()
+        self.rescan_now()
+        log(f"manual device added: {device['id']} -> {device['address']}")
+        return {"ok": True, "id": device["id"]}
+
+    def remove_static_device(self, device_id: str) -> dict:
+        with self.lock:
+            before = len(self.static_devices)
+            self.static_devices = [d for d in self.static_devices
+                                   if d.get("id") != device_id]
+            removed = len(self.static_devices) != before
+            if removed:
+                self._save_static_devices()
+        if not removed:
+            return {"ok": False, "error": "unknown device id"}
+        self.rescan_now()
+        log(f"manual device removed: {device_id}")
+        return {"ok": True}
+
+    def _collect_devices(self) -> list[dict]:
+        try:
+            devices = browse()
+        except Exception as exc:  # noqa: BLE001 - keep the loop alive
+            log(f"discovery error: {exc}")
+            devices = []
+        discovered_ids = {d.get("id") for d in devices}
+        devices.extend(parse_static_printers())
+        with self.lock:
+            manual = list(self.static_devices)
+        for device in manual:
+            if device.get("id") not in discovered_ids:
+                devices.append(device)
+        return devices
+
+    def rescan_now(self) -> None:
+        self.reconcile(self._collect_devices())
+        self._rescan.set()
 
     def _allocate_port(self) -> int:
         for port in PROXY_PORT_RANGE:
@@ -429,6 +592,8 @@ class Agent:
                     "name": device.get("name", device_id),
                     "kind": device.get("kind", "printer"),
                     "make_model": device.get("make_model", ""),
+                    "address": device.get("address", ""),
+                    "manual": bool(device.get("manual", False)),
                     "services": {},
                 })
                 service_payload = {"proxy_port": proxy.proxy_port,
@@ -452,16 +617,52 @@ class Agent:
                 continue
             threading.Thread(target=self._handle_catalog, args=(client,), daemon=True).start()
 
+    def _catalog_payload(self, extra: dict | None = None) -> dict:
+        with self.lock:
+            payload = {
+                "ok": True,
+                "agent_host": self.bind_host,
+                "ts": int(time.time()),
+                "devices": self.catalog,
+            }
+        if extra:
+            payload.update(extra)
+        return payload
+
+    def _dispatch(self, request: dict) -> dict:
+        op = request.get("op", "catalog")
+        if op == "rescan":
+            self.rescan_now()
+            return self._catalog_payload({"rescanned": True})
+        if op == "add_static":
+            result = self.add_static_device(request)
+            payload = self._catalog_payload()
+            payload.update(result)
+            return payload
+        if op == "remove_static":
+            result = self.remove_static_device(str(request.get("id", "")))
+            payload = self._catalog_payload()
+            payload.update(result)
+            return payload
+        if op == "list_static":
+            with self.lock:
+                return {"ok": True, "static": list(self.static_devices)}
+        return self._catalog_payload()
+
     def _handle_catalog(self, client: socket.socket) -> None:
         try:
             client.settimeout(5)
-            client.recv(4096)  # request line is advisory; we always return the catalog
-            with self.lock:
-                payload = {
-                    "agent_host": self.bind_host,
-                    "ts": int(time.time()),
-                    "devices": self.catalog,
-                }
+            raw = client.recv(8192)
+            request: dict = {}
+            if raw.strip():
+                try:
+                    first = raw.decode("utf-8").splitlines()[0]
+                    parsed = json.loads(first)
+                    if isinstance(parsed, dict):
+                        request = parsed
+                except (ValueError, IndexError, UnicodeDecodeError):
+                    request = {}
+            payload = self._dispatch(request)
             client.sendall((json.dumps(payload) + "\n").encode("utf-8"))
         except OSError:
             pass
@@ -470,14 +671,10 @@ class Agent:
 
     def discovery_loop(self) -> None:
         while True:
-            try:
-                devices = browse()
-            except Exception as exc:  # noqa: BLE001 - keep the loop alive
-                log(f"discovery error: {exc}")
-                devices = []
-            devices.extend(parse_static_printers())
-            self.reconcile(devices)
-            time.sleep(DISCOVERY_INTERVAL)
+            self.rescan_now()
+            self._rescan.clear()
+            # Wake early when the manager requests an on-demand rescan.
+            self._rescan.wait(DISCOVERY_INTERVAL)
 
     def run(self) -> None:
         log(f"starting; bind host {self.bind_host}")

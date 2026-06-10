@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Beagle NetBridge
+GenericName=Network device manager
+Comment=Manage the thin-client LAN devices (printers) shared with this VM
+Exec=/usr/local/bin/beagle-netbridge-tray
+Icon=printer
+Terminal=false
+Categories=Utility;System;HardwareSettings;
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-after=panel
+StartupNotify=false

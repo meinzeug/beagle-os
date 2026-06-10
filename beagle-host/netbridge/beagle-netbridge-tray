@@ -1,0 +1,430 @@
+#!/usr/bin/env python3
+"""Beagle NetBridge tray manager (in-VM side).
+
+A small desktop tray application for the streamed VM that lets the user manage
+the LAN devices shared from their thin client through Beagle NetBridge:
+
+  * see the network devices the thin-client agent has discovered/bridged,
+  * trigger an on-demand re-scan of the local network,
+  * add a device manually (e.g. a printer that does not advertise itself), and
+  * remove devices that were added manually.
+
+It talks to the thin-client ``beagle-netbridge-agent`` over the WireGuard tunnel
+using the agent's JSON control protocol (catalog / rescan / add_static /
+remove_static / list_static) and shows how each device maps onto the local CUPS
+queues that ``beagle-netbridge-client`` maintains.
+
+The networking core (:class:`NetBridgeControl`) depends only on the Python 3
+standard library so it can be unit-tested without a display; the tray UI uses
+PyQt5 (``QSystemTrayIcon``), which integrates natively with the VM's KDE Plasma
+desktop.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+
+DEFAULT_AGENTS = "10.88.1.1:47100"
+ENV_FILE = "/etc/beagle/netbridge.env"
+MANAGED_PREFIX = "beagle-net-"
+CONTROL_TIMEOUT = 6
+APP_ID = "com.beagle-os.netbridge.tray"
+APP_NAME = "Beagle NetBridge"
+
+
+# --------------------------------------------------------------------------- #
+# Configuration helpers (shared semantics with beagle-netbridge-client)
+# --------------------------------------------------------------------------- #
+def load_env() -> dict[str, str]:
+    env: dict[str, str] = {}
+    try:
+        with open(ENV_FILE, "r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                env[key.strip()] = value.strip().strip('"')
+    except OSError:
+        pass
+    return env
+
+
+def agent_endpoints(env: dict[str, str] | None = None) -> list[tuple[str, int]]:
+    env = env if env is not None else load_env()
+    raw = os.environ.get("BEAGLE_NETBRIDGE_AGENTS") or env.get("BEAGLE_NETBRIDGE_AGENTS") or DEFAULT_AGENTS
+    endpoints: list[tuple[str, int]] = []
+    for item in filter(None, (chunk.strip() for chunk in raw.split(","))):
+        host, _, port = item.partition(":")
+        endpoints.append((host, int(port) if port else 47100))
+    return endpoints
+
+
+def queue_name(device: dict) -> str:
+    """Mirror beagle-netbridge-client._queue_name so we can match queues."""
+    base = device.get("name") or device.get("id") or "printer"
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", base).strip("-").lower() or device.get("id", "printer")
+    return f"{MANAGED_PREFIX}{slug}"
+
+
+# --------------------------------------------------------------------------- #
+# Agent control client (stdlib only -> unit-testable without a display)
+# --------------------------------------------------------------------------- #
+class NetBridgeControl:
+    """Talk to the thin-client NetBridge agent's JSON control port."""
+
+    def __init__(self, endpoints: list[tuple[str, int]] | None = None) -> None:
+        self.endpoints = endpoints if endpoints is not None else agent_endpoints()
+
+    def request(self, op: str = "catalog", **fields) -> dict | None:
+        payload = {"op": op}
+        payload.update(fields)
+        line = (json.dumps(payload) + "\n").encode("utf-8")
+        for host, port in self.endpoints:
+            try:
+                with socket.create_connection((host, port), timeout=CONTROL_TIMEOUT) as sock:
+                    sock.sendall(line)
+                    sock.settimeout(CONTROL_TIMEOUT)
+                    buffer = bytearray()
+                    while b"\n" not in buffer:
+                        chunk = sock.recv(4096)
+                        if not chunk:
+                            break
+                        buffer.extend(chunk)
+                        if len(buffer) > 2_000_000:
+                            break
+                response = json.loads(buffer.decode("utf-8").splitlines()[0])
+            except (OSError, ValueError, IndexError):
+                continue
+            if isinstance(response, dict):
+                response.setdefault("agent_host", host)
+                return response
+        return None
+
+    def catalog(self) -> dict | None:
+        return self.request("catalog")
+
+    def rescan(self) -> dict | None:
+        return self.request("rescan")
+
+    def add_static(self, address: str, port: int = 9100, name: str = "",
+                   rp: str = "ipp/print") -> dict | None:
+        return self.request("add_static", address=address, port=int(port),
+                            name=name, rp=rp)
+
+    def remove_static(self, device_id: str) -> dict | None:
+        return self.request("remove_static", id=device_id)
+
+    def list_static(self) -> dict | None:
+        return self.request("list_static")
+
+
+# --------------------------------------------------------------------------- #
+# Local CUPS state (so the tray can show what is actually wired up)
+# --------------------------------------------------------------------------- #
+def _run(args: list[str], timeout: int = 20) -> subprocess.CompletedProcess:
+    return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
+
+
+def cups_managed_queues() -> dict[str, str]:
+    """Return {queue_name: device-uri} for Beagle-managed CUPS queues."""
+    queues: dict[str, str] = {}
+    try:
+        result = _run(["lpstat", "-v"])
+    except (OSError, subprocess.SubprocessError):
+        return queues
+    for line in result.stdout.splitlines():
+        match = re.search(r"(?:for|für)\s+(\S+?):\s*(\S+)", line)
+        if match and match.group(1).startswith(MANAGED_PREFIX):
+            queues[match.group(1)] = match.group(2)
+    return queues
+
+
+def print_test_page(queue: str) -> tuple[bool, str]:
+    body = (
+        "=== Beagle NetBridge Testseite / test page ===\n"
+        f"Queue:     {queue}\n"
+        f"Zeitpunkt: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n"
+        "Pfad: VM -> WireGuard -> Thin Client -> Drucker\n"
+    )
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False,
+                                         encoding="utf-8") as handle:
+            handle.write(body)
+            path = handle.name
+    except OSError as exc:
+        return False, str(exc)
+    try:
+        result = _run(["lp", "-d", queue, path])
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, str(exc)
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+    if result.returncode != 0:
+        return False, result.stderr.strip() or "lp failed"
+    return True, result.stdout.strip()
+
+
+# --------------------------------------------------------------------------- #
+# Headless self-test (verify the control path without a display)
+# --------------------------------------------------------------------------- #
+def selftest() -> int:
+    control = NetBridgeControl()
+    print(f"agent endpoints: {control.endpoints}")
+    catalog = control.catalog()
+    if catalog is None:
+        print("RESULT: agent unreachable")
+        return 1
+    devices = catalog.get("devices", [])
+    print(f"agent_host: {catalog.get('agent_host')}  devices: {len(devices)}")
+    wired = cups_managed_queues()
+    for device in devices:
+        queue = queue_name(device)
+        services = ",".join(device.get("services", {}))
+        flag = "wired" if queue in wired else "not-wired"
+        manual = " (manual)" if device.get("manual") else ""
+        print(f"  - {device.get('name')} [{services}] -> {queue} ({flag}){manual}")
+    print("RESULT: ok")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
+# Tray UI (PyQt5)
+# --------------------------------------------------------------------------- #
+def run_tray() -> int:
+    from PyQt5 import QtCore, QtGui, QtWidgets
+
+    class AddDeviceDialog(QtWidgets.QDialog):
+        def __init__(self, parent=None) -> None:
+            super().__init__(parent)
+            self.setWindowTitle("Gerät hinzufügen")
+            self.setModal(True)
+            form = QtWidgets.QFormLayout(self)
+
+            self.name_edit = QtWidgets.QLineEdit()
+            self.name_edit.setPlaceholderText("z. B. Wohnzimmer-Drucker")
+            self.addr_edit = QtWidgets.QLineEdit()
+            self.addr_edit.setPlaceholderText("IP-Adresse oder Hostname")
+            self.port_spin = QtWidgets.QSpinBox()
+            self.port_spin.setRange(1, 65535)
+            self.port_spin.setValue(9100)
+            self.kind_combo = QtWidgets.QComboBox()
+            self.kind_combo.addItem("Raw / JetDirect (Port 9100)", "raw")
+            self.kind_combo.addItem("IPP (Port 631)", "ipp")
+            self.rp_edit = QtWidgets.QLineEdit("ipp/print")
+
+            form.addRow("Name:", self.name_edit)
+            form.addRow("Adresse:", self.addr_edit)
+            form.addRow("Typ:", self.kind_combo)
+            form.addRow("Port:", self.port_spin)
+            form.addRow("IPP-Pfad:", self.rp_edit)
+
+            self.kind_combo.currentIndexChanged.connect(self._sync_kind)
+            self._sync_kind()
+
+            buttons = QtWidgets.QDialogButtonBox(
+                QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+            buttons.accepted.connect(self.accept)
+            buttons.rejected.connect(self.reject)
+            form.addRow(buttons)
+
+        def _sync_kind(self) -> None:
+            kind = self.kind_combo.currentData()
+            if kind == "raw":
+                self.port_spin.setValue(9100)
+                self.rp_edit.setEnabled(False)
+            else:
+                if self.port_spin.value() == 9100:
+                    self.port_spin.setValue(631)
+                self.rp_edit.setEnabled(True)
+
+        def values(self) -> dict:
+            return {
+                "name": self.name_edit.text().strip(),
+                "address": self.addr_edit.text().strip(),
+                "port": self.port_spin.value(),
+                "rp": self.rp_edit.text().strip() or "ipp/print",
+            }
+
+    class TrayManager(QtCore.QObject):
+        def __init__(self, app: QtWidgets.QApplication) -> None:
+            super().__init__()
+            self.app = app
+            self.control = NetBridgeControl()
+            self.catalog: dict | None = None
+            self.wired: dict[str, str] = {}
+
+            self.tray = QtWidgets.QSystemTrayIcon(self._icon(), self.app)
+            self.tray.setToolTip(APP_NAME)
+            self.menu = QtWidgets.QMenu()
+            self.tray.setContextMenu(self.menu)
+            self.menu.aboutToShow.connect(self.refresh)
+            self.tray.activated.connect(self._on_activated)
+            self.tray.show()
+
+            self.timer = QtCore.QTimer(self)
+            self.timer.setInterval(20000)
+            self.timer.timeout.connect(self.refresh)
+            self.timer.start()
+
+            self.refresh()
+
+        # -- helpers ---------------------------------------------------- #
+        def _icon(self) -> "QtGui.QIcon":
+            icon = QtGui.QIcon.fromTheme("printer")
+            if icon.isNull():
+                icon = QtGui.QIcon.fromTheme("network-workgroup")
+            if icon.isNull():
+                pixmap = QtGui.QPixmap(64, 64)
+                pixmap.fill(QtGui.QColor("#2d6cdf"))
+                icon = QtGui.QIcon(pixmap)
+            return icon
+
+        def _on_activated(self, reason) -> None:
+            if reason in (QtWidgets.QSystemTrayIcon.Trigger,
+                          QtWidgets.QSystemTrayIcon.Context):
+                self.refresh()
+                self.menu.popup(QtGui.QCursor.pos())
+
+        def _notify(self, title: str, message: str) -> None:
+            self.tray.showMessage(title, message, self._icon(), 5000)
+
+        # -- data ------------------------------------------------------- #
+        def refresh(self) -> None:
+            self.catalog = self.control.catalog()
+            self.wired = cups_managed_queues()
+            self._rebuild_menu()
+
+        def _rebuild_menu(self) -> None:
+            self.menu.clear()
+            header = self.menu.addAction(APP_NAME)
+            header.setEnabled(False)
+
+            if self.catalog is None:
+                status = self.menu.addAction("● Agent nicht erreichbar")
+                status.setEnabled(False)
+            else:
+                host = self.catalog.get("agent_host", "?")
+                devices = self.catalog.get("devices", [])
+                status = self.menu.addAction(f"● Verbunden mit {host}")
+                status.setEnabled(False)
+                self.menu.addSeparator()
+                if not devices:
+                    empty = self.menu.addAction("Keine Geräte gefunden")
+                    empty.setEnabled(False)
+                for device in devices:
+                    self._add_device_menu(device)
+
+            self.menu.addSeparator()
+            self.menu.addAction("Geräte suchen…", self.action_rescan)
+            self.menu.addAction("Gerät hinzufügen…", self.action_add)
+            self.menu.addAction("Druckerverwaltung öffnen", self.action_open_cups)
+            self.menu.addAction("Aktualisieren", self.refresh)
+            self.menu.addSeparator()
+            self.menu.addAction("Beenden", self.app.quit)
+
+        def _add_device_menu(self, device: dict) -> None:
+            name = device.get("name") or device.get("id") or "Gerät"
+            queue = queue_name(device)
+            wired = queue in self.wired
+            label = ("✓ " if wired else "  ") + name
+            submenu = self.menu.addMenu(label)
+            info = submenu.addAction(f"Adresse: {device.get('address', '?')}")
+            info.setEnabled(False)
+            for kind, service in device.get("services", {}).items():
+                line = submenu.addAction(
+                    f"{kind.upper()} · Geräteport {service.get('device_port')} "
+                    f"→ Proxy {service.get('proxy_port', '?')}")
+                line.setEnabled(False)
+            state = submenu.addAction(
+                "In CUPS eingerichtet" if wired else "Noch nicht in CUPS")
+            state.setEnabled(False)
+            submenu.addSeparator()
+            if wired:
+                submenu.addAction("Testseite drucken",
+                                  lambda _=False, q=queue: self.action_test_print(q))
+            if device.get("manual"):
+                submenu.addAction("Gerät entfernen",
+                                  lambda _=False, d=device.get("id", ""): self.action_remove(d))
+
+        # -- actions ---------------------------------------------------- #
+        def action_rescan(self) -> None:
+            result = self.control.rescan()
+            if result is None:
+                self._notify(APP_NAME, "Agent nicht erreichbar.")
+            else:
+                count = len(result.get("devices", []))
+                self._notify(APP_NAME, f"Suche abgeschlossen: {count} Gerät(e).")
+            self.refresh()
+
+        def action_add(self) -> None:
+            dialog = AddDeviceDialog()
+            if dialog.exec_() != QtWidgets.QDialog.Accepted:
+                return
+            values = dialog.values()
+            if not values["address"]:
+                self._notify(APP_NAME, "Bitte eine Adresse angeben.")
+                return
+            result = self.control.add_static(
+                address=values["address"], port=values["port"],
+                name=values["name"], rp=values["rp"])
+            if result is None:
+                self._notify(APP_NAME, "Agent nicht erreichbar.")
+            elif not result.get("ok"):
+                self._notify(APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+            else:
+                self._notify(APP_NAME, "Gerät hinzugefügt.")
+            self.refresh()
+
+        def action_remove(self, device_id: str) -> None:
+            if not device_id:
+                return
+            result = self.control.remove_static(device_id)
+            if result is None:
+                self._notify(APP_NAME, "Agent nicht erreichbar.")
+            elif not result.get("ok"):
+                self._notify(APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+            else:
+                self._notify(APP_NAME, "Gerät entfernt.")
+            self.refresh()
+
+        def action_test_print(self, queue: str) -> None:
+            ok, message = print_test_page(queue)
+            self._notify(APP_NAME,
+                         f"Testseite gesendet: {queue}" if ok else f"Druckfehler: {message}")
+
+        def action_open_cups(self) -> None:
+            QtGui.QDesktopServices.openUrl(QtCore.QUrl("http://localhost:631/printers/"))
+
+    app = QtWidgets.QApplication(sys.argv)
+    app.setApplicationName(APP_NAME)
+    app.setApplicationDisplayName(APP_NAME)
+    app.setDesktopFileName(APP_ID)
+    app.setQuitOnLastWindowClosed(False)
+
+    if not QtWidgets.QSystemTrayIcon.isSystemTrayAvailable():
+        sys.stderr.write("beagle-netbridge-tray: no system tray available\n")
+        return 1
+
+    TrayManager(app)
+    return app.exec_()
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = argv if argv is not None else sys.argv[1:]
+    if "--selftest" in argv:
+        return selftest()
+    return run_tray()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
