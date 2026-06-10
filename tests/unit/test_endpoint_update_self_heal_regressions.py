@@ -543,3 +543,65 @@ def test_webui_update_panel_warns_when_endpoint_rebuild_is_recommended() -> None
     assert "GitHub / Release Quelle" in script
     assert "Stable Release" in script
     assert "Rolling Head" in script
+
+
+def test_update_client_refuses_payload_download_into_ram_backed_cache() -> None:
+    """The Live thin client froze when a USB-full fallback wrote the update
+    payload into the tmpfs overlay (RAM). The client must defer instead."""
+    script = UPDATE_CLIENT.read_text(encoding="utf-8")
+
+    assert "def guard_volatile_download(" in script
+    assert "def path_is_ram_backed(" in script
+    assert "def mem_available_bytes(" in script
+    assert "max_filesize = guard_volatile_download(payload_size)" in script
+    assert "--max-filesize" in script
+    # extraction must also avoid the RAM-backed /tmp tmpfs
+    assert "extract_root = archive_path.parent" in script
+
+
+def test_guard_volatile_download_defers_on_ram_backed_cache() -> None:
+    module = _load_update_client_module()
+    module.CACHE_ROOT = Path("/run/live/overlay/rw/var/cache/beagle-os/update")
+
+    # RAM-backed + not explicitly allowed -> defer regardless of (unknown) size
+    module.path_is_ram_backed = lambda path, _depth=0: True
+    import os as _os
+    _os.environ.pop("BEAGLE_UPDATE_ALLOW_VOLATILE_CACHE", None)
+    raised = False
+    try:
+        module.guard_volatile_download(0)
+    except RuntimeError as exc:
+        raised = "volatile" in str(exc).lower()
+    assert raised, "must defer when cache is RAM-backed"
+
+    # explicitly allowed + ample RAM -> returns a positive --max-filesize budget
+    _os.environ["BEAGLE_UPDATE_ALLOW_VOLATILE_CACHE"] = "1"
+    module.mem_available_bytes = lambda: 3 * 1024 ** 3
+    budget = module.guard_volatile_download(0)
+    assert isinstance(budget, int) and budget > 0
+
+    # allowed but payload larger than the safe RAM budget -> defer
+    try:
+        module.guard_volatile_download(3 * 1024 ** 3)
+        assert False, "oversized payload must defer"
+    except RuntimeError:
+        pass
+
+    # allowed but too little RAM -> defer
+    module.mem_available_bytes = lambda: 400 * 1024 ** 2
+    try:
+        module.guard_volatile_download(0)
+        assert False, "low RAM must defer"
+    except RuntimeError:
+        pass
+
+    _os.environ.pop("BEAGLE_UPDATE_ALLOW_VOLATILE_CACHE", None)
+
+
+def test_guard_volatile_download_allows_non_volatile_cache() -> None:
+    module = _load_update_client_module()
+    module.path_is_ram_backed = lambda path, _depth=0: False
+    # persistent USB medium / real disk -> no RAM cap, download proceeds
+    assert module.guard_volatile_download(0) == 0
+    assert module.guard_volatile_download(900 * 1024 ** 2) == 0
+

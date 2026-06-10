@@ -41,6 +41,7 @@ RECENT_SCAN_SECONDS = int(os.environ.get("BEAGLE_UPDATE_RECENT_SCAN_SECONDS", "2
 SESSION_MONITOR_INTERVAL_SECONDS = int(os.environ.get("BEAGLE_UPDATE_SESSION_MONITOR_INTERVAL_SECONDS", "60"))
 PROMPT_COOLDOWN_SECONDS = int(os.environ.get("BEAGLE_UPDATE_PROMPT_COOLDOWN_SECONDS", "43200"))
 PERSISTENT_MIN_FREE_BYTES = int(os.environ.get("BEAGLE_UPDATE_PERSISTENT_MIN_FREE_BYTES", "536870912"))
+VOLATILE_RAM_RESERVE_BYTES = int(os.environ.get("BEAGLE_UPDATE_VOLATILE_RAM_RESERVE_BYTES", str(768 * 1024 * 1024)))
 PAYLOAD_DOWNLOAD_MAX_TIME_SECONDS = int(os.environ.get("BEAGLE_UPDATE_PAYLOAD_MAX_TIME_SECONDS", "900"))
 PAYLOAD_DOWNLOAD_LOW_SPEED_LIMIT = int(os.environ.get("BEAGLE_UPDATE_PAYLOAD_LOW_SPEED_LIMIT", "16384"))
 PAYLOAD_DOWNLOAD_LOW_SPEED_TIME = int(os.environ.get("BEAGLE_UPDATE_PAYLOAD_LOW_SPEED_TIME", "60"))
@@ -258,6 +259,54 @@ def mount_options_for_path(path: Path) -> set[str]:
     except Exception:
         return set()
     return {item.strip() for item in output.split(",") if item.strip()}
+
+
+def mount_fstype_for_path(path: Path) -> str:
+    try:
+        output = subprocess.check_output(
+            ["findmnt", "-nro", "FSTYPE", "--target", str(path)],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return ""
+    return output.splitlines()[0].strip() if output else ""
+
+
+def path_is_ram_backed(path: Path, _depth: int = 0) -> bool:
+    """Return True when writes under *path* consume RAM (tmpfs/ramfs/overlay).
+
+    On the Live thin client ``/`` is an overlay whose upperdir lives on a tmpfs
+    (``/run/live/overlay/rw``), so any file written there is held in RAM. We
+    walk to the nearest existing parent, inspect its filesystem type, and for
+    overlay mounts follow the ``upperdir=`` to see if that is itself RAM-backed.
+    """
+    if _depth > 4:
+        return False
+    target = path
+    while not target.exists() and target != target.parent:
+        target = target.parent
+    fstype = mount_fstype_for_path(target)
+    if fstype in {"tmpfs", "ramfs"}:
+        return True
+    if fstype == "overlay":
+        for option in mount_options_for_path(target):
+            if option.startswith("upperdir="):
+                upper = option.split("=", 1)[1].strip()
+                if upper:
+                    return path_is_ram_backed(Path(upper), _depth + 1)
+    return False
+
+
+def mem_available_bytes() -> int:
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) * 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return 0
+
 
 
 def ensure_medium_writable(medium: Path) -> None:
@@ -701,6 +750,41 @@ def ensure_download_space(*, keep_version: str, required_bytes: int) -> None:
         )
 
 
+def guard_volatile_download(required_bytes: int) -> int:
+    """Protect the live session from downloads into RAM-backed storage.
+
+    On the Live thin client the update cache normally lives on the persistent
+    USB medium. When that medium is full the client falls back to volatile
+    paths, which on a Live system are an overlay whose upperdir is a tmpfs --
+    i.e. backed by RAM. Writing a multi-hundred-MB OS payload there consumes the
+    RAM the streaming session needs and previously froze the whole desktop
+    (and staging to the full medium would fail anyway). So unless explicitly
+    allowed, we defer the download when the cache is RAM-backed.
+
+    Returns a curl ``--max-filesize`` ceiling (bytes) to use as defense in depth
+    when volatile downloads are explicitly allowed, or 0 when no cap applies.
+    """
+    if not path_is_ram_backed(CACHE_ROOT):
+        return 0
+    if not bool_from_config(os.environ.get("BEAGLE_UPDATE_ALLOW_VOLATILE_CACHE", "0"), False):
+        raise RuntimeError(
+            "update cache fell back to volatile RAM-backed storage (USB medium full); "
+            "deferring payload download to keep the live session responsive"
+        )
+    mem_available = mem_available_bytes()
+    budget = mem_available - VOLATILE_RAM_RESERVE_BYTES
+    if mem_available <= 0 or budget <= 0:
+        raise RuntimeError(
+            f"insufficient RAM to download into volatile cache: {mem_available} bytes available, "
+            f"reserve {VOLATILE_RAM_RESERVE_BYTES}; deferring update"
+        )
+    if required_bytes > 0 and int(required_bytes * 1.2) > budget:
+        raise RuntimeError(
+            f"payload (~{required_bytes} bytes) exceeds the safe RAM budget {budget} bytes; deferring update"
+        )
+    return budget
+
+
 def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
     version = str(feed.get("latest_version", "")).strip()
     payload_url = str(feed.get("payload_url", "")).strip()
@@ -715,6 +799,9 @@ def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
         if not expected_sha or sha256sum(archive_path).lower() == expected_sha.lower():
             return archive_path, version
         archive_path.unlink()
+    # Never download a system-image payload into the RAM-backed volatile cache;
+    # this is what froze the live thin client when the USB medium was full.
+    max_filesize = guard_volatile_download(payload_size)
     ensure_download_space(keep_version=version, required_bytes=payload_size)
     payload_pin = str(feed.get("payload_pinned_pubkey", "")).strip()
     manager_url = config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_URL", "").strip()
@@ -730,12 +817,22 @@ def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
         max_time=PAYLOAD_DOWNLOAD_MAX_TIME_SECONDS,
     )
     args.extend(["-L", "--retry", "4", "--retry-delay", "3", "--continue-at", "-"])
+    if max_filesize > 0:
+        args.extend(["--max-filesize", str(max_filesize)])
     if PAYLOAD_DOWNLOAD_LOW_SPEED_LIMIT > 0 and PAYLOAD_DOWNLOAD_LOW_SPEED_TIME > 0:
         args.extend(["--speed-limit", str(PAYLOAD_DOWNLOAD_LOW_SPEED_LIMIT), "--speed-time", str(PAYLOAD_DOWNLOAD_LOW_SPEED_TIME)])
     args.extend(["-o", str(archive_path), payload_url])
     try:
         subprocess.run(args, check=True)
     except subprocess.CalledProcessError as exc:
+        if exc.returncode == 63:
+            try:
+                archive_path.unlink()
+            except OSError:
+                pass
+            raise RuntimeError(
+                "payload exceeded the safe RAM/disk budget and was aborted; deferring update"
+            ) from exc
         if exc.returncode == 23:
             raise RuntimeError(
                 f"payload download failed while writing to {archive_path}; free disk space under {CACHE_ROOT} and retry"
@@ -750,7 +847,18 @@ def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
 
 
 def extract_payload(archive_path: Path) -> Path:
-    temp_dir = Path(tempfile.mkdtemp(prefix="beagle-update-", dir="/tmp"))
+    # Extract next to the (already non-volatile) cached archive instead of /tmp,
+    # which on the Live thin client is a RAM-backed tmpfs. Unpacking a
+    # multi-hundred-MB payload into RAM would exhaust memory and freeze the
+    # streamed desktop, the same failure class as downloading into RAM.
+    extract_root = archive_path.parent
+    try:
+        if path_is_ram_backed(extract_root):
+            raise RuntimeError("ram-backed")
+        extract_root.mkdir(parents=True, exist_ok=True)
+        temp_dir = Path(tempfile.mkdtemp(prefix="extract-", dir=str(extract_root)))
+    except Exception:
+        temp_dir = Path(tempfile.mkdtemp(prefix="beagle-update-", dir="/tmp"))
     subprocess.run(["tar", "-xzf", str(archive_path), "-C", str(temp_dir)], check=True)
     asset_dir = temp_dir / "dist" / "pve-thin-client-installer" / "live"
     if not slot_has_assets(asset_dir):
