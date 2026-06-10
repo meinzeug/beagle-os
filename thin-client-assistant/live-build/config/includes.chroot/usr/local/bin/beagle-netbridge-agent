@@ -1,0 +1,500 @@
+#!/usr/bin/env python3
+"""Beagle NetBridge agent (thin-client side).
+
+Makes network devices that live on the thin client's local LAN (for example a
+Wi-Fi printer) reachable from the streamed VM, which only has a route to the
+thin client across the Beagle WireGuard tunnel.
+
+The agent
+
+  1. discovers shareable devices on the local LAN via multicast DNS
+     (printers advertised as _ipp._tcp / _ipps._tcp / _pdl-datastream._tcp /
+     _printer._tcp),
+  2. opens one plain TCP proxy listener per device service, bound to the
+     WireGuard address so only tunnel peers (the VM via the host) can reach it,
+  3. serves a small JSON catalog on a control port so the in-VM client can
+     learn which proxy port maps to which device.
+
+It depends only on the Python 3 standard library so it runs unchanged on a
+minimal thin-client image.
+"""
+from __future__ import annotations
+
+import json
+import os
+import socket
+import struct
+import sys
+import threading
+import time
+from dataclasses import dataclass, field
+
+MCAST_ADDR = "224.0.0.251"
+MCAST_PORT = 5353
+
+# Printer service types we know how to bridge. Order matters: the in-VM client
+# prefers IPP (driverless / IPP Everywhere) over raw JetDirect when both exist.
+PRINTER_SERVICES = {
+    "_ipp._tcp.local.": "ipp",
+    "_ipps._tcp.local.": "ipp",
+    "_pdl-datastream._tcp.local.": "raw",
+    "_printer._tcp.local.": "lpd",
+}
+
+PROXY_PORT_RANGE = range(47101, 48000)
+CONTROL_PORT = int(os.environ.get("BEAGLE_NETBRIDGE_CONTROL_PORT", "47100"))
+DISCOVERY_INTERVAL = int(os.environ.get("BEAGLE_NETBRIDGE_DISCOVERY_INTERVAL", "30"))
+DISCOVERY_WINDOW = float(os.environ.get("BEAGLE_NETBRIDGE_DISCOVERY_WINDOW", "3.0"))
+
+
+def log(message: str) -> None:
+    sys.stderr.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} beagle-netbridge-agent: {message}\n")
+    sys.stderr.flush()
+
+
+# --------------------------------------------------------------------------- #
+# Minimal multicast-DNS browser (standard library only)
+# --------------------------------------------------------------------------- #
+def _encode_name(name: str) -> bytes:
+    out = bytearray()
+    for label in name.rstrip(".").split("."):
+        encoded = label.encode("utf-8")
+        out.append(len(encoded))
+        out.extend(encoded)
+    out.append(0)
+    return bytes(out)
+
+
+def _read_name(data: bytes, offset: int) -> tuple[str, int]:
+    labels: list[str] = []
+    jumped = False
+    next_offset = offset
+    safety = 0
+    while True:
+        safety += 1
+        if safety > 128 or offset >= len(data):
+            break
+        length = data[offset]
+        if length == 0:
+            offset += 1
+            if not jumped:
+                next_offset = offset
+            break
+        if length & 0xC0 == 0xC0:  # compression pointer
+            pointer = ((length & 0x3F) << 8) | data[offset + 1]
+            if not jumped:
+                next_offset = offset + 2
+            offset = pointer
+            jumped = True
+            continue
+        offset += 1
+        labels.append(data[offset:offset + length].decode("utf-8", "replace"))
+        offset += length
+    return ".".join(labels), next_offset
+
+
+def _build_query(service_types: list[str]) -> bytes:
+    header = struct.pack(">HHHHHH", 0, 0, len(service_types), 0, 0, 0)
+    body = bytearray()
+    for service in service_types:
+        body += _encode_name(service)
+        # QTYPE=PTR(12), QCLASS=IN(1) with the QU (unicast response) bit set so
+        # responders answer our ephemeral port directly -> no need to bind 5353
+        # and therefore no conflict with a running avahi-daemon.
+        body += struct.pack(">HH", 12, 0x8001)
+    return header + bytes(body)
+
+
+def _parse_records(data: bytes) -> list[tuple[str, int, bytes, int]]:
+    """Return (name, rtype, rdata, rdata_offset) for every record.
+
+    ``rdata_offset`` is the absolute position of the record data within the full
+    packet so that callers can resolve compressed names (PTR/SRV targets).
+    """
+    if len(data) < 12:
+        return []
+    _id, _flags, qd, an, ns, ar = struct.unpack(">HHHHHH", data[:12])
+    offset = 12
+    for _ in range(qd):
+        _name, offset = _read_name(data, offset)
+        offset += 4
+    records: list[tuple[str, int, bytes, int]] = []
+    for _ in range(an + ns + ar):
+        if offset >= len(data):
+            break
+        name, offset = _read_name(data, offset)
+        if offset + 10 > len(data):
+            break
+        rtype, _rclass, _ttl, rdlength = struct.unpack(">HHIH", data[offset:offset + 10])
+        offset += 10
+        rdata = data[offset:offset + rdlength]
+        records.append((name, rtype, rdata, offset))
+        offset += rdlength
+    return records
+
+
+def _decode_txt(rdata: bytes) -> dict[str, str]:
+    result: dict[str, str] = {}
+    i = 0
+    while i < len(rdata):
+        length = rdata[i]
+        i += 1
+        chunk = rdata[i:i + length].decode("utf-8", "replace")
+        i += length
+        if "=" in chunk:
+            key, _, value = chunk.partition("=")
+            result[key.lower()] = value
+        elif chunk:
+            result[chunk.lower()] = ""
+    return result
+
+
+def browse(window: float = DISCOVERY_WINDOW) -> list[dict]:
+    """Browse the LAN for printer services and return resolved device records."""
+    service_types = list(PRINTER_SERVICES.keys())
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 255)
+    sock.bind(("", 0))
+    sock.settimeout(0.5)
+
+    ptr: dict[str, set[str]] = {}        # service type -> {instance names}
+    srv: dict[str, tuple[str, int]] = {}  # instance -> (target host, port)
+    txt: dict[str, dict[str, str]] = {}   # instance -> txt map
+    addrs: dict[str, str] = {}            # host -> ipv4
+
+    query = _build_query(service_types)
+    deadline = time.time() + window
+    last_send = 0.0
+    while time.time() < deadline:
+        now = time.time()
+        if now - last_send > 0.9:
+            try:
+                sock.sendto(query, (MCAST_ADDR, MCAST_PORT))
+            except OSError as exc:
+                log(f"mdns send failed: {exc}")
+            last_send = now
+        try:
+            data, _src = sock.recvfrom(9000)
+        except socket.timeout:
+            continue
+        except OSError:
+            continue
+        for name, rtype, rdata, rdata_offset in _parse_records(data):
+            if rtype == 12:  # PTR -> service instance name
+                target, _ = _read_name(data, rdata_offset)
+                base = name if name.endswith(".local.") else name + "."
+                ptr.setdefault(base, set()).add(target)
+            elif rtype == 33 and len(rdata) >= 6:  # SRV -> target host + port
+                _prio, _weight, port = struct.unpack(">HHH", rdata[:6])
+                target_name, _ = _read_name(data, rdata_offset + 6)
+                srv[name] = (target_name, port)
+            elif rtype == 16:  # TXT
+                txt[name] = _decode_txt(rdata)
+            elif rtype == 1 and len(rdata) == 4:  # A -> IPv4
+                addrs[name] = socket.inet_ntoa(rdata)
+    sock.close()
+
+    return _assemble_devices(ptr, srv, txt, addrs)
+
+
+def _assemble_devices(ptr, srv, txt, addrs) -> list[dict]:
+    # Map every discovered service instance to a (ip, service-kind) entry, then
+    # merge instances that resolve to the same LAN IP into one logical device.
+    devices: dict[str, dict] = {}
+    for service_type, instances in ptr.items():
+        kind = PRINTER_SERVICES.get(service_type)
+        if not kind:
+            continue
+        for instance in instances:
+            host_port = srv.get(instance)
+            if not host_port:
+                continue
+            host, port = host_port
+            ip = addrs.get(host)
+            if not ip:
+                continue
+            info = txt.get(instance, {})
+            suffix = "." + service_type.rstrip(".")
+            inst = instance.rstrip(".")
+            if inst.endswith(suffix):
+                instance_label = inst[: -len(suffix)]
+            else:
+                instance_label = inst
+            instance_label = instance_label.rstrip(".") or instance
+            device = devices.setdefault(ip, {
+                "id": ip.replace(".", "-"),
+                "kind": "printer",
+                "address": ip,
+                "name": instance_label,
+                "make_model": "",
+                "services": {},
+            })
+            if info.get("ty") or info.get("product"):
+                device["make_model"] = info.get("ty") or info.get("product", "").strip("()")
+            if instance_label and not device.get("name"):
+                device["name"] = instance_label
+            existing = device["services"].get(kind)
+            if existing:
+                continue
+            service_entry = {"device_port": port}
+            rp = info.get("rp")
+            if rp:
+                service_entry["rp"] = rp.lstrip("/")
+            device["services"][kind] = service_entry
+    return list(devices.values())
+
+
+# --------------------------------------------------------------------------- #
+# TCP proxy: splice tunnel connections through to the real LAN device
+# --------------------------------------------------------------------------- #
+def _pump(src: socket.socket, dst: socket.socket) -> None:
+    try:
+        while True:
+            chunk = src.recv(65536)
+            if not chunk:
+                break
+            dst.sendall(chunk)
+    except OSError:
+        pass
+    finally:
+        for sock in (src, dst):
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+
+@dataclass
+class Proxy:
+    bind_host: str
+    proxy_port: int
+    device_host: str
+    device_port: int
+    listener: socket.socket | None = None
+    thread: threading.Thread | None = None
+    stop: threading.Event = field(default_factory=threading.Event)
+
+    def start(self) -> None:
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind((self.bind_host, self.proxy_port))
+        listener.listen(16)
+        listener.settimeout(1.0)
+        self.listener = listener
+        self.thread = threading.Thread(target=self._serve, daemon=True)
+        self.thread.start()
+
+    def _serve(self) -> None:
+        while not self.stop.is_set():
+            try:
+                client, _addr = self.listener.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            threading.Thread(target=self._handle, args=(client,), daemon=True).start()
+
+    def _handle(self, client: socket.socket) -> None:
+        try:
+            upstream = socket.create_connection((self.device_host, self.device_port), timeout=10)
+        except OSError as exc:
+            log(f"proxy {self.proxy_port} -> {self.device_host}:{self.device_port} failed: {exc}")
+            client.close()
+            return
+        t1 = threading.Thread(target=_pump, args=(client, upstream), daemon=True)
+        t2 = threading.Thread(target=_pump, args=(upstream, client), daemon=True)
+        t1.start()
+        t2.start()
+
+    def shutdown(self) -> None:
+        self.stop.set()
+        if self.listener:
+            try:
+                self.listener.close()
+            except OSError:
+                pass
+
+
+# --------------------------------------------------------------------------- #
+# Agent orchestration
+# --------------------------------------------------------------------------- #
+def detect_bind_host() -> str:
+    override = os.environ.get("BEAGLE_NETBRIDGE_BIND", "").strip()
+    if override:
+        return override
+    iface = os.environ.get("BEAGLE_NETBRIDGE_WG_IFACE", "wg-beagle")
+    try:
+        with open("/proc/net/fib_trie", "r", encoding="utf-8") as handle:
+            text = handle.read()
+        for block in text.split("\n"):
+            block = block.strip()
+            if block.startswith("|--") and "10.88." in block:
+                candidate = block.split("|--")[-1].strip()
+                if candidate.startswith("10.88.") and not candidate.endswith(".0"):
+                    return candidate
+    except OSError:
+        pass
+    # Fall back to asking the kernel which source address reaches the mesh.
+    try:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        probe.connect(("10.88.0.1", 9))
+        host = probe.getsockname()[0]
+        probe.close()
+        if host.startswith("10.88."):
+            return host
+    except OSError:
+        pass
+    _ = iface
+    return "0.0.0.0"
+
+
+def parse_static_printers() -> list[dict]:
+    """Optional fallback: BEAGLE_NETBRIDGE_STATIC_PRINTERS=ip:port:rp[,ip:port:rp]."""
+    raw = os.environ.get("BEAGLE_NETBRIDGE_STATIC_PRINTERS", "").strip()
+    devices: list[dict] = []
+    for entry in filter(None, (item.strip() for item in raw.split(","))):
+        parts = entry.split(":")
+        ip = parts[0]
+        port = int(parts[1]) if len(parts) > 1 and parts[1] else 631
+        rp = parts[2] if len(parts) > 2 else "ipp/print"
+        kind = "raw" if port == 9100 else "ipp"
+        service = {"device_port": port}
+        if kind == "ipp":
+            service["rp"] = rp.lstrip("/")
+        devices.append({
+            "id": ip.replace(".", "-"),
+            "kind": "printer",
+            "address": ip,
+            "name": f"printer-{ip.split('.')[-1]}",
+            "make_model": "",
+            "services": {kind: service},
+        })
+    return devices
+
+
+class Agent:
+    def __init__(self) -> None:
+        self.bind_host = detect_bind_host()
+        self.lock = threading.Lock()
+        self.catalog: list[dict] = []
+        self.proxies: dict[tuple[str, str], Proxy] = {}
+        self.used_ports: set[int] = set()
+
+    def _allocate_port(self) -> int:
+        for port in PROXY_PORT_RANGE:
+            if port not in self.used_ports:
+                self.used_ports.add(port)
+                return port
+        raise RuntimeError("no free proxy ports")
+
+    def reconcile(self, devices: list[dict]) -> None:
+        wanted: dict[tuple[str, str], dict] = {}
+        for device in devices:
+            for kind, service in device.get("services", {}).items():
+                wanted[(device["id"], kind)] = (device, service)
+
+        with self.lock:
+            # Tear down proxies for devices/services that disappeared.
+            for key in list(self.proxies.keys()):
+                if key not in wanted:
+                    proxy = self.proxies.pop(key)
+                    self.used_ports.discard(proxy.proxy_port)
+                    proxy.shutdown()
+
+            catalog: list[dict] = []
+            by_device: dict[str, dict] = {}
+            for (device_id, kind), (device, service) in wanted.items():
+                key = (device_id, kind)
+                proxy = self.proxies.get(key)
+                if proxy is None:
+                    port = self._allocate_port()
+                    proxy = Proxy(
+                        bind_host=self.bind_host,
+                        proxy_port=port,
+                        device_host=device["address"],
+                        device_port=service["device_port"],
+                    )
+                    try:
+                        proxy.start()
+                    except OSError as exc:
+                        log(f"failed to start proxy for {device_id}/{kind}: {exc}")
+                        self.used_ports.discard(port)
+                        continue
+                    self.proxies[key] = proxy
+                    log(f"bridging {device['address']}:{service['device_port']} "
+                        f"({kind}) via {self.bind_host}:{proxy.proxy_port}")
+                entry = by_device.setdefault(device_id, {
+                    "id": device["id"],
+                    "name": device.get("name", device_id),
+                    "kind": device.get("kind", "printer"),
+                    "make_model": device.get("make_model", ""),
+                    "services": {},
+                })
+                service_payload = {"proxy_port": proxy.proxy_port,
+                                   "device_port": service["device_port"]}
+                if service.get("rp"):
+                    service_payload["rp"] = service["rp"]
+                entry["services"][kind] = service_payload
+            catalog = list(by_device.values())
+            self.catalog = catalog
+
+    def serve_catalog(self) -> None:
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind((self.bind_host, CONTROL_PORT))
+        listener.listen(16)
+        log(f"catalog listening on {self.bind_host}:{CONTROL_PORT}")
+        while True:
+            try:
+                client, _addr = listener.accept()
+            except OSError:
+                continue
+            threading.Thread(target=self._handle_catalog, args=(client,), daemon=True).start()
+
+    def _handle_catalog(self, client: socket.socket) -> None:
+        try:
+            client.settimeout(5)
+            client.recv(4096)  # request line is advisory; we always return the catalog
+            with self.lock:
+                payload = {
+                    "agent_host": self.bind_host,
+                    "ts": int(time.time()),
+                    "devices": self.catalog,
+                }
+            client.sendall((json.dumps(payload) + "\n").encode("utf-8"))
+        except OSError:
+            pass
+        finally:
+            client.close()
+
+    def discovery_loop(self) -> None:
+        while True:
+            try:
+                devices = browse()
+            except Exception as exc:  # noqa: BLE001 - keep the loop alive
+                log(f"discovery error: {exc}")
+                devices = []
+            devices.extend(parse_static_printers())
+            self.reconcile(devices)
+            time.sleep(DISCOVERY_INTERVAL)
+
+    def run(self) -> None:
+        log(f"starting; bind host {self.bind_host}")
+        threading.Thread(target=self.serve_catalog, daemon=True).start()
+        self.discovery_loop()
+
+
+def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "--once":
+        # Diagnostic: print discovered devices as JSON and exit.
+        devices = browse()
+        devices.extend(parse_static_printers())
+        print(json.dumps(devices, indent=2))
+        return 0
+    Agent().run()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

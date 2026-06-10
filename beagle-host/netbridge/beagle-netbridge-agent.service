@@ -1,0 +1,18 @@
+[Unit]
+Description=Beagle NetBridge agent (share local LAN devices with the streamed VM)
+After=network-online.target wg-quick@wg-beagle.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/beagle-netbridge-agent
+Restart=always
+RestartSec=5
+# The agent only proxies traffic between the WireGuard tunnel and the LAN.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

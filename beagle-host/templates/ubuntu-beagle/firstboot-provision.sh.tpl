@@ -2649,6 +2649,278 @@ EOF
     systemctl enable --now beagle-tc-mic-bridge.service >/dev/null 2>&1 || true
   }
 
+  install_beagle_netbridge_client() {
+    # Bridge local-network devices (e.g. the user's Wi-Fi printer) that live on
+    # the thin client's LAN into this VM. The thin-client NetBridge agent proxies
+    # those devices onto the WireGuard mesh; this client wires the printers it
+    # advertises into CUPS so the streamed desktop can print on them.
+    apt_retry apt-get install -y --no-install-recommends cups cups-client cups-ipp-utils || true
+
+    install -d -m 0755 /etc/beagle
+    if [[ ! -f /etc/beagle/netbridge.env ]]; then
+      cat > /etc/beagle/netbridge.env <<'EOF'
+# Beagle NetBridge client configuration.
+# Comma-separated list of thin-client NetBridge agents (host[:port]).
+BEAGLE_NETBRIDGE_AGENTS=10.88.1.1:47100
+EOF
+    fi
+
+    cat > /usr/local/bin/beagle-netbridge-client <<'NETBRIDGECLIENTEOF'
+#!/usr/bin/env python3
+"""Beagle NetBridge client (in-VM side).
+
+Talks to the thin-client NetBridge agent across the Beagle WireGuard tunnel,
+reads the catalog of bridged local-network devices and reconciles them into the
+VM. Today it wires Wi-Fi/network printers into CUPS so the streamed desktop can
+print on the printer that sits next to the user's thin client.
+
+Runs as a periodic systemd service; depends only on the Python 3 standard
+library plus the CUPS command-line tools (``lpadmin``/``lpstat``) that the VM
+provisioning installs.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import socket
+import subprocess
+import sys
+import time
+
+DEFAULT_AGENTS = "10.88.1.1:47100"
+ENV_FILE = "/etc/beagle/netbridge.env"
+STATE_DIR = "/var/lib/beagle/netbridge"
+MANAGED_PREFIX = "beagle-net-"
+
+
+def log(message: str) -> None:
+    sys.stderr.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} beagle-netbridge-client: {message}\n")
+    sys.stderr.flush()
+
+
+def load_env() -> dict[str, str]:
+    env: dict[str, str] = {}
+    try:
+        with open(ENV_FILE, "r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                env[key.strip()] = value.strip().strip('"')
+    except OSError:
+        pass
+    return env
+
+
+def agent_endpoints(env: dict[str, str]) -> list[tuple[str, int]]:
+    raw = os.environ.get("BEAGLE_NETBRIDGE_AGENTS") or env.get("BEAGLE_NETBRIDGE_AGENTS") or DEFAULT_AGENTS
+    endpoints: list[tuple[str, int]] = []
+    for item in filter(None, (chunk.strip() for chunk in raw.split(","))):
+        host, _, port = item.partition(":")
+        endpoints.append((host, int(port) if port else 47100))
+    return endpoints
+
+
+def fetch_catalog(host: str, port: int) -> dict | None:
+    try:
+        with socket.create_connection((host, port), timeout=6) as sock:
+            sock.sendall(b'{"op":"catalog"}\n')
+            sock.settimeout(6)
+            buffer = bytearray()
+            while b"\n" not in buffer:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                buffer.extend(chunk)
+                if len(buffer) > 1_000_000:
+                    break
+    except OSError as exc:
+        log(f"agent {host}:{port} unreachable: {exc}")
+        return None
+    try:
+        payload = json.loads(buffer.decode("utf-8").splitlines()[0])
+    except (ValueError, IndexError) as exc:
+        log(f"agent {host}:{port} sent invalid catalog: {exc}")
+        return None
+    payload.setdefault("agent_host", host)
+    return payload
+
+
+# --------------------------------------------------------------------------- #
+# CUPS reconciliation
+# --------------------------------------------------------------------------- #
+def _run(args: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(args, capture_output=True, text=True, timeout=60, check=False)
+
+
+def cups_available() -> bool:
+    return bool(_which("lpadmin")) and bool(_which("lpstat"))
+
+
+def _which(binary: str) -> str:
+    for directory in os.environ.get("PATH", "/usr/sbin:/usr/bin:/sbin:/bin").split(":"):
+        candidate = os.path.join(directory, binary)
+        if os.access(candidate, os.X_OK):
+            return candidate
+    return ""
+
+
+def ensure_cups_running() -> None:
+    state = _run(["systemctl", "is-active", "cups"])
+    if state.stdout.strip() != "active":
+        _run(["systemctl", "enable", "--now", "cups"])
+
+
+def existing_managed_queues() -> set[str]:
+    result = _run(["lpstat", "-p"])
+    queues: set[str] = set()
+    for line in result.stdout.splitlines():
+        match = re.match(r"printer (\S+)", line)
+        if match and match.group(1).startswith(MANAGED_PREFIX):
+            queues.add(match.group(1))
+    return queues
+
+
+def _queue_name(device: dict) -> str:
+    base = device.get("name") or device.get("id") or "printer"
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", base).strip("-").lower() or device.get("id", "printer")
+    return f"{MANAGED_PREFIX}{slug}"
+
+
+def _device_uri(agent_host: str, device: dict) -> tuple[str, str] | None:
+    services = device.get("services", {})
+    if "ipp" in services:
+        service = services["ipp"]
+        rp = service.get("rp", "ipp/print").lstrip("/")
+        return f"ipp://{agent_host}:{service['proxy_port']}/{rp}", "everywhere"
+    if "raw" in services:
+        service = services["raw"]
+        return f"socket://{agent_host}:{service['proxy_port']}", "raw"
+    if "lpd" in services:
+        service = services["lpd"]
+        return f"lpd://{agent_host}:{service['proxy_port']}/queue", "raw"
+    return None
+
+
+def reconcile_printers(agent_host: str, devices: list[dict]) -> set[str]:
+    desired: set[str] = set()
+    first_queue = ""
+    for device in devices:
+        if device.get("kind") != "printer":
+            continue
+        target = _device_uri(agent_host, device)
+        if not target:
+            continue
+        uri, model = target
+        queue = _queue_name(device)
+        desired.add(queue)
+        description = device.get("make_model") or device.get("name") or "Local network printer"
+        args = ["lpadmin", "-p", queue, "-E", "-v", uri,
+                "-D", f"{device.get('name', queue)} (Thin Client)",
+                "-L", "Beagle Thin Client LAN",
+                "-o", "printer-is-shared=false"]
+        if model == "everywhere":
+            args += ["-m", "everywhere"]
+        result = _run(args)
+        if result.returncode != 0 and model == "everywhere":
+            # IPP Everywhere needs the printer reachable at setup time; fall back
+            # to a raw socket queue if the device also exposes JetDirect.
+            raw = device.get("services", {}).get("raw")
+            if raw:
+                uri = f"socket://{agent_host}:{raw['proxy_port']}"
+                result = _run(["lpadmin", "-p", queue, "-E", "-v", uri,
+                               "-D", f"{device.get('name', queue)} (Thin Client)",
+                               "-L", "Beagle Thin Client LAN",
+                               "-o", "printer-is-shared=false"])
+        if result.returncode != 0:
+            log(f"lpadmin failed for {queue}: {result.stderr.strip()}")
+            desired.discard(queue)
+            continue
+        _run(["cupsenable", queue])
+        _run(["cupsaccept", queue])
+        log(f"printer ready: {queue} -> {uri} ({description})")
+        if not first_queue:
+            first_queue = queue
+
+    if first_queue:
+        current_default = _run(["lpstat", "-d"]).stdout
+        if "no system default" in current_default or MANAGED_PREFIX not in current_default:
+            _run(["lpadmin", "-d", first_queue])
+    return desired
+
+
+def remove_stale_queues(desired: set[str]) -> None:
+    for queue in existing_managed_queues() - desired:
+        _run(["lpadmin", "-x", queue])
+        log(f"removed stale printer queue: {queue}")
+
+
+def sync_once() -> bool:
+    env = load_env()
+    if not cups_available():
+        log("CUPS tools (lpadmin/lpstat) not found; nothing to reconcile")
+        return False
+    ensure_cups_running()
+    catalog: dict | None = None
+    for host, port in agent_endpoints(env):
+        catalog = fetch_catalog(host, port)
+        if catalog is not None:
+            break
+    if catalog is None:
+        log("no NetBridge agent reachable; leaving existing queues untouched")
+        return False
+    agent_host = catalog.get("agent_host") or agent_endpoints(env)[0][0]
+    devices = catalog.get("devices", [])
+    desired = reconcile_printers(agent_host, devices)
+    remove_stale_queues(desired)
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(os.path.join(STATE_DIR, "last-catalog.json"), "w", encoding="utf-8") as handle:
+        json.dump(catalog, handle, indent=2)
+    log(f"sync complete: {len(desired)} bridged printer(s)")
+    return True
+
+
+def main() -> int:
+    once = "--once" in sys.argv
+    interval = int(os.environ.get("BEAGLE_NETBRIDGE_CLIENT_INTERVAL", "60"))
+    while True:
+        try:
+            sync_once()
+        except Exception as exc:  # noqa: BLE001 - keep the daemon alive
+            log(f"sync error: {exc}")
+        if once:
+            return 0
+        time.sleep(interval)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+NETBRIDGECLIENTEOF
+    chmod 0755 /usr/local/bin/beagle-netbridge-client
+
+    cat > /etc/systemd/system/beagle-netbridge-client.service <<'EOF'
+[Unit]
+Description=Beagle NetBridge client (attach thin-client LAN printers to this VM)
+After=network-online.target cups.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/beagle-netbridge-client
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl enable cups.service >/dev/null 2>&1 || true
+    systemctl enable --now beagle-netbridge-client.service >/dev/null 2>&1 || true
+  }
+
   # x11vnc: capture X11 display :0 so noVNC shows actual desktop (not QEMU VGA/TTY1)
   cat > /etc/systemd/system/beagle-x11vnc.service <<EOF
 [Unit]
@@ -2703,6 +2975,7 @@ EOF
   install_beagle_guest_updater
   install_usb_microphone_normalizer
   install_thinclient_microphone_bridge
+  install_beagle_netbridge_client
   systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true
   systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
   systemctl enable --now beagle-stream-server-guardian.service >/dev/null 2>&1 || true

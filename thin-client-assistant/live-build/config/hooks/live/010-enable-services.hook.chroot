@@ -25,6 +25,7 @@ ensure_wantedby_symlink /etc/systemd/system/beagle-kiosk.service beagle-kiosk.ta
 systemctl enable getty@tty1.service
 systemctl enable ssh.service
 enable_if_present beagle-camera-stream.service
+enable_if_present beagle-netbridge-agent.service
 
 # Ensure /etc/machine-id is world-readable so D-Bus and PipeWire can read it.
 # On live systems the file is often created with mode 0600 (root-only), which

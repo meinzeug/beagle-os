@@ -1,0 +1,13 @@
+[Unit]
+Description=Beagle NetBridge client (attach thin-client LAN printers to this VM)
+After=network-online.target cups.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/beagle-netbridge-client
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
