@@ -214,6 +214,10 @@ def test_tray_uses_system_tray_and_manager_actions() -> None:
     # Headless verification entrypoint for provisioning checks.
     assert "def selftest()" in script
     assert "--selftest" in script
+    # Keep a strong Python reference to the manager; otherwise PyQt action
+    # slots can be garbage-collected while the visible DBus menu remains stale.
+    assert "manager = TrayManager(app)" in script
+    assert "app.setProperty(\"beagleNetBridgeTrayManager\", manager)" in script
     # Menu updates must not race user clicks; defer rebuild while menu is open.
     assert "self.menu.aboutToShow.connect(self._on_menu_show)" in script
     assert "self.menu.aboutToHide.connect(self._on_menu_hide)" in script
@@ -252,4 +256,6 @@ def test_firstboot_embedded_tray_is_non_blocking() -> None:
     assert "self.menu.aboutToShow.connect(self._on_menu_show)" in script
     assert "self.menu.aboutToHide.connect(self._on_menu_hide)" in script
     assert "if self._menu_open:" in script
+    assert "manager = TrayManager(app)" in script
+    assert "app.setProperty(\"beagleNetBridgeTrayManager\", manager)" in script
 

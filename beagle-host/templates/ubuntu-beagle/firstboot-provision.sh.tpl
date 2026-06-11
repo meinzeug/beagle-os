@@ -3416,7 +3416,8 @@ def run_tray() -> int:
         sys.stderr.write("beagle-netbridge-tray: no system tray available\n")
         return 1
 
-    TrayManager(app)
+    manager = TrayManager(app)
+    app.setProperty("beagleNetBridgeTrayManager", manager)
     return app.exec_()
 
 
