@@ -3197,11 +3197,15 @@ def run_tray() -> int:
         self.catalog: dict | None = None
         self.wired: dict[str, str] = {}
         self._busy = False
+        self._menu_open = False
+        self._pending_data: tuple[dict | None, dict[str, str]] | None = None
 
         self.tray = QtWidgets.QSystemTrayIcon(self._icon(), self.app)
         self.tray.setToolTip(APP_NAME)
         self.menu = QtWidgets.QMenu()
         self.tray.setContextMenu(self.menu)
+            self.menu.aboutToShow.connect(self._on_menu_show)
+            self.menu.aboutToHide.connect(self._on_menu_hide)
         self.tray.activated.connect(self._on_activated)
         self.tray.show()
 
@@ -3233,10 +3237,21 @@ def run_tray() -> int:
       def _on_activated(self, reason) -> None:
         if reason in (QtWidgets.QSystemTrayIcon.Trigger,
                 QtWidgets.QSystemTrayIcon.Context):
-          # Never block here: kick off a background refresh and show the
-          # (already populated) menu straight away.
-          self.refresh()
+          # Keep menu interaction responsive: do not rebuild the menu
+          # while the user is clicking entries.
           self.menu.popup(QtGui.QCursor.pos())
+
+      def _on_menu_show(self) -> None:
+        self._menu_open = True
+
+      def _on_menu_hide(self) -> None:
+        self._menu_open = False
+        if self._pending_data is not None:
+          catalog, wired = self._pending_data
+          self._pending_data = None
+          self.catalog = catalog
+          self.wired = wired or {}
+          self._rebuild_menu()
 
       def _notify(self, title: str, message: str) -> None:
         self.tray.showMessage(title, message, self._icon(), 5000)
@@ -3257,9 +3272,12 @@ def run_tray() -> int:
         self.dataReady.emit(catalog, wired)
 
       def _on_data(self, catalog, wired) -> None:
+        self._busy = False
+        if self._menu_open:
+          self._pending_data = (catalog, wired or {})
+          return
         self.catalog = catalog
         self.wired = wired or {}
-        self._busy = False
         self._rebuild_menu()
 
       def _run_action(self, op) -> None:
