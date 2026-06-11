@@ -233,3 +233,14 @@ def test_firstboot_installs_tray_manager() -> None:
     assert "/etc/xdg/autostart/beagle-netbridge-tray.desktop" in script
     assert "Exec=/usr/local/bin/beagle-netbridge-tray" in script
 
+
+def test_firstboot_embedded_tray_is_non_blocking() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+    # The embedded tray copy must match the non-blocking design: no blocking
+    # refresh from menu.aboutToShow; network/CUPS I/O runs on worker threads.
+    assert "import threading" in script
+    assert "dataReady = QtCore.pyqtSignal(object, object)" in script
+    assert "threading.Thread(target=self._refresh_worker, daemon=True).start()" in script
+    assert "def _run_action(self, op) -> None:" in script
+    assert "self.menu.aboutToShow.connect(self.refresh)" not in script
+
