@@ -544,6 +544,15 @@ class Agent:
         self.reconcile(self._collect_devices())
         self._rescan.set()
 
+    def restart_agent(self) -> dict:
+        def delayed_exit() -> None:
+            time.sleep(0.2)
+            log("restart requested through control protocol")
+            os._exit(0)
+
+        threading.Thread(target=delayed_exit, daemon=True).start()
+        return {"ok": True, "restart": "scheduled"}
+
     def _allocate_port(self) -> int:
         for port in PROXY_PORT_RANGE:
             if port not in self.used_ports:
@@ -647,6 +656,8 @@ class Agent:
         if op == "list_static":
             with self.lock:
                 return {"ok": True, "static": list(self.static_devices)}
+        if op == "restart":
+            return self.restart_agent()
         return self._catalog_payload()
 
     def _handle_catalog(self, client: socket.socket) -> None:

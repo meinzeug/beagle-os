@@ -117,7 +117,7 @@ def test_agent_control_protocol_supports_manage_ops() -> None:
     script = AGENT.read_text(encoding="utf-8")
 
     # The control port understands the manager verbs in addition to "catalog".
-    for op in ("rescan", "add_static", "remove_static", "list_static"):
+    for op in ("rescan", "add_static", "remove_static", "list_static", "restart"):
         assert f'op == "{op}"' in script
     assert "def _dispatch(self, request: dict)" in script
     # Manual devices are persisted so they survive an agent restart.
@@ -198,8 +198,9 @@ def test_tray_control_client_and_queue_naming() -> None:
     control.rescan()
     control.add_static(address="1.2.3.4", port=9100, name="x")
     control.remove_static("static-1-2-3-4-9100")
+    control.restart_agent()
     ops = [c["op"] for c in captured]
-    assert ops == ["rescan", "add_static", "remove_static"]
+    assert ops == ["rescan", "add_static", "remove_static", "restart"]
     assert captured[1]["address"] == "1.2.3.4"
     assert captured[2]["id"] == "static-1-2-3-4-9100"
 
@@ -210,6 +211,8 @@ def test_tray_uses_system_tray_and_manager_actions() -> None:
     assert "def action_add(self)" in script
     assert "def action_remove(self" in script
     assert "def action_rescan(self)" in script
+    assert "def action_restart_agent(self)" in script
+    assert "Agent neu starten" in script
     assert "def action_test_print(self" in script
     # Headless verification entrypoint for provisioning checks.
     assert "def selftest()" in script
@@ -258,4 +261,3 @@ def test_firstboot_embedded_tray_is_non_blocking() -> None:
     assert "if self._menu_open:" in script
     assert "manager = TrayManager(app)" in script
     assert "app.setProperty(\"beagleNetBridgeTrayManager\", manager)" in script
-

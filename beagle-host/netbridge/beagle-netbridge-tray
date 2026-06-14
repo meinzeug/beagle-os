@@ -125,6 +125,9 @@ class NetBridgeControl:
     def list_static(self) -> dict | None:
         return self.request("list_static")
 
+    def restart_agent(self) -> dict | None:
+        return self.request("restart")
+
 
 # --------------------------------------------------------------------------- #
 # Local CUPS state (so the tray can show what is actually wired up)
@@ -398,6 +401,7 @@ def run_tray() -> int:
             self.menu.addAction("Geräte suchen…", self.action_rescan)
             self.menu.addAction("Gerät hinzufügen…", self.action_add)
             self.menu.addAction("Druckerverwaltung öffnen", self.action_open_cups)
+            self.menu.addAction("Agent neu starten", self.action_restart_agent)
             self.menu.addAction("Aktualisieren", self.refresh)
             self.menu.addSeparator()
             self.menu.addAction("Beenden", self.app.quit)
@@ -478,6 +482,17 @@ def run_tray() -> int:
 
         def action_open_cups(self) -> None:
             QtGui.QDesktopServices.openUrl(QtCore.QUrl("http://localhost:631/printers/"))
+
+        def action_restart_agent(self) -> None:
+            def op():
+                result = self.control.restart_agent()
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+                time.sleep(1.0)
+                return (APP_NAME, "Agent-Neustart ausgelöst.")
+            self._run_action(op)
 
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
