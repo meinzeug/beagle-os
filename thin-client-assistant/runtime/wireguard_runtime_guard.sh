@@ -118,6 +118,7 @@ ensure_routes() {
   fi
 
   if [[ -n "$endpoint_host" && -n "$default_dev" ]]; then
+    ip route delete "$endpoint_host" dev "$WG_IFACE" >/dev/null 2>&1 || true
     if [[ -n "$default_gw" ]]; then
       ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev" >/dev/null 2>&1 || true
     else
@@ -127,6 +128,7 @@ ensure_routes() {
 
   allowed="$(conf_value AllowedIPs | tr -d '[:space:]')"
   route_count=0
+  ip route delete default dev "$WG_IFACE" >/dev/null 2>&1 || true
   IFS=',' read -r -a routes <<<"$allowed"
   for route in "${routes[@]}"; do
     [[ -n "$route" ]] || continue
@@ -148,6 +150,15 @@ ensure_routes() {
     esac
     route_count=$((route_count + 1))
   done
+
+  if [[ -n "$endpoint_host" && -n "$default_dev" ]]; then
+    ip route delete "$endpoint_host" dev "$WG_IFACE" >/dev/null 2>&1 || true
+    if [[ -n "$default_gw" ]]; then
+      ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev" >/dev/null 2>&1 || true
+    else
+      ip route replace "$endpoint_host" dev "$default_dev" >/dev/null 2>&1 || true
+    fi
+  fi
 
   log_state "iface=up routes=${route_count} endpoint=${endpoint_host:-none}"
 }

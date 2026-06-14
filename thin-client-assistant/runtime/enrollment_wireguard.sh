@@ -114,7 +114,7 @@ endpoint_host() {
 }
 
 default_route_state() {
-    ip -4 route show default 2>/dev/null | head -n1
+    ip -4 route show default 2>/dev/null | awk -v iface="$WG_IFACE" '$0 !~ (" dev " iface "( |$)") { print; exit }'
 }
 
 resolve_endpoint_ip() {
@@ -174,6 +174,7 @@ apply_wireguard_routes() {
 
   ip route delete 0.0.0.0/1 dev "$WG_IFACE" 2>/dev/null || true
   ip route delete 128.0.0.0/1 dev "$WG_IFACE" 2>/dev/null || true
+  ip route delete default dev "$WG_IFACE" 2>/dev/null || true
   ip -6 route delete ::/1 dev "$WG_IFACE" 2>/dev/null || true
   ip -6 route delete 8000::/1 dev "$WG_IFACE" 2>/dev/null || true
 
@@ -191,6 +192,7 @@ apply_wireguard_routes() {
     endpoint_ip="$(resolve_endpoint_ip "$endpoint_value")"
 
     if [[ -n "$endpoint_ip" && -n "$default_dev" ]]; then
+        ip route delete "${endpoint_ip}/32" dev "$WG_IFACE" 2>/dev/null || true
         if [[ -n "$default_gateway" ]]; then
             ip route replace "${endpoint_ip}/32" via "$default_gateway" dev "$default_dev"
         else
@@ -216,6 +218,15 @@ apply_wireguard_routes() {
                 ;;
         esac
     done
+
+    if [[ -n "$endpoint_ip" && -n "$default_dev" ]]; then
+        ip route delete "${endpoint_ip}/32" dev "$WG_IFACE" 2>/dev/null || true
+        if [[ -n "$default_gateway" ]]; then
+            ip route replace "${endpoint_ip}/32" via "$default_gateway" dev "$default_dev"
+        else
+            ip route replace "${endpoint_ip}/32" dev "$default_dev"
+        fi
+    fi
 }
 
 apply_wireguard_peer_config() {

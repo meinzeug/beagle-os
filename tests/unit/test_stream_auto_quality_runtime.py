@@ -81,11 +81,49 @@ def test_auto_quality_bucket_degrades_on_loss_and_latency() -> None:
     assert result.stdout.strip() == "low"
 
 
-def test_auto_quality_limits_100mbit_link_to_medium() -> None:
+def test_auto_quality_limits_100mbit_link_to_survival() -> None:
     cmd = (
         f"source {PROFILE_SCRIPT}\n"
         "beagle_stream_auto_quality_bucket 0 10 20 100\n"
     )
     result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), text=True, capture_output=True, check=True)
 
-    assert result.stdout.strip() == "medium"
+    assert result.stdout.strip() == "survival"
+
+
+def test_link_safety_clamps_unsafe_explicit_100mbit_profile() -> None:
+    cmd = (
+        f"source {PROFILE_SCRIPT}\n"
+        "beagle_stream_client_connect_host() { printf '%s\\n' 192.168.123.114; }\n"
+        "beagle_stream_client_host() { printf '%s\\n' 192.168.123.114; }\n"
+        "beagle_log_event() { return 0; }\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY=0\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LINK_MBPS=100\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS=60\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE=32000\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE=auto\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING=auto\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC=auto\n"
+        "beagle_stream_ensure_auto_profile\n"
+        "printf '%s %s %s %s %s\\n' \"$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS\" \"$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE\" \"$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE\" \"$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING\" \"$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC\"\n"
+    )
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), text=True, capture_output=True, check=True)
+
+    assert result.stdout.strip() == "24 3000 1100 1 0"
+
+
+def test_link_safety_leaves_safe_explicit_profile_unchanged() -> None:
+    cmd = (
+        f"source {PROFILE_SCRIPT}\n"
+        "beagle_stream_client_connect_host() { printf '%s\\n' 192.168.123.114; }\n"
+        "beagle_stream_client_host() { printf '%s\\n' 192.168.123.114; }\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY=0\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LINK_MBPS=100\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS=24\n"
+        "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE=3000\n"
+        "beagle_stream_ensure_auto_profile\n"
+        "printf '%s %s\\n' \"$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS\" \"$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE\"\n"
+    )
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), text=True, capture_output=True, check=True)
+
+    assert result.stdout.strip() == "24 3000"

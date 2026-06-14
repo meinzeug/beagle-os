@@ -167,7 +167,7 @@ register_beagle_stream_client_via_manager() {
   manager_token="${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}"
   manager_pin="${PVE_THIN_CLIENT_BEAGLE_MANAGER_PINNED_PUBKEY:-}"
   manager_ca_cert="${PVE_THIN_CLIENT_BEAGLE_MANAGER_CA_CERT:-}"
-  register_timeout="${PVE_THIN_CLIENT_BEAGLE_MANAGER_REGISTER_TIMEOUT:-45}"
+  register_timeout="${PVE_THIN_CLIENT_BEAGLE_MANAGER_REGISTER_TIMEOUT:-6}"
   device_name="$(beagle_stream_client_device_name)"
 
   [[ -n "$manager_url" && -n "$manager_token" ]] || return 1

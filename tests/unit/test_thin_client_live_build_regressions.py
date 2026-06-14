@@ -253,7 +253,10 @@ def test_prepare_runtime_starts_wireguard_runtime_guard() -> None:
     assert 'ensure_wireguard_runtime_guard || beagle_log_event "prepare-runtime.wg-guard-error"' in prepare_text
     assert 'beagle-wg-runtime-guard.service' in prepare_text
     assert 'phase=wg-runtime-guard' in guard_text
+    assert 'ip route delete default dev "$WG_IFACE"' in guard_text
     assert 'ip route replace 0.0.0.0/1 dev "$WG_IFACE"' in guard_text
+    assert 'ip route delete "$endpoint_host" dev "$WG_IFACE"' in guard_text
+    assert 'ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev"' in guard_text
     assert 'beagle-wg-runtime-guard.service' in build_thin_text
     assert 'beagle-wg-runtime-guard.service' in build_os_text
     assert 'beagle-wg-runtime-guard.service' in installer_text
@@ -323,7 +326,7 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'pin-compat' in manager_registration_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_COMPAT_PIN' in manager_registration_text
     assert 'manager-pin-compat' not in launcher_text
-    assert 'PVE_THIN_CLIENT_BEAGLE_MANAGER_REGISTER_TIMEOUT:-45' in manager_registration_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_MANAGER_REGISTER_TIMEOUT:-6' in manager_registration_text
     assert 'Failed to load application' in launcher_text
     assert 'prepare-stream.ok" "mode=hostless' in launcher_text
     assert 'beagle_log_event "beagle-stream-client.beagle-stream-hostless"' in launcher_text
@@ -335,7 +338,11 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'BEAGLE_STREAM_CLIENT_LAUNCHER_ACTIVE:-0' in launcher_text
     assert 'beagle-stream-client.reentry-suppressed' in launcher_text
     assert '{ exec 9>&- || true; "${args[@]}"; } >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>&1 &' in launcher_text
+    runtime_exec_text = (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_runtime_exec.sh").read_text(encoding="utf-8")
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_ON_HOST:-0' in runtime_exec_text
+    assert 'out_ref+=(--audio-on-host)' in runtime_exec_text
     assert 'beagle_stream_startup_status_pace()' in launcher_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_ENABLED:-0' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC:-0.5' in launcher_text
     assert "if (p+0 < 0.5) print 0.5; else print p+0" in launcher_text
     assert "window.location.replace(current.toString())" in launcher_text
@@ -357,7 +364,14 @@ def test_beaglestream_launcher_waits_for_manager_registration_before_stream_exec
     assert 'bootstrap_beagle_stream_client >/dev/null 2>&1 || true' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_ATTEMPTS:-30' in launcher_text
     assert 'beagle-stream-client.register-wait' in launcher_text
+    assert 'beagle-stream-client.register-wait-fail-open' in launcher_text
     assert 'beagle-stream-client.register-wait-timeout' in launcher_text
+    assert 'pkill -TERM -f -- "--user-data-dir=${BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE}"' in launcher_text
+    assert 'ip route replace 0.0.0.0/1 dev "$iface"' in launcher_text
+    assert 'ip route delete default dev "$iface"' in launcher_text
+    assert 'ip route replace "$route" dev "$iface"' in launcher_text
+    assert 'ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev"' in launcher_text
+    assert 'sudo ip route replace "$route" dev "$iface" >/dev/null 2>&1 || true' in launcher_text
     assert launcher_text.index('wait_for_beagle_stream_client_manager_registration || {') < launcher_text.index('beagle-stream-client.exec')
     assert 'beagle_stream_client_manager_url()' in manager_registration_text
     assert 'beagle_stream_enrollment_value control_plane' in manager_registration_text

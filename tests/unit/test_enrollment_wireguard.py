@@ -174,6 +174,9 @@ def test_enrollment_wireguard_writes_config_and_brings_interface_up(tmp_path: Pa
     assert "link add wg-beagle type wireguard" in ip_text
     assert "address add 10.88.10.5/32 dev wg-beagle" in ip_text
     assert "route replace 10.88.0.0/16 dev wg-beagle" in ip_text
+    assert '$0 !~ (" dev " iface "( |$)")' in ENROLL_SCRIPT.read_text(encoding="utf-8")
+    assert 'ip route delete "${endpoint_ip}/32" dev "$WG_IFACE"' in ENROLL_SCRIPT.read_text(encoding="utf-8")
+    assert 'ip route delete default dev "$WG_IFACE"' in ENROLL_SCRIPT.read_text(encoding="utf-8")
     assert resolv_conf.read_text(encoding="utf-8") == "nameserver 10.88.0.1\n"
 
 

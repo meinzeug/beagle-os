@@ -77,7 +77,7 @@ BEAGLE_STREAM_CLIENT_STARTUP_UI_PID=""
 mkdir -p "$BEAGLE_STREAM_CLIENT_LOG_DIR" 2>/dev/null || true
 
 beagle_stream_startup_status_enabled() {
-  [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_ENABLED:-1}" == "1" ]]
+  [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_ENABLED:-0}" == "1" ]]
 }
 
 beagle_stream_startup_wallpaper_source() {
@@ -363,7 +363,15 @@ beagle_stream_startup_status_pace() {
 }
 
 beagle_stream_startup_status_stop() {
-  [[ -n "$BEAGLE_STREAM_CLIENT_STARTUP_UI_PID" ]] && kill "$BEAGLE_STREAM_CLIENT_STARTUP_UI_PID" >/dev/null 2>&1 || true
+  if [[ -n "$BEAGLE_STREAM_CLIENT_STARTUP_UI_PID" ]]; then
+    pkill -TERM -P "$BEAGLE_STREAM_CLIENT_STARTUP_UI_PID" >/dev/null 2>&1 || true
+    kill "$BEAGLE_STREAM_CLIENT_STARTUP_UI_PID" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE:-}" ]]; then
+    pkill -TERM -f -- "--user-data-dir=${BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE}" >/dev/null 2>&1 || true
+    sleep 0.3
+    pkill -KILL -f -- "--user-data-dir=${BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE}" >/dev/null 2>&1 || true
+  fi
   BEAGLE_STREAM_CLIENT_STARTUP_UI_PID=""
   rm -rf "$BEAGLE_STREAM_CLIENT_STARTUP_STATE_FILE" "$BEAGLE_STREAM_CLIENT_STARTUP_JSON_FILE" "$BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE" "$BEAGLE_STREAM_CLIENT_STARTUP_WALLPAPER_FILE" "$BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE" >/dev/null 2>&1 || true
 }
@@ -489,10 +497,11 @@ ensure_wg_interface() {
   endpoint_host="${endpoint%%:*}"
   endpoint_host="${endpoint_host#[}"
   endpoint_host="${endpoint_host%]}"
-  default_route="$(ip route show default 2>/dev/null | head -n1 || true)"
+  default_route="$(ip route show default 2>/dev/null | awk -v iface="$iface" '$0 !~ (" dev " iface "( |$)") { print; exit }' || true)"
   default_gw="$(awk '/default/{for (i=1;i<=NF;i++) if ($i=="via") {print $(i+1); exit}}' <<<"$default_route")"
   default_dev="$(awk '/default/{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}' <<<"$default_route")"
   if [[ -n "$endpoint_host" && -n "$default_dev" ]]; then
+    sudo ip route delete "$endpoint_host" dev "$iface" >/dev/null 2>&1 || true
     if [[ -n "$default_gw" ]]; then
       sudo ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev" >/dev/null 2>&1 || true
     else
@@ -501,12 +510,33 @@ ensure_wg_interface() {
   fi
 
   route_count=0
+  sudo ip route delete default dev "$iface" >/dev/null 2>&1 || true
   IFS=',' read -r -a routes <<<"$allowed_ips"
   for route in "${routes[@]}"; do
     [[ -n "$route" ]] || continue
-    sudo ip route replace "$route" dev "$iface" >/dev/null 2>&1 || true
+    case "$route" in
+      0.0.0.0/0)
+        sudo ip route replace 0.0.0.0/1 dev "$iface" >/dev/null 2>&1 || true
+        sudo ip route replace 128.0.0.0/1 dev "$iface" >/dev/null 2>&1 || true
+        ;;
+      ::/0)
+        sudo ip -6 route replace ::/1 dev "$iface" >/dev/null 2>&1 || true
+        sudo ip -6 route replace 8000::/1 dev "$iface" >/dev/null 2>&1 || true
+        ;;
+      *)
+        sudo ip route replace "$route" dev "$iface" >/dev/null 2>&1 || true
+        ;;
+    esac
     route_count=$((route_count + 1))
   done
+  if [[ -n "$endpoint_host" && -n "$default_dev" ]]; then
+    sudo ip route delete "$endpoint_host" dev "$iface" >/dev/null 2>&1 || true
+    if [[ -n "$default_gw" ]]; then
+      sudo ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev" >/dev/null 2>&1 || true
+    else
+      sudo ip route replace "$endpoint_host" dev "$default_dev" >/dev/null 2>&1 || true
+    fi
+  fi
   beagle_log_event "beagle-stream-client.wg-routes-fallback" "iface=${iface} routes=${route_count} endpoint=${endpoint_host:-none}"
 
   if ! ip link show "$iface" &>/dev/null; then
@@ -633,6 +663,10 @@ wait_for_beagle_stream_client_manager_registration() {
     sleep "$retry_sleep"
     attempt=$((attempt + 1))
   done
+  if beagle_stream_client_stream_ready >/dev/null 2>&1; then
+    beagle_log_event "beagle-stream-client.register-wait-fail-open" "host=${host} port=${port:-default}"
+    return 0
+  fi
   return 1
 }
 

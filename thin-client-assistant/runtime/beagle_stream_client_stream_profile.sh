@@ -73,6 +73,38 @@ beagle_stream_route_link_mbps() {
   printf '%s\n' "$speed"
 }
 
+beagle_stream_effective_link_mbps() {
+  local target link_mbps dev route default_dev speed
+  target="${1:-}"
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LINK_MBPS:-}" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LINK_MBPS"
+    return 0
+  fi
+
+  link_mbps="$(beagle_stream_route_link_mbps "$target" 2>/dev/null || printf '0')"
+  if [[ "$link_mbps" =~ ^[0-9]+$ && "$link_mbps" -gt 0 ]]; then
+    printf '%s\n' "$link_mbps"
+    return 0
+  fi
+
+  dev="$(beagle_stream_route_device_for_host "$target" 2>/dev/null || true)"
+  [[ "$dev" == wg* ]] || {
+    printf '%s\n' "${link_mbps:-0}"
+    return 0
+  }
+
+  route="$(ip route get 1.1.1.1 2>/dev/null | head -n 1 || true)"
+  default_dev="$(awk '{for (idx = 1; idx <= NF; idx++) if ($idx == "dev") {print $(idx + 1); exit}}' <<<"$route")"
+  if [[ -n "$default_dev" && -r "/sys/class/net/$default_dev/speed" ]]; then
+    speed="$(cat "/sys/class/net/$default_dev/speed" 2>/dev/null || true)"
+    [[ "$speed" =~ ^[0-9]+$ ]] || speed=0
+    printf '%s\n' "$speed"
+    return 0
+  fi
+
+  printf '%s\n' "${link_mbps:-0}"
+}
+
 beagle_stream_ping_stats() {
   local target output transmitted received loss avg max ping_count ping_timeout ping_cap
   target="${1:-}"
@@ -112,9 +144,11 @@ beagle_stream_auto_quality_bucket() {
 
   if [[ "$loss" -ge 15 || "$avg" -ge 100 || "$max" -ge 180 ]]; then
     printf '%s\n' "survival"
-  elif [[ "$loss" -ge 5 || "$avg" -ge 70 || "$max" -ge 130 || ( "$link_mbps" -gt 0 && "$link_mbps" -lt 25 ) ]]; then
+  elif [[ "$loss" -ge 5 || "$avg" -ge 70 || "$max" -ge 130 ]]; then
     printf '%s\n' "low"
-  elif [[ "$loss" -ge 2 || "$avg" -ge 45 || "$max" -ge 90 || ( "$link_mbps" -gt 0 && "$link_mbps" -lt 120 ) ]]; then
+  elif [[ "$link_mbps" -gt 0 && "$link_mbps" -lt 120 ]]; then
+    printf '%s\n' "survival"
+  elif [[ "$loss" -ge 2 || "$avg" -ge 45 || "$max" -ge 90 ]]; then
     printf '%s\n' "medium"
   elif [[ "$loss" -ge 1 || "$avg" -ge 28 || "$max" -ge 60 ]]; then
     printf '%s\n' "high"
@@ -141,7 +175,7 @@ beagle_stream_auto_profile_for_bucket() {
       printf 'resolution=1280x720\nfps=30\nbitrate=10000\npacket_size=1200\nframe_pacing=1\nvsync=0\n'
       ;;
     *)
-      printf 'resolution=1280x720\nfps=30\nbitrate=6000\npacket_size=1100\nframe_pacing=1\nvsync=1\n'
+      printf 'resolution=1280x720\nfps=24\nbitrate=3000\npacket_size=1100\nframe_pacing=1\nvsync=0\n'
       ;;
   esac
 }
@@ -153,7 +187,7 @@ beagle_stream_detect_auto_profile() {
 
   stats="$(beagle_stream_ping_stats "$target" 2>/dev/null || true)"
   read -r transmitted received loss avg max <<<"${stats:-0 0 100 999 999}"
-  link_mbps="$(beagle_stream_route_link_mbps "$target" 2>/dev/null || printf '0')"
+  link_mbps="$(beagle_stream_effective_link_mbps "$target" 2>/dev/null || printf '0')"
   bucket="$(beagle_stream_auto_quality_bucket "$loss" "$avg" "$max" "$link_mbps")"
   now="$(date -Iseconds 2>/dev/null || date)"
 
@@ -251,10 +285,43 @@ beagle_stream_apply_auto_profile() {
   fi
 }
 
+beagle_stream_apply_link_safety_profile() {
+  local target link_mbps fps bitrate packet_size
+  [[ "${BEAGLE_STREAM_LINK_SAFETY_APPLIED:-0}" == "1" ]] && return 0
+  BEAGLE_STREAM_LINK_SAFETY_APPLIED=1
+
+  [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_LINK_SAFETY:-1}" == "1" ]] || return 0
+
+  target="$(beagle_stream_client_connect_host 2>/dev/null || true)"
+  [[ -n "$target" ]] || target="$(beagle_stream_client_host 2>/dev/null || true)"
+  [[ -n "$target" ]] || return 0
+
+  link_mbps="$(beagle_stream_effective_link_mbps "$target" 2>/dev/null || printf '0')"
+  [[ "$link_mbps" =~ ^[0-9]+$ && "$link_mbps" -gt 0 && "$link_mbps" -lt 120 ]] || return 0
+
+  fps="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS:-60}"
+  bitrate="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE:-32000}"
+  packet_size="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE:-auto}"
+
+  [[ "$fps" =~ ^[0-9]+$ && "$bitrate" =~ ^[0-9]+$ ]] || return 0
+  [[ "$fps" -gt 24 || "$bitrate" -gt 3000 ]] || return 0
+
+  PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS=24
+  PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE=3000
+  [[ "$packet_size" == "auto" || -z "$packet_size" || ( "$packet_size" =~ ^[0-9]+$ && "$packet_size" -le 1024 ) ]] && PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE=1100
+  [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING:-auto}" == "auto" || -z "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING:-}" ]] && PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING=1
+  [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC:-auto}" == "auto" || -z "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC:-}" ]] && PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC=0
+
+  if declare -F beagle_log_event >/dev/null 2>&1; then
+    beagle_log_event "beagle-stream-client.link-safety" "target=${target} link_mbps=${link_mbps} fps=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS} bitrate=${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE}"
+  fi
+}
+
 beagle_stream_ensure_auto_profile() {
   if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY:-1}" == "1" ]]; then
     beagle_stream_apply_auto_profile || true
   fi
+  beagle_stream_apply_link_safety_profile || true
 }
 
 record_decoder_choice() {

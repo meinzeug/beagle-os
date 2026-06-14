@@ -995,10 +995,10 @@ origin_pin_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
 encoder = software
 sw_preset = ultrafast
 sw_tune = zerolatency
-capture = kms
+capture = x11
 hevc_mode = 0
 av1_mode = 0
-minimum_fps_target = 60
+minimum_fps_target = 30
 max_bitrate = 35000
 $( printf 'port = %s\n' "${BEAGLE_STREAM_SERVER_PORT:-50000}" )
 SUNCONF

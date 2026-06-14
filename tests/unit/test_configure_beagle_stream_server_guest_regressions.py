@@ -152,10 +152,10 @@ def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_basel
     assert "encoder = software" in content
     assert "sw_preset = ultrafast" in content
     assert "sw_tune = zerolatency" in content
-    assert "capture = kms" in content
+    assert "capture = x11" in content
     assert "hevc_mode = 0" in content
     assert "av1_mode = 0" in content
-    assert "minimum_fps_target = 60" in content
+    assert "minimum_fps_target = 30" in content
     assert "max_bitrate = 35000" in content
     # sunshine.conf 'port' == HTTP port; Moonlight/beagle-stream connects here directly
     assert "BEAGLE_STREAM_SERVER_PORT:-50000}" in content

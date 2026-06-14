@@ -15,8 +15,8 @@ def test_baseline_checker_verifies_guest_stream_config_and_scheduler() -> None:
     assert "^encoder = software$" in content
     assert "^sw_preset = ultrafast$" in content
     assert "^sw_tune = zerolatency$" in content
-    assert "^capture = kms$" in content
-    assert "^minimum_fps_target = 60$" in content
+    assert "^capture = x11$" in content
+    assert "^minimum_fps_target = 30$" in content
     assert "^max_bitrate = 35000$" in content
     assert "xorg_swcursor=true" in content
     assert "guest Xorg software cursor is not enabled" in content

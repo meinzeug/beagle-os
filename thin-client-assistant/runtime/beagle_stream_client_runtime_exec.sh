@@ -114,6 +114,9 @@ build_stream_args() {
   [[ -n "$codec" ]] && out_ref+=(--video-codec "$codec")
   [[ -n "$decoder" ]] && out_ref+=(--video-decoder "$decoder")
   [[ -n "$audio_config" ]] && out_ref+=(--audio-config "$audio_config")
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_ON_HOST:-0}" == "1" ]]; then
+    out_ref+=(--audio-on-host)
+  fi
 
   if beagle_stream_hostless_enabled; then
     out_ref+=(--display-mode "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE:-windowed}")

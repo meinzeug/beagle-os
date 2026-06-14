@@ -37,3 +37,10 @@ def test_tc_mic_bridge_reloads_pipe_source_module() -> None:
     assert 'pactl list short modules' in script
     assert 'pactl unload-module "$module_id"' in script
     assert 'unload_pipe_source' in script
+
+
+def test_tc_mic_bridge_service_has_cpu_safety_limit() -> None:
+    service = (ROOT / "scripts" / "lib" / "beagle-tc-mic-bridge.service").read_text(encoding="utf-8")
+
+    assert "Nice=5" in service
+    assert "CPUQuota=25%" in service

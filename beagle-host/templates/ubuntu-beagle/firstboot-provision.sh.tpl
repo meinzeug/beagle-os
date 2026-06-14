@@ -1947,10 +1947,10 @@ origin_pin_allowed = ${BEAGLE_STREAM_SERVER_ORIGIN_WEB_UI_ALLOWED}
 encoder = software
 sw_preset = ultrafast
 sw_tune = zerolatency
-capture = kms
+capture = x11
 hevc_mode = 0
 av1_mode = 0
-minimum_fps_target = 60
+minimum_fps_target = 30
 max_bitrate = 35000
 ping_timeout = 120000
 $( if [[ -n "$BEAGLE_STREAM_SERVER_PORT" ]]; then printf 'port = %s\n' "$BEAGLE_STREAM_SERVER_PORT"; fi )
@@ -2547,13 +2547,21 @@ SOURCE_DESCRIPTION="${BEAGLE_TC_MIC_SOURCE_DESCRIPTION:-Beagle Thin Client Micro
 FIFO_PATH="${BEAGLE_TC_MIC_FIFO:-/run/beagle/tc-mic.raw}"
 RATE="${BEAGLE_TC_MIC_RATE:-48000}"
 CHANNELS="${BEAGLE_TC_MIC_CHANNELS:-1}"
+FRAME_MSEC="${BEAGLE_TC_MIC_FRAME_MSEC:-20}"
+PREBUFFER_MSEC="${BEAGLE_TC_MIC_PREBUFFER_MSEC:-60}"
+MAX_BUFFER_MSEC="${BEAGLE_TC_MIC_MAX_BUFFER_MSEC:-200}"
+STATS_INTERVAL_SEC="${BEAGLE_TC_MIC_STATS_INTERVAL_SEC:-5}"
 RECONNECT_DELAY="${BEAGLE_TC_MIC_RECONNECT_DELAY:-1}"
 
-log() { printf '%s beagle-tc-mic-bridge: %s\n' "$(date -Is)" "$*" >&2; }
+log() {
+  printf '%s beagle-tc-mic-bridge: %s\n' "$(date -Is)" "$*" >&2
+}
 
 ensure_fifo() {
   install -d -m 0755 "$(dirname "$FIFO_PATH")"
-  if [[ -e "$FIFO_PATH" && ! -p "$FIFO_PATH" ]]; then rm -f "$FIFO_PATH"; fi
+  if [[ -e "$FIFO_PATH" && ! -p "$FIFO_PATH" ]]; then
+    rm -f "$FIFO_PATH"
+  fi
   [[ -p "$FIFO_PATH" ]] || mkfifo "$FIFO_PATH"
   chmod 0660 "$FIFO_PATH" 2>/dev/null || true
 }
@@ -2562,9 +2570,22 @@ source_exists() {
   pactl list short sources 2>/dev/null | awk '{print $2}' | grep -Fxq "$SOURCE_NAME"
 }
 
+unload_pipe_source() {
+  local module_id
+  while read -r module_id; do
+    [[ -n "$module_id" ]] || continue
+    pactl unload-module "$module_id" >/dev/null 2>&1 || true
+  done < <(
+    pactl list short modules 2>/dev/null \
+      | awk -v src="source_name=$SOURCE_NAME" '$2 == "module-pipe-source" && index($0, src) {print $1}'
+  )
+}
+
 load_pipe_source() {
   local filler_pid=""
-  source_exists && return 0
+
+  # module-pipe-source opens the FIFO while loading. Keep a short-lived writer
+  # present so module load cannot block when the network stream is not connected yet.
   (while true; do printf '\0\0' >"$FIFO_PATH" 2>/dev/null || true; sleep 0.05; done) &
   filler_pid="$!"
   pactl load-module module-pipe-source \
@@ -2585,29 +2606,130 @@ normalize_source() {
 }
 
 stream_once() {
-  python3 - "$BRIDGE_HOST" "$BRIDGE_PORT" "$FIFO_PATH" <<'PY'
+  python3 - "$BRIDGE_HOST" "$BRIDGE_PORT" "$FIFO_PATH" "$RATE" "$CHANNELS" "$FRAME_MSEC" "$PREBUFFER_MSEC" "$MAX_BUFFER_MSEC" "$STATS_INTERVAL_SEC" <<'PY'
+import math
 import socket
 import sys
+import time
+from collections import deque
 
 host = sys.argv[1]
 port = int(sys.argv[2])
 fifo = sys.argv[3]
+rate = int(sys.argv[4])
+channels = int(sys.argv[5])
+frame_msec = max(5, int(sys.argv[6]))
+prebuffer_msec = max(0, int(sys.argv[7]))
+max_buffer_msec = max(frame_msec * 2, int(sys.argv[8]))
+stats_interval_sec = max(1, int(sys.argv[9]))
+
+sample_width = 2
+frame_bytes = max(2, (rate * channels * sample_width * frame_msec) // 1000)
+frame_sec = frame_msec / 1000.0
+prebuffer_frames = max(2, math.ceil(prebuffer_msec / frame_msec))
+max_buffer_frames = max(prebuffer_frames + 2, math.ceil(max_buffer_msec / frame_msec))
+silence = b"\0" * frame_bytes
+
+
+def log(message: str) -> None:
+  stamp = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+  print(f"{stamp} beagle-tc-mic-bridge: {message}", file=sys.stderr, flush=True)
+
+
+stats: dict[str, int] = {
+  "frames_rx": 0,
+  "frames_tx": 0,
+  "underruns": 0,
+  "silence_inserted": 0,
+  "frames_dropped": 0,
+  "reconnects": 0,
+  "max_fill": 0,
+}
+
+
+def emit_stats(prefix: str, fill_frames: int) -> None:
+  log(
+    f"{prefix} fill={fill_frames} max_fill={stats['max_fill']} "
+    f"rx={stats['frames_rx']} tx={stats['frames_tx']} underruns={stats['underruns']} "
+    f"silence={stats['silence_inserted']} dropped={stats['frames_dropped']} reconnects={stats['reconnects']}"
+  )
 
 with socket.create_connection((host, port), timeout=10) as sock:
-    sock.settimeout(None)
-    with open(fifo, "wb", buffering=0) as handle:
-        while True:
-            data = sock.recv(4096)
-            if not data:
-                break
-            handle.write(data)
+  try:
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+  except OSError:
+    pass
+  sock.settimeout(0.05)
+  net_buffer = bytearray()
+  frame_buffer: deque[bytes] = deque()
+  started = False
+  remote_closed = False
+  next_write_deadline = time.monotonic()
+  next_stats = time.monotonic() + stats_interval_sec
+  with open(fifo, "wb", buffering=0) as handle:
+    while True:
+      now = time.monotonic()
+
+      if not remote_closed:
+        try:
+          data = sock.recv(65536)
+        except socket.timeout:
+          data = None
+        if data:
+          net_buffer.extend(data)
+          while len(net_buffer) >= frame_bytes:
+            frame = bytes(net_buffer[:frame_bytes])
+            del net_buffer[:frame_bytes]
+            if len(frame_buffer) >= max_buffer_frames:
+              frame_buffer.popleft()
+              stats["frames_dropped"] += 1
+            frame_buffer.append(frame)
+            stats["frames_rx"] += 1
+        elif data == b"":
+          remote_closed = True
+          stats["reconnects"] += 1
+
+      while now >= next_write_deadline:
+        fill = len(frame_buffer)
+        if fill > stats["max_fill"]:
+          stats["max_fill"] = fill
+
+        if not started and fill >= prebuffer_frames:
+          started = True
+
+        if started and frame_buffer:
+          frame = frame_buffer.popleft()
+        else:
+          frame = silence
+          stats["underruns"] += 1
+          stats["silence_inserted"] += 1
+
+        handle.write(frame)
+        stats["frames_tx"] += 1
+        next_write_deadline += frame_sec
+        now = time.monotonic()
+
+        if now - next_write_deadline > frame_sec * 3:
+          next_write_deadline = now + frame_sec
+
+      if now >= next_stats:
+        emit_stats("stats", len(frame_buffer))
+        next_stats = now + stats_interval_sec
+
+      if remote_closed and not frame_buffer:
+        break
+      time.sleep(0.002)
+
+emit_stats("stream_end", 0)
 PY
 }
 
 ensure_fifo
+unload_pipe_source
 load_pipe_source
 normalize_source
-log "ready host=$BRIDGE_HOST port=$BRIDGE_PORT source=$SOURCE_NAME fifo=$FIFO_PATH"
+log "ready host=$BRIDGE_HOST port=$BRIDGE_PORT source=$SOURCE_NAME fifo=$FIFO_PATH rate=$RATE channels=$CHANNELS frame_msec=$FRAME_MSEC prebuffer_msec=$PREBUFFER_MSEC"
 
 while true; do
   if stream_once; then
@@ -2635,9 +2757,14 @@ Environment=BEAGLE_TC_MIC_BRIDGE_HOST=192.168.123.1
 Environment=BEAGLE_TC_MIC_BRIDGE_PORT=${mic_bridge_port}
 Environment=BEAGLE_TC_MIC_RATE=48000
 Environment=BEAGLE_TC_MIC_CHANNELS=1
+Environment=BEAGLE_TC_MIC_FRAME_MSEC=20
+Environment=BEAGLE_TC_MIC_PREBUFFER_MSEC=60
+Environment=BEAGLE_TC_MIC_MAX_BUFFER_MSEC=200
 RuntimeDirectory=beagle
 RuntimeDirectoryMode=0755
 ExecStart=/usr/local/bin/beagle-tc-mic-bridge
+Nice=5
+CPUQuota=25%
 Restart=always
 RestartSec=2s
 
