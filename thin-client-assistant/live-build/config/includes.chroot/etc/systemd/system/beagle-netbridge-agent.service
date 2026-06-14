@@ -15,6 +15,8 @@ ProtectHome=yes
 PrivateTmp=yes
 # Persist manual devices added through the in-VM manager under /var/lib/beagle/netbridge.
 StateDirectory=beagle/netbridge
+# Stream quality presets are written into the launcher override state.
+ReadWritePaths=/var/lib/beagle-os
 
 [Install]
 WantedBy=multi-user.target

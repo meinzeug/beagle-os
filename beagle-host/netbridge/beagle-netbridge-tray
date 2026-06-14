@@ -11,8 +11,9 @@ the LAN devices shared from their thin client through Beagle NetBridge:
 
 It talks to the thin-client ``beagle-netbridge-agent`` over the WireGuard tunnel
 using the agent's JSON control protocol (catalog / rescan / add_static /
-remove_static / list_static) and shows how each device maps onto the local CUPS
-queues that ``beagle-netbridge-client`` maintains.
+remove_static / list_static / status / set_stream_profile / service_action) and
+shows how each device maps onto the local CUPS queues that
+``beagle-netbridge-client`` maintains.
 
 The networking core (:class:`NetBridgeControl`) depends only on the Python 3
 standard library so it can be unit-tested without a display; the tray UI uses
@@ -128,6 +129,21 @@ class NetBridgeControl:
     def restart_agent(self) -> dict | None:
         return self.request("restart")
 
+    def status(self) -> dict | None:
+        return self.request("status")
+
+    def set_stream_profile(self, profile: str) -> dict | None:
+        return self.request("set_stream_profile", profile=profile)
+
+    def service_action(self, service: str, action: str = "restart") -> dict | None:
+        return self.request("service_action", service=service, action=action)
+
+    def usb_bind(self, busid: str) -> dict | None:
+        return self.request("usb_bind", busid=busid)
+
+    def usb_unbind(self, busid: str) -> dict | None:
+        return self.request("usb_unbind", busid=busid)
+
 
 # --------------------------------------------------------------------------- #
 # Local CUPS state (so the tray can show what is actually wired up)
@@ -190,6 +206,11 @@ def selftest() -> int:
         return 1
     devices = catalog.get("devices", [])
     print(f"agent_host: {catalog.get('agent_host')}  devices: {len(devices)}")
+    status = control.status() or {}
+    thinclient = status.get("thinclient", {}) if isinstance(status, dict) else {}
+    services = thinclient.get("services", {}) if isinstance(thinclient, dict) else {}
+    stream = thinclient.get("stream", {}) if isinstance(thinclient, dict) else {}
+    print(f"thinclient_services: {len(services)}  stream_profile: {stream.get('profile', 'unknown')}")
     wired = cups_managed_queues()
     for device in devices:
         queue = queue_name(device)
@@ -341,7 +362,9 @@ def run_tray() -> int:
 
         def _refresh_worker(self) -> None:
             try:
-                catalog = self.control.catalog()
+                catalog = self.control.status()
+                if catalog is None:
+                    catalog = self.control.catalog()
                 wired = cups_managed_queues()
             except Exception:  # never let a worker thread die silently
                 catalog, wired = None, {}
@@ -369,7 +392,9 @@ def run_tray() -> int:
                 if message:
                     self.uiMessage.emit(message[0], message[1])
                 try:
-                    catalog = self.control.catalog()
+                    catalog = self.control.status()
+                    if catalog is None:
+                        catalog = self.control.catalog()
                     wired = cups_managed_queues()
                 except Exception:
                     catalog, wired = None, {}
@@ -394,6 +419,8 @@ def run_tray() -> int:
                 if not devices:
                     empty = self.menu.addAction("Keine Geräte gefunden")
                     empty.setEnabled(False)
+                self._add_control_center_menu(self.catalog.get("thinclient", {}))
+                self.menu.addSeparator()
                 for device in devices:
                     self._add_device_menu(device)
 
@@ -405,6 +432,118 @@ def run_tray() -> int:
             self.menu.addAction("Aktualisieren", self.refresh)
             self.menu.addSeparator()
             self.menu.addAction("Beenden", self.app.quit)
+
+        def _add_control_center_menu(self, thinclient: dict) -> None:
+            control = self.menu.addMenu("Thinclient verwalten")
+            self._add_stream_menu(control, thinclient.get("stream", {}))
+            self._add_services_menu(control, thinclient.get("services", {}))
+            self._add_usb_menu(control, thinclient.get("usb", {}))
+            self._add_av_menu(control, thinclient)
+            self._add_network_menu(control, thinclient.get("network", {}))
+
+        def _add_stream_menu(self, parent, stream: dict) -> None:
+            menu = parent.addMenu("Streamqualität")
+            current = stream.get("profile", "unbekannt")
+            info = menu.addAction(f"Aktiv: {current}")
+            info.setEnabled(False)
+            auto = stream.get("auto_quality", {})
+            bucket = auto.get("bucket")
+            if bucket:
+                line = menu.addAction(
+                    f"Auto: {bucket}, RTT {auto.get('rtt_avg_ms', '?')} ms, Loss {auto.get('loss', '?')}%")
+                line.setEnabled(False)
+            menu.addSeparator()
+            presets = stream.get("presets", {})
+            for profile in ("auto", "lan-ultra", "smooth", "balanced", "economy", "survival"):
+                label = presets.get(profile, {}).get("label", profile)
+                menu.addAction(label, lambda _=False, p=profile: self.action_set_stream_profile(p))
+            menu.addSeparator()
+            menu.addAction("Stream neu starten",
+                           lambda _=False: self.action_service("stream", "restart"))
+
+        def _add_services_menu(self, parent, services: dict) -> None:
+            menu = parent.addMenu("Dienste")
+            labels = {
+                "usb_tunnel": "USB/Mic Tunnel",
+                "camera_stream": "Webcam Stream",
+                "audio_input_bridge": "Mic Bridge Quelle",
+                "stream": "Stream Launcher",
+                "netbridge_agent": "NetBridge Agent",
+            }
+            for key in ("usb_tunnel", "camera_stream", "audio_input_bridge", "stream", "netbridge_agent"):
+                state = services.get(key, {})
+                active = state.get("active", "unknown")
+                submenu = menu.addMenu(f"{labels.get(key, key)}: {active}")
+                unit = submenu.addAction(state.get("unit", key))
+                unit.setEnabled(False)
+                if key != "audio_input_bridge":
+                    submenu.addAction("Starten", lambda _=False, s=key: self.action_service(s, "start"))
+                    submenu.addAction("Neu starten", lambda _=False, s=key: self.action_service(s, "restart"))
+
+        def _add_usb_menu(self, parent, usb: dict) -> None:
+            menu = parent.addMenu("USB Geräte")
+            state = menu.addAction(f"Tunnel: {usb.get('tunnel_state', 'unknown')}")
+            state.setEnabled(False)
+            devices = usb.get("devices", [])
+            if not devices:
+                empty = menu.addAction("Keine USB-Geräte erkannt")
+                empty.setEnabled(False)
+                return
+            for device in devices:
+                busid = str(device.get("busid") or device.get("id") or "")
+                name = device.get("product") or device.get("name") or busid or "USB-Gerät"
+                bound = bool(device.get("bound") or device.get("exported"))
+                submenu = menu.addMenu(("✓ " if bound else "  ") + name)
+                if busid:
+                    line = submenu.addAction(f"Bus-ID: {busid}")
+                    line.setEnabled(False)
+                    if bound:
+                        submenu.addAction("Vom VM-Tunnel lösen",
+                                          lambda _=False, b=busid: self.action_usb("unbind", b))
+                    else:
+                        submenu.addAction("Für VM freigeben",
+                                          lambda _=False, b=busid: self.action_usb("bind", b))
+
+        def _add_av_menu(self, parent, thinclient: dict) -> None:
+            menu = parent.addMenu("Mikrofon & Webcam")
+            audio = thinclient.get("audio", {})
+            video = thinclient.get("video", {})
+            capture = audio.get("capture_devices", [])
+            cameras = video.get("devices", [])
+            mic_header = menu.addAction(f"Mikrofone: {len(capture)}")
+            mic_header.setEnabled(False)
+            for device in capture[:6]:
+                label = device.get("name") or device.get("summary") or device.get("id") or "Audio Capture"
+                item = menu.addAction(str(label)[:80])
+                item.setEnabled(False)
+            menu.addSeparator()
+            cam_header = menu.addAction(f"Webcams: {len(cameras)}")
+            cam_header.setEnabled(False)
+            for device in cameras[:6]:
+                label = f"{device.get('node', '')} {device.get('name', '')}".strip()
+                item = menu.addAction(label[:80] or "Video Device")
+                item.setEnabled(False)
+            menu.addSeparator()
+            menu.addAction("USB/Mic Tunnel neu starten",
+                           lambda _=False: self.action_service("usb_tunnel", "restart"))
+            menu.addAction("Webcam Stream neu starten",
+                           lambda _=False: self.action_service("camera_stream", "restart"))
+
+        def _add_network_menu(self, parent, network: dict) -> None:
+            menu = parent.addMenu("Netzwerk")
+            interfaces = network.get("interfaces", [])
+            if not interfaces:
+                empty = menu.addAction("Keine Netzwerkdaten")
+                empty.setEnabled(False)
+                return
+            for iface in interfaces:
+                name = iface.get("name", "?")
+                state = iface.get("state", "unknown")
+                ip = iface.get("ipv4", "")
+                speed = iface.get("speed_mbps", "")
+                wifi = " WLAN" if iface.get("wireless") else ""
+                item = menu.addAction(f"{name}{wifi}: {state} {ip} {speed}M".strip())
+                item.setEnabled(False)
 
         def _add_device_menu(self, device: dict) -> None:
             name = device.get("name") or device.get("id") or "Gerät"
@@ -482,6 +621,39 @@ def run_tray() -> int:
 
         def action_open_cups(self) -> None:
             QtGui.QDesktopServices.openUrl(QtCore.QUrl("http://localhost:631/printers/"))
+
+        def action_set_stream_profile(self, profile: str) -> None:
+            def op():
+                result = self.control.set_stream_profile(profile)
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+                return (APP_NAME, f"Streamprofil gesetzt: {profile}.")
+            self._run_action(op)
+
+        def action_service(self, service: str, action: str = "restart") -> None:
+            def op():
+                result = self.control.service_action(service, action)
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+                return (APP_NAME, f"Dienstaktion ausgeführt: {service}.")
+            self._run_action(op)
+
+        def action_usb(self, action: str, busid: str) -> None:
+            def op():
+                if action == "bind":
+                    result = self.control.usb_bind(busid)
+                else:
+                    result = self.control.usb_unbind(busid)
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+                return (APP_NAME, f"USB aktualisiert: {busid}.")
+            self._run_action(op)
 
         def action_restart_agent(self) -> None:
             def op():

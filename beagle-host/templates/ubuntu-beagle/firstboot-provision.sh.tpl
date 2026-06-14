@@ -3065,8 +3065,9 @@ the LAN devices shared from their thin client through Beagle NetBridge:
 
 It talks to the thin-client ``beagle-netbridge-agent`` over the WireGuard tunnel
 using the agent's JSON control protocol (catalog / rescan / add_static /
-remove_static / list_static) and shows how each device maps onto the local CUPS
-queues that ``beagle-netbridge-client`` maintains.
+remove_static / list_static / status / set_stream_profile / service_action) and
+shows how each device maps onto the local CUPS queues that
+``beagle-netbridge-client`` maintains.
 
 The networking core (:class:`NetBridgeControl`) depends only on the Python 3
 standard library so it can be unit-tested without a display; the tray UI uses
@@ -3179,6 +3180,24 @@ class NetBridgeControl:
     def list_static(self) -> dict | None:
         return self.request("list_static")
 
+    def restart_agent(self) -> dict | None:
+        return self.request("restart")
+
+    def status(self) -> dict | None:
+        return self.request("status")
+
+    def set_stream_profile(self, profile: str) -> dict | None:
+        return self.request("set_stream_profile", profile=profile)
+
+    def service_action(self, service: str, action: str = "restart") -> dict | None:
+        return self.request("service_action", service=service, action=action)
+
+    def usb_bind(self, busid: str) -> dict | None:
+        return self.request("usb_bind", busid=busid)
+
+    def usb_unbind(self, busid: str) -> dict | None:
+        return self.request("usb_unbind", busid=busid)
+
 
 # --------------------------------------------------------------------------- #
 # Local CUPS state (so the tray can show what is actually wired up)
@@ -3241,6 +3260,11 @@ def selftest() -> int:
         return 1
     devices = catalog.get("devices", [])
     print(f"agent_host: {catalog.get('agent_host')}  devices: {len(devices)}")
+    status = control.status() or {}
+    thinclient = status.get("thinclient", {}) if isinstance(status, dict) else {}
+    services = thinclient.get("services", {}) if isinstance(thinclient, dict) else {}
+    stream = thinclient.get("stream", {}) if isinstance(thinclient, dict) else {}
+    print(f"thinclient_services: {len(services)}  stream_profile: {stream.get('profile', 'unknown')}")
     wired = cups_managed_queues()
     for device in devices:
         queue = queue_name(device)
@@ -3311,227 +3335,390 @@ def run_tray() -> int:
             }
 
     class TrayManager(QtCore.QObject):
-      # Emitted from worker threads; delivered on the GUI thread via Qt's
-      # queued connections so all UI work stays on the main thread and the
-      # Plasma DBus menu requests are never blocked by network/CUPS I/O.
-      dataReady = QtCore.pyqtSignal(object, object)
-      uiMessage = QtCore.pyqtSignal(str, str)
+        # Emitted from worker threads; delivered on the GUI thread via Qt's
+        # queued connections so all UI work stays on the main thread and the
+        # Plasma DBus menu requests are never blocked by network/CUPS I/O.
+        dataReady = QtCore.pyqtSignal(object, object)
+        uiMessage = QtCore.pyqtSignal(str, str)
 
-      def __init__(self, app: QtWidgets.QApplication) -> None:
-        super().__init__()
-        self.app = app
-        self.control = NetBridgeControl()
-        self.catalog: dict | None = None
-        self.wired: dict[str, str] = {}
-        self._busy = False
-        self._menu_open = False
-        self._pending_data: tuple[dict | None, dict[str, str]] | None = None
+        def __init__(self, app: QtWidgets.QApplication) -> None:
+            super().__init__()
+            self.app = app
+            self.control = NetBridgeControl()
+            self.catalog: dict | None = None
+            self.wired: dict[str, str] = {}
+            self._busy = False
+            self._menu_open = False
+            self._pending_data: tuple[dict | None, dict[str, str]] | None = None
 
-        self.tray = QtWidgets.QSystemTrayIcon(self._icon(), self.app)
-        self.tray.setToolTip(APP_NAME)
-        self.menu = QtWidgets.QMenu()
-        self.tray.setContextMenu(self.menu)
+            self.tray = QtWidgets.QSystemTrayIcon(self._icon(), self.app)
+            self.tray.setToolTip(APP_NAME)
+            self.menu = QtWidgets.QMenu()
+            self.tray.setContextMenu(self.menu)
             self.menu.aboutToShow.connect(self._on_menu_show)
             self.menu.aboutToHide.connect(self._on_menu_hide)
-        self.tray.activated.connect(self._on_activated)
-        self.tray.show()
+            self.tray.activated.connect(self._on_activated)
+            self.tray.show()
 
-        self.dataReady.connect(self._on_data)
-        self.uiMessage.connect(self._notify)
+            self.dataReady.connect(self._on_data)
+            self.uiMessage.connect(self._notify)
 
-        # Build a usable menu immediately (no I/O) so the very first DBus
-        # menu request from plasmashell returns instantly.
-        self._rebuild_menu()
+            # Build a usable menu immediately (no I/O) so the very first DBus
+            # menu request from plasmashell returns instantly.
+            self._rebuild_menu()
 
-        self.timer = QtCore.QTimer(self)
-        self.timer.setInterval(20000)
-        self.timer.timeout.connect(self.refresh)
-        self.timer.start()
+            self.timer = QtCore.QTimer(self)
+            self.timer.setInterval(20000)
+            self.timer.timeout.connect(self.refresh)
+            self.timer.start()
 
-        self.refresh()
+            self.refresh()
 
-      # -- helpers ---------------------------------------------------- #
-      def _icon(self):
-        icon = QtGui.QIcon.fromTheme("printer")
-        if icon.isNull():
-          icon = QtGui.QIcon.fromTheme("network-workgroup")
-        if icon.isNull():
-          pixmap = QtGui.QPixmap(64, 64)
-          pixmap.fill(QtGui.QColor("#2d6cdf"))
-          icon = QtGui.QIcon(pixmap)
-        return icon
+        # -- helpers ---------------------------------------------------- #
+        def _icon(self) -> "QtGui.QIcon":
+            icon = QtGui.QIcon.fromTheme("printer")
+            if icon.isNull():
+                icon = QtGui.QIcon.fromTheme("network-workgroup")
+            if icon.isNull():
+                pixmap = QtGui.QPixmap(64, 64)
+                pixmap.fill(QtGui.QColor("#2d6cdf"))
+                icon = QtGui.QIcon(pixmap)
+            return icon
 
-      def _on_activated(self, reason) -> None:
-        if reason in (QtWidgets.QSystemTrayIcon.Trigger,
-                QtWidgets.QSystemTrayIcon.Context):
-          # Keep menu interaction responsive: do not rebuild the menu
-          # while the user is clicking entries.
-          self.menu.popup(QtGui.QCursor.pos())
+        def _on_activated(self, reason) -> None:
+            if reason in (QtWidgets.QSystemTrayIcon.Trigger,
+                          QtWidgets.QSystemTrayIcon.Context):
+                # Keep menu interaction responsive: do not rebuild the menu
+                # while the user is clicking entries.
+                self.menu.popup(QtGui.QCursor.pos())
 
-      def _on_menu_show(self) -> None:
-        self._menu_open = True
+        def _on_menu_show(self) -> None:
+            self._menu_open = True
 
-      def _on_menu_hide(self) -> None:
-        self._menu_open = False
-        if self._pending_data is not None:
-          catalog, wired = self._pending_data
-          self._pending_data = None
-          self.catalog = catalog
-          self.wired = wired or {}
-          self._rebuild_menu()
+        def _on_menu_hide(self) -> None:
+            self._menu_open = False
+            if self._pending_data is not None:
+                catalog, wired = self._pending_data
+                self._pending_data = None
+                self.catalog = catalog
+                self.wired = wired or {}
+                self._rebuild_menu()
 
-      def _notify(self, title: str, message: str) -> None:
-        self.tray.showMessage(title, message, self._icon(), 5000)
+        def _notify(self, title: str, message: str) -> None:
+            self.tray.showMessage(title, message, self._icon(), 5000)
 
-      # -- data (all blocking work happens off the GUI thread) -------- #
-      def refresh(self) -> None:
-        if self._busy:
-          return
-        self._busy = True
-        threading.Thread(target=self._refresh_worker, daemon=True).start()
+        # -- data (all blocking work happens off the GUI thread) -------- #
+        def refresh(self) -> None:
+            if self._busy:
+                return
+            self._busy = True
+            threading.Thread(target=self._refresh_worker, daemon=True).start()
 
-      def _refresh_worker(self) -> None:
-        try:
-          catalog = self.control.catalog()
-          wired = cups_managed_queues()
-        except Exception:  # never let a worker thread die silently
-          catalog, wired = None, {}
-        self.dataReady.emit(catalog, wired)
+        def _refresh_worker(self) -> None:
+            try:
+                catalog = self.control.status()
+                if catalog is None:
+                    catalog = self.control.catalog()
+                wired = cups_managed_queues()
+            except Exception:  # never let a worker thread die silently
+                catalog, wired = None, {}
+            self.dataReady.emit(catalog, wired)
 
-      def _on_data(self, catalog, wired) -> None:
-        self._busy = False
-        if self._menu_open:
-          self._pending_data = (catalog, wired or {})
-          return
-        self.catalog = catalog
-        self.wired = wired or {}
-        self._rebuild_menu()
+        def _on_data(self, catalog, wired) -> None:
+            self._busy = False
+            if self._menu_open:
+                self._pending_data = (catalog, wired or {})
+                return
+            self.catalog = catalog
+            self.wired = wired or {}
+            self._rebuild_menu()
 
-      def _run_action(self, op) -> None:
-        """Run a blocking control/CUPS operation off the GUI thread.
+        def _run_action(self, op) -> None:
+            """Run a blocking control/CUPS operation off the GUI thread.
 
-        ``op`` returns an optional ``(title, message)`` tuple to notify.
-        """
-        def work() -> None:
-          try:
-            message = op()
-          except Exception as exc:  # noqa: BLE001 - surface to the user
-            message = (APP_NAME, f"Fehler: {exc}")
-          if message:
-            self.uiMessage.emit(message[0], message[1])
-          try:
-            catalog = self.control.catalog()
-            wired = cups_managed_queues()
-          except Exception:
-            catalog, wired = None, {}
-          self.dataReady.emit(catalog, wired)
+            ``op`` returns an optional ``(title, message)`` tuple to notify.
+            """
+            def work() -> None:
+                try:
+                    message = op()
+                except Exception as exc:  # noqa: BLE001 - surface to the user
+                    message = (APP_NAME, f"Fehler: {exc}")
+                if message:
+                    self.uiMessage.emit(message[0], message[1])
+                try:
+                    catalog = self.control.status()
+                    if catalog is None:
+                        catalog = self.control.catalog()
+                    wired = cups_managed_queues()
+                except Exception:
+                    catalog, wired = None, {}
+                self.dataReady.emit(catalog, wired)
 
-        threading.Thread(target=work, daemon=True).start()
+            threading.Thread(target=work, daemon=True).start()
 
-      def _rebuild_menu(self) -> None:
-        self.menu.clear()
-        header = self.menu.addAction(APP_NAME)
-        header.setEnabled(False)
+        def _rebuild_menu(self) -> None:
+            self.menu.clear()
+            header = self.menu.addAction(APP_NAME)
+            header.setEnabled(False)
 
-        if self.catalog is None:
-          status = self.menu.addAction("● Agent nicht erreichbar")
-          status.setEnabled(False)
-        else:
-          host = self.catalog.get("agent_host", "?")
-          devices = self.catalog.get("devices", [])
-          status = self.menu.addAction(f"● Verbunden mit {host}")
-          status.setEnabled(False)
-          self.menu.addSeparator()
-          if not devices:
-            empty = self.menu.addAction("Keine Geräte gefunden")
-            empty.setEnabled(False)
-          for device in devices:
-            self._add_device_menu(device)
+            if self.catalog is None:
+                status = self.menu.addAction("● Agent nicht erreichbar")
+                status.setEnabled(False)
+            else:
+                host = self.catalog.get("agent_host", "?")
+                devices = self.catalog.get("devices", [])
+                status = self.menu.addAction(f"● Verbunden mit {host}")
+                status.setEnabled(False)
+                self.menu.addSeparator()
+                if not devices:
+                    empty = self.menu.addAction("Keine Geräte gefunden")
+                    empty.setEnabled(False)
+                self._add_control_center_menu(self.catalog.get("thinclient", {}))
+                self.menu.addSeparator()
+                for device in devices:
+                    self._add_device_menu(device)
 
-        self.menu.addSeparator()
-        self.menu.addAction("Geräte suchen…", self.action_rescan)
-        self.menu.addAction("Gerät hinzufügen…", self.action_add)
-        self.menu.addAction("Druckerverwaltung öffnen", self.action_open_cups)
-        self.menu.addAction("Aktualisieren", self.refresh)
-        self.menu.addSeparator()
-        self.menu.addAction("Beenden", self.app.quit)
+            self.menu.addSeparator()
+            self.menu.addAction("Geräte suchen…", self.action_rescan)
+            self.menu.addAction("Gerät hinzufügen…", self.action_add)
+            self.menu.addAction("Druckerverwaltung öffnen", self.action_open_cups)
+            self.menu.addAction("Agent neu starten", self.action_restart_agent)
+            self.menu.addAction("Aktualisieren", self.refresh)
+            self.menu.addSeparator()
+            self.menu.addAction("Beenden", self.app.quit)
 
-      def _add_device_menu(self, device: dict) -> None:
-        name = device.get("name") or device.get("id") or "Gerät"
-        queue = queue_name(device)
-        wired = queue in self.wired
-        label = ("✓ " if wired else "  ") + name
-        submenu = self.menu.addMenu(label)
-        info = submenu.addAction(f"Adresse: {device.get('address', '?')}")
-        info.setEnabled(False)
-        for kind, service in device.get("services", {}).items():
-          line = submenu.addAction(
-            f"{kind.upper()} · Geräteport {service.get('device_port')} "
-            f"→ Proxy {service.get('proxy_port', '?')}")
-          line.setEnabled(False)
-        state = submenu.addAction(
-          "In CUPS eingerichtet" if wired else "Noch nicht in CUPS")
-        state.setEnabled(False)
-        submenu.addSeparator()
-        if wired:
-          submenu.addAction("Testseite drucken",
-                    lambda _=False, q=queue: self.action_test_print(q))
-        if device.get("manual"):
-          submenu.addAction("Gerät entfernen",
-                    lambda _=False, d=device.get("id", ""): self.action_remove(d))
+        def _add_control_center_menu(self, thinclient: dict) -> None:
+            control = self.menu.addMenu("Thinclient verwalten")
+            self._add_stream_menu(control, thinclient.get("stream", {}))
+            self._add_services_menu(control, thinclient.get("services", {}))
+            self._add_usb_menu(control, thinclient.get("usb", {}))
+            self._add_av_menu(control, thinclient)
+            self._add_network_menu(control, thinclient.get("network", {}))
 
-      # -- actions (network/CUPS work is dispatched to worker threads) - #
-      def action_rescan(self) -> None:
-        def op():
-          result = self.control.rescan()
-          if result is None:
-            return (APP_NAME, "Agent nicht erreichbar.")
-          count = len(result.get("devices", []))
-          return (APP_NAME, f"Suche abgeschlossen: {count} Gerät(e).")
-        self._run_action(op)
+        def _add_stream_menu(self, parent, stream: dict) -> None:
+            menu = parent.addMenu("Streamqualität")
+            current = stream.get("profile", "unbekannt")
+            info = menu.addAction(f"Aktiv: {current}")
+            info.setEnabled(False)
+            auto = stream.get("auto_quality", {})
+            bucket = auto.get("bucket")
+            if bucket:
+                line = menu.addAction(
+                    f"Auto: {bucket}, RTT {auto.get('rtt_avg_ms', '?')} ms, Loss {auto.get('loss', '?')}%")
+                line.setEnabled(False)
+            menu.addSeparator()
+            presets = stream.get("presets", {})
+            for profile in ("auto", "lan-ultra", "smooth", "balanced", "economy", "survival"):
+                label = presets.get(profile, {}).get("label", profile)
+                menu.addAction(label, lambda _=False, p=profile: self.action_set_stream_profile(p))
+            menu.addSeparator()
+            menu.addAction("Stream neu starten",
+                           lambda _=False: self.action_service("stream", "restart"))
 
-      def action_add(self) -> None:
-        dialog = AddDeviceDialog()
-        if dialog.exec_() != QtWidgets.QDialog.Accepted:
-          return
-        values = dialog.values()
-        if not values["address"]:
-          self._notify(APP_NAME, "Bitte eine Adresse angeben.")
-          return
+        def _add_services_menu(self, parent, services: dict) -> None:
+            menu = parent.addMenu("Dienste")
+            labels = {
+                "usb_tunnel": "USB/Mic Tunnel",
+                "camera_stream": "Webcam Stream",
+                "audio_input_bridge": "Mic Bridge Quelle",
+                "stream": "Stream Launcher",
+                "netbridge_agent": "NetBridge Agent",
+            }
+            for key in ("usb_tunnel", "camera_stream", "audio_input_bridge", "stream", "netbridge_agent"):
+                state = services.get(key, {})
+                active = state.get("active", "unknown")
+                submenu = menu.addMenu(f"{labels.get(key, key)}: {active}")
+                unit = submenu.addAction(state.get("unit", key))
+                unit.setEnabled(False)
+                if key != "audio_input_bridge":
+                    submenu.addAction("Starten", lambda _=False, s=key: self.action_service(s, "start"))
+                    submenu.addAction("Neu starten", lambda _=False, s=key: self.action_service(s, "restart"))
 
-        def op():
-          result = self.control.add_static(
-            address=values["address"], port=values["port"],
-            name=values["name"], rp=values["rp"])
-          if result is None:
-            return (APP_NAME, "Agent nicht erreichbar.")
-          if not result.get("ok"):
-            return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
-          return (APP_NAME, "Gerät hinzugefügt.")
-        self._run_action(op)
+        def _add_usb_menu(self, parent, usb: dict) -> None:
+            menu = parent.addMenu("USB Geräte")
+            state = menu.addAction(f"Tunnel: {usb.get('tunnel_state', 'unknown')}")
+            state.setEnabled(False)
+            devices = usb.get("devices", [])
+            if not devices:
+                empty = menu.addAction("Keine USB-Geräte erkannt")
+                empty.setEnabled(False)
+                return
+            for device in devices:
+                busid = str(device.get("busid") or device.get("id") or "")
+                name = device.get("product") or device.get("name") or busid or "USB-Gerät"
+                bound = bool(device.get("bound") or device.get("exported"))
+                submenu = menu.addMenu(("✓ " if bound else "  ") + name)
+                if busid:
+                    line = submenu.addAction(f"Bus-ID: {busid}")
+                    line.setEnabled(False)
+                    if bound:
+                        submenu.addAction("Vom VM-Tunnel lösen",
+                                          lambda _=False, b=busid: self.action_usb("unbind", b))
+                    else:
+                        submenu.addAction("Für VM freigeben",
+                                          lambda _=False, b=busid: self.action_usb("bind", b))
 
-      def action_remove(self, device_id: str) -> None:
-        if not device_id:
-          return
+        def _add_av_menu(self, parent, thinclient: dict) -> None:
+            menu = parent.addMenu("Mikrofon & Webcam")
+            audio = thinclient.get("audio", {})
+            video = thinclient.get("video", {})
+            capture = audio.get("capture_devices", [])
+            cameras = video.get("devices", [])
+            mic_header = menu.addAction(f"Mikrofone: {len(capture)}")
+            mic_header.setEnabled(False)
+            for device in capture[:6]:
+                label = device.get("name") or device.get("summary") or device.get("id") or "Audio Capture"
+                item = menu.addAction(str(label)[:80])
+                item.setEnabled(False)
+            menu.addSeparator()
+            cam_header = menu.addAction(f"Webcams: {len(cameras)}")
+            cam_header.setEnabled(False)
+            for device in cameras[:6]:
+                label = f"{device.get('node', '')} {device.get('name', '')}".strip()
+                item = menu.addAction(label[:80] or "Video Device")
+                item.setEnabled(False)
+            menu.addSeparator()
+            menu.addAction("USB/Mic Tunnel neu starten",
+                           lambda _=False: self.action_service("usb_tunnel", "restart"))
+            menu.addAction("Webcam Stream neu starten",
+                           lambda _=False: self.action_service("camera_stream", "restart"))
 
-        def op():
-          result = self.control.remove_static(device_id)
-          if result is None:
-            return (APP_NAME, "Agent nicht erreichbar.")
-          if not result.get("ok"):
-            return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
-          return (APP_NAME, "Gerät entfernt.")
-        self._run_action(op)
+        def _add_network_menu(self, parent, network: dict) -> None:
+            menu = parent.addMenu("Netzwerk")
+            interfaces = network.get("interfaces", [])
+            if not interfaces:
+                empty = menu.addAction("Keine Netzwerkdaten")
+                empty.setEnabled(False)
+                return
+            for iface in interfaces:
+                name = iface.get("name", "?")
+                state = iface.get("state", "unknown")
+                ip = iface.get("ipv4", "")
+                speed = iface.get("speed_mbps", "")
+                wifi = " WLAN" if iface.get("wireless") else ""
+                item = menu.addAction(f"{name}{wifi}: {state} {ip} {speed}M".strip())
+                item.setEnabled(False)
 
-      def action_test_print(self, queue: str) -> None:
-        def op():
-          ok, message = print_test_page(queue)
-          return (APP_NAME,
-              f"Testseite gesendet: {queue}" if ok else f"Druckfehler: {message}")
-        self._run_action(op)
+        def _add_device_menu(self, device: dict) -> None:
+            name = device.get("name") or device.get("id") or "Gerät"
+            queue = queue_name(device)
+            wired = queue in self.wired
+            label = ("✓ " if wired else "  ") + name
+            submenu = self.menu.addMenu(label)
+            info = submenu.addAction(f"Adresse: {device.get('address', '?')}")
+            info.setEnabled(False)
+            for kind, service in device.get("services", {}).items():
+                line = submenu.addAction(
+                    f"{kind.upper()} · Geräteport {service.get('device_port')} "
+                    f"→ Proxy {service.get('proxy_port', '?')}")
+                line.setEnabled(False)
+            state = submenu.addAction(
+                "In CUPS eingerichtet" if wired else "Noch nicht in CUPS")
+            state.setEnabled(False)
+            submenu.addSeparator()
+            if wired:
+                submenu.addAction("Testseite drucken",
+                                  lambda _=False, q=queue: self.action_test_print(q))
+            if device.get("manual"):
+                submenu.addAction("Gerät entfernen",
+                                  lambda _=False, d=device.get("id", ""): self.action_remove(d))
 
-      def action_open_cups(self) -> None:
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl("http://localhost:631/printers/"))
+        # -- actions (network/CUPS work is dispatched to worker threads) - #
+        def action_rescan(self) -> None:
+            def op():
+                result = self.control.rescan()
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                count = len(result.get("devices", []))
+                return (APP_NAME, f"Suche abgeschlossen: {count} Gerät(e).")
+            self._run_action(op)
+
+        def action_add(self) -> None:
+            dialog = AddDeviceDialog()
+            if dialog.exec_() != QtWidgets.QDialog.Accepted:
+                return
+            values = dialog.values()
+            if not values["address"]:
+                self._notify(APP_NAME, "Bitte eine Adresse angeben.")
+                return
+
+            def op():
+                result = self.control.add_static(
+                    address=values["address"], port=values["port"],
+                    name=values["name"], rp=values["rp"])
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+                return (APP_NAME, "Gerät hinzugefügt.")
+            self._run_action(op)
+
+        def action_remove(self, device_id: str) -> None:
+            if not device_id:
+                return
+
+            def op():
+                result = self.control.remove_static(device_id)
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+                return (APP_NAME, "Gerät entfernt.")
+            self._run_action(op)
+
+        def action_test_print(self, queue: str) -> None:
+            def op():
+                ok, message = print_test_page(queue)
+                return (APP_NAME,
+                        f"Testseite gesendet: {queue}" if ok else f"Druckfehler: {message}")
+            self._run_action(op)
+
+        def action_open_cups(self) -> None:
+            QtGui.QDesktopServices.openUrl(QtCore.QUrl("http://localhost:631/printers/"))
+
+        def action_set_stream_profile(self, profile: str) -> None:
+            def op():
+                result = self.control.set_stream_profile(profile)
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+                return (APP_NAME, f"Streamprofil gesetzt: {profile}.")
+            self._run_action(op)
+
+        def action_service(self, service: str, action: str = "restart") -> None:
+            def op():
+                result = self.control.service_action(service, action)
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+                return (APP_NAME, f"Dienstaktion ausgeführt: {service}.")
+            self._run_action(op)
+
+        def action_usb(self, action: str, busid: str) -> None:
+            def op():
+                if action == "bind":
+                    result = self.control.usb_bind(busid)
+                else:
+                    result = self.control.usb_unbind(busid)
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+                return (APP_NAME, f"USB aktualisiert: {busid}.")
+            self._run_action(op)
+
+        def action_restart_agent(self) -> None:
+            def op():
+                result = self.control.restart_agent()
+                if result is None:
+                    return (APP_NAME, "Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
+                time.sleep(1.0)
+                return (APP_NAME, "Agent-Neustart ausgelöst.")
+            self._run_action(op)
 
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName(APP_NAME)

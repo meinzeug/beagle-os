@@ -21,12 +21,15 @@ minimal thin-client image.
 from __future__ import annotations
 
 import fcntl
+import glob
 import json
 import os
 import re
 import select
+import shlex
 import socket
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -53,11 +56,328 @@ DISCOVERY_WINDOW = float(os.environ.get("BEAGLE_NETBRIDGE_DISCOVERY_WINDOW", "3.
 # survive restarts and are bridged alongside the auto-discovered ones.
 STATE_DIR = os.environ.get("BEAGLE_NETBRIDGE_STATE_DIR", "/var/lib/beagle/netbridge")
 STATIC_FILE = os.path.join(STATE_DIR, "static-devices.json")
+STREAM_PROFILE_FILE = os.environ.get(
+    "BEAGLE_NETBRIDGE_STREAM_PROFILE_FILE",
+    "/var/lib/beagle-os/stream-profile.env",
+)
+USBCTL = os.environ.get(
+    "BEAGLE_NETBRIDGE_USBCTL",
+    "/usr/local/lib/pve-thin-client/runtime/beagle-usbctl.sh",
+)
+
+STREAM_PROFILE_KEYS = {
+    "resolution": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION",
+    "fps": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS",
+    "bitrate": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE",
+    "packet_size": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE",
+    "frame_pacing": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING",
+    "vsync": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC",
+    "video_decoder": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER",
+    "display_mode": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE",
+    "absolute_mouse": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE",
+    "auto_quality": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY",
+}
+
+STREAM_PRESETS = {
+    "auto": {
+        "label": "Automatisch",
+        "values": {
+            "auto_quality": "1",
+            "resolution": "auto",
+            "fps": "auto",
+            "bitrate": "auto",
+            "packet_size": "auto",
+            "frame_pacing": "auto",
+            "vsync": "auto",
+        },
+    },
+    "lan-ultra": {
+        "label": "LAN Ultra",
+        "values": {
+            "auto_quality": "0",
+            "resolution": "auto",
+            "fps": "60",
+            "bitrate": "45000",
+            "packet_size": "1392",
+            "frame_pacing": "0",
+            "vsync": "0",
+        },
+    },
+    "smooth": {
+        "label": "Flüssig",
+        "values": {
+            "auto_quality": "0",
+            "resolution": "1920x1080",
+            "fps": "60",
+            "bitrate": "32000",
+            "packet_size": "1360",
+            "frame_pacing": "0",
+            "vsync": "0",
+        },
+    },
+    "balanced": {
+        "label": "Balance",
+        "values": {
+            "auto_quality": "0",
+            "resolution": "1920x1080",
+            "fps": "45",
+            "bitrate": "22000",
+            "packet_size": "1280",
+            "frame_pacing": "1",
+            "vsync": "0",
+        },
+    },
+    "economy": {
+        "label": "Sparsam",
+        "values": {
+            "auto_quality": "0",
+            "resolution": "1280x720",
+            "fps": "30",
+            "bitrate": "10000",
+            "packet_size": "1200",
+            "frame_pacing": "1",
+            "vsync": "0",
+        },
+    },
+    "survival": {
+        "label": "Notfall",
+        "values": {
+            "auto_quality": "0",
+            "resolution": "1280x720",
+            "fps": "24",
+            "bitrate": "3000",
+            "packet_size": "1100",
+            "frame_pacing": "1",
+            "vsync": "0",
+        },
+    },
+}
+
+MANAGED_SERVICES = {
+    "usb_tunnel": "beagle-usb-tunnel.service",
+    "camera_stream": "beagle-camera-stream.service",
+    "kiosk": "beagle-kiosk.service",
+    "stream": "beagle-kiosk.service",
+    "netbridge_agent": "beagle-netbridge-agent.service",
+}
 
 
 def log(message: str) -> None:
     sys.stderr.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} beagle-netbridge-agent: {message}\n")
     sys.stderr.flush()
+
+
+def _run(args: list[str], timeout: int = 8) -> subprocess.CompletedProcess:
+    return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
+
+
+def _read_first(path: str) -> str:
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            return handle.readline().strip()
+    except OSError:
+        return ""
+
+
+def _service_state(unit: str) -> dict:
+    active = "unknown"
+    enabled = "unknown"
+    try:
+        active = _run(["systemctl", "is-active", unit], timeout=4).stdout.strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        enabled = _run(["systemctl", "is-enabled", unit], timeout=4).stdout.strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {"unit": unit, "active": active, "enabled": enabled}
+
+
+def _json_cmd(args: list[str], timeout: int = 10) -> dict | None:
+    try:
+        result = _run(args, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return {"ok": False, "error": result.stderr.strip() or result.stdout.strip()}
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except ValueError:
+        return {"ok": False, "error": "invalid json response"}
+    return payload if isinstance(payload, dict) else {"ok": False, "error": "invalid json response"}
+
+
+def _list_network_interfaces() -> list[dict]:
+    interfaces: list[dict] = []
+    for path in sorted(glob.glob("/sys/class/net/*")):
+        name = os.path.basename(path)
+        if name == "lo":
+            continue
+        entry = {
+            "name": name,
+            "state": _read_first(os.path.join(path, "operstate")) or "unknown",
+            "mac": _read_first(os.path.join(path, "address")),
+            "speed_mbps": _read_first(os.path.join(path, "speed")),
+            "wireless": os.path.isdir(os.path.join(path, "wireless")),
+        }
+        ip = _iface_ipv4(name)
+        if ip:
+            entry["ipv4"] = ip
+        interfaces.append(entry)
+    return interfaces
+
+
+def _list_video_devices() -> list[dict]:
+    devices: list[dict] = []
+    for node in sorted(glob.glob("/dev/video*")):
+        name = os.path.basename(node)
+        sys_name = _read_first(f"/sys/class/video4linux/{name}/name")
+        devices.append({"node": node, "name": sys_name or name})
+    return devices
+
+
+def _list_audio_capture_devices() -> list[dict]:
+    try:
+        result = _run(["arecord", "-l"], timeout=6)
+    except (OSError, subprocess.SubprocessError):
+        result = None
+    devices: list[dict] = []
+    if result and result.returncode == 0:
+        for line in result.stdout.splitlines():
+            match = re.match(r"card\s+(\d+):\s+([^,]+),\s+device\s+(\d+):\s+(.+)", line.strip())
+            if match:
+                devices.append({
+                    "card": match.group(1),
+                    "id": match.group(2).strip(),
+                    "device": match.group(3),
+                    "name": match.group(4).strip(),
+                })
+    if devices:
+        return devices
+    cards = _read_first("/proc/asound/cards")
+    return [{"summary": cards}] if cards else []
+
+
+def _list_usb_devices() -> dict:
+    if os.access(USBCTL, os.X_OK):
+        payload = _json_cmd([USBCTL, "list-json"], timeout=12)
+        if payload is not None:
+            return payload
+    devices: list[dict] = []
+    for devpath in sorted(glob.glob("/sys/bus/usb/devices/*")):
+        busid = os.path.basename(devpath)
+        if not re.match(r"^[0-9]+-[0-9]+(\.[0-9]+)*$", busid):
+            continue
+        devices.append({
+            "busid": busid,
+            "vendor": _read_first(os.path.join(devpath, "idVendor")),
+            "product_id": _read_first(os.path.join(devpath, "idProduct")),
+            "manufacturer": _read_first(os.path.join(devpath, "manufacturer")),
+            "product": _read_first(os.path.join(devpath, "product")),
+            "class": _read_first(os.path.join(devpath, "bDeviceClass")),
+            "bound": os.path.exists(f"/sys/bus/usb/drivers/usbip-host/{busid}"),
+        })
+    return {"ok": True, "tunnel_state": "unknown", "devices": devices}
+
+
+def _parse_env_file(path: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                value = value.strip().strip('"').strip("'")
+                values[key.strip()] = value
+    except OSError:
+        pass
+    return values
+
+
+def _stream_profile_status() -> dict:
+    raw = _parse_env_file(STREAM_PROFILE_FILE)
+    values = {name: raw.get(env_key, "") for name, env_key in STREAM_PROFILE_KEYS.items()
+              if raw.get(env_key, "") != ""}
+    profile = "custom" if values else "auto"
+    for preset, spec in STREAM_PRESETS.items():
+        preset_values = spec["values"]
+        if all(values.get(k, "auto") == v for k, v in preset_values.items()):
+            profile = preset
+            break
+    auto_state = _parse_env_file("/var/lib/beagle-os/stream-auto-profile.env")
+    return {
+        "profile": profile,
+        "values": values,
+        "presets": {key: {"label": spec["label"], "values": spec["values"]}
+                    for key, spec in STREAM_PRESETS.items()},
+        "profile_file": STREAM_PROFILE_FILE,
+        "auto_quality": {
+            "bucket": auto_state.get("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY_BUCKET", ""),
+            "loss": auto_state.get("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY_PACKET_LOSS", ""),
+            "rtt_avg_ms": auto_state.get("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY_RTT_AVG_MS", ""),
+            "checked_at": auto_state.get("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY_CHECKED_AT", ""),
+        },
+    }
+
+
+def _valid_profile_value(value: str) -> bool:
+    return bool(value) and len(value) <= 80 and "\n" not in value and re.match(r"^[A-Za-z0-9_.:/+,-]+$", value)
+
+
+def _write_stream_profile(request: dict) -> dict:
+    profile = str(request.get("profile", "custom")).strip()
+    if profile in STREAM_PRESETS:
+        values = dict(STREAM_PRESETS[profile]["values"])
+    elif profile == "custom":
+        values = {}
+    else:
+        return {"ok": False, "error": "unknown stream profile"}
+
+    for name in STREAM_PROFILE_KEYS:
+        if name in request and str(request[name]).strip():
+            values[name] = str(request[name]).strip()
+
+    cleaned: dict[str, str] = {}
+    for name, value in values.items():
+        if name not in STREAM_PROFILE_KEYS:
+            continue
+        if not _valid_profile_value(str(value)):
+            return {"ok": False, "error": f"invalid value for {name}"}
+        cleaned[name] = str(value)
+
+    directory = os.path.dirname(STREAM_PROFILE_FILE)
+    os.makedirs(directory, exist_ok=True)
+    tmp = STREAM_PROFILE_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        handle.write("# Managed by Beagle NetBridge.\n")
+        handle.write(f"# Updated at {time.strftime('%Y-%m-%dT%H:%M:%S%z')}.\n")
+        handle.write(f"BEAGLE_NETBRIDGE_STREAM_PROFILE={shlex.quote(profile)}\n")
+        for name, env_key in STREAM_PROFILE_KEYS.items():
+            if name in cleaned:
+                handle.write(f"{env_key}={shlex.quote(cleaned[name])}\n")
+    os.replace(tmp, STREAM_PROFILE_FILE)
+    log(f"stream profile set to {profile}")
+    return {"ok": True, "stream": _stream_profile_status()}
+
+
+def _thinclient_status() -> dict:
+    usb = _list_usb_devices()
+    services = {name: _service_state(unit) for name, unit in MANAGED_SERVICES.items()}
+    services["audio_input_bridge"] = {
+        "unit": "beagle_audio_input_bridge.py",
+        "active": "active" if _run(["pgrep", "-f", "beagle_audio_input_bridge.py"], timeout=4).returncode == 0 else "inactive",
+        "enabled": "via beagle-usb-tunnel",
+    }
+    return {
+        "services": services,
+        "network": {"interfaces": _list_network_interfaces()},
+        "usb": usb,
+        "audio": {"capture_devices": _list_audio_capture_devices()},
+        "video": {"devices": _list_video_devices()},
+        "stream": _stream_profile_status(),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -553,6 +873,47 @@ class Agent:
         threading.Thread(target=delayed_exit, daemon=True).start()
         return {"ok": True, "restart": "scheduled"}
 
+    def service_action(self, req: dict) -> dict:
+        service = str(req.get("service", "")).strip()
+        action = str(req.get("action", "restart")).strip()
+        if service == "netbridge_agent" and action == "restart":
+            return self.restart_agent()
+        unit = MANAGED_SERVICES.get(service)
+        if not unit:
+            return {"ok": False, "error": "unknown service"}
+        if action not in {"start", "stop", "restart"}:
+            return {"ok": False, "error": "unsupported service action"}
+        try:
+            result = _run(["systemctl", action, "--no-block", unit], timeout=8)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return {"ok": False, "error": str(exc)}
+        if result.returncode != 0:
+            return {"ok": False, "error": result.stderr.strip() or result.stdout.strip()}
+        log(f"service action requested: {action} {unit}")
+        return {"ok": True, "service": service, "action": action, "state": _service_state(unit)}
+
+    def usb_action(self, req: dict, action: str) -> dict:
+        busid = str(req.get("busid", "")).strip()
+        if not re.match(r"^[0-9]+-[0-9]+(\.[0-9]+)*$", busid):
+            return {"ok": False, "error": "invalid USB busid"}
+        if not os.access(USBCTL, os.X_OK):
+            return {"ok": False, "error": "usb control helper not installed"}
+        try:
+            result = _run([USBCTL, action, busid], timeout=20)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return {"ok": False, "error": str(exc)}
+        if result.returncode != 0:
+            return {"ok": False, "error": result.stderr.strip() or result.stdout.strip()}
+        try:
+            payload = json.loads(result.stdout or "{}")
+        except ValueError:
+            payload = {"ok": True}
+        if isinstance(payload, dict):
+            payload.setdefault("ok", True)
+            payload["action"] = action
+            return payload
+        return {"ok": True, "action": action}
+
     def _allocate_port(self) -> int:
         for port in PROXY_PORT_RANGE:
             if port not in self.used_ports:
@@ -656,6 +1017,20 @@ class Agent:
         if op == "list_static":
             with self.lock:
                 return {"ok": True, "static": list(self.static_devices)}
+        if op == "status":
+            return self._catalog_payload({"thinclient": _thinclient_status()})
+        if op == "set_stream_profile":
+            result = _write_stream_profile(request)
+            return self._catalog_payload(result)
+        if op == "service_action":
+            result = self.service_action(request)
+            return self._catalog_payload(result)
+        if op == "usb_bind":
+            result = self.usb_action(request, "bind")
+            return self._catalog_payload(result)
+        if op == "usb_unbind":
+            result = self.usb_action(request, "unbind")
+            return self._catalog_payload(result)
         if op == "restart":
             return self.restart_agent()
         return self._catalog_payload()

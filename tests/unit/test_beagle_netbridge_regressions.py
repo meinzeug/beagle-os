@@ -117,7 +117,18 @@ def test_agent_control_protocol_supports_manage_ops() -> None:
     script = AGENT.read_text(encoding="utf-8")
 
     # The control port understands the manager verbs in addition to "catalog".
-    for op in ("rescan", "add_static", "remove_static", "list_static", "restart"):
+    for op in (
+        "rescan",
+        "add_static",
+        "remove_static",
+        "list_static",
+        "status",
+        "set_stream_profile",
+        "service_action",
+        "usb_bind",
+        "usb_unbind",
+        "restart",
+    ):
         assert f'op == "{op}"' in script
     assert "def _dispatch(self, request: dict)" in script
     # Manual devices are persisted so they survive an agent restart.
@@ -129,6 +140,40 @@ def test_agent_control_protocol_supports_manage_ops() -> None:
     # On-demand rescans wake the discovery loop instead of waiting the interval.
     assert "self._rescan = threading.Event()" in script
     assert "self._rescan.wait(DISCOVERY_INTERVAL)" in script
+
+
+def test_agent_exposes_thinclient_inventory_and_stream_profiles() -> None:
+    script = AGENT.read_text(encoding="utf-8")
+
+    for snippet in (
+        "def _thinclient_status()",
+        "def _list_usb_devices()",
+        "def _list_video_devices()",
+        "def _list_audio_capture_devices()",
+        "def _list_network_interfaces()",
+        "STREAM_PRESETS",
+        "lan-ultra",
+        "survival",
+        "BEAGLE_NETBRIDGE_STREAM_PROFILE",
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE",
+    ):
+        assert snippet in script
+
+
+def test_agent_writes_stream_profile_override_safely() -> None:
+    agent = _load(AGENT, "beagle_netbridge_agent_stream_profile")
+    with tempfile.TemporaryDirectory() as tmp:
+        agent.STREAM_PROFILE_FILE = str(Path(tmp) / "stream-profile.env")
+        result = agent._write_stream_profile({"profile": "economy"})
+        assert result["ok"] is True
+        written = Path(agent.STREAM_PROFILE_FILE).read_text(encoding="utf-8")
+
+    assert "BEAGLE_NETBRIDGE_STREAM_PROFILE=economy" in written
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION=1280x720" in written
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS=30" in written
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE=10000" in written
+    assert agent._write_stream_profile({"profile": "unknown"})["ok"] is False
+    assert agent._write_stream_profile({"profile": "custom", "fps": "60\nbad"})["ok"] is False
 
 
 def test_agent_validates_manual_device_input() -> None:
@@ -199,10 +244,28 @@ def test_tray_control_client_and_queue_naming() -> None:
     control.add_static(address="1.2.3.4", port=9100, name="x")
     control.remove_static("static-1-2-3-4-9100")
     control.restart_agent()
+    control.status()
+    control.set_stream_profile("balanced")
+    control.service_action("stream", "restart")
+    control.usb_bind("1-2")
+    control.usb_unbind("1-2")
     ops = [c["op"] for c in captured]
-    assert ops == ["rescan", "add_static", "remove_static", "restart"]
+    assert ops == [
+        "rescan",
+        "add_static",
+        "remove_static",
+        "restart",
+        "status",
+        "set_stream_profile",
+        "service_action",
+        "usb_bind",
+        "usb_unbind",
+    ]
     assert captured[1]["address"] == "1.2.3.4"
     assert captured[2]["id"] == "static-1-2-3-4-9100"
+    assert captured[5]["profile"] == "balanced"
+    assert captured[6]["service"] == "stream"
+    assert captured[7]["busid"] == "1-2"
 
 
 def test_tray_uses_system_tray_and_manager_actions() -> None:
@@ -213,6 +276,14 @@ def test_tray_uses_system_tray_and_manager_actions() -> None:
     assert "def action_rescan(self)" in script
     assert "def action_restart_agent(self)" in script
     assert "Agent neu starten" in script
+    assert "Thinclient verwalten" in script
+    assert "Streamqualität" in script
+    assert "def action_set_stream_profile(self" in script
+    assert "def action_service(self" in script
+    assert "def action_usb(self" in script
+    assert "USB Geräte" in script
+    assert "Mikrofon & Webcam" in script
+    assert "Netzwerk" in script
     assert "def action_test_print(self" in script
     # Headless verification entrypoint for provisioning checks.
     assert "def selftest()" in script
@@ -235,6 +306,7 @@ def test_agent_service_grants_state_directory() -> None:
     for unit in (AGENT_UNIT, TC_AGENT_UNIT):
         text = unit.read_text(encoding="utf-8")
         assert "StateDirectory=beagle/netbridge" in text
+        assert "ReadWritePaths=/var/lib/beagle-os" in text
 
 
 def test_firstboot_installs_tray_manager() -> None:
@@ -261,3 +333,6 @@ def test_firstboot_embedded_tray_is_non_blocking() -> None:
     assert "if self._menu_open:" in script
     assert "manager = TrayManager(app)" in script
     assert "app.setProperty(\"beagleNetBridgeTrayManager\", manager)" in script
+    assert "Thinclient verwalten" in script
+    assert "Streamqualität" in script
+    assert "def action_set_stream_profile(self" in script
