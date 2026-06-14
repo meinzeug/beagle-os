@@ -278,6 +278,15 @@ def test_tray_uses_system_tray_and_manager_actions() -> None:
     assert "def action_rescan(self)" in script
     assert "def action_restart_agent(self)" in script
     assert "Agent neu starten" in script
+    assert "Update Center" in script
+    assert "Nach Updates suchen" in script
+    assert "Updates installieren" in script
+    assert "Desktop-Profil erneuern" in script
+    assert "def guest_update_snapshot()" in script
+    assert "def run_guest_updater(" in script
+    assert "def action_update_scan(self)" in script
+    assert "def action_update_apply(self)" in script
+    assert "def action_desktop_profile_refresh(self)" in script
     assert "Thinclient verwalten" in script
     assert "Streamqualität" in script
     assert "def action_set_stream_profile(self" in script
@@ -321,7 +330,12 @@ def test_firstboot_installs_tray_manager() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
     # PyQt5 powers the tray; it is installed alongside the CUPS tooling.
     assert "python3-pyqt5" in script
+    assert "BEAGLE_NETBRIDGE_TRAY_B64" in script
+    assert 'base64 -d > /usr/local/bin/beagle-netbridge-tray' in script
     assert "/usr/local/bin/beagle-netbridge-tray" in script
+    assert "/etc/sudoers.d/beagle-guest-updater" in script
+    assert "beagle-guest-updater apply --reboot" in script
+    assert "beagle-guest-updater desktop-profile-refresh --force" in script
     # Autostart entry so the manager appears in the user's Plasma session.
     assert "/etc/xdg/autostart/beagle-netbridge-tray.desktop" in script
     assert "Exec=/usr/local/bin/beagle-netbridge-tray" in script

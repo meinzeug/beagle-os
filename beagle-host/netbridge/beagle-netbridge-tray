@@ -25,12 +25,14 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from pathlib import Path
 
 DEFAULT_AGENTS = "10.88.1.1:47100"
 ENV_FILE = "/etc/beagle/netbridge.env"
@@ -38,6 +40,9 @@ MANAGED_PREFIX = "beagle-net-"
 CONTROL_TIMEOUT = 6
 APP_ID = "com.beagle-os.netbridge.tray"
 APP_NAME = "Beagle NetBridge"
+GUEST_UPDATER = "/usr/local/sbin/beagle-guest-updater"
+GUEST_UPDATE_STATUS_FILE = Path("/var/lib/beagle/guest-updater/status.json")
+DESKTOP_PROFILE_STATUS_FILE = Path("/var/lib/beagle/guest-updater/desktop-profile.json")
 ICON_PATHS = (
     "/usr/local/share/beagle/beagle-netbridge-tray.png",
     "/usr/local/share/icons/hicolor/256x256/apps/beagle-netbridge-tray.png",
@@ -204,6 +209,60 @@ def print_test_page(queue: str) -> tuple[bool, str]:
 
 
 # --------------------------------------------------------------------------- #
+# Local guest update center
+# --------------------------------------------------------------------------- #
+def read_json_file(path: Path) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def guest_update_snapshot() -> dict:
+    status = read_json_file(GUEST_UPDATE_STATUS_FILE)
+    profile = read_json_file(DESKTOP_PROFILE_STATUS_FILE)
+    if not status:
+        status = {"state": "unknown", "available": False, "last_error": "Update-Status noch nicht verfügbar"}
+    if profile:
+        status.setdefault("desktop_profile", {
+            "current": profile.get("state") == "current",
+            "profile_version": profile.get("profile_version", ""),
+            "installed_profile_version": profile.get("profile_version", ""),
+            "last_error": profile.get("last_error", ""),
+        })
+    return status
+
+
+def run_guest_updater(args: list[str], timeout: int = 7200) -> tuple[bool, str, dict]:
+    if not os.path.exists(GUEST_UPDATER):
+        return False, "Guest-Updater ist nicht installiert.", guest_update_snapshot()
+    command = [GUEST_UPDATER, *args]
+    if os.geteuid() != 0:
+        if shutil.which("sudo"):
+            command = ["sudo", "-n", *command]
+        elif shutil.which("pkexec"):
+            command = ["pkexec", *command]
+        else:
+            return False, "Root-Rechte fehlen: sudo/pkexec nicht verfügbar.", guest_update_snapshot()
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, str(exc), guest_update_snapshot()
+    output = (result.stdout or result.stderr or "").strip()
+    payload = {}
+    if output:
+        try:
+            parsed = json.loads(output)
+            payload = parsed if isinstance(parsed, dict) else {}
+        except ValueError:
+            payload = {}
+    if result.returncode != 0:
+        return False, output or f"Guest-Updater Exit {result.returncode}", payload or guest_update_snapshot()
+    return True, output, payload or guest_update_snapshot()
+
+
+# --------------------------------------------------------------------------- #
 # Headless self-test (verify the control path without a display)
 # --------------------------------------------------------------------------- #
 def selftest() -> int:
@@ -293,7 +352,7 @@ def run_tray() -> int:
         # Emitted from worker threads; delivered on the GUI thread via Qt's
         # queued connections so all UI work stays on the main thread and the
         # Plasma DBus menu requests are never blocked by network/CUPS I/O.
-        dataReady = QtCore.pyqtSignal(object, object)
+        dataReady = QtCore.pyqtSignal(object, object, object)
         uiMessage = QtCore.pyqtSignal(str, str)
 
         def __init__(self, app: QtWidgets.QApplication) -> None:
@@ -302,9 +361,10 @@ def run_tray() -> int:
             self.control = NetBridgeControl()
             self.catalog: dict | None = None
             self.wired: dict[str, str] = {}
+            self.update_status: dict = guest_update_snapshot()
             self._busy = False
             self._menu_open = False
-            self._pending_data: tuple[dict | None, dict[str, str]] | None = None
+            self._pending_data: tuple[dict | None, dict[str, str], dict] | None = None
 
             self.tray = QtWidgets.QSystemTrayIcon(self._icon(), self.app)
             self.tray.setToolTip(APP_NAME)
@@ -372,10 +432,11 @@ def run_tray() -> int:
         def _on_menu_hide(self) -> None:
             self._menu_open = False
             if self._pending_data is not None:
-                catalog, wired = self._pending_data
+                catalog, wired, update_status = self._pending_data
                 self._pending_data = None
                 self.catalog = catalog
                 self.wired = wired or {}
+                self.update_status = update_status or guest_update_snapshot()
                 self._rebuild_menu()
 
         def _notify(self, title: str, message: str) -> None:
@@ -394,17 +455,19 @@ def run_tray() -> int:
                 if catalog is None:
                     catalog = self.control.catalog()
                 wired = cups_managed_queues()
+                update_status = guest_update_snapshot()
             except Exception:  # never let a worker thread die silently
-                catalog, wired = None, {}
-            self.dataReady.emit(catalog, wired)
+                catalog, wired, update_status = None, {}, guest_update_snapshot()
+            self.dataReady.emit(catalog, wired, update_status)
 
-        def _on_data(self, catalog, wired) -> None:
+        def _on_data(self, catalog, wired, update_status) -> None:
             self._busy = False
             if self._menu_open:
-                self._pending_data = (catalog, wired or {})
+                self._pending_data = (catalog, wired or {}, update_status or {})
                 return
             self.catalog = catalog
             self.wired = wired or {}
+            self.update_status = update_status or guest_update_snapshot()
             self._rebuild_menu()
 
         def _run_action(self, op) -> None:
@@ -424,9 +487,10 @@ def run_tray() -> int:
                     if catalog is None:
                         catalog = self.control.catalog()
                     wired = cups_managed_queues()
+                    update_status = guest_update_snapshot()
                 except Exception:
-                    catalog, wired = None, {}
-                self.dataReady.emit(catalog, wired)
+                    catalog, wired, update_status = None, {}, guest_update_snapshot()
+                self.dataReady.emit(catalog, wired, update_status)
 
             threading.Thread(target=work, daemon=True).start()
 
@@ -448,8 +512,10 @@ def run_tray() -> int:
                     empty = self.menu.addAction("Keine Geräte gefunden")
                     empty.setEnabled(False)
                 self._add_control_center_menu(self.catalog.get("thinclient", {}))
+            self._add_update_center_menu()
+            if self.catalog is not None:
                 self.menu.addSeparator()
-                for device in devices:
+                for device in self.catalog.get("devices", []):
                     self._add_device_menu(device)
 
             self.menu.addSeparator()
@@ -468,6 +534,43 @@ def run_tray() -> int:
             self._add_usb_menu(control, thinclient.get("usb", {}))
             self._add_av_menu(control, thinclient)
             self._add_network_menu(control, thinclient.get("network", {}))
+
+        def _add_update_center_menu(self) -> None:
+            self.menu.addSeparator()
+            menu = self.menu.addMenu("Update Center")
+            status = self.update_status if isinstance(self.update_status, dict) else {}
+            state = str(status.get("state", "unknown") or "unknown")
+            current = str(status.get("current_version", "") or "")
+            latest = str(status.get("latest_version", "") or "")
+            available = bool(status.get("available") or status.get("desktop_profile_available"))
+            profile = status.get("desktop_profile", {}) if isinstance(status.get("desktop_profile"), dict) else {}
+            profile_version = str(
+                status.get("desktop_profile_version")
+                or profile.get("profile_version")
+                or profile.get("installed_profile_version")
+                or ""
+            )
+            summary = "Update verfügbar" if available else "Aktuell"
+            state_line = menu.addAction(f"{summary}: {state}")
+            state_line.setEnabled(False)
+            if current or latest:
+                version = menu.addAction(f"Version: {current or '?'}" + (f" → {latest}" if latest else ""))
+                version.setEnabled(False)
+            if profile_version:
+                profile_line = menu.addAction(f"Desktop-Profil: {profile_version}")
+                profile_line.setEnabled(False)
+            if status.get("pending_reboot"):
+                reboot = menu.addAction("Neustart erforderlich")
+                reboot.setEnabled(False)
+            last_error = str(status.get("last_error") or profile.get("last_error") or "").strip()
+            if last_error:
+                error = menu.addAction(f"Hinweis: {last_error[:90]}")
+                error.setEnabled(False)
+            menu.addSeparator()
+            menu.addAction("Nach Updates suchen", self.action_update_scan)
+            menu.addAction("Updates installieren", self.action_update_apply)
+            menu.addAction("Desktop-Profil erneuern", self.action_desktop_profile_refresh)
+            menu.addAction("Status anzeigen", self.action_show_update_status)
 
         def _add_stream_menu(self, parent, stream: dict) -> None:
             menu = parent.addMenu("Streamqualität")
@@ -682,6 +785,53 @@ def run_tray() -> int:
                     return (APP_NAME, f"Fehler: {result.get('error', 'unbekannt')}")
                 return (APP_NAME, f"USB aktualisiert: {busid}.")
             self._run_action(op)
+
+        def action_update_scan(self) -> None:
+            def op():
+                ok, message, status = run_guest_updater(["scan", "--force"])
+                self.update_status = status
+                if not ok:
+                    return (APP_NAME, f"Update-Scan fehlgeschlagen: {message}")
+                if status.get("available") or status.get("desktop_profile_available"):
+                    return (APP_NAME, "Update verfügbar.")
+                return (APP_NAME, "System ist aktuell.")
+            self._run_action(op)
+
+        def action_update_apply(self) -> None:
+            def op():
+                ok, message, status = run_guest_updater(["apply", "--reboot"])
+                self.update_status = status
+                if not ok:
+                    return (APP_NAME, f"Update fehlgeschlagen: {message}")
+                if status.get("pending_reboot"):
+                    return (APP_NAME, "Update installiert. Neustart erforderlich.")
+                return (APP_NAME, "Update installiert.")
+            self._run_action(op)
+
+        def action_desktop_profile_refresh(self) -> None:
+            def op():
+                ok, message, status = run_guest_updater(["desktop-profile-refresh", "--force"])
+                self.update_status = status
+                if not ok:
+                    return (APP_NAME, f"Desktop-Profil fehlgeschlagen: {message}")
+                return (APP_NAME, "Desktop-Profil aktualisiert.")
+            self._run_action(op)
+
+        def action_show_update_status(self) -> None:
+            status = self.update_status if isinstance(self.update_status, dict) else {}
+            profile = status.get("desktop_profile", {}) if isinstance(status.get("desktop_profile"), dict) else {}
+            lines = [
+                f"Status: {status.get('state', 'unknown')}",
+                f"Aktuell: {status.get('current_version', '-') or '-'}",
+                f"Neueste Version: {status.get('latest_version', '-') or '-'}",
+                f"Update verfügbar: {'ja' if status.get('available') or status.get('desktop_profile_available') else 'nein'}",
+                f"Desktop-Profil: {status.get('desktop_profile_version') or profile.get('profile_version') or profile.get('installed_profile_version') or '-'}",
+            ]
+            if status.get("pending_reboot"):
+                lines.append("Neustart: erforderlich")
+            if status.get("last_error") or profile.get("last_error"):
+                lines.append(f"Hinweis: {status.get('last_error') or profile.get('last_error')}")
+            QtWidgets.QMessageBox.information(None, "Beagle Update Center", "\n".join(lines))
 
         def action_restart_agent(self) -> None:
             def op():

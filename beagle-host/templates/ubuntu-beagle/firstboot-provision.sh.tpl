@@ -11,6 +11,7 @@ BEAGLE_ENDPOINT_TOKEN="__BEAGLE_ENDPOINT_TOKEN__"
 BEAGLE_VERSION="__BEAGLE_VERSION__"
 BEAGLE_GUEST_UPDATER_B64="__BEAGLE_GUEST_UPDATER_B64__"
 BEAGLE_DESKTOP_PROFILE_REFRESH_B64="__BEAGLE_DESKTOP_PROFILE_REFRESH_B64__"
+BEAGLE_NETBRIDGE_TRAY_B64="__BEAGLE_NETBRIDGE_TRAY_B64__"
 IDENTITY_LOCALE="__IDENTITY_LOCALE__"
 IDENTITY_LANGUAGE="__IDENTITY_LANGUAGE__"
 IDENTITY_KEYMAP="__IDENTITY_KEYMAP__"
@@ -92,6 +93,10 @@ BEAGLE_MANAGER_ALLOW_INSECURE_TLS=1
 BEAGLE_GUEST_UPDATER_INTERACTIVE_REBOOT=1
 EOF
   chmod 0600 /etc/beagle/guest-updater.env
+  cat > /etc/sudoers.d/beagle-guest-updater <<EOF
+${GUEST_USER} ALL=(root) NOPASSWD: /usr/local/sbin/beagle-guest-updater status, /usr/local/sbin/beagle-guest-updater scan --force, /usr/local/sbin/beagle-guest-updater apply --reboot, /usr/local/sbin/beagle-guest-updater desktop-profile-refresh --force
+EOF
+  chmod 0440 /etc/sudoers.d/beagle-guest-updater
   cat > /etc/systemd/system/beagle-guest-updater-scan.service <<'EOF'
 [Unit]
 Description=Beagle Desktop Guest Update Scan
@@ -3905,6 +3910,9 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     raise SystemExit(main())
 NETBRIDGETRAYEOF
+    if [[ -n "$BEAGLE_NETBRIDGE_TRAY_B64" ]]; then
+      printf '%s' "$BEAGLE_NETBRIDGE_TRAY_B64" | base64 -d > /usr/local/bin/beagle-netbridge-tray
+    fi
     chmod 0755 /usr/local/bin/beagle-netbridge-tray
     python3 - "${BEAGLE_WALLPAPER_PATH:-}" <<'PY' || true
 import os
