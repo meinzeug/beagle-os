@@ -464,7 +464,7 @@ UBUNTU_BEAGLE_DEFAULT_PACKAGE_PRESETS = [
     item.strip().lower()
     for item in os.environ.get(
         "BEAGLE_UBUNTU_DEFAULT_PACKAGE_PRESETS",
-        "libreoffice,thunderbird,gimp,inkscape,vlc,filezilla,remmina,vscode,dev-core,python-dev,nodejs-dev,java-dev",
+        "desktop-essentials,gimp,inkscape,filezilla,remmina,vscode,dev-core,python-dev,nodejs-dev,java-dev",
     ).split(",")
     if item.strip()
 ]
@@ -628,6 +628,30 @@ UBUNTU_BEAGLE_DESKTOPS: dict[str, dict[str, Any]] = {
     },
 }
 UBUNTU_BEAGLE_SOFTWARE_PRESETS: dict[str, dict[str, Any]] = {
+    "desktop-essentials": {
+        "id": "desktop-essentials",
+        "label": "Desktop Essentials",
+        "packages": [
+            "libreoffice",
+            "thunderbird",
+            "okular",
+            "vlc",
+            "ffmpeg",
+            "gwenview",
+            "spectacle",
+            "ark",
+            "kcalc",
+            "kdeconnect",
+            "kio-extras",
+            "plasma-browser-integration",
+            "flatpak",
+            "plasma-discover",
+            "plasma-discover-backend-flatpak",
+            "xdg-desktop-portal-kde",
+            "fonts-noto-color-emoji",
+        ],
+        "description": "Modern default apps: office, mail, PDF, media, screenshots, archives, app store and Flatpak.",
+    },
     "firefox": {
         "id": "firefox",
         "label": "Firefox",

@@ -15,6 +15,8 @@ if str(ROOT_DIR / "beagle-host" / "services") not in sys.path:
 from ubuntu_beagle_inputs import UbuntuBeagleInputsService
 from ubuntu_beagle_provisioning import UbuntuBeagleProvisioningService
 
+SERVICE_REGISTRY = ROOT_DIR / "beagle-host" / "services" / "service_registry.py"
+
 
 DESKTOPS = {
     "plasma-cyberpunk": {
@@ -143,6 +145,26 @@ class UbuntuBeagleDesktopProfilesTests(unittest.TestCase):
         asset = service.resolve_desktop_wallpaper_asset("plasma-classic")
 
         self.assertEqual(asset, {})
+
+    def test_default_app_stack_uses_cyberpunk_desktop_essentials(self) -> None:
+        text = SERVICE_REGISTRY.read_text(encoding="utf-8")
+
+        self.assertIn('os.environ.get("BEAGLE_UBUNTU_DEFAULT_DESKTOP", "plasma-cyberpunk")', text)
+        self.assertIn('"desktop-essentials,gimp,inkscape,filezilla,remmina,vscode,dev-core,python-dev,nodejs-dev,java-dev"', text)
+        self.assertIn('"desktop-essentials": {', text)
+        for package in (
+            "libreoffice",
+            "thunderbird",
+            "okular",
+            "vlc",
+            "spectacle",
+            "flatpak",
+            "plasma-discover",
+            "plasma-discover-backend-flatpak",
+            "kdeconnect",
+            "fonts-noto-color-emoji",
+        ):
+            self.assertIn(f'"{package}"', text)
 
 
 if __name__ == "__main__":

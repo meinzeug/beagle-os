@@ -59,6 +59,28 @@ def test_firstboot_bootstraps_vscode_repository() -> None:
     assert "https://packages.microsoft.com/repos/code stable main" in script
     assert "install_visual_studio_code_repo" in script
     assert "packages.microsoft.gpg" in script
+    assert script.index("install_visual_studio_code_repo") < script.index('if [[ -n "$SOFTWARE_PACKAGES" ]]; then')
+
+
+def test_firstboot_configures_cyberpunk_standard_apps_and_flathub() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "configure_flatpak_flathub() {" in script
+    assert "https://flathub.org/repo/flathub.flatpakrepo" in script
+    assert "configure_flatpak_flathub" in script
+    assert "install_beagle_web_apps" in script
+    assert "beagle-launchpad.html" in script
+    assert "beagle-launchpad.desktop" in script
+    assert "beagle-chatgpt.desktop" in script
+    assert "beagle-microsoft-365.desktop" in script
+    assert "beagle-google-workspace.desktop" in script
+    assert "beagle-whatsapp.desktop" in script
+    assert "applications:beagle-launchpad.desktop,applications:google-chrome.desktop,applications:beagle-chatgpt.desktop" in script
+    assert "applications:thunderbird.desktop" in script
+    assert "applications:libreoffice-writer.desktop" in script
+    assert "applications:org.kde.okular.desktop" in script
+    assert "applications:org.kde.spectacle.desktop" in script
+    assert "applications:org.kde.discover.desktop" in script
 
 
 def test_firstboot_detects_beagle_stream_server_exec_path_dynamically() -> None:

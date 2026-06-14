@@ -585,6 +585,12 @@ EOF
   apt_retry apt-get update -o Acquire::Retries=5
 }
 
+configure_flatpak_flathub() {
+  if command -v flatpak >/dev/null 2>&1; then
+    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo >/dev/null 2>&1 || true
+  fi
+}
+
 configure_virtual_display_vkms() {
   if ! modinfo vkms >/dev/null 2>&1; then
     echo "WARN: vkms module is not available; continuing without virtual display module" >&2
@@ -712,6 +718,126 @@ EOF
   chown "$GUEST_USER:$GUEST_USER" "/home/$GUEST_USER/.config/mimeapps.list"
 }
 
+install_beagle_web_apps() {
+  local app_dir="/usr/local/share/applications"
+  local launchpad="/usr/local/share/beagle/beagle-launchpad.html"
+  install -d -m 0755 "$app_dir"
+  install -d -m 0755 /usr/local/share/beagle
+
+  create_web_app() {
+    local file="$1"
+    local name="$2"
+    local url="$3"
+    local icon="$4"
+    cat > "$app_dir/$file" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=${name}
+Exec=google-chrome --app=${url} --new-window --disable-session-crashed-bubble --no-first-run
+Icon=${icon}
+Categories=Network;Office;Utility;
+StartupNotify=true
+NoDisplay=false
+EOF
+  }
+
+  create_web_app beagle-chatgpt.desktop "ChatGPT" "https://chatgpt.com" google-chrome
+  create_web_app beagle-microsoft-365.desktop "Microsoft 365" "https://www.office.com" libreoffice-startcenter
+  create_web_app beagle-google-workspace.desktop "Google Workspace" "https://workspace.google.com/dashboard" google-chrome
+  create_web_app beagle-gmail.desktop "Gmail" "https://mail.google.com" internet-mail
+  create_web_app beagle-whatsapp.desktop "WhatsApp Web" "https://web.whatsapp.com" internet-chat
+  create_web_app beagle-discord.desktop "Discord" "https://discord.com/app" internet-chat
+  create_web_app beagle-youtube.desktop "YouTube" "https://www.youtube.com" applications-multimedia
+
+  cat > "$launchpad" <<'EOF'
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beagle Launchpad</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070b14;
+      --panel: rgba(14, 20, 36, .82);
+      --line: rgba(0, 245, 255, .28);
+      --text: #e8f4f8;
+      --muted: #8da3b3;
+      --cyan: #00f5ff;
+      --pink: #ff006e;
+      --violet: #7c3cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(124, 60, 255, .28), transparent 34%),
+        radial-gradient(circle at 86% 18%, rgba(0, 245, 255, .18), transparent 30%),
+        linear-gradient(135deg, #070b14 0%, #10172a 48%, #090d18 100%);
+      color: var(--text);
+      padding: 40px;
+    }
+    header { max-width: 1040px; margin: 0 auto 28px; }
+    h1 { margin: 0 0 8px; font-size: clamp(34px, 5vw, 64px); line-height: .95; letter-spacing: 0; }
+    p { margin: 0; color: var(--muted); font-size: 18px; }
+    main { max-width: 1040px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+    a {
+      min-height: 112px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      text-decoration: none;
+      border-radius: 8px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 20px 60px rgba(0,0,0,.22);
+    }
+    a:hover { border-color: var(--cyan); transform: translateY(-1px); }
+    strong { font-size: 19px; }
+    span { color: var(--muted); }
+    .hot strong { color: var(--cyan); }
+    .work strong { color: #fff; }
+    .ai strong { color: var(--pink); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Beagle Cyberpunk</h1>
+    <p>Apps, AI, Cloud und Tools direkt startklar.</p>
+  </header>
+  <main>
+    <a class="hot" href="https://chatgpt.com"><strong>ChatGPT</strong><span>AI Assistant</span></a>
+    <a class="work" href="https://www.office.com"><strong>Microsoft 365</strong><span>Word, Excel, PowerPoint Web</span></a>
+    <a class="work" href="https://workspace.google.com/dashboard"><strong>Google Workspace</strong><span>Docs, Drive, Meet</span></a>
+    <a class="work" href="https://mail.google.com"><strong>Gmail</strong><span>Mail im Browser</span></a>
+    <a class="ai" href="https://discord.com/app"><strong>Discord</strong><span>Community & Voice</span></a>
+    <a class="ai" href="https://web.whatsapp.com"><strong>WhatsApp</strong><span>Messaging</span></a>
+    <a class="hot" href="https://www.youtube.com"><strong>YouTube</strong><span>Video & Lernen</span></a>
+    <a class="work" href="http://localhost:47990"><strong>Beagle Stream</strong><span>Local Stream Server</span></a>
+  </main>
+</body>
+</html>
+EOF
+
+  cat > "$app_dir/beagle-launchpad.desktop" <<'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Beagle Launchpad
+Exec=google-chrome --app=file:///usr/local/share/beagle/beagle-launchpad.html --new-window --disable-session-crashed-bubble --no-first-run
+Icon=preferences-desktop-launch-feedback
+Categories=Utility;Network;Office;
+StartupNotify=true
+NoDisplay=false
+EOF
+}
+
 configure_lightdm_greeter() {
   local theme_name="Adwaita"
   local icon_theme="breeze-dark"
@@ -785,8 +911,8 @@ IntensityAmount=0
 IntensityEffect=0
 
 [Colors:Button]
-BackgroundAlternate=18,22,38
-BackgroundNormal=14,18,30
+BackgroundAlternate=24,30,52
+BackgroundNormal=18,24,42
 DecorationFocus=0,245,255
 DecorationHover=255,0,110
 ForegroundActive=255,255,255
@@ -827,7 +953,7 @@ ForegroundPositive=80,255,140
 ForegroundVisited=180,0,220
 
 [Colors:Selection]
-BackgroundAlternate=0,130,145
+BackgroundAlternate=75,0,145
 BackgroundNormal=0,210,225
 DecorationFocus=0,245,255
 DecorationHover=255,0,110
@@ -855,8 +981,8 @@ ForegroundPositive=80,255,140
 ForegroundVisited=180,0,220
 
 [Colors:View]
-BackgroundAlternate=12,16,28
-BackgroundNormal=8,12,22
+BackgroundAlternate=16,20,36
+BackgroundNormal=10,14,26
 DecorationFocus=0,245,255
 DecorationHover=255,0,110
 ForegroundActive=255,255,255
@@ -869,7 +995,7 @@ ForegroundPositive=80,255,140
 ForegroundVisited=180,0,220
 
 [Colors:Window]
-BackgroundAlternate=12,16,28
+BackgroundAlternate=18,22,38
 BackgroundNormal=10,14,26
 DecorationFocus=0,245,255
 DecorationHover=255,0,110
@@ -1289,13 +1415,14 @@ plugin=org.kde.plasma.kickoff
 
 [Containments][2][Applets][3][Configuration][General]
 favoritesPortedToKAstats=true
+favorites=applications:beagle-launchpad.desktop,applications:google-chrome.desktop,applications:beagle-chatgpt.desktop,applications:org.kde.dolphin.desktop,applications:thunderbird.desktop,applications:libreoffice-writer.desktop,applications:org.kde.okular.desktop,applications:code.desktop,applications:beagle-ai.desktop,applications:systemsettings.desktop,applications:org.kde.discover.desktop
 
 [Containments][2][Applets][4]
 immutability=1
 plugin=org.kde.plasma.icontasks
 
 [Containments][2][Applets][4][Configuration][General]
-launchers=applications:google-chrome.desktop,applications:org.kde.dolphin.desktop,applications:org.kde.konsole.desktop,applications:beagle-ai.desktop,applications:systemsettings.desktop
+launchers=applications:beagle-launchpad.desktop,applications:google-chrome.desktop,applications:beagle-chatgpt.desktop,applications:org.kde.dolphin.desktop,applications:thunderbird.desktop,applications:libreoffice-writer.desktop,applications:org.kde.okular.desktop,applications:org.kde.spectacle.desktop,applications:code.desktop,applications:beagle-ai.desktop,applications:systemsettings.desktop,applications:org.kde.discover.desktop
 groupingStrategy=0
 middleClickAction=NewInstance
 wheelEnabled=true
@@ -1764,12 +1891,13 @@ if [[ ! -f "$DONE_FILE" ]]; then
     apt_retry apt-get install -y --fix-missing --no-install-recommends ${DESKTOP_PACKAGES}
     repair_interrupted_dpkg
   fi
+  install_visual_studio_code_repo
   if [[ -n "$SOFTWARE_PACKAGES" ]]; then
     apt_retry apt-get install -y --fix-missing --no-install-recommends ${SOFTWARE_PACKAGES}
     repair_interrupted_dpkg
   fi
+  configure_flatpak_flathub
   resolve_desktop_session
-  install_visual_studio_code_repo
 
   TMPDIR_WORK="$(mktemp -d)"
   stream_runtime_variant="beagle-stream-server"
@@ -1825,6 +1953,7 @@ if [[ ! -f "$DONE_FILE" ]]; then
   install_desktop_wallpaper
   configure_virtual_display_vkms
   install_google_chrome
+  install_beagle_web_apps
   configure_lightdm_greeter
 
   install -d -m 0755 /etc/lightdm/lightdm.conf.d
