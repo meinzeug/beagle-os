@@ -11,10 +11,10 @@ import service_registry as sr
 
 DEFAULTS = {
     "beagle-stream-client-resolution": "1920x1080",
-    "beagle-stream-client-fps": "60",
-    "beagle-stream-client-bitrate": "32000",
+    "beagle-stream-client-fps": "auto",
+    "beagle-stream-client-bitrate": "auto",
     "beagle-stream-client-video-codec": "H.264",
-    "beagle-stream-client-video-decoder": "software",
+    "beagle-stream-client-video-decoder": "auto",
     "beagle-stream-client-audio-config": "stereo",
 }
 

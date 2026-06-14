@@ -79,3 +79,13 @@ def test_auto_quality_bucket_degrades_on_loss_and_latency() -> None:
     result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), text=True, capture_output=True, check=True)
 
     assert result.stdout.strip() == "low"
+
+
+def test_auto_quality_limits_100mbit_link_to_medium() -> None:
+    cmd = (
+        f"source {PROFILE_SCRIPT}\n"
+        "beagle_stream_auto_quality_bucket 0 10 20 100\n"
+    )
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), text=True, capture_output=True, check=True)
+
+    assert result.stdout.strip() == "medium"

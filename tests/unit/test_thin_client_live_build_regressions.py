@@ -472,7 +472,8 @@ def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -
     defaults_text = (ROOT / "thin-client-assistant" / "installer" / "env-defaults.json").read_text(encoding="utf-8")
     write_config_text = (ROOT / "thin-client-assistant" / "installer" / "write-config.sh").read_text(encoding="utf-8")
 
-    assert 'configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-software}"' in profile_text
+    assert 'configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-auto}"' in profile_text
+    assert 'if beagle_stream_hostless_enabled; then\n      printf \'software\\n\'' not in profile_text
     assert 'beagle_stream_detect_auto_profile()' in profile_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY:-1' in profile_text
     assert 'beagle-stream-client.auto-quality' in profile_text
@@ -483,7 +484,7 @@ def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -
     assert 'out_ref+=(--no-vsync)' in runtime_text
     assert '${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN:-1}' in launcher_text
     assert 'export VK_ICD_FILENAMES="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VK_ICD_FILENAMES:-/dev/null}"' in launcher_text
-    assert '"BEAGLE_STREAM_CLIENT_VIDEO_DECODER": "software"' in defaults_text
+    assert '"BEAGLE_STREAM_CLIENT_VIDEO_DECODER": "auto"' in defaults_text
     assert '"BEAGLE_STREAM_CLIENT_DISPLAY_MODE": "windowed"' in defaults_text
     assert '"BEAGLE_STREAM_CLIENT_BITRATE": "auto"' in defaults_text
     assert '"BEAGLE_STREAM_CLIENT_AUTO_QUALITY": "1"' in defaults_text

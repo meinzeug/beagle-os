@@ -20,14 +20,9 @@ fi
 
 beagle_stream_client_video_decoder() {
   local configured
-  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-software}"
+  configured="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER:-auto}"
 
   if [[ "$configured" == "auto" ]]; then
-    if beagle_stream_hostless_enabled; then
-      printf 'software\n'
-      return 0
-    fi
-
     # Hardware decode (VAAPI/VDPAU/Vulkan) requires /dev/dri/renderD128 (render node).
     # card0 is the KMS display node only; without renderD128 there is no working
     # hardware video decoder, so force software to avoid the blocking warning dialog.
@@ -119,9 +114,9 @@ beagle_stream_auto_quality_bucket() {
     printf '%s\n' "survival"
   elif [[ "$loss" -ge 5 || "$avg" -ge 70 || "$max" -ge 130 || ( "$link_mbps" -gt 0 && "$link_mbps" -lt 25 ) ]]; then
     printf '%s\n' "low"
-  elif [[ "$loss" -ge 2 || "$avg" -ge 45 || "$max" -ge 90 || ( "$link_mbps" -gt 0 && "$link_mbps" -lt 60 ) ]]; then
+  elif [[ "$loss" -ge 2 || "$avg" -ge 45 || "$max" -ge 90 || ( "$link_mbps" -gt 0 && "$link_mbps" -lt 120 ) ]]; then
     printf '%s\n' "medium"
-  elif [[ "$loss" -ge 1 || "$avg" -ge 28 || "$max" -ge 60 || ( "$link_mbps" -gt 0 && "$link_mbps" -lt 120 ) ]]; then
+  elif [[ "$loss" -ge 1 || "$avg" -ge 28 || "$max" -ge 60 ]]; then
     printf '%s\n' "high"
   else
     printf '%s\n' "ultra"

@@ -816,7 +816,7 @@ class UbuntuBeagleProvisioningService:
             "beagle-stream-client-fps: 60",
             "beagle-stream-client-bitrate: 32000",
             "beagle-stream-client-video-codec: H.264",
-            "beagle-stream-client-video-decoder: software",
+            "beagle-stream-client-video-decoder: auto",
             "beagle-stream-client-audio-config: stereo",
             "thinclient-default-mode: BEAGLE_STREAM_CLIENT",
             "beagle-template-set: ubuntu-beagle",

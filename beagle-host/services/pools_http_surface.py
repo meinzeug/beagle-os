@@ -187,7 +187,7 @@ class PoolsHttpSurfaceService:
     def _normalize_stream_profile_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         preset = str(payload.get("preset") or "balanced").strip().lower().replace("-", "_")
         presets: dict[str, dict[str, Any]] = {
-            "slow_dsl": {"resolution": "1280x720", "fps": 30, "bitrate": 6000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "software", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
+            "slow_dsl": {"resolution": "1280x720", "fps": 30, "bitrate": 6000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
             "balanced": {"resolution": "1920x1080", "fps": 45, "bitrate": 16000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
             "fast": {"resolution": "1920x1080", "fps": 60, "bitrate": 32000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": False, "vsync": False},
             "sharp": {"resolution": "2560x1440", "fps": 60, "bitrate": 45000, "packet_size": 1200, "video_codec": "H.265", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": False, "vsync": True},

@@ -442,7 +442,7 @@ payload = {
     "bitrate": as_int("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE", 32000),
     "packet_size": as_int("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE", 0),
     "video_codec": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC", "H.264"),
-    "video_decoder": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER", "software"),
+    "video_decoder": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER", "auto"),
     "audio_config": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG", "stereo"),
     "frame_pacing": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING", "") == "1",
     "vsync": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC", "") == "1",

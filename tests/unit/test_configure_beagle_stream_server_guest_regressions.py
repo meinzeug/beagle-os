@@ -161,7 +161,7 @@ def test_configure_beagle_stream_server_guest_freezes_stable_stream_server_basel
     assert "BEAGLE_STREAM_SERVER_PORT:-50000}" in content
     assert "BEAGLE_STREAM_SERVER_PORT=\"${BEAGLE_STREAM_SERVER_PORT:-50000}\"" in content
     assert "BEAGLE_STREAM_SERVER_ALLOWED_CIDRS=\"${BEAGLE_STREAM_SERVER_ALLOWED_CIDRS:-10.88.0.0/16}\"" in content
-    assert "beagle-stream-client-video-decoder: software" in content
+    assert "beagle-stream-client-video-decoder: auto" in content
     assert "pgrep -x sunshine" in content
     assert "beagle_stream_server_is_running()" in content
     assert "kill -0 \"\\$main_pid\"" in content
