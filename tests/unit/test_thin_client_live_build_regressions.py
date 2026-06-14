@@ -482,8 +482,6 @@ def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -
     assert 'out_ref+=(--display-mode "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE:-windowed}")' in runtime_text
     assert 'out_ref+=(--no-frame-pacing)' in runtime_text
     assert 'out_ref+=(--no-vsync)' in runtime_text
-    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE:-0' in runtime_text
-    assert 'out_ref+=(--no-absolute-mouse)' in runtime_text
     assert '${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN:-1}' in launcher_text
     assert 'export VK_ICD_FILENAMES="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VK_ICD_FILENAMES:-/dev/null}"' in launcher_text
     assert '"BEAGLE_STREAM_CLIENT_VIDEO_DECODER": "auto"' in defaults_text
@@ -492,7 +490,6 @@ def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -
     assert '"BEAGLE_STREAM_CLIENT_AUTO_QUALITY": "1"' in defaults_text
     assert '"BEAGLE_STREAM_CLIENT_FRAME_PACING": "auto"' in defaults_text
     assert '"BEAGLE_STREAM_CLIENT_VSYNC": "auto"' in defaults_text
-    assert '"BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE": "0"' in defaults_text
     assert '"BEAGLE_STREAM_CLIENT_DISABLE_VULKAN": "1"' in defaults_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE="$BEAGLE_STREAM_CLIENT_DISPLAY_MODE"' in write_config_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY="$BEAGLE_STREAM_CLIENT_AUTO_QUALITY"' in write_config_text

@@ -158,7 +158,7 @@ class InstallerScriptService:
             beagle_stream_client_video_codec=str(profile.get("beagle_stream_client_video_codec", "H.264") or "H.264"),
             beagle_stream_client_video_decoder=str(profile.get("beagle_stream_client_video_decoder", "auto") or "auto"),
             beagle_stream_client_audio_config=str(profile.get("beagle_stream_client_audio_config", "stereo") or "stereo"),
-            beagle_stream_client_absolute_mouse=meta.get("beagle-stream-client-absolute-mouse", "0"),
+            beagle_stream_client_absolute_mouse=meta.get("beagle-stream-client-absolute-mouse", "1"),
             beagle_stream_client_quit_after=meta.get("beagle-stream-client-quit-after", "0"),
             beagle_stream_server_api_url=beagle_stream_server_api_url,
             beagle_stream_server_username=beagle_stream_server_username,

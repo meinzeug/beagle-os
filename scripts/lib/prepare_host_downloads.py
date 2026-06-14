@@ -225,7 +225,7 @@ def _build_vm_catalog_entry(
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_VIDEO_CODEC": stream_meta.get("beagle-stream-client-video-codec", "H.264"),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_VIDEO_DECODER": stream_meta.get("beagle-stream-client-video-decoder", "auto"),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG": stream_meta.get("beagle-stream-client-audio-config", "stereo"),
-        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE": stream_meta.get("beagle-stream-client-absolute-mouse", "0"),
+        "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE": stream_meta.get("beagle-stream-client-absolute-mouse", "1"),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_CLIENT_QUIT_AFTER": stream_meta.get("beagle-stream-client-quit-after", "0"),
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_API_URL": beagle_stream_server_api_url,
         "PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_SERVER_USERNAME": "",

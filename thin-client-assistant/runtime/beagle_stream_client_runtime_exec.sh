@@ -134,7 +134,7 @@ build_stream_args() {
     out_ref+=(--no-vsync)
   fi
 
-  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE:-0}" == "1" ]]; then
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE:-1}" == "1" ]]; then
     out_ref+=(--absolute-mouse)
   else
     out_ref+=(--no-absolute-mouse)
