@@ -342,6 +342,17 @@ def test_desktop_guest_updater_supports_launcher_reboot_shutdown_actions(monkeyp
     assert shutdown_scheduled == [True]
 
 
+def test_desktop_guest_updater_exposes_direct_vm_power_cli() -> None:
+    script = GUEST_UPDATER.read_text(encoding="utf-8")
+    firstboot = UBUNTU_FIRSTBOOT.read_text(encoding="utf-8")
+
+    assert 'subparsers.add_parser("reboot")' in script
+    assert 'subparsers.add_parser("shutdown")' in script
+    assert 'reboot_target="vm"' in script
+    assert "beagle-guest-updater reboot" in firstboot
+    assert "beagle-guest-updater shutdown" in firstboot
+
+
 def test_endpoint_dispatch_supports_launcher_reboot_shutdown_with_fallback_services() -> None:
     script = ENDPOINT_DISPATCH.read_text(encoding="utf-8")
 

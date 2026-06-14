@@ -14,6 +14,8 @@ CLIENT = NETBRIDGE_DIR / "beagle-netbridge-client"
 TRAY = NETBRIDGE_DIR / "beagle-netbridge-tray"
 TRAY_DESKTOP = NETBRIDGE_DIR / "beagle-netbridge-tray.desktop"
 TRAY_ICON = NETBRIDGE_DIR / "beagle-netbridge-tray.png"
+THINCLIENT_ADMIN = NETBRIDGE_DIR / "beagle-thinclient-admin"
+THINCLIENT_ADMIN_DESKTOP = NETBRIDGE_DIR / "beagle-thinclient-admin.desktop"
 AGENT_UNIT = NETBRIDGE_DIR / "beagle-netbridge-agent.service"
 CLIENT_UNIT = NETBRIDGE_DIR / "beagle-netbridge-client.service"
 FIRSTBOOT_TEMPLATE = ROOT / "beagle-host" / "templates" / "ubuntu-beagle" / "firstboot-provision.sh.tpl"
@@ -51,7 +53,7 @@ TC_ENABLE_HOOK = (
 
 
 def test_netbridge_assets_exist() -> None:
-    for path in (AGENT, CLIENT, AGENT_UNIT, CLIENT_UNIT):
+    for path in (AGENT, CLIENT, AGENT_UNIT, CLIENT_UNIT, THINCLIENT_ADMIN, THINCLIENT_ADMIN_DESKTOP):
         assert path.is_file(), f"missing {path}"
 
 
@@ -128,6 +130,8 @@ def test_agent_control_protocol_supports_manage_ops() -> None:
         "service_action",
         "usb_bind",
         "usb_unbind",
+        "thinclient_update",
+        "thinclient_power",
         "restart",
     ):
         assert f'op == "{op}"' in script
@@ -152,6 +156,10 @@ def test_agent_exposes_thinclient_inventory_and_stream_profiles() -> None:
         "def _list_video_devices()",
         "def _list_audio_capture_devices()",
         "def _list_network_interfaces()",
+        "def _thinclient_update_status()",
+        "def thinclient_update_action(self",
+        "def power_action(self",
+        "THINCLIENT_UPDATE_CLIENT",
         "STREAM_PRESETS",
         "lan-ultra",
         "survival",
@@ -249,6 +257,8 @@ def test_tray_control_client_and_queue_naming() -> None:
     control.status()
     control.set_stream_profile("balanced")
     control.service_action("stream", "restart")
+    control.thinclient_update("scan")
+    control.thinclient_power("reboot")
     control.usb_bind("1-2")
     control.usb_unbind("1-2")
     ops = [c["op"] for c in captured]
@@ -260,6 +270,8 @@ def test_tray_control_client_and_queue_naming() -> None:
         "status",
         "set_stream_profile",
         "service_action",
+        "thinclient_update",
+        "thinclient_power",
         "usb_bind",
         "usb_unbind",
     ]
@@ -267,7 +279,9 @@ def test_tray_control_client_and_queue_naming() -> None:
     assert captured[2]["id"] == "static-1-2-3-4-9100"
     assert captured[5]["profile"] == "balanced"
     assert captured[6]["service"] == "stream"
-    assert captured[7]["busid"] == "1-2"
+    assert captured[7]["action"] == "scan"
+    assert captured[8]["action"] == "reboot"
+    assert captured[9]["busid"] == "1-2"
 
 
 def test_tray_uses_system_tray_and_manager_actions() -> None:
@@ -315,6 +329,33 @@ def test_tray_uses_system_tray_and_manager_actions() -> None:
     assert "self._menu_open = True" in script
     assert "if self._menu_open:" in script
     assert "self._pending_data" in script
+    assert "Thinclient Verwaltung öffnen" in script
+    assert "def action_open_admin(self)" in script
+
+
+def test_thinclient_admin_app_exists_and_covers_full_management_center() -> None:
+    assert THINCLIENT_ADMIN.is_file()
+    import py_compile
+    py_compile.compile(str(THINCLIENT_ADMIN), doraise=True)
+    script = THINCLIENT_ADMIN.read_text(encoding="utf-8")
+    for snippet in (
+        "Updates & Neustart",
+        "Thinclient-Update installieren + Neustart",
+        "VM neu starten",
+        "Thinclient neu starten",
+        "Streamprofil setzen",
+        "USB, Audio, Webcam",
+        "LAN-Geraete",
+        "Diagnose",
+        "def thinclient_update_action(self",
+        "def vm_power_action(self",
+        "def thinclient_power_action(self",
+        "def set_selected_stream_profile(self",
+        "reboot_target_label",
+    ):
+        assert snippet in script
+    desktop = THINCLIENT_ADMIN_DESKTOP.read_text(encoding="utf-8")
+    assert "Exec=/usr/local/bin/beagle-thinclient-admin" in desktop
 
 
 def test_agent_service_grants_state_directory() -> None:
@@ -323,7 +364,7 @@ def test_agent_service_grants_state_directory() -> None:
     for unit in (AGENT_UNIT, TC_AGENT_UNIT):
         text = unit.read_text(encoding="utf-8")
         assert "StateDirectory=beagle/netbridge" in text
-        assert "ReadWritePaths=/var/lib/beagle-os" in text
+        assert "ReadWritePaths=/var/lib/beagle-os /var/cache/beagle-os /var/log/beagle-os" in text
 
 
 def test_firstboot_installs_tray_manager() -> None:
@@ -331,11 +372,18 @@ def test_firstboot_installs_tray_manager() -> None:
     # PyQt5 powers the tray; it is installed alongside the CUPS tooling.
     assert "python3-pyqt5" in script
     assert "BEAGLE_NETBRIDGE_TRAY_B64" in script
+    assert "BEAGLE_THINCLIENT_ADMIN_B64" in script
+    assert "BEAGLE_THINCLIENT_ADMIN_DESKTOP_B64" in script
     assert 'base64 -d > /usr/local/bin/beagle-netbridge-tray' in script
+    assert 'base64 -d > /usr/local/bin/beagle-thinclient-admin' in script
+    assert 'base64 -d > /usr/local/share/applications/beagle-thinclient-admin.desktop' in script
     assert "/usr/local/bin/beagle-netbridge-tray" in script
+    assert "/usr/local/bin/beagle-thinclient-admin" in script
     assert "/etc/sudoers.d/beagle-guest-updater" in script
     assert "beagle-guest-updater apply --reboot" in script
     assert "beagle-guest-updater desktop-profile-refresh --force" in script
+    assert "beagle-guest-updater reboot" in script
+    assert "beagle-guest-updater shutdown" in script
     # Autostart entry so the manager appears in the user's Plasma session.
     assert "/etc/xdg/autostart/beagle-netbridge-tray.desktop" in script
     assert "Exec=/usr/local/bin/beagle-netbridge-tray" in script
