@@ -26,6 +26,7 @@ class UbuntuBeagleProvisioningService:
         *,
         allocate_public_stream_base_port: Callable[[str, int], int | None],
         build_profile: Callable[[Any], dict[str, Any]],
+        beagle_desktop_profile_refresh_script: Path,
         beagle_guest_updater_script: Path,
         configure_beagle_stream_server_guest_script: Path,
         current_public_stream_host: Callable[[], str],
@@ -97,6 +98,7 @@ class UbuntuBeagleProvisioningService:
     ) -> None:
         self._allocate_public_stream_base_port = allocate_public_stream_base_port
         self._build_profile = build_profile
+        self._beagle_desktop_profile_refresh_script = Path(beagle_desktop_profile_refresh_script)
         self._beagle_guest_updater_script = Path(beagle_guest_updater_script)
         self._configure_beagle_stream_server_guest_script = Path(configure_beagle_stream_server_guest_script)
         self._current_public_stream_host = current_public_stream_host
@@ -871,6 +873,7 @@ class UbuntuBeagleProvisioningService:
         wallpaper_filename = str(wallpaper_asset.get("filename", "")).strip()
         wallpaper_write_file = self.build_desktop_wallpaper_write_file_block(wallpaper_asset)
         desktop_theme_variant = str(desktop.get("theme_variant", desktop["id"])).strip()
+        desktop_profile_refresh_b64 = base64.b64encode(self._beagle_desktop_profile_refresh_script.read_bytes()).decode("ascii")
         guest_updater_b64 = base64.b64encode(self._beagle_guest_updater_script.read_bytes()).decode("ascii")
 
         firstboot_script = self.render_template_file(
@@ -882,6 +885,7 @@ class UbuntuBeagleProvisioningService:
                 "__BEAGLE_MANAGER_URL__": self._public_manager_url,
             "__BEAGLE_ENDPOINT_TOKEN__": endpoint_token,
                 "__BEAGLE_VERSION__": self._version,
+            "__BEAGLE_DESKTOP_PROFILE_REFRESH_B64__": desktop_profile_refresh_b64,
             "__BEAGLE_GUEST_UPDATER_B64__": guest_updater_b64,
                 "__BEAGLE_STREAM_SERVER_USER__": beagle_stream_server_user,
                 "__BEAGLE_STREAM_SERVER_PASSWORD__": beagle_stream_server_password,

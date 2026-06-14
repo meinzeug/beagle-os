@@ -10,6 +10,7 @@ BEAGLE_MANAGER_URL="__BEAGLE_MANAGER_URL__"
 BEAGLE_ENDPOINT_TOKEN="__BEAGLE_ENDPOINT_TOKEN__"
 BEAGLE_VERSION="__BEAGLE_VERSION__"
 BEAGLE_GUEST_UPDATER_B64="__BEAGLE_GUEST_UPDATER_B64__"
+BEAGLE_DESKTOP_PROFILE_REFRESH_B64="__BEAGLE_DESKTOP_PROFILE_REFRESH_B64__"
 IDENTITY_LOCALE="__IDENTITY_LOCALE__"
 IDENTITY_LANGUAGE="__IDENTITY_LANGUAGE__"
 IDENTITY_KEYMAP="__IDENTITY_KEYMAP__"
@@ -73,6 +74,8 @@ install_beagle_guest_updater() {
   install -d -m 0755 /etc/beagle /var/lib/beagle/guest-updater
   printf '%s' "$BEAGLE_GUEST_UPDATER_B64" | base64 -d > /usr/local/sbin/beagle-guest-updater
   chmod 0755 /usr/local/sbin/beagle-guest-updater
+  printf '%s' "$BEAGLE_DESKTOP_PROFILE_REFRESH_B64" | base64 -d > /usr/local/sbin/beagle-desktop-profile-refresh
+  chmod 0755 /usr/local/sbin/beagle-desktop-profile-refresh
   cat > /etc/beagle/guest-updater.env <<EOF
 BEAGLE_MANAGER_URL=${BEAGLE_MANAGER_URL}
 BEAGLE_ENDPOINT_TOKEN=${BEAGLE_ENDPOINT_TOKEN}

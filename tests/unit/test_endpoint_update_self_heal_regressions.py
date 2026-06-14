@@ -236,6 +236,87 @@ def test_desktop_guest_updater_prompts_before_required_reboot() -> None:
     assert "zenity" in firstboot
     assert "beagle-guest-updater-actions.timer" in firstboot
     assert "beagle-guest-updater scan --auto-apply-if-idle" in firstboot
+    assert "desktop_profile_available" in script
+    assert "desktop-profile-refresh" in script
+    assert "beagle-desktop-profile-refresh" in firstboot
+
+
+def test_desktop_guest_updater_reports_desktop_profile_drift_as_available(tmp_path: Path, monkeypatch) -> None:
+    module = _load_guest_updater_module()
+
+    monkeypatch.setattr(module, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(module, "STATUS_FILE", tmp_path / "status.json")
+    monkeypatch.setattr(module, "VERSION_FILE", tmp_path / "version")
+    monkeypatch.setattr(
+        module,
+        "update_feed",
+        lambda _config: {
+            "available": False,
+            "latest_version": "",
+            "behavior": "prompt",
+            "channel": "stable",
+            "self_update_supported": False,
+        },
+    )
+    monkeypatch.setattr(
+        module,
+        "desktop_profile_status",
+        lambda: {
+            "current": False,
+            "available": True,
+            "profile_version": "2026-06-14-cyberpunk-standard-apps-v2",
+        },
+    )
+    monkeypatch.setattr(module, "check_in", lambda _config: {})
+
+    status = module.scan({})
+
+    assert status["available"] is True
+    assert status["desktop_profile_available"] is True
+    assert status["self_update_supported"] is True
+    assert status["update_path"] == "desktop_profile_refresh"
+
+
+def test_desktop_guest_updater_apply_refreshes_profile_without_os_version_change(tmp_path: Path, monkeypatch) -> None:
+    module = _load_guest_updater_module()
+
+    monkeypatch.setattr(module, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(module, "STATUS_FILE", tmp_path / "status.json")
+    monkeypatch.setattr(module, "VERSION_FILE", tmp_path / "version")
+    monkeypatch.setattr(module, "check_in", lambda _config: {})
+    monkeypatch.setattr(module, "run_apt_upgrade", lambda: (_ for _ in ()).throw(AssertionError("apt upgrade should not run")))
+    statuses = [
+        {"current": False, "available": True, "profile_version": "2026-06-14-cyberpunk-standard-apps-v2"},
+        {"current": True, "available": False, "profile_version": "2026-06-14-cyberpunk-standard-apps-v2"},
+    ]
+    monkeypatch.setattr(module, "desktop_profile_status", lambda: statuses.pop(0) if statuses else statuses[-1])
+    refresh_calls: list[bool] = []
+    monkeypatch.setattr(module, "apply_desktop_profile_refresh", lambda *, force=False: refresh_calls.append(bool(force)) or {"changed": True})
+
+    status = module.apply_update({}, feed={"available": False, "latest_version": "", "self_update_supported": False})
+
+    assert refresh_calls == [True]
+    assert status["state"] == "current"
+    assert status["desktop_profile_available"] is False
+
+
+def test_desktop_guest_updater_supports_manual_desktop_profile_refresh_action(monkeypatch) -> None:
+    module = _load_guest_updater_module()
+
+    calls: list[tuple[bool, str]] = []
+    monkeypatch.setattr(module, "apply_desktop_profile_refresh", lambda *, force=False: {"changed": force})
+    monkeypatch.setattr(module, "desktop_profile_status", lambda: {"current": True, "available": False})
+    monkeypatch.setattr(module, "status_payload", lambda _config, **updates: updates)
+    monkeypatch.setattr(module, "check_in", lambda _config: {})
+    monkeypatch.setattr(
+        module,
+        "post_action_result",
+        lambda _config, _action, ok, message, _status=None: calls.append((bool(ok), str(message))),
+    )
+
+    module.handle_action({}, {"action": "desktop-profile-refresh", "action_id": "refresh-1", "params": {"force": True}})
+
+    assert calls == [(True, "desktop profile refreshed")]
 
 
 def test_desktop_guest_updater_supports_launcher_reboot_shutdown_actions(monkeypatch) -> None:
@@ -604,4 +685,3 @@ def test_guard_volatile_download_allows_non_volatile_cache() -> None:
     # persistent USB medium / real disk -> no RAM cap, download proceeds
     assert module.guard_volatile_download(0) == 0
     assert module.guard_volatile_download(900 * 1024 ** 2) == 0
-

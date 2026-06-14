@@ -1,0 +1,477 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pwd
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+PROFILE_VERSION = "2026-06-14-cyberpunk-standard-apps-v2"
+STATE_FILE = Path("/var/lib/beagle/guest-updater/desktop-profile.json")
+APT_LOG_FILE = Path("/var/lib/beagle/guest-updater/desktop-profile-last.log")
+
+DESKTOP_PACKAGES = [
+    "plasma-desktop",
+    "kwin-x11",
+    "plasma-nm",
+    "plasma-pa",
+    "plasma-widgets-addons",
+    "konsole",
+    "dolphin",
+    "kate",
+    "systemsettings",
+    "fonts-ibm-plex",
+    "fonts-hack-ttf",
+]
+
+STANDARD_PACKAGES = [
+    "libreoffice",
+    "thunderbird",
+    "okular",
+    "vlc",
+    "ffmpeg",
+    "gwenview",
+    "kde-spectacle",
+    "ark",
+    "kcalc",
+    "kdeconnect",
+    "kio-extras",
+    "plasma-browser-integration",
+    "flatpak",
+    "plasma-discover",
+    "plasma-discover-backend-flatpak",
+    "xdg-desktop-portal-kde",
+    "fonts-noto-color-emoji",
+    "gimp",
+    "inkscape",
+    "filezilla",
+    "remmina",
+    "git",
+    "git-lfs",
+    "curl",
+    "wget",
+    "jq",
+    "unzip",
+    "zip",
+    "build-essential",
+    "cmake",
+    "python3-pip",
+    "python3-venv",
+    "pipx",
+    "nodejs",
+    "npm",
+    "openjdk-17-jdk",
+]
+
+WEB_APPS = [
+    ("beagle-chatgpt.desktop", "ChatGPT", "https://chatgpt.com", "google-chrome"),
+    ("beagle-microsoft-365.desktop", "Microsoft 365", "https://www.office.com", "libreoffice-startcenter"),
+    ("beagle-google-workspace.desktop", "Google Workspace", "https://workspace.google.com/dashboard", "google-chrome"),
+    ("beagle-gmail.desktop", "Gmail", "https://mail.google.com", "internet-mail"),
+    ("beagle-whatsapp.desktop", "WhatsApp Web", "https://web.whatsapp.com", "internet-chat"),
+    ("beagle-discord.desktop", "Discord", "https://discord.com/app", "internet-chat"),
+    ("beagle-youtube.desktop", "YouTube", "https://www.youtube.com", "applications-multimedia"),
+]
+
+
+def utcnow() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def run(command: list[str], *, check: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    APT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with APT_LOG_FILE.open("a", encoding="utf-8") as handle:
+        handle.write("+ " + " ".join(command) + "\n")
+        completed = subprocess.run(command, env=env, stdout=handle, stderr=subprocess.STDOUT, text=True, check=False)
+    if check and completed.returncode != 0:
+        raise RuntimeError(f"command failed: {' '.join(command)}")
+    return completed
+
+
+def load_env(path: Path) -> dict[str, str]:
+    result: dict[str, str] = {}
+    if not path.is_file():
+        return result
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        result[key.strip()] = value.strip().strip('"').strip("'")
+    return result
+
+
+def read_state() -> dict:
+    if not STATE_FILE.is_file():
+        return {}
+    try:
+        payload = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def write_state(payload: dict) -> None:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = STATE_FILE.with_suffix(".json.tmp")
+    tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp_path.replace(STATE_FILE)
+
+
+def profile_current() -> bool:
+    return str(read_state().get("profile_version", "") or "") == PROFILE_VERSION
+
+
+def desktop_user(config: dict[str, str]) -> str:
+    configured = str(config.get("BEAGLE_DESKTOP_PROFILE_USER") or config.get("BEAGLE_GUEST_USER") or "").strip()
+    if configured:
+        try:
+            pwd.getpwnam(configured)
+            return configured
+        except KeyError:
+            pass
+    for home in sorted(Path("/home").iterdir() if Path("/home").is_dir() else []):
+        if not home.is_dir():
+            continue
+        try:
+            info = pwd.getpwnam(home.name)
+        except KeyError:
+            continue
+        if info.pw_uid >= 1000:
+            return home.name
+    raise RuntimeError("no desktop user found")
+
+
+def apt_install(packages: list[str], *, required: bool = True) -> list[str]:
+    if not packages:
+        return []
+    env = dict(os.environ)
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    command = ["apt-get", "install", "-y", "--fix-missing", "--no-install-recommends", *packages]
+    completed = run(command, check=False, env=env)
+    if completed.returncode == 0:
+        return []
+    failed: list[str] = []
+    for package in packages:
+        single = run(["apt-get", "install", "-y", "--fix-missing", "--no-install-recommends", package], check=False, env=env)
+        if single.returncode != 0:
+            failed.append(package)
+    if failed and required:
+        raise RuntimeError(f"package install failed: {', '.join(failed)}")
+    return failed
+
+
+def ensure_vscode_repo() -> None:
+    keyring = Path("/etc/apt/keyrings/packages.microsoft.gpg")
+    source = Path("/etc/apt/sources.list.d/vscode.list")
+    if keyring.is_file() and source.is_file():
+        return
+    Path("/etc/apt/keyrings").mkdir(parents=True, exist_ok=True)
+    if not keyring.is_file():
+        run(["/bin/sh", "-c", f"wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > {keyring}"])
+        keyring.chmod(0o644)
+    source.write_text("deb [arch=amd64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main\n", encoding="utf-8")
+
+
+def ensure_flathub() -> None:
+    if not shutil.which("flatpak"):
+        return
+    run(
+        [
+            "flatpak",
+            "remote-add",
+            "--if-not-exists",
+            "flathub",
+            "https://flathub.org/repo/flathub.flatpakrepo",
+        ],
+        check=False,
+    )
+
+
+def write_web_apps() -> None:
+    app_dir = Path("/usr/local/share/applications")
+    share_dir = Path("/usr/local/share/beagle")
+    app_dir.mkdir(parents=True, exist_ok=True)
+    share_dir.mkdir(parents=True, exist_ok=True)
+    for filename, name, url, icon in WEB_APPS:
+        (app_dir / filename).write_text(
+            "\n".join(
+                [
+                    "[Desktop Entry]",
+                    "Version=1.0",
+                    "Type=Application",
+                    f"Name={name}",
+                    f"Exec=google-chrome --app={url} --new-window --disable-session-crashed-bubble --no-first-run",
+                    f"Icon={icon}",
+                    "Categories=Network;Office;Utility;",
+                    "StartupNotify=true",
+                    "NoDisplay=false",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+    (share_dir / "beagle-launchpad.html").write_text(
+        """<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beagle Launchpad</title>
+  <style>
+    :root { color-scheme: dark; --bg: #070b14; --panel: rgba(14,20,36,.82); --line: rgba(0,245,255,.28); --text: #e8f4f8; --muted: #8da3b3; --cyan: #00f5ff; --pink: #ff006e; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; background: radial-gradient(circle at 18% 12%, rgba(124,60,255,.28), transparent 34%), radial-gradient(circle at 86% 18%, rgba(0,245,255,.18), transparent 30%), linear-gradient(135deg, #070b14 0%, #10172a 48%, #090d18 100%); color: var(--text); padding: 40px; }
+    header, main { max-width: 1040px; margin: 0 auto; }
+    header { margin-bottom: 28px; }
+    h1 { margin: 0 0 8px; font-size: clamp(34px, 5vw, 64px); line-height: .95; letter-spacing: 0; }
+    p { margin: 0; color: var(--muted); font-size: 18px; }
+    main { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+    a { min-height: 112px; border: 1px solid var(--line); background: var(--panel); color: var(--text); text-decoration: none; border-radius: 8px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 20px 60px rgba(0,0,0,.22); }
+    a:hover { border-color: var(--cyan); transform: translateY(-1px); }
+    strong { font-size: 19px; }
+    span { color: var(--muted); }
+    .hot strong { color: var(--cyan); }
+    .ai strong { color: var(--pink); }
+  </style>
+</head>
+<body>
+  <header><h1>Beagle Cyberpunk</h1><p>Apps, AI, Cloud und Tools direkt startklar.</p></header>
+  <main>
+    <a class="hot" href="https://chatgpt.com"><strong>ChatGPT</strong><span>AI Assistant</span></a>
+    <a href="https://www.office.com"><strong>Microsoft 365</strong><span>Word, Excel, PowerPoint Web</span></a>
+    <a href="https://workspace.google.com/dashboard"><strong>Google Workspace</strong><span>Docs, Drive, Meet</span></a>
+    <a href="https://mail.google.com"><strong>Gmail</strong><span>Mail im Browser</span></a>
+    <a class="ai" href="https://discord.com/app"><strong>Discord</strong><span>Community & Voice</span></a>
+    <a class="ai" href="https://web.whatsapp.com"><strong>WhatsApp</strong><span>Messaging</span></a>
+    <a class="hot" href="https://www.youtube.com"><strong>YouTube</strong><span>Video & Lernen</span></a>
+    <a href="http://localhost:47990"><strong>Beagle Stream</strong><span>Local Stream Server</span></a>
+  </main>
+</body>
+</html>
+""",
+        encoding="utf-8",
+    )
+    (app_dir / "beagle-launchpad.desktop").write_text(
+        "\n".join(
+            [
+                "[Desktop Entry]",
+                "Version=1.0",
+                "Type=Application",
+                "Name=Beagle Launchpad",
+                "Exec=google-chrome --app=file:///usr/local/share/beagle/beagle-launchpad.html --new-window --disable-session-crashed-bubble --no-first-run",
+                "Icon=preferences-desktop-launch-feedback",
+                "Categories=Utility;Network;Office;",
+                "StartupNotify=true",
+                "NoDisplay=false",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def write_kde_profile(username: str) -> None:
+    home = Path("/home") / username
+    config = home / ".config"
+    color_dir = home / ".local/share/color-schemes"
+    config.mkdir(parents=True, exist_ok=True)
+    color_dir.mkdir(parents=True, exist_ok=True)
+    (color_dir / "BeagleCyberpunk.colors").write_text(
+        """[ColorScheme]
+Name=BeagleCyberpunk
+
+[Colors:Window]
+BackgroundNormal=7,11,20
+ForegroundNormal=232,244,248
+
+[Colors:View]
+BackgroundNormal=12,18,32
+DecorationFocus=0,245,255
+ForegroundNormal=232,244,248
+
+[Colors:Selection]
+BackgroundNormal=255,0,110
+ForegroundNormal=255,255,255
+
+[General]
+ColorScheme=BeagleCyberpunk
+Name=BeagleCyberpunk
+shadeSortColumn=true
+""",
+        encoding="utf-8",
+    )
+    (config / "kdeglobals").write_text(
+        """[General]
+ColorScheme=BeagleCyberpunk
+Name=BeagleCyberpunk
+fixed=Hack,10,-1,5,50,0,0,0,0,0
+font=IBM Plex Sans,10,-1,5,50,0,0,0,0,0
+menuFont=IBM Plex Sans,10,-1,5,50,0,0,0,0,0
+toolBarFont=IBM Plex Sans,9,-1,5,50,0,0,0,0,0
+
+[KDE]
+SingleClick=false
+LookAndFeelPackage=org.kde.breezedark.desktop
+
+[Icons]
+Theme=breeze-dark
+
+[WM]
+activeBackground=7,11,20
+activeForeground=232,244,248
+inactiveBackground=12,18,32
+inactiveForeground=141,163,179
+""",
+        encoding="utf-8",
+    )
+    (config / "kwinrc").write_text(
+        """[Compositing]
+Enabled=true
+OpenGLIsUnsafe=false
+WindowsBlockCompositing=false
+
+[Desktops]
+Number=1
+Rows=1
+
+[Windows]
+BorderlessMaximizedWindows=false
+
+[org.kde.kdecoration2]
+ButtonsOnRight=NMX
+""",
+        encoding="utf-8",
+    )
+    (config / "kscreenlockerrc").write_text(
+        """[Daemon]
+Autolock=false
+LockOnResume=false
+Timeout=0
+""",
+        encoding="utf-8",
+    )
+    (config / "plasma-org.kde.plasma.desktop-appletsrc").write_text(
+        """[Containments][1]
+activityId=
+formfactor=0
+immutability=1
+lastScreen=0
+location=0
+plugin=org.kde.plasma.folder
+wallpaperplugin=org.kde.image
+
+[Containments][1][Wallpaper][org.kde.image][General]
+Image=file:///usr/share/backgrounds/beagle-cyberpunk-wallpaper.png
+
+[Containments][2]
+formfactor=2
+immutability=1
+lastScreen=0
+location=4
+plugin=org.kde.panel
+
+[Containments][2][Applets][3]
+immutability=1
+plugin=org.kde.plasma.kickoff
+
+[Containments][2][Applets][4]
+immutability=1
+plugin=org.kde.plasma.icontasks
+
+[Containments][2][Applets][4][Configuration][General]
+launchers=applications:beagle-launchpad.desktop,applications:google-chrome.desktop,applications:beagle-chatgpt.desktop,applications:thunderbird.desktop,applications:libreoffice-writer.desktop,applications:org.kde.okular.desktop,applications:org.kde.spectacle.desktop,applications:org.kde.discover.desktop,applications:org.kde.konsole.desktop,applications:org.kde.dolphin.desktop
+
+[Containments][2][Applets][5]
+immutability=1
+plugin=org.kde.plasma.marginsseparator
+
+[Containments][2][Applets][6]
+immutability=1
+plugin=org.kde.plasma.systemtray
+
+[Containments][2][Applets][7]
+immutability=1
+plugin=org.kde.plasma.digitalclock
+""",
+        encoding="utf-8",
+    )
+    (config / "mimeapps.list").write_text(
+        """[Default Applications]
+x-scheme-handler/http=google-chrome.desktop
+x-scheme-handler/https=google-chrome.desktop
+text/html=google-chrome.desktop
+application/xhtml+xml=google-chrome.desktop
+x-scheme-handler/about=google-chrome.desktop
+x-scheme-handler/unknown=google-chrome.desktop
+""",
+        encoding="utf-8",
+    )
+    uid = pwd.getpwnam(username).pw_uid
+    gid = pwd.getpwnam(username).pw_gid
+    for path in [config, color_dir, *config.glob("*"), *color_dir.glob("*")]:
+        os.chown(path, uid, gid)
+
+
+def maybe_repair_plasma() -> None:
+    if shutil.which("beagle-plasma-desktop-repair"):
+        run(["beagle-plasma-desktop-repair"], check=False)
+
+
+def apply_profile(*, force: bool = False) -> dict:
+    if profile_current() and not force:
+        return {"changed": False, "profile_version": PROFILE_VERSION, "state": "current"}
+    config = load_env(Path("/etc/beagle/guest-updater.env"))
+    user = desktop_user(config)
+    APT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    APT_LOG_FILE.write_text(f"# beagle desktop profile refresh {utcnow()}\n", encoding="utf-8")
+    env = dict(os.environ)
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    run(["apt-get", "update", "-o", "Acquire::Retries=5"], env=env)
+    ensure_vscode_repo()
+    run(["apt-get", "update", "-o", "Acquire::Retries=5"], env=env)
+    failed_optional = apt_install([*DESKTOP_PACKAGES, *STANDARD_PACKAGES], required=False)
+    code_failed = apt_install(["code"], required=False)
+    ensure_flathub()
+    write_web_apps()
+    write_kde_profile(user)
+    maybe_repair_plasma()
+    state = {
+        "changed": True,
+        "profile_version": PROFILE_VERSION,
+        "desktop_user": user,
+        "applied_at": utcnow(),
+        "failed_optional_packages": failed_optional + code_failed,
+        "state": "current" if not failed_optional and not code_failed else "partial",
+    }
+    write_state(state)
+    return state
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Apply Beagle OS desktop profile updates inside a guest VM.")
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+    try:
+        if args.check:
+            payload = {"current": profile_current(), "profile_version": PROFILE_VERSION, "state": read_state()}
+        else:
+            payload = apply_profile(force=args.force)
+        if args.json:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0 if payload.get("state") != "partial" else 2
+    except Exception as exc:
+        write_state({"state": "error", "profile_version": PROFILE_VERSION, "last_error": str(exc), "updated_at": utcnow()})
+        print(f"beagle-desktop-profile-refresh: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

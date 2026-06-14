@@ -638,7 +638,7 @@ UBUNTU_BEAGLE_SOFTWARE_PRESETS: dict[str, dict[str, Any]] = {
             "vlc",
             "ffmpeg",
             "gwenview",
-            "spectacle",
+            "kde-spectacle",
             "ark",
             "kcalc",
             "kdeconnect",
@@ -3046,6 +3046,7 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
         UBUNTU_BEAGLE_PROVISIONING_SERVICE = UbuntuBeagleProvisioningService(
             allocate_public_stream_base_port=allocate_public_stream_base_port,
             build_profile=build_profile,
+            beagle_desktop_profile_refresh_script=ROOT_DIR / "beagle-host" / "bin" / "beagle-desktop-profile-refresh",
             beagle_guest_updater_script=ROOT_DIR / "beagle-host" / "bin" / "beagle-guest-updater",
             configure_beagle_stream_server_guest_script=ROOT_DIR / "scripts" / "configure-beagle-stream-server-guest.sh",
             current_public_stream_host=current_public_stream_host,

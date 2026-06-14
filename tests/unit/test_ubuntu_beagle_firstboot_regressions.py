@@ -83,6 +83,14 @@ def test_firstboot_configures_cyberpunk_standard_apps_and_flathub() -> None:
     assert "applications:org.kde.discover.desktop" in script
 
 
+def test_firstboot_installs_desktop_profile_refresh_for_guest_updates() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "BEAGLE_DESKTOP_PROFILE_REFRESH_B64" in script
+    assert "/usr/local/sbin/beagle-desktop-profile-refresh" in script
+    assert 'chmod 0755 /usr/local/sbin/beagle-desktop-profile-refresh' in script
+
+
 def test_firstboot_detects_beagle_stream_server_exec_path_dynamically() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 

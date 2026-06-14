@@ -21,6 +21,9 @@ STATUS_FILE = STATE_DIR / "status.json"
 VERSION_FILE = STATE_DIR / "version"
 APT_LOG_FILE = STATE_DIR / "apt-last.log"
 CLIENT_TYPE = "desktop-guest-updater"
+DESKTOP_PROFILE_REFRESH_SCRIPT = Path(
+    os.environ.get("BEAGLE_DESKTOP_PROFILE_REFRESH_SCRIPT", "/usr/local/sbin/beagle-desktop-profile-refresh")
+)
 
 
 def utcnow() -> str:
@@ -164,22 +167,31 @@ def update_feed(config: dict[str, str]) -> dict:
 def scan(config: dict[str, str], *, force: bool = False, auto_apply_if_idle: bool = False) -> dict:
     del force
     feed = update_feed(config)
+    profile = desktop_profile_status()
+    update_available = bool(feed.get("available")) or bool(profile.get("available"))
+    update_path = str(feed.get("update_path", "") or "")
+    if profile.get("available"):
+        update_path = ",".join(item for item in [update_path, "desktop_profile_refresh"] if item)
+    behavior = str(feed.get("behavior", config_value(config, "BEAGLE_UPDATE_BEHAVIOR", "prompt")) or "prompt")
     status = status_payload(
         config,
-        state="available" if feed.get("available") else "current",
+        state="available" if update_available else "current",
         current_version=current_version(config),
         latest_version=str(feed.get("latest_version", "") or ""),
-        available=bool(feed.get("available")),
-        update_path=str(feed.get("update_path", "") or ""),
-        self_update_supported=bool(feed.get("self_update_supported", False)),
+        available=update_available,
+        update_path=update_path,
+        self_update_supported=bool(feed.get("self_update_supported", False)) or bool(profile.get("available")),
+        desktop_profile=profile,
+        desktop_profile_available=bool(profile.get("available")),
+        desktop_profile_version=str(profile.get("profile_version", "") or ""),
         pending_reboot=Path("/var/run/reboot-required").exists(),
         last_scan_at=utcnow(),
-        last_error="",
+        last_error=str(profile.get("last_error", "") or ""),
         channel=str(feed.get("channel", config_value(config, "BEAGLE_UPDATE_CHANNEL", "stable")) or "stable"),
-        behavior=str(feed.get("behavior", config_value(config, "BEAGLE_UPDATE_BEHAVIOR", "prompt")) or "prompt"),
+        behavior=behavior,
     )
     check_in(config)
-    if auto_apply_if_idle and feed.get("available") and str(feed.get("behavior", "prompt")).lower() == "auto":
+    if auto_apply_if_idle and update_available and behavior.lower() == "auto":
         return apply_update(config, feed=feed, interactive_reboot=True)
     return status
 
@@ -187,13 +199,16 @@ def scan(config: dict[str, str], *, force: bool = False, auto_apply_if_idle: boo
 def stage_download(config: dict[str, str], *, force: bool = False) -> dict:
     del force
     feed = update_feed(config)
-    if not feed.get("available"):
+    profile = desktop_profile_status()
+    if not feed.get("available") and not profile.get("available"):
         status = status_payload(
             config,
             state="current",
             current_version=current_version(config),
             latest_version=str(feed.get("latest_version", "") or ""),
             available=False,
+            desktop_profile=profile,
+            desktop_profile_available=False,
             staged_version="",
             last_error="",
         )
@@ -206,6 +221,9 @@ def stage_download(config: dict[str, str], *, force: bool = False) -> dict:
         latest_version=str(feed.get("latest_version", "") or ""),
         available=True,
         staged_version=str(feed.get("latest_version", "") or ""),
+        staged_profile_version=str(profile.get("profile_version", "") or "") if profile.get("available") else "",
+        desktop_profile=profile,
+        desktop_profile_available=bool(profile.get("available")),
         last_stage_at=utcnow(),
         last_error="",
     )
@@ -229,6 +247,61 @@ def run_apt_upgrade() -> None:
             completed = subprocess.run(command, env=env, stdout=handle, stderr=subprocess.STDOUT, text=True)
             if completed.returncode != 0:
                 raise RuntimeError(f"command failed: {' '.join(command)}")
+
+
+def desktop_profile_status() -> dict:
+    if not DESKTOP_PROFILE_REFRESH_SCRIPT.is_file():
+        return {"current": True, "available": False, "profile_version": "", "installed": False}
+    completed = subprocess.run(
+        [str(DESKTOP_PROFILE_REFRESH_SCRIPT), "--check", "--json"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "desktop profile check failed").strip()
+        return {"current": True, "available": False, "profile_version": "", "installed": True, "last_error": detail}
+    try:
+        payload = json.loads(completed.stdout or "{}")
+    except json.JSONDecodeError:
+        return {
+            "current": True,
+            "available": False,
+            "profile_version": "",
+            "installed": True,
+            "last_error": "desktop profile check returned invalid JSON",
+        }
+    current = bool(payload.get("current", True))
+    profile_version = str(payload.get("profile_version", "") or "")
+    state = payload.get("state", {}) if isinstance(payload.get("state"), dict) else {}
+    return {
+        "current": current,
+        "available": not current,
+        "profile_version": profile_version,
+        "installed_profile_version": str(state.get("profile_version", "") or ""),
+        "installed": True,
+        "last_error": str(state.get("last_error", "") or ""),
+    }
+
+
+def apply_desktop_profile_refresh(*, force: bool = False) -> dict:
+    if not DESKTOP_PROFILE_REFRESH_SCRIPT.is_file():
+        return {"changed": False, "state": "missing", "profile_version": ""}
+    command = [str(DESKTOP_PROFILE_REFRESH_SCRIPT), "--json"]
+    if force:
+        command.append("--force")
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    if completed.returncode not in {0, 2}:
+        detail = (completed.stderr or completed.stdout or "desktop profile refresh failed").strip()
+        raise RuntimeError(detail)
+    try:
+        payload = json.loads(completed.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("desktop profile refresh returned invalid JSON") from exc
+    if completed.returncode == 2:
+        failed = ", ".join(payload.get("failed_optional_packages", []) or [])
+        raise RuntimeError(f"desktop profile refresh incomplete: {failed or 'optional package install failed'}")
+    return payload if isinstance(payload, dict) else {}
 
 
 def active_desktop_sessions() -> list[dict[str, str]]:
@@ -361,26 +434,44 @@ def restart_desktop_launcher() -> bool:
 def apply_update(config: dict[str, str], *, feed: dict | None = None, interactive_reboot: bool = True) -> dict:
     update = feed or update_feed(config)
     latest = str(update.get("latest_version", "") or "").strip()
-    if not latest or latest == current_version(config):
+    package_update_available = bool(latest and latest != current_version(config))
+    profile = desktop_profile_status()
+    profile_update_available = bool(profile.get("available"))
+    if not package_update_available and not profile_update_available:
         status = status_payload(
             config,
             state="current",
             latest_version=latest,
             available=False,
+            desktop_profile=profile,
+            desktop_profile_available=False,
             pending_reboot=Path("/var/run/reboot-required").exists(),
             last_error="",
         )
         check_in(config)
         return status
-    if not bool(update.get("self_update_supported", False)):
+    if package_update_available and not bool(update.get("self_update_supported", False)):
         reason = str(update.get("update_path", "") or "unsupported update path")
         status = status_payload(config, state="blocked", latest_version=latest, available=False, last_error=reason)
         check_in(config)
         raise RuntimeError(reason)
 
-    status_payload(config, state="installing", latest_version=latest, available=True, last_apply_at=utcnow(), last_error="")
-    run_apt_upgrade()
-    set_current_version(latest)
+    status_payload(
+        config,
+        state="installing",
+        latest_version=latest,
+        available=True,
+        desktop_profile=profile,
+        desktop_profile_available=profile_update_available,
+        last_apply_at=utcnow(),
+        last_error="",
+    )
+    if package_update_available:
+        run_apt_upgrade()
+        set_current_version(latest)
+    profile_result = apply_desktop_profile_refresh(force=package_update_available or profile_update_available)
+    final_profile = desktop_profile_status()
+    effective_version = latest if package_update_available else current_version(config)
     reboot_required = Path("/var/run/reboot-required").exists()
     reboot_decision = "not_required"
     if reboot_required and interactive_reboot:
@@ -388,10 +479,13 @@ def apply_update(config: dict[str, str], *, feed: dict | None = None, interactiv
     status = status_payload(
         config,
         state="reboot-required" if reboot_required else "current",
-        current_version=latest,
+        current_version=effective_version,
         latest_version=latest,
         available=False,
         staged_version="",
+        desktop_profile=final_profile,
+        desktop_profile_available=False,
+        desktop_profile_result=profile_result,
         pending_reboot=reboot_required,
         reboot_prompt=reboot_decision,
         last_error="",
@@ -411,6 +505,7 @@ def rollback(config: dict[str, str]) -> dict:
 
 def check_in(config: dict[str, str]) -> dict:
     status = status_payload(config)
+    profile = status.get("desktop_profile") if isinstance(status.get("desktop_profile"), dict) else desktop_profile_status()
     hostname = socket.gethostname()
     vmid = int(config_value(config, "BEAGLE_VMID", "0") or 0)
     node = config_value(config, "BEAGLE_NODE", "beagle-0")
@@ -441,6 +536,9 @@ def check_in(config: dict[str, str]) -> dict:
             "latest_version": status.get("latest_version", ""),
             "staged_version": status.get("staged_version", ""),
             "available": bool(status.get("available", False)),
+            "desktop_profile": profile,
+            "desktop_profile_available": bool(status.get("desktop_profile_available", profile.get("available", False))),
+            "desktop_profile_version": status.get("desktop_profile_version", profile.get("profile_version", "")),
             "pending_reboot": bool(status.get("pending_reboot", False)),
             "last_scan_at": status.get("last_scan_at", ""),
             "last_error": status.get("last_error", ""),
@@ -493,6 +591,18 @@ def handle_action(config: dict[str, str], action: dict) -> None:
             if status.get("pending_reboot"):
                 message = "desktop update installed; reboot required"
             post_action_result(config, action, True, message, status)
+        elif name == "desktop-profile-refresh":
+            profile_result = apply_desktop_profile_refresh(force=bool(params.get("force", True)))
+            status = status_payload(
+                config,
+                state="current",
+                desktop_profile=desktop_profile_status(),
+                desktop_profile_available=False,
+                desktop_profile_result=profile_result,
+                last_error="",
+            )
+            check_in(config)
+            post_action_result(config, action, True, "desktop profile refreshed", status)
         elif name == "os-update-rollback":
             status = rollback(config)
             post_action_result(config, action, False, "desktop package rollback is not available", status)
@@ -544,6 +654,8 @@ def main() -> int:
     download_parser.add_argument("--force", action="store_true")
     apply_parser = subparsers.add_parser("apply")
     apply_parser.add_argument("--reboot", action="store_true")
+    refresh_parser = subparsers.add_parser("desktop-profile-refresh")
+    refresh_parser.add_argument("--force", action="store_true")
     subparsers.add_parser("rollback")
     subparsers.add_parser("check-in")
     subparsers.add_parser("poll-actions")
@@ -558,6 +670,18 @@ def main() -> int:
             print_json(stage_download(config, force=args.force))
         elif args.command == "apply":
             print_json(apply_update(config, interactive_reboot=args.reboot))
+        elif args.command == "desktop-profile-refresh":
+            result = apply_desktop_profile_refresh(force=args.force)
+            status = status_payload(
+                config,
+                state="current",
+                desktop_profile=desktop_profile_status(),
+                desktop_profile_available=False,
+                desktop_profile_result=result,
+                last_error="",
+            )
+            check_in(config)
+            print_json(status)
         elif args.command == "rollback":
             print_json(rollback(config))
         elif args.command == "check-in":

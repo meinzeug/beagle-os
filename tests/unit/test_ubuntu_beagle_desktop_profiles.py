@@ -157,7 +157,7 @@ class UbuntuBeagleDesktopProfilesTests(unittest.TestCase):
             "thunderbird",
             "okular",
             "vlc",
-            "spectacle",
+            "kde-spectacle",
             "flatpak",
             "plasma-discover",
             "plasma-discover-backend-flatpak",
