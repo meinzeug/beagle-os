@@ -13,6 +13,7 @@ AGENT = NETBRIDGE_DIR / "beagle-netbridge-agent"
 CLIENT = NETBRIDGE_DIR / "beagle-netbridge-client"
 TRAY = NETBRIDGE_DIR / "beagle-netbridge-tray"
 TRAY_DESKTOP = NETBRIDGE_DIR / "beagle-netbridge-tray.desktop"
+TRAY_ICON = NETBRIDGE_DIR / "beagle-netbridge-tray.png"
 AGENT_UNIT = NETBRIDGE_DIR / "beagle-netbridge-agent.service"
 CLIENT_UNIT = NETBRIDGE_DIR / "beagle-netbridge-client.service"
 FIRSTBOOT_TEMPLATE = ROOT / "beagle-host" / "templates" / "ubuntu-beagle" / "firstboot-provision.sh.tpl"
@@ -218,6 +219,7 @@ def test_agent_persists_static_devices_round_trip() -> None:
 def test_tray_assets_exist_and_compile() -> None:
     assert TRAY.is_file()
     assert TRAY_DESKTOP.is_file()
+    assert TRAY_ICON.is_file()
     import py_compile
     py_compile.compile(str(TRAY), doraise=True)
 
@@ -284,6 +286,12 @@ def test_tray_uses_system_tray_and_manager_actions() -> None:
     assert "USB Geräte" in script
     assert "Mikrofon & Webcam" in script
     assert "Netzwerk" in script
+    assert "ICON_PATHS = (" in script
+    assert "WALLPAPER_ICON_SOURCES = (" in script
+    assert "beagle-cyberpunk-wallpaper.png" in script
+    assert "Crop the Beagle head/visor" in script
+    assert script.index("WALLPAPER_ICON_SOURCES") < script.index('QtGui.QIcon.fromTheme("printer")')
+    assert "Icon=beagle-netbridge-tray" in TRAY_DESKTOP.read_text(encoding="utf-8")
     assert "def action_test_print(self" in script
     # Headless verification entrypoint for provisioning checks.
     assert "def selftest()" in script
@@ -336,3 +344,8 @@ def test_firstboot_embedded_tray_is_non_blocking() -> None:
     assert "Thinclient verwalten" in script
     assert "Streamqualität" in script
     assert "def action_set_stream_profile(self" in script
+    assert "WALLPAPER_ICON_SOURCES = (" in script
+    assert "QImage()" in script
+    assert "beagle-netbridge-tray.png" in script
+    assert "gtk-update-icon-cache" in script
+    assert "Icon=beagle-netbridge-tray" in script

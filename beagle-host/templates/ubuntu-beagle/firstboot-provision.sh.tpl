@@ -3221,6 +3221,15 @@ MANAGED_PREFIX = "beagle-net-"
 CONTROL_TIMEOUT = 6
 APP_ID = "com.beagle-os.netbridge.tray"
 APP_NAME = "Beagle NetBridge"
+ICON_PATHS = (
+    "/usr/local/share/beagle/beagle-netbridge-tray.png",
+    "/usr/local/share/icons/hicolor/256x256/apps/beagle-netbridge-tray.png",
+    "/usr/share/pixmaps/beagle-netbridge-tray.png",
+)
+WALLPAPER_ICON_SOURCES = (
+    "/usr/local/share/beagle/wallpapers/beagle-cyberpunk-wallpaper.png",
+    "/usr/local/share/beagle-os/beagleos.png",
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -3505,6 +3514,25 @@ def run_tray() -> int:
 
         # -- helpers ---------------------------------------------------- #
         def _icon(self) -> "QtGui.QIcon":
+            for path in ICON_PATHS:
+                if os.path.exists(path):
+                    icon = QtGui.QIcon(path)
+                    if not icon.isNull():
+                        return icon
+            for path in WALLPAPER_ICON_SOURCES:
+                if not os.path.exists(path):
+                    continue
+                pixmap = QtGui.QPixmap(path)
+                if pixmap.isNull():
+                    continue
+                # Crop the Beagle head/visor from the Cyberpunk wallpaper so
+                # the tray icon is the product dog, not a generic device icon.
+                size = min(int(pixmap.width() * 0.367), int(pixmap.height() * 0.653))
+                x = max(0, min(int(pixmap.width() * 0.351), pixmap.width() - size))
+                y = max(0, min(int(pixmap.height() * 0.090), pixmap.height() - size))
+                cropped = pixmap.copy(x, y, size, size)
+                return QtGui.QIcon(cropped.scaled(
+                    256, 256, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
             icon = QtGui.QIcon.fromTheme("printer")
             if icon.isNull():
                 icon = QtGui.QIcon.fromTheme("network-workgroup")
@@ -3875,6 +3903,36 @@ if __name__ == "__main__":
     raise SystemExit(main())
 NETBRIDGETRAYEOF
     chmod 0755 /usr/local/bin/beagle-netbridge-tray
+    python3 - "${BEAGLE_WALLPAPER_PATH:-}" <<'PY' || true
+import os
+import sys
+from PyQt5 import QtCore, QtGui
+
+sources = [
+    sys.argv[1] if len(sys.argv) > 1 else "",
+    "/usr/local/share/beagle/wallpapers/beagle-cyberpunk-wallpaper.png",
+    "/usr/local/share/beagle-os/beagleos.png",
+]
+image = QtGui.QImage()
+for source in sources:
+    if source and os.path.exists(source) and image.load(source):
+        break
+if image.isNull():
+    raise SystemExit(0)
+size = min(int(image.width() * 0.367), int(image.height() * 0.653))
+x = max(0, min(int(image.width() * 0.351), image.width() - size))
+y = max(0, min(int(image.height() * 0.090), image.height() - size))
+cropped = image.copy(x, y, size, size).scaled(
+    256, 256, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+for path in (
+    "/usr/local/share/beagle/beagle-netbridge-tray.png",
+    "/usr/local/share/icons/hicolor/256x256/apps/beagle-netbridge-tray.png",
+    "/usr/share/pixmaps/beagle-netbridge-tray.png",
+):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    cropped.save(path, "PNG")
+PY
+    gtk-update-icon-cache -q -t -f /usr/local/share/icons/hicolor >/dev/null 2>&1 || true
 
     install -d -m 0755 /etc/xdg/autostart
     cat > /etc/xdg/autostart/beagle-netbridge-tray.desktop <<'EOF'
@@ -3884,7 +3942,7 @@ Name=Beagle NetBridge
 GenericName=Network device manager
 Comment=Manage the thin-client LAN devices (printers) shared with this VM
 Exec=/usr/local/bin/beagle-netbridge-tray
-Icon=printer
+Icon=beagle-netbridge-tray
 Terminal=false
 Categories=Utility;System;HardwareSettings;
 X-GNOME-Autostart-enabled=true
