@@ -19,6 +19,7 @@ UPDATE_CLIENT = ROOT / "beagle-os" / "overlay" / "usr" / "local" / "sbin" / "bea
 GUEST_UPDATER = ROOT / "beagle-host" / "bin" / "beagle-guest-updater"
 UBUNTU_FIRSTBOOT = ROOT / "beagle-host" / "templates" / "ubuntu-beagle" / "firstboot-provision.sh.tpl"
 HEALTHCHECK = ROOT / "beagle-os" / "overlay" / "usr" / "local" / "sbin" / "beagle-healthcheck"
+EGRESS_APPLY = ROOT / "beagle-os" / "overlay" / "usr" / "local" / "sbin" / "beagle-egress-apply"
 ENDPOINT_DISPATCH = ROOT / "beagle-os" / "overlay" / "usr" / "local" / "sbin" / "beagle-endpoint-dispatch"
 PREPARE_RUNTIME = ROOT / "thin-client-assistant" / "runtime" / "prepare-runtime.sh"
 SYSTEMD_UNITS = [
@@ -193,6 +194,26 @@ def test_healthcheck_marks_update_status_for_repair_reporting() -> None:
     assert "rollback_recommended" not in script  # owned by update-client status payload
     assert "beagle-stream-client target unreachable" in script
     assert "secure egress not ready" in script
+
+
+def test_healthcheck_uses_runtime_selected_stream_api_url() -> None:
+    script = HEALTHCHECK.read_text(encoding="utf-8")
+
+    assert "beagle_stream_client_targeting.sh" in script
+    assert "beagle_stream_client_api_url.sh" in script
+    assert "selected_beagle_stream_server_api_url" in script
+    assert 'resolved_beagle_stream_server_api_url="$(selected_beagle_stream_server_api_url' in script
+
+
+def test_egress_apply_can_mark_runtime_managed_wireguard_before_route_setup() -> None:
+    script = EGRESS_APPLY.read_text(encoding="utf-8")
+
+    assert script.index("write_status()") < script.index('write_status "managed-by-thinclient-runtime"')
+    assert '"$mode" != "direct"' in script
+    assert '"$egress_type" == "wireguard"' in script
+    assert '"$interface_name" == "wg-beagle"' in script
+    assert 'ip link show "$interface_name"' in script
+    assert 'write_status "pending-thinclient-runtime"' in script
 
 
 def test_healthcheck_probes_broker_allocation_without_logging_tokens() -> None:
