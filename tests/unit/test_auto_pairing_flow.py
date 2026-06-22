@@ -114,6 +114,7 @@ def _make_surface(
         build_vm_profile=lambda item: {},
         dequeue_vm_actions=lambda node, vmid: [],
         device_registry_service=_DeviceRegistry(),
+        device_log_service=None,
         mdm_policy_service=type("Mdm", (), {"resolve_policy": staticmethod(lambda device_id, group="": _Policy())})(),
         attestation_service=_AttestationService(),
         fleet_telemetry_service=None,

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Beagle Thinclient Verwaltung
+GenericName=Thinclient system manager
+Comment=Manage thin-client updates, services, USB devices and shared LAN devices
+Exec=/usr/local/bin/beagle-thinclient-admin
+Icon=beagle-netbridge-tray
+Terminal=false
+Categories=Utility;System;HardwareSettings;
+StartupNotify=true
