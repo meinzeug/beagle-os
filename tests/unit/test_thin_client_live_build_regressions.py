@@ -367,11 +367,11 @@ def test_beaglestream_launcher_waits_for_manager_registration_before_stream_exec
     assert 'beagle-stream-client.register-wait-fail-open' in launcher_text
     assert 'beagle-stream-client.register-wait-timeout' in launcher_text
     assert 'pkill -TERM -f -- "--user-data-dir=${BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE}"' in launcher_text
-    assert 'ip route replace 0.0.0.0/1 dev "$iface"' in launcher_text
+    assert 'ensure_iface_route "0.0.0.0/1"' in launcher_text
     assert 'ip route delete default dev "$iface"' in launcher_text
-    assert 'ip route replace "$route" dev "$iface"' in launcher_text
+    assert 'ensure_iface_route "$route"' in launcher_text
     assert 'ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev"' in launcher_text
-    assert 'sudo ip route replace "$route" dev "$iface" >/dev/null 2>&1 || true' in launcher_text
+    assert 'route_uses_dev "$route_spec" "$iface" && return 0' in launcher_text
     assert launcher_text.index('wait_for_beagle_stream_client_manager_registration || {') < launcher_text.index('beagle-stream-client.exec')
     assert 'beagle_stream_client_manager_url()' in manager_registration_text
     assert 'beagle_stream_enrollment_value control_plane' in manager_registration_text
@@ -409,7 +409,7 @@ def test_beaglestream_launcher_restores_wireguard_peer_without_truncating_base64
     assert 'WG_PEER_ALLOWED_IPS=%s' in prepare_text
     assert "print $3; exit" not in launcher_text
     assert 'beagle-stream-client.wg-routes-fallback' in launcher_text
-    assert 'sudo ip route replace "$route" dev "$iface"' in launcher_text
+    assert 'ensure_iface_route "$route"' in launcher_text
 
 
 def test_usbip_autobind_keeps_local_hid_devices_off_usbip_host() -> None:
@@ -508,6 +508,20 @@ def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE="$BEAGLE_STREAM_CLIENT_DISPLAY_MODE"' in write_config_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY="$BEAGLE_STREAM_CLIENT_AUTO_QUALITY"' in write_config_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISABLE_VULKAN="$BEAGLE_STREAM_CLIENT_DISABLE_VULKAN"' in write_config_text
+
+
+def test_stream_launcher_does_not_rewrite_healthy_wireguard_routes_during_stream() -> None:
+    launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+
+    assert "route_uses_dev()" in launcher_text
+    assert "endpoint_route_ok()" in launcher_text
+    assert "ensure_iface_route()" in launcher_text
+    assert 'routes_changed=0' in launcher_text
+    assert 'if [[ "$routes_changed" == "1" ]]; then' in launcher_text
+    assert 'route_uses_dev "0.0.0.0/1" "$iface"' in launcher_text
+    assert 'sudo ip route delete default dev "$iface"' in launcher_text
+    assert 'sudo ip route delete default dev "$iface" >/dev/null 2>&1 || true\n  IFS=' not in launcher_text
+    assert 'sudo ip route replace "$route" dev "$iface" >/dev/null 2>&1 || true' not in launcher_text
 
 
 def test_thin_client_build_can_stage_beagle_stream_client_wrapper() -> None:

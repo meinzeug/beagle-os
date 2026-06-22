@@ -35,31 +35,6 @@ wg_endpoint="${BEAGLE_ENDPOINT_EGRESS_WG_ENDPOINT:-${PVE_THIN_CLIENT_BEAGLE_EGRE
 wg_preshared_key="${BEAGLE_ENDPOINT_EGRESS_WG_PRESHARED_KEY:-${PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PRESHARED_KEY:-}}"
 wg_keepalive="${BEAGLE_ENDPOINT_EGRESS_WG_PERSISTENT_KEEPALIVE:-${PVE_THIN_CLIENT_BEAGLE_EGRESS_WG_PERSISTENT_KEEPALIVE:-25}}"
 
-if [[ "${PVE_THIN_CLIENT_CONNECTION_METHOD:-}" == "broker" && \
-      -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}" && \
-      "$interface_name" == "wg-beagle" ]]; then
-  install -d -m 0755 "$STATE_DIR"
-  write_status "managed-by-thinclient-runtime" "0" "" ""
-  exit 0
-fi
-
-read_previous_value() {
-  local key="$1"
-  [[ -r "$STATUS_FILE" ]] || return 1
-  awk -F= -v wanted="$key" '$1 == wanted {print substr($0, index($0, "=") + 1); exit}' "$STATUS_FILE"
-}
-
-delete_previous_split_routes() {
-  local previous route
-  previous="$(read_previous_value route_destinations || true)"
-  [[ -n "$previous" ]] || return 0
-  for route in $previous; do
-    ip route del "$route" dev "$interface_name" >/dev/null 2>&1 || true
-  done
-  ip rule del fwmark "$TABLE_ID" table "$TABLE_ID" priority "$TABLE_ID" >/dev/null 2>&1 || true
-  ip route flush table "$TABLE_ID" >/dev/null 2>&1 || true
-}
-
 write_status() {
   local state="$1"
   local route_count="$2"
@@ -79,6 +54,36 @@ write_status() {
     printf 'public_ip=%q\n' "$public_ip"
   } >"$STATUS_FILE"
   chmod 0644 "$STATUS_FILE"
+}
+
+if [[ "$mode" != "direct" && \
+      "$egress_type" == "wireguard" && \
+      -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_URL:-}" && \
+      "$interface_name" == "wg-beagle" ]]; then
+  install -d -m 0755 "$STATE_DIR"
+  if ip link show "$interface_name" >/dev/null 2>&1; then
+    write_status "managed-by-thinclient-runtime" "0" "" ""
+  else
+    write_status "pending-thinclient-runtime" "0" "" ""
+  fi
+  exit 0
+fi
+
+read_previous_value() {
+  local key="$1"
+  [[ -r "$STATUS_FILE" ]] || return 1
+  awk -F= -v wanted="$key" '$1 == wanted {print substr($0, index($0, "=") + 1); exit}' "$STATUS_FILE"
+}
+
+delete_previous_split_routes() {
+  local previous route
+  previous="$(read_previous_value route_destinations || true)"
+  [[ -n "$previous" ]] || return 0
+  for route in $previous; do
+    ip route del "$route" dev "$interface_name" >/dev/null 2>&1 || true
+  done
+  ip rule del fwmark "$TABLE_ID" table "$TABLE_ID" priority "$TABLE_ID" >/dev/null 2>&1 || true
+  ip route flush table "$TABLE_ID" >/dev/null 2>&1 || true
 }
 
 if [[ "$mode" == "direct" || -z "$egress_type" ]]; then

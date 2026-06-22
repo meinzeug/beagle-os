@@ -40,6 +40,9 @@ SPEC = importlib.util.spec_from_file_location("beagle_request_handler_mixin", MO
 module = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(module)
+module._svc_registry = service_registry_stub
+module.extract_bearer_token = service_registry_stub.extract_bearer_token
+module.load_endpoint_token = service_registry_stub.load_endpoint_token
 
 
 class DummyHandler(module.HandlerMixin):

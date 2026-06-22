@@ -36,6 +36,7 @@ def _make_endpoint_http_surface(
         build_vm_profile=lambda _vm: {"stream_host": "srv1.beagle-os.com", "beagle_stream_client_port": "47984"},
         dequeue_vm_actions=lambda _node, _vmid: [],
         device_registry_service=registry,
+        device_log_service=None,
         mdm_policy_service=mdm,
         attestation_service=attestation,
         fleet_telemetry_service=None,

@@ -11,6 +11,8 @@ BEAGLE_ENDPOINT_TOKEN="__BEAGLE_ENDPOINT_TOKEN__"
 BEAGLE_VERSION="__BEAGLE_VERSION__"
 BEAGLE_GUEST_UPDATER_B64="__BEAGLE_GUEST_UPDATER_B64__"
 BEAGLE_DESKTOP_PROFILE_REFRESH_B64="__BEAGLE_DESKTOP_PROFILE_REFRESH_B64__"
+BEAGLE_THINCLIENT_ADMIN_B64="__BEAGLE_THINCLIENT_ADMIN_B64__"
+BEAGLE_THINCLIENT_ADMIN_DESKTOP_B64="__BEAGLE_THINCLIENT_ADMIN_DESKTOP_B64__"
 BEAGLE_NETBRIDGE_TRAY_B64="__BEAGLE_NETBRIDGE_TRAY_B64__"
 IDENTITY_LOCALE="__IDENTITY_LOCALE__"
 IDENTITY_LANGUAGE="__IDENTITY_LANGUAGE__"
@@ -94,7 +96,7 @@ BEAGLE_GUEST_UPDATER_INTERACTIVE_REBOOT=1
 EOF
   chmod 0600 /etc/beagle/guest-updater.env
   cat > /etc/sudoers.d/beagle-guest-updater <<EOF
-${GUEST_USER} ALL=(root) NOPASSWD: /usr/local/sbin/beagle-guest-updater status, /usr/local/sbin/beagle-guest-updater scan --force, /usr/local/sbin/beagle-guest-updater apply --reboot, /usr/local/sbin/beagle-guest-updater desktop-profile-refresh --force
+${GUEST_USER} ALL=(root) NOPASSWD: /usr/local/sbin/beagle-guest-updater status, /usr/local/sbin/beagle-guest-updater scan --force, /usr/local/sbin/beagle-guest-updater apply --reboot, /usr/local/sbin/beagle-guest-updater desktop-profile-refresh --force, /usr/local/sbin/beagle-guest-updater reboot, /usr/local/sbin/beagle-guest-updater shutdown
 EOF
   chmod 0440 /etc/sudoers.d/beagle-guest-updater
   cat > /etc/systemd/system/beagle-guest-updater-scan.service <<'EOF'
@@ -3229,6 +3231,9 @@ MANAGED_PREFIX = "beagle-net-"
 CONTROL_TIMEOUT = 6
 APP_ID = "com.beagle-os.netbridge.tray"
 APP_NAME = "Beagle NetBridge"
+ADMIN_APP_PATHS = (
+    "/usr/local/bin/beagle-thinclient-admin",
+)
 ICON_PATHS = (
     "/usr/local/share/beagle/beagle-netbridge-tray.png",
     "/usr/local/share/icons/hicolor/256x256/apps/beagle-netbridge-tray.png",
@@ -3337,6 +3342,12 @@ class NetBridgeControl:
 
     def service_action(self, service: str, action: str = "restart") -> dict | None:
         return self.request("service_action", service=service, action=action)
+
+    def thinclient_update(self, action: str = "status") -> dict | None:
+        return self.request("thinclient_update", action=action)
+
+    def thinclient_power(self, action: str) -> dict | None:
+        return self.request("thinclient_power", action=action)
 
     def usb_bind(self, busid: str) -> dict | None:
         return self.request("usb_bind", busid=busid)
@@ -3644,6 +3655,7 @@ def run_tray() -> int:
                     self._add_device_menu(device)
 
             self.menu.addSeparator()
+            self.menu.addAction("Thinclient Verwaltung öffnen", self.action_open_admin)
             self.menu.addAction("Geräte suchen…", self.action_rescan)
             self.menu.addAction("Gerät hinzufügen…", self.action_add)
             self.menu.addAction("Druckerverwaltung öffnen", self.action_open_cups)
@@ -3841,6 +3853,16 @@ def run_tray() -> int:
         def action_open_cups(self) -> None:
             QtGui.QDesktopServices.openUrl(QtCore.QUrl("http://localhost:631/printers/"))
 
+        def action_open_admin(self) -> None:
+            for candidate in ADMIN_APP_PATHS:
+                if os.access(candidate, os.X_OK):
+                    try:
+                        subprocess.Popen([candidate], close_fds=True)
+                    except OSError as exc:
+                        self._notify(APP_NAME, f"Thinclient Verwaltung konnte nicht gestartet werden: {exc}")
+                    return
+            self._notify(APP_NAME, "Thinclient Verwaltung ist nicht installiert.")
+
         def action_set_stream_profile(self, profile: str) -> None:
             def op():
                 result = self.control.set_stream_profile(profile)
@@ -3914,6 +3936,48 @@ NETBRIDGETRAYEOF
       printf '%s' "$BEAGLE_NETBRIDGE_TRAY_B64" | base64 -d > /usr/local/bin/beagle-netbridge-tray
     fi
     chmod 0755 /usr/local/bin/beagle-netbridge-tray
+
+    cat > /usr/local/bin/beagle-thinclient-admin <<'THINCLIENTADMINEOF'
+#!/usr/bin/env python3
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+import subprocess
+import sys
+
+tray = Path("/usr/local/bin/beagle-netbridge-tray")
+if not tray.is_file():
+    raise SystemExit("beagle-netbridge-tray backend not installed")
+backend = SourceFileLoader("beagle_netbridge_tray_admin_fallback", str(tray)).load_module()
+if "--selftest" in sys.argv[1:]:
+    print(f"backend: {backend.__file__}")
+    print("RESULT: ok")
+    raise SystemExit(0)
+if Path("/usr/bin/systemsettings").exists():
+    subprocess.Popen(["/usr/bin/systemsettings"], close_fds=True)
+    raise SystemExit(0)
+raise SystemExit("full beagle-thinclient-admin payload was not embedded")
+THINCLIENTADMINEOF
+    if [[ -n "$BEAGLE_THINCLIENT_ADMIN_B64" ]]; then
+      printf '%s' "$BEAGLE_THINCLIENT_ADMIN_B64" | base64 -d > /usr/local/bin/beagle-thinclient-admin
+    fi
+    chmod 0755 /usr/local/bin/beagle-thinclient-admin
+
+    install -d -m 0755 /usr/local/share/applications
+    cat > /usr/local/share/applications/beagle-thinclient-admin.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Beagle Thinclient Verwaltung
+GenericName=Thinclient system manager
+Comment=Manage thin-client updates, services, USB devices and shared LAN devices
+Exec=/usr/local/bin/beagle-thinclient-admin
+Icon=beagle-netbridge-tray
+Terminal=false
+Categories=Utility;System;HardwareSettings;
+StartupNotify=true
+EOF
+    if [[ -n "$BEAGLE_THINCLIENT_ADMIN_DESKTOP_B64" ]]; then
+      printf '%s' "$BEAGLE_THINCLIENT_ADMIN_DESKTOP_B64" | base64 -d > /usr/local/share/applications/beagle-thinclient-admin.desktop
+    fi
     python3 - "${BEAGLE_WALLPAPER_PATH:-}" <<'PY' || true
 import os
 import sys
