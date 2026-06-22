@@ -87,7 +87,7 @@ def test_repo_initial_schema_creates_expected_tables_and_indexes(tmp_path: Path)
         "SELECT name FROM sqlite_master WHERE type='index' ORDER BY name"
     ).fetchall()
 
-    assert applied == ["001_init.sql"]
+    assert applied == ["001_init.sql", "002_device_logs.sql"]
     assert {row[0] for row in table_rows} >= {
         "audit_events",
         "devices",
