@@ -20,6 +20,17 @@ if [[ -r "$COMMON_SH" ]]; then
   load_runtime_config >/dev/null 2>&1 || true
 fi
 
+BEAGLE_STREAM_CLIENT_TARGETING_SH="${BEAGLE_STREAM_CLIENT_TARGETING_SH:-$(runtime_resolve_helper_path beagle_stream_client_targeting.sh 2>/dev/null || true)}"
+BEAGLE_STREAM_CLIENT_API_URL_SH="${BEAGLE_STREAM_CLIENT_API_URL_SH:-$(runtime_resolve_helper_path beagle_stream_client_api_url.sh 2>/dev/null || true)}"
+if [[ -r "${BEAGLE_STREAM_CLIENT_TARGETING_SH:-}" ]]; then
+  # shellcheck disable=SC1090
+  source "$BEAGLE_STREAM_CLIENT_TARGETING_SH"
+fi
+if [[ -r "${BEAGLE_STREAM_CLIENT_API_URL_SH:-}" ]]; then
+  # shellcheck disable=SC1090
+  source "$BEAGLE_STREAM_CLIENT_API_URL_SH"
+fi
+
 beagle_stream_client_host="${BEAGLE_ENDPOINT_BEAGLE_STREAM_CLIENT_HOST:-${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_HOST:-}}"
 beagle_stream_server_api_url="${BEAGLE_ENDPOINT_BEAGLE_STREAM_SERVER_API_URL:-${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_API_URL:-}}"
 beagle_stream_server_username="${BEAGLE_ENDPOINT_BEAGLE_STREAM_SERVER_USERNAME:-${PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_USERNAME:-}}"
@@ -55,6 +66,19 @@ identity_locale="$(awk -F= '$1 == "locale" {print substr($0, index($0, "=") + 1)
 identity_keymap="$(awk -F= '$1 == "keymap" {print substr($0, index($0, "=") + 1); exit}' /var/lib/beagle-os/identity.status 2>/dev/null || true)"
 client_mode="${PVE_THIN_CLIENT_CLIENT_MODE:-$(cmdline_var pve_thin_client.client_mode 2>/dev/null || true)}"
 kiosk_state="$(systemctl is-active beagle-kiosk.service 2>/dev/null || true)"
+
+if declare -F beagle_stream_client_host >/dev/null 2>&1; then
+  resolved_beagle_stream_client_host="$(beagle_stream_client_host 2>/dev/null || true)"
+  if [[ -n "$resolved_beagle_stream_client_host" ]]; then
+    beagle_stream_client_host="$resolved_beagle_stream_client_host"
+  fi
+fi
+if declare -F selected_beagle_stream_server_api_url >/dev/null 2>&1; then
+  resolved_beagle_stream_server_api_url="$(selected_beagle_stream_server_api_url 2>/dev/null || true)"
+  if [[ -n "$resolved_beagle_stream_server_api_url" ]]; then
+    beagle_stream_server_api_url="$resolved_beagle_stream_server_api_url"
+  fi
+fi
 
 if command -v beagle-stream-client >/dev/null 2>&1; then
   beagle_stream_client_binary="1"

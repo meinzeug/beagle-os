@@ -64,6 +64,14 @@ USBCTL = os.environ.get(
     "BEAGLE_NETBRIDGE_USBCTL",
     "/usr/local/lib/pve-thin-client/runtime/beagle-usbctl.sh",
 )
+THINCLIENT_UPDATE_CLIENT = os.environ.get(
+    "BEAGLE_NETBRIDGE_UPDATE_CLIENT",
+    "/usr/local/sbin/beagle-update-client",
+)
+THINCLIENT_UPDATE_STATUS_FILE = os.environ.get(
+    "BEAGLE_NETBRIDGE_UPDATE_STATUS_FILE",
+    "/var/lib/beagle-os/update/status.json",
+)
 
 STREAM_PROFILE_KEYS = {
     "resolution": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION",
@@ -205,6 +213,15 @@ def _json_cmd(args: list[str], timeout: int = 10) -> dict | None:
     except ValueError:
         return {"ok": False, "error": "invalid json response"}
     return payload if isinstance(payload, dict) else {"ok": False, "error": "invalid json response"}
+
+
+def _read_json_file(path: str) -> dict:
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _list_network_interfaces() -> list[dict]:
@@ -374,10 +391,24 @@ def _thinclient_status() -> dict:
         "services": services,
         "network": {"interfaces": _list_network_interfaces()},
         "usb": usb,
+        "update": _thinclient_update_status(),
         "audio": {"capture_devices": _list_audio_capture_devices()},
         "video": {"devices": _list_video_devices()},
         "stream": _stream_profile_status(),
     }
+
+
+def _thinclient_update_status() -> dict:
+    status = _read_json_file(THINCLIENT_UPDATE_STATUS_FILE)
+    if not status and os.access(THINCLIENT_UPDATE_CLIENT, os.X_OK):
+        payload = _json_cmd([THINCLIENT_UPDATE_CLIENT, "status"], timeout=15)
+        if isinstance(payload, dict):
+            status = payload
+    status.setdefault("client", "thinclient-update-client")
+    status.setdefault("state", "unknown" if os.access(THINCLIENT_UPDATE_CLIENT, os.X_OK) else "missing")
+    status.setdefault("pending_reboot", False)
+    status.setdefault("reboot_target", "thinclient" if status.get("pending_reboot") else "")
+    return status
 
 
 # --------------------------------------------------------------------------- #
@@ -914,6 +945,57 @@ class Agent:
             return payload
         return {"ok": True, "action": action}
 
+    def thinclient_update_action(self, req: dict) -> dict:
+        action = str(req.get("action", "status")).strip()
+        if not os.access(THINCLIENT_UPDATE_CLIENT, os.X_OK):
+            return {"ok": False, "error": "thinclient update client not installed", "update": _thinclient_update_status()}
+        if action == "status":
+            return {"ok": True, "action": action, "update": _thinclient_update_status()}
+        commands = {
+            "scan": [THINCLIENT_UPDATE_CLIENT, "scan", "--force"],
+            "apply": [THINCLIENT_UPDATE_CLIENT, "apply", "--reboot"],
+            "rollback": [THINCLIENT_UPDATE_CLIENT, "rollback", "--reboot"],
+        }
+        command = commands.get(action)
+        if command is None:
+            return {"ok": False, "error": "unsupported thinclient update action"}
+        try:
+            result = _run(command, timeout=1800)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return {"ok": False, "error": str(exc), "update": _thinclient_update_status()}
+        payload: dict = {}
+        if result.stdout.strip():
+            try:
+                parsed = json.loads(result.stdout)
+                payload = parsed if isinstance(parsed, dict) else {}
+            except ValueError:
+                payload = {}
+        if result.returncode != 0:
+            return {
+                "ok": False,
+                "error": result.stderr.strip() or result.stdout.strip() or f"update client exit {result.returncode}",
+                "update": _thinclient_update_status(),
+            }
+        return {"ok": True, "action": action, "update": payload or _thinclient_update_status()}
+
+    def power_action(self, req: dict) -> dict:
+        action = str(req.get("action", "")).strip()
+        commands = {
+            "reboot": ["systemctl", "reboot", "--no-block"],
+            "poweroff": ["systemctl", "poweroff", "--no-block"],
+        }
+        command = commands.get(action)
+        if command is None:
+            return {"ok": False, "error": "unsupported power action"}
+        try:
+            result = _run(command, timeout=8)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return {"ok": False, "error": str(exc)}
+        if result.returncode != 0:
+            return {"ok": False, "error": result.stderr.strip() or result.stdout.strip()}
+        log(f"thinclient power action requested: {action}")
+        return {"ok": True, "target": "thinclient", "action": action}
+
     def _allocate_port(self) -> int:
         for port in PROXY_PORT_RANGE:
             if port not in self.used_ports:
@@ -1030,6 +1112,12 @@ class Agent:
             return self._catalog_payload(result)
         if op == "usb_unbind":
             result = self.usb_action(request, "unbind")
+            return self._catalog_payload(result)
+        if op == "thinclient_update":
+            result = self.thinclient_update_action(request)
+            return self._catalog_payload(result)
+        if op == "thinclient_power":
+            result = self.power_action(request)
             return self._catalog_payload(result)
         if op == "restart":
             return self.restart_agent()
