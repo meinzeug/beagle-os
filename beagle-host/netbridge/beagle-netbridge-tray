@@ -40,6 +40,10 @@ MANAGED_PREFIX = "beagle-net-"
 CONTROL_TIMEOUT = 6
 APP_ID = "com.beagle-os.netbridge.tray"
 APP_NAME = "Beagle NetBridge"
+ADMIN_APP_PATHS = (
+    str(Path(__file__).resolve().with_name("beagle-thinclient-admin")),
+    "/usr/local/bin/beagle-thinclient-admin",
+)
 GUEST_UPDATER = "/usr/local/sbin/beagle-guest-updater"
 GUEST_UPDATE_STATUS_FILE = Path("/var/lib/beagle/guest-updater/status.json")
 DESKTOP_PROFILE_STATUS_FILE = Path("/var/lib/beagle/guest-updater/desktop-profile.json")
@@ -151,6 +155,12 @@ class NetBridgeControl:
 
     def service_action(self, service: str, action: str = "restart") -> dict | None:
         return self.request("service_action", service=service, action=action)
+
+    def thinclient_update(self, action: str = "status") -> dict | None:
+        return self.request("thinclient_update", action=action)
+
+    def thinclient_power(self, action: str) -> dict | None:
+        return self.request("thinclient_power", action=action)
 
     def usb_bind(self, busid: str) -> dict | None:
         return self.request("usb_bind", busid=busid)
@@ -519,6 +529,7 @@ def run_tray() -> int:
                     self._add_device_menu(device)
 
             self.menu.addSeparator()
+            self.menu.addAction("Thinclient Verwaltung öffnen", self.action_open_admin)
             self.menu.addAction("Geräte suchen…", self.action_rescan)
             self.menu.addAction("Gerät hinzufügen…", self.action_add)
             self.menu.addAction("Druckerverwaltung öffnen", self.action_open_cups)
@@ -752,6 +763,16 @@ def run_tray() -> int:
 
         def action_open_cups(self) -> None:
             QtGui.QDesktopServices.openUrl(QtCore.QUrl("http://localhost:631/printers/"))
+
+        def action_open_admin(self) -> None:
+            for candidate in ADMIN_APP_PATHS:
+                if os.access(candidate, os.X_OK):
+                    try:
+                        subprocess.Popen([candidate], close_fds=True)
+                    except OSError as exc:
+                        self._notify(APP_NAME, f"Thinclient Verwaltung konnte nicht gestartet werden: {exc}")
+                    return
+            self._notify(APP_NAME, "Thinclient Verwaltung ist nicht installiert.")
 
         def action_set_stream_profile(self, profile: str) -> None:
             def op():

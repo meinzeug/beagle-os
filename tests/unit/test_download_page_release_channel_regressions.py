@@ -17,6 +17,6 @@ def test_release_workflow_verifies_stable_and_prerelease_status_files() -> None:
 def test_publish_public_update_script_preserves_stable_when_prerelease_syncs() -> None:
     script = (ROOT / "scripts" / "publish-public-update-artifacts.sh").read_text(encoding="utf-8")
 
-    assert '"$REMOTE_TARGET/prereleases/$VERSION/"' in script
+    assert '"$REMOTE_TARGET_TRIMMED/prereleases/$VERSION/"' in script
     assert '"$PUBLISH_STAGE_ROOT/$STATUS_JSON_NAME"' in script
-    assert 'Published prerelease artifacts to $REMOTE_TARGET/prereleases/$VERSION and updated $STATUS_JSON_NAME' in script
+    assert 'Published prerelease artifacts to $REMOTE_TARGET_TRIMMED/prereleases/$VERSION and updated $STATUS_JSON_NAME' in script

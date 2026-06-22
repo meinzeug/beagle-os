@@ -659,6 +659,8 @@ def main() -> int:
     subparsers.add_parser("rollback")
     subparsers.add_parser("check-in")
     subparsers.add_parser("poll-actions")
+    subparsers.add_parser("reboot")
+    subparsers.add_parser("shutdown")
     subparsers.add_parser("status")
     args = parser.parse_args()
 
@@ -688,6 +690,16 @@ def main() -> int:
             print_json(check_in(config))
         elif args.command == "poll-actions":
             print_json(poll_actions(config))
+        elif args.command == "reboot":
+            status = status_payload(config, state="reboot-scheduled", pending_reboot=True, reboot_target="vm")
+            check_in(config)
+            schedule_reboot()
+            print_json(status)
+        elif args.command == "shutdown":
+            status = status_payload(config, state="shutdown-scheduled", reboot_target="vm")
+            check_in(config)
+            schedule_shutdown()
+            print_json(status)
         elif args.command == "status":
             print_json(status_payload(config))
         return 0

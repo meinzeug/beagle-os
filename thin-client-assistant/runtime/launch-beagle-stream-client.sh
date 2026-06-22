@@ -448,11 +448,13 @@ ensure_wg_interface() {
   local iface="wg-beagle"
   local wg_conf="/etc/wireguard/wg-beagle.conf"
   local allowed_ips endpoint endpoint_host
-  local default_route default_gw default_dev route_count route
+  local default_route default_gw default_dev route_count route routes_changed
 
   sudo test -f "$wg_conf" 2>/dev/null || return 0
   if ip link show "$iface" &>/dev/null; then
-    sudo ip link set up dev "$iface" >/dev/null 2>&1 || true
+    if ! ip link show "$iface" 2>/dev/null | grep -q '<[^>]*UP'; then
+      sudo ip link set up dev "$iface" >/dev/null 2>&1 || true
+    fi
   else
     beagle_log_event "beagle-stream-client.wg-interface-up" "iface=${iface} conf=${wg_conf}"
     sudo systemctl start "wg-quick@${iface}.service" >/dev/null 2>&1 || \
@@ -500,44 +502,82 @@ ensure_wg_interface() {
   default_route="$(ip route show default 2>/dev/null | awk -v iface="$iface" '$0 !~ (" dev " iface "( |$)") { print; exit }' || true)"
   default_gw="$(awk '/default/{for (i=1;i<=NF;i++) if ($i=="via") {print $(i+1); exit}}' <<<"$default_route")"
   default_dev="$(awk '/default/{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}' <<<"$default_route")"
-  if [[ -n "$endpoint_host" && -n "$default_dev" ]]; then
+  route_uses_dev() {
+    local route_spec="$1"
+    local route_dev="$2"
+    ip route show "$route_spec" 2>/dev/null | awk -v dev="$route_dev" '
+      $0 ~ (" dev " dev "([[:space:]]|$)") { found=1 }
+      END { exit(found ? 0 : 1) }
+    '
+  }
+  endpoint_route_ok() {
+    local route_line
+    [[ -n "$endpoint_host" && -n "$default_dev" ]] || return 0
+    route_line="$(ip route get "$endpoint_host" 2>/dev/null | head -n 1 || true)"
+    [[ "$route_line" == *" dev ${default_dev} "* || "$route_line" == *" dev ${default_dev}"* ]] || return 1
+    if [[ -n "$default_gw" ]]; then
+      [[ "$route_line" == *" via ${default_gw} "* ]]
+      return $?
+    fi
+    return 0
+  }
+  ensure_endpoint_route() {
+    [[ -n "$endpoint_host" && -n "$default_dev" ]] || return 0
+    endpoint_route_ok && return 0
     sudo ip route delete "$endpoint_host" dev "$iface" >/dev/null 2>&1 || true
     if [[ -n "$default_gw" ]]; then
       sudo ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev" >/dev/null 2>&1 || true
     else
       sudo ip route replace "$endpoint_host" dev "$default_dev" >/dev/null 2>&1 || true
     fi
+    routes_changed=1
+  }
+  ensure_iface_route() {
+    local route_spec="$1"
+    route_uses_dev "$route_spec" "$iface" && return 0
+    sudo ip route replace "$route_spec" dev "$iface" >/dev/null 2>&1 || true
+    routes_changed=1
+  }
+  routes_changed=0
+  if [[ -n "$endpoint_host" && -n "$default_dev" ]]; then
+    ensure_endpoint_route
   fi
 
   route_count=0
-  sudo ip route delete default dev "$iface" >/dev/null 2>&1 || true
   IFS=',' read -r -a routes <<<"$allowed_ips"
   for route in "${routes[@]}"; do
     [[ -n "$route" ]] || continue
     case "$route" in
       0.0.0.0/0)
-        sudo ip route replace 0.0.0.0/1 dev "$iface" >/dev/null 2>&1 || true
-        sudo ip route replace 128.0.0.0/1 dev "$iface" >/dev/null 2>&1 || true
+        if ! route_uses_dev "0.0.0.0/1" "$iface" || ! route_uses_dev "128.0.0.0/1" "$iface"; then
+          sudo ip route delete default dev "$iface" >/dev/null 2>&1 || true
+          routes_changed=1
+        fi
+        ensure_iface_route "0.0.0.0/1"
+        ensure_iface_route "128.0.0.0/1"
         ;;
       ::/0)
-        sudo ip -6 route replace ::/1 dev "$iface" >/dev/null 2>&1 || true
-        sudo ip -6 route replace 8000::/1 dev "$iface" >/dev/null 2>&1 || true
+        if ! ip -6 route show ::/1 2>/dev/null | grep -q " dev ${iface}\\>"; then
+          sudo ip -6 route replace ::/1 dev "$iface" >/dev/null 2>&1 || true
+          routes_changed=1
+        fi
+        if ! ip -6 route show 8000::/1 2>/dev/null | grep -q " dev ${iface}\\>"; then
+          sudo ip -6 route replace 8000::/1 dev "$iface" >/dev/null 2>&1 || true
+          routes_changed=1
+        fi
         ;;
       *)
-        sudo ip route replace "$route" dev "$iface" >/dev/null 2>&1 || true
+        ensure_iface_route "$route"
         ;;
     esac
     route_count=$((route_count + 1))
   done
   if [[ -n "$endpoint_host" && -n "$default_dev" ]]; then
-    sudo ip route delete "$endpoint_host" dev "$iface" >/dev/null 2>&1 || true
-    if [[ -n "$default_gw" ]]; then
-      sudo ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev" >/dev/null 2>&1 || true
-    else
-      sudo ip route replace "$endpoint_host" dev "$default_dev" >/dev/null 2>&1 || true
-    fi
+    ensure_endpoint_route
   fi
-  beagle_log_event "beagle-stream-client.wg-routes-fallback" "iface=${iface} routes=${route_count} endpoint=${endpoint_host:-none}"
+  if [[ "$routes_changed" == "1" ]]; then
+    beagle_log_event "beagle-stream-client.wg-routes-fallback" "iface=${iface} routes=${route_count} endpoint=${endpoint_host:-none}"
+  fi
 
   if ! ip link show "$iface" &>/dev/null; then
     beagle_log_event "beagle-stream-client.wg-interface-missing" "iface=${iface}"

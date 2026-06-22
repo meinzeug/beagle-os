@@ -3048,6 +3048,8 @@ def ubuntu_beagle_provisioning_service() -> UbuntuBeagleProvisioningService:
             build_profile=build_profile,
             beagle_desktop_profile_refresh_script=ROOT_DIR / "beagle-host" / "bin" / "beagle-desktop-profile-refresh",
             beagle_guest_updater_script=ROOT_DIR / "beagle-host" / "bin" / "beagle-guest-updater",
+            beagle_thinclient_admin_desktop_file=ROOT_DIR / "beagle-host" / "netbridge" / "beagle-thinclient-admin.desktop",
+            beagle_thinclient_admin_script=ROOT_DIR / "beagle-host" / "netbridge" / "beagle-thinclient-admin",
             beagle_netbridge_tray_script=ROOT_DIR / "beagle-host" / "netbridge" / "beagle-netbridge-tray",
             configure_beagle_stream_server_guest_script=ROOT_DIR / "scripts" / "configure-beagle-stream-server-guest.sh",
             current_public_stream_host=current_public_stream_host,

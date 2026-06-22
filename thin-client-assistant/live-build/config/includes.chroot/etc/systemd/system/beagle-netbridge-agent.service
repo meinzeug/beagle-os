@@ -15,8 +15,9 @@ ProtectHome=yes
 PrivateTmp=yes
 # Persist manual devices added through the in-VM manager under /var/lib/beagle/netbridge.
 StateDirectory=beagle/netbridge
-# Stream quality presets are written into the launcher override state.
-ReadWritePaths=/var/lib/beagle-os
+# Stream presets and update actions write into Beagle state/cache and, on live
+# media, the persisted USB slot layout.
+ReadWritePaths=/var/lib/beagle-os /var/cache/beagle-os /var/log/beagle-os /run/live/medium /lib/live/mount/medium
 
 [Install]
 WantedBy=multi-user.target

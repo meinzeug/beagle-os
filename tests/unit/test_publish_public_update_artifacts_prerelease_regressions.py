@@ -14,8 +14,8 @@ def test_publish_public_update_artifacts_supports_prerelease_channel() -> None:
     assert 'prereleases/$VERSION' in script
     assert 'release_class' in script
     assert 'artifact_base_url' in script
-    assert '"$REMOTE_TARGET/prereleases/$VERSION/"' in script
-    assert '"$REMOTE_TARGET/$STATUS_JSON_NAME"' in script
+    assert '"$REMOTE_TARGET_TRIMMED/prereleases/$VERSION/"' in script
+    assert '"$REMOTE_TARGET_TRIMMED/$STATUS_JSON_NAME"' in script
 
 
 def test_publish_public_update_artifacts_keeps_stable_channel_separate() -> None:
