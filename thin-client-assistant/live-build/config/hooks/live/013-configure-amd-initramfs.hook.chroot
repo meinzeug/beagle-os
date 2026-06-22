@@ -4,8 +4,13 @@ set -eu
 mkdir -p /etc/initramfs-tools
 
 cat >/etc/initramfs-tools/modules <<'EOF'
-# Beagle thin clients should bring up the primary GPU early on AMD hardware.
+# Beagle thin clients should bring up the primary GPU early on old and new
+# AMD/Intel/NVIDIA hardware. Early KMS keeps legacy laptop firmware from
+# falling back to broken VESA paths after the bootloader hands off.
 amdgpu
+radeon
+i915
+nouveau
 drm
 drm_kms_helper
 ttm

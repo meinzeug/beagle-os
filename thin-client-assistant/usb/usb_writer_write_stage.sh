@@ -306,7 +306,7 @@ EOF
 }
 
 write_usb() {
-  local mount_dir bios_partition usb_partition usb_uuid runtime_ip_args
+  local mount_dir usb_partition usb_uuid runtime_ip_args
   local live_mount_dir hostname_value network_mode network_static_address network_static_prefix network_gateway network_interface
   local grub_default_index="0" grub_timeout="5"
 
@@ -320,21 +320,17 @@ write_usb() {
 
   release_target_device
   wipefs -a "$TARGET_DEVICE"
-  parted -s "$TARGET_DEVICE" mklabel gpt
-  parted -s "$TARGET_DEVICE" mkpart BIOSBOOT 1MiB 3MiB
-  parted -s "$TARGET_DEVICE" set 1 bios_grub on
-  parted -s "$TARGET_DEVICE" mkpart ESP fat32 3MiB 100%
-  parted -s "$TARGET_DEVICE" set 2 esp on
-  parted -s "$TARGET_DEVICE" set 2 boot on
+  # Use a classic active MBR FAT32 partition for maximum boot visibility on
+  # older BIOS/CSM firmware. UEFI removable boot still works from
+  # /EFI/BOOT/BOOTX64.EFI on the same FAT32 partition.
+  parted -s "$TARGET_DEVICE" mklabel msdos
+  parted -s "$TARGET_DEVICE" mkpart primary fat32 4MiB 100%
+  parted -s "$TARGET_DEVICE" set 1 boot on
+  parted -s "$TARGET_DEVICE" set 1 lba on
   partprobe "$TARGET_DEVICE"
   udevadm settle
 
-  bios_partition="$(partition_suffix "$TARGET_DEVICE" 1)"
-  usb_partition="$(partition_suffix "$TARGET_DEVICE" 2)"
-  [[ -b "$bios_partition" ]] || {
-    echo "BIOS boot partition was not created on $TARGET_DEVICE" >&2
-    exit 1
-  }
+  usb_partition="$(partition_suffix "$TARGET_DEVICE" 1)"
   for _ in $(seq 1 20); do
     [[ -b "$usb_partition" ]] && break
     sleep 1
@@ -534,14 +530,6 @@ EOF
     --removable \
     --no-nvram
 
-  # Create a hybrid MBR so that legacy BIOSes (InsydeH20, older Lenovo/AMD,
-  # Insyde/Phoenix firmware) list the USB stick as a bootable device. A pure
-  # GPT with protective MBR is invisible to many BIOS implementations in
-  # legacy mode because they require an active (0x80) partition entry.
-  # We add the FAT32/ESP partition (partition 2) into the legacy MBR partition
-  # table with the active flag set while preserving the GRUB stage1 boot code.
-  _apply_hybrid_mbr "$TARGET_DEVICE" 2 || true
-
   # Fix BOOTX64.CSV: remove any upstream branding (e.g. Ubuntu) so that the
   # InsydeH20 EFI menu shows "Beagle OS" instead.
   local efi_boot_dir="$mount_dir/EFI/BOOT"
@@ -561,58 +549,4 @@ EOF
   )
 
   sync
-}
-
-# _apply_hybrid_mbr DEVICE PART_NUM
-# Adds GPT partition PART_NUM to a hybrid MBR and marks it active so that
-# legacy BIOSes recognise the USB stick as bootable without breaking UEFI.
-_apply_hybrid_mbr() {
-  local device="$1" part_num="$2"
-
-  if ! command -v sgdisk &>/dev/null; then
-    echo "WARNING: sgdisk not found; skipping hybrid MBR creation. Install gdisk for maximum BIOS compatibility." >&2
-    return 0
-  fi
-
-  # sgdisk --hybrid adds the specified partition(s) to the legacy MBR table
-  # while keeping the GPT intact.
-  sgdisk --hybrid "${part_num}" "$device" || {
-    echo "WARNING: sgdisk --hybrid failed on $device; continuing." >&2
-    return 0
-  }
-
-  # sgdisk does not set the 0x80 active/boot flag on the new MBR entry.
-  # We locate the first non-0xEE, non-empty MBR partition entry and mark it
-  # active so that BIOS boot device enumeration finds the USB.
-  python3 - "$device" <<'PY'
-import sys, struct
-
-dev = sys.argv[1]
-try:
-    with open(dev, "r+b") as f:
-        f.seek(446)
-        table = bytearray(f.read(64))  # 4 x 16-byte entries
-        patched = False
-        for i in range(4):
-            off = i * 16
-            status  = table[off]
-            ptype   = table[off + 4]
-            if ptype == 0x00:
-                continue  # empty entry
-            if ptype == 0xEE:
-                continue  # protective GPT entry – leave alone
-            # Force type to 0x0C (FAT32 LBA) so legacy BIOSes (InsydeH20) recognize
-            # the partition as a standard bootable FAT32 volume, not an EFI partition.
-            table[off + 4] = 0x0C
-            if status != 0x80:
-                table[off] = 0x80  # set active flag
-            patched = True
-            print(f"hybrid MBR: set active+FAT32-LBA on entry {i} (was type=0x{ptype:02X}) in {dev}")
-            break
-        if patched:
-            f.seek(446)
-            f.write(table)
-except OSError as e:
-    print(f"WARNING: could not patch hybrid MBR active flag: {e}", file=sys.stderr)
-PY
 }

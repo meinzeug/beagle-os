@@ -57,6 +57,8 @@ def test_live_usb_boot_entries_include_ryzen_usb_compatibility_guards() -> None:
     assert "rootdelay=15 rootwait usb-storage.delay_use=5" in windows_installer
     assert "module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi" in windows_installer
     assert windows_installer.count(" toram ") == 4
+    assert "live-media-timeout=10 ignore_uuid ip=dhcp usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5" in BUILD_SCRIPT.read_text(encoding="utf-8")
+    assert "Beagle OS Installer (copy to RAM compatibility mode)" in BUILD_SCRIPT.read_text(encoding="utf-8")
 
 
 def test_live_usb_network_choice_is_persistent_and_can_be_overridden() -> None:
@@ -131,10 +133,62 @@ def test_live_usb_write_stage_passes_stream_fallback_values_into_runtime_state()
     assert 'BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL="${PVE_THIN_CLIENT_PRESET_BEAGLE_STREAM_FALLBACK_BEAGLE_STREAM_SERVER_API_URL:-}"' in writer
 
 
+def test_usb_writer_uses_legacy_bios_visible_mbr_layout() -> None:
+    writer = WRITE_STAGE.read_text(encoding="utf-8")
+
+    assert 'parted -s "$TARGET_DEVICE" mklabel msdos' in writer
+    assert 'parted -s "$TARGET_DEVICE" mkpart primary fat32 4MiB 100%' in writer
+    assert 'parted -s "$TARGET_DEVICE" set 1 boot on' in writer
+    assert 'parted -s "$TARGET_DEVICE" set 1 lba on' in writer
+    assert 'usb_partition="$(partition_suffix "$TARGET_DEVICE" 1)"' in writer
+    assert 'grub-install --target=i386-pc --boot-directory="$mount_dir/boot" "$TARGET_DEVICE"' in writer
+    assert 'grub-install \\\n    --target=x86_64-efi' in writer
+    assert 'mklabel gpt' not in writer.split('write_usb() {', 1)[1].split('mkfs.vfat', 1)[0]
+    assert 'bios_grub on' not in writer
+
+
+def test_windows_usb_writer_uses_legacy_bios_visible_mbr_layout() -> None:
+    windows_installer = WINDOWS_USB_INSTALLER.read_text(encoding="utf-8")
+
+    assert '"convert mbr"' in windows_installer
+    assert '"active"' in windows_installer
+    assert '"convert gpt"' not in windows_installer
+    assert "insmod biosdisk" in windows_installer
+    assert "insmod part_msdos" in windows_installer
+    assert 'boot_mode = "legacy-bios-and-uefi-mbr"' in windows_installer
+    assert "aktives MBR/FAT32-Live-Medium fuer alte BIOS/CSM-Firmware und UEFI" in windows_installer
+
+
+def test_manual_installer_iso_boot_menu_includes_legacy_usb_guards() -> None:
+    build_script = BUILD_SCRIPT.read_text(encoding="utf-8")
+
+    assert "insmod biosdisk" in build_script
+    assert "insmod part_msdos" in build_script
+    assert "insmod iso9660" in build_script
+    assert "set beagle_usb_args='live-media=removable live-media-timeout=10 ignore_uuid ip=dhcp usbcore.autosuspend=-1 rootdelay=15 rootwait usb-storage.delay_use=5 idle=nomwait processor.max_cstate=1'" in build_script
+    assert "set beagle_safe_args=" in build_script
+    assert "set beagle_legacy_args=" in build_script
+    assert "Beagle OS Installer (copy to RAM compatibility mode)" in build_script
+
+
 def test_local_installer_keeps_manager_token_from_preset() -> None:
     local_installer = LOCAL_INSTALLER.read_text(encoding="utf-8")
 
     assert 'BEAGLE_MANAGER_TOKEN="${PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN:-}"' in local_installer
+
+
+def test_local_installer_uses_mbr_layout_for_old_laptop_bioses() -> None:
+    local_installer = LOCAL_INSTALLER.read_text(encoding="utf-8")
+
+    assert 'run_logged parted -s "$target_disk" mklabel msdos' in local_installer
+    assert 'run_logged parted -s "$target_disk" mkpart primary fat32 4MiB 516MiB' in local_installer
+    assert 'run_logged parted -s "$target_disk" set 1 boot on' in local_installer
+    assert 'run_logged parted -s "$target_disk" set 1 lba on' in local_installer
+    assert 'run_logged parted -s "$target_disk" mkpart primary ext4 516MiB 100%' in local_installer
+    assert 'boot_part="$(partition_suffix "$target_disk" 1)"' in local_installer
+    assert 'root_part="$(partition_suffix "$target_disk" 2)"' in local_installer
+    assert "BIOSBOOT" not in local_installer
+    assert "bios_grub on" not in local_installer
 
 
 def test_network_menu_is_included_before_runtime_services() -> None:

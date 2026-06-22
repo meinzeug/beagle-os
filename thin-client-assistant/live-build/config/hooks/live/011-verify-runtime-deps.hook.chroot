@@ -24,11 +24,22 @@ va-driver-all
 vdpau-driver-all
 pciutils
 firmware-linux-free
+firmware-linux
 firmware-amd-graphics
 firmware-sof-signed
+firmware-misc-nonfree
+firmware-iwlwifi
+firmware-realtek
+firmware-atheros
+firmware-brcm80211
+intel-microcode
+amd64-microcode
 wireguard-tools
 xserver-xorg-video-amdgpu
 xserver-xorg-video-intel
+xserver-xorg-video-ati
+xserver-xorg-video-radeon
+xserver-xorg-video-fbdev
 xserver-xorg-video-vesa
 "
 
@@ -45,6 +56,11 @@ fi
 
 if [ ! -d /lib/firmware/amdgpu ] || [ -z "$(ls -A /lib/firmware/amdgpu 2>/dev/null)" ]; then
   echo "Missing AMD firmware payload (/lib/firmware/amdgpu) in thin-client image." >&2
+  exit 1
+fi
+
+if [ ! -d /lib/firmware/intel ] || [ -z "$(ls -A /lib/firmware/intel 2>/dev/null)" ]; then
+  echo "Missing Intel firmware payload (/lib/firmware/intel) in thin-client image." >&2
   exit 1
 fi
 

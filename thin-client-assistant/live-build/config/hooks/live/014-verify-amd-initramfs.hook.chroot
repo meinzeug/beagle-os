@@ -15,3 +15,10 @@ if ! lsinitramfs "$latest_initrd" | grep -q '/amdgpu\.ko'; then
   echo "AMDGPU kernel module missing from initramfs: $latest_initrd" >&2
   exit 1
 fi
+
+for module_name in radeon i915; do
+  if ! lsinitramfs "$latest_initrd" | grep -q "/${module_name}\\.ko"; then
+    echo "${module_name} kernel module missing from initramfs: $latest_initrd" >&2
+    exit 1
+  fi
+done

@@ -270,8 +270,9 @@ function Prepare-UsbDisk {
         "attributes disk clear readonly",
         "online disk noerr",
         "clean",
-        "convert gpt",
+        "convert mbr",
         "create partition primary",
+        "active",
         "format fs=fat32 quick label=$Label",
         "assign letter=$driveLetter"
     ) | Out-Null
@@ -544,7 +545,11 @@ function Write-GrubConfig {
         $runtimeSafeArgs = "loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
         $runtimeLegacyArgs = "loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
         $content = @"
+if [ "`$grub_platform" = "pc" ]; then
+  insmod biosdisk
+fi
 insmod part_gpt
+insmod part_msdos
 insmod fat
 terminal_output console
 set default=0
@@ -576,6 +581,12 @@ menuentry 'Beagle OS Live (copy to RAM compatibility mode)' {
                 $installerSafeArgs = "console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll pci=nomsi noapic amd_iommu=off module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
                 $installerLegacyArgs = "console=tty0 console=ttyS0,115200n8 loglevel=7 systemd.show_status=1 systemd.gpt_auto=0 plymouth.enable=0 nomodeset irqpoll noapic nolapic amd_iommu=off idle=poll module_blacklist=sdhci,sdhci_pci,sdhci_acpi rd.driver.blacklist=sdhci,sdhci_pci,sdhci_acpi"
                 $content = @"
+if [ "`$grub_platform" = "pc" ]; then
+  insmod biosdisk
+fi
+insmod part_msdos
+insmod part_gpt
+insmod fat
 terminal_output console
 set default=0
 set timeout=$timeout
@@ -652,7 +663,7 @@ function Write-Manifest {
         preset_name = $ProfileName
         platform = "windows"
         writer_variant = $Variant
-        boot_mode = "uefi"
+        boot_mode = "legacy-bios-and-uefi-mbr"
     } | ConvertTo-Json -Depth 4
     [IO.File]::WriteAllText((Join-Path $TargetDrive ".beagle-windows-usb.json"), $manifest, [Text.Encoding]::UTF8)
 }
@@ -701,7 +712,7 @@ try {
     Write-Step ("Windows {0}-USB fertig: Datentraeger {1} ({2})" -f $WriterVariant, $DiskNumber, $usbDrive)
     Send-InstallerLog -Event "script_completed" -Stage $script:BeagleInstallerStage -Status "ok" -Message ("disk={0}; drive={1}" -f $DiskNumber, $usbDrive)
     if ($WriterVariant -eq "live") {
-        Write-Step "Hinweis: Das Windows-Skript erstellt ein UEFI-bootfaehiges Live-Medium."
+        Write-Step "Hinweis: Das Windows-Skript erstellt ein aktives MBR/FAT32-Live-Medium fuer alte BIOS/CSM-Firmware und UEFI."
     }
 } finally {
     if ($mountedIso -and $mountedIso.DiskImage) {

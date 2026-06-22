@@ -24,3 +24,14 @@ def test_list_targets_json_excludes_read_only_and_mmc_boot_pseudo_devices() -> N
     assert 're.match(r"^/dev/mmcblk\\d+(boot\\d+|rpmb)$", device)' in script
     assert 'if str(entry.get("RO", "0")) == "1":' in script
     assert '"read_only": entry.get("RO", "0")' in script
+
+
+def test_local_install_bootloader_supports_bios_and_uefi_from_mbr_disk() -> None:
+    script = LOCAL_INSTALLER_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'insmod biosdisk' in script
+    assert 'insmod part_msdos' in script
+    assert 'local bios_modules="biosdisk part_gpt part_msdos ext2 normal linux search search_fs_uuid configfile"' in script
+    assert 'local efi_modules="part_gpt part_msdos fat ext2 normal linux search search_fs_uuid configfile"' in script
+    assert 'grub-install --target=i386-pc' in script
+    assert 'grub-install \\\n    --target=x86_64-efi' in script

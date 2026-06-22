@@ -1829,7 +1829,11 @@ write_grub_cfg() {
   local compatibility_live_args="live-media-timeout=30 ignore_uuid toram ${ryzen_usb_args}"
 
   cat > "$TARGET_MOUNT/boot/grub/grub.cfg" <<EOF
+if [ "\$grub_platform" = "pc" ]; then
+  insmod biosdisk
+fi
 insmod part_gpt
+insmod part_msdos
 insmod ext2
 terminal_output console
 set default=0
@@ -2098,7 +2102,7 @@ install_bootloader() {
 }
 
 main() {
-  local target_disk bios_part boot_part root_part root_uuid
+  local target_disk boot_part root_part root_uuid
 
   setup_logging
   log_runtime_snapshot
@@ -2162,25 +2166,20 @@ main() {
     exit 1
   fi
 
-  bios_part="$(partition_suffix "$target_disk" 1)"
-  boot_part="$(partition_suffix "$target_disk" 2)"
-  root_part="$(partition_suffix "$target_disk" 3)"
+  boot_part="$(partition_suffix "$target_disk" 1)"
+  root_part="$(partition_suffix "$target_disk" 2)"
 
   run_logged_step "wiping target disk $target_disk" wipefs -a "$target_disk"
-  run_logged parted -s "$target_disk" mklabel gpt
-  run_logged parted -s "$target_disk" mkpart BIOSBOOT 1MiB 3MiB
-  run_logged parted -s "$target_disk" set 1 bios_grub on
-  run_logged parted -s "$target_disk" mkpart ESP fat32 3MiB 515MiB
-  run_logged parted -s "$target_disk" set 2 esp on
-  run_logged parted -s "$target_disk" set 2 boot on
-  run_logged parted -s "$target_disk" mkpart primary ext4 515MiB 100%
-  wait_for_target_partitions "$target_disk" "$bios_part" "$boot_part" "$root_part" || {
+  # Old laptop BIOSes often refuse GPT-only disks even when GRUB can embed via
+  # bios_grub. Install Beagle OS onto a classic active MBR layout by default:
+  # partition 1 is FAT32 for BIOS+UEFI boot files, partition 2 is the live root.
+  run_logged parted -s "$target_disk" mklabel msdos
+  run_logged parted -s "$target_disk" mkpart primary fat32 4MiB 516MiB
+  run_logged parted -s "$target_disk" set 1 boot on
+  run_logged parted -s "$target_disk" set 1 lba on
+  run_logged parted -s "$target_disk" mkpart primary ext4 516MiB 100%
+  wait_for_target_partitions "$target_disk" "$boot_part" "$root_part" || {
     echo "Target partitions did not become ready on $target_disk" >&2
-    exit 1
-  }
-
-  [[ -b "$bios_part" ]] || {
-    echo "BIOS boot partition could not be created on $target_disk" >&2
     exit 1
   }
 

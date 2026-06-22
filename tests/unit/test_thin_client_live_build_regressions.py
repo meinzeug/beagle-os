@@ -617,6 +617,46 @@ def test_live_image_bundles_libopengl_for_beaglestream_client() -> None:
     assert "libopengl0" in package_text
 
 
+def test_live_image_bundles_legacy_laptop_firmware_and_video_drivers() -> None:
+    package_text = PACKAGE_LIST.read_text(encoding="utf-8")
+    verify_text = VERIFY_HOOK.read_text(encoding="utf-8")
+    initramfs_text = (ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "013-configure-amd-initramfs.hook.chroot").read_text(encoding="utf-8")
+    initramfs_verify_text = (ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "014-verify-amd-initramfs.hook.chroot").read_text(encoding="utf-8")
+
+    for package in (
+        "firmware-linux",
+        "firmware-atheros",
+        "firmware-brcm80211",
+        "firmware-libertas",
+        "firmware-zd1211",
+        "firmware-ti-connectivity",
+        "firmware-mediatek",
+        "intel-microcode",
+        "amd64-microcode",
+        "libgl1-mesa-dri",
+        "xserver-xorg-video-ati",
+        "xserver-xorg-video-radeon",
+        "xserver-xorg-video-nouveau",
+        "xserver-xorg-video-fbdev",
+    ):
+        assert package in package_text
+
+    for package in (
+        "firmware-linux",
+        "firmware-atheros",
+        "firmware-brcm80211",
+        "intel-microcode",
+        "amd64-microcode",
+        "xserver-xorg-video-radeon",
+        "xserver-xorg-video-fbdev",
+    ):
+        assert package in verify_text
+
+    for module in ("amdgpu", "radeon", "i915", "nouveau"):
+        assert module in initramfs_text
+    assert "for module_name in radeon i915" in initramfs_verify_text
+
+
 def test_runtime_network_fallback_does_not_release_live_dhcp_lease() -> None:
     network_backend_text = RUNTIME_NETWORK_BACKEND.read_text(encoding="utf-8")
     apply_network_text = (ROOT / "thin-client-assistant" / "runtime" / "apply-network-config.sh").read_text(encoding="utf-8")
