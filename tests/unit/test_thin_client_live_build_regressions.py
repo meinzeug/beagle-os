@@ -212,6 +212,8 @@ def test_runtime_heartbeat_uses_tmpfs_runtime_copy_before_sourcing_common() -> N
     assert 'cp -a "${_rt_orig}/." "$_rt_run/"' in heartbeat
     assert 'COMMON_SH="$_rt_orig/common.sh"' in heartbeat
     assert 'DEVICE_SYNC_SH="$_rt_orig/device_sync.sh"' in heartbeat
+    assert "pgrep -x beagle-stream-client" in heartbeat
+    assert "pgrep -f '(^|/)beagle-stream stream( |$)'" in heartbeat
 
 
 def test_prepare_runtime_persists_redacted_live_usb_debug_reports() -> None:

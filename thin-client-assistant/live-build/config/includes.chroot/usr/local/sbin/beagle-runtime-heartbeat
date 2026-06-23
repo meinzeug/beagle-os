@@ -47,7 +47,13 @@ if declare -F beagle_streaming_session_active >/dev/null 2>&1 && beagle_streamin
 fi
 
 xorg_state="$(pgrep -f '/usr/lib/xorg/Xorg :0' >/dev/null 2>&1 && printf 1 || printf 0)"
-beagle_stream_client_state="$(pgrep -x beagle-stream-client >/dev/null 2>&1 && printf 1 || printf 0)"
+beagle_stream_client_state="$(
+  if pgrep -x beagle-stream-client >/dev/null 2>&1 || pgrep -f '(^|/)beagle-stream stream( |$)' >/dev/null 2>&1; then
+    printf 1
+  else
+    printf 0
+  fi
+)"
 kiosk_state="$(pgrep -x beagle-kiosk >/dev/null 2>&1 && printf 1 || printf 0)"
 openbox_state="$(pgrep -x openbox >/dev/null 2>&1 && printf 1 || printf 0)"
 route_state="$(ip route show default 2>/dev/null | head -n 1 || true)"
