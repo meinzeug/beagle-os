@@ -53,8 +53,34 @@ beagle_stream_client_list_log_has_tls_or_pair_errors() {
     'server certificate mismatch|sslhandshakefailederror|failed to find application|failed to load application|unauthorized|not paired'
 }
 
+beagle_stream_client_list_log_has_configured_app() {
+  local start_line="${1:-1}"
+  local log_file="${BEAGLE_STREAM_CLIENT_LIST_LOG:-}"
+  local app
+
+  [[ -n "$log_file" && -r "$log_file" ]] || return 1
+  if declare -F beagle_stream_client_app >/dev/null 2>&1; then
+    app="$(beagle_stream_client_app 2>/dev/null || true)"
+  else
+    app="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_APP:-Desktop}"
+  fi
+  [[ -n "$app" ]] || return 1
+
+  tail -n "+${start_line}" "$log_file" 2>/dev/null | awk -v expected_app="$app" '
+    {
+      line = $0
+      gsub(/^[[:space:]]+/, "", line)
+      gsub(/[[:space:]]+$/, "", line)
+      if (line == expected_app) {
+        found = 1
+      }
+    }
+    END { exit found ? 0 : 1 }
+  '
+}
+
 beagle_stream_client_list_ready() {
-  local log_file start_line
+  local log_file start_line list_rc
 
   log_file="${BEAGLE_STREAM_CLIENT_LIST_LOG:-}"
   start_line=1
@@ -62,11 +88,19 @@ beagle_stream_client_list_ready() {
     start_line="$(( $(wc -l < "$log_file" 2>/dev/null || printf '0') + 1 ))"
   fi
 
-  beagle_stream_client_list || return 1
+  list_rc=0
+  beagle_stream_client_list || list_rc="$?"
   if beagle_stream_client_list_log_has_tls_or_pair_errors "$start_line"; then
     return 1
   fi
-  return 0
+  if [[ "$list_rc" -eq 0 ]]; then
+    return 0
+  fi
+  if beagle_stream_client_list_log_has_configured_app "$start_line"; then
+    beagle_stream_client_pair_log "beagle-stream client list exited rc=${list_rc} after listing configured app"
+    return 0
+  fi
+  return 1
 }
 
 beagle_stream_client_stream_ready() {

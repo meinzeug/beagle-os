@@ -76,6 +76,28 @@ exit 0
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_stream_ready_accepts_configured_app_listed_before_gpu_cli_failure(tmp_path: Path) -> None:
+    script = f'''
+source "{PAIRING_SH}"
+beagle_stream_client_pair_status() {{ return 1; }}
+beagle_stream_client_app() {{ printf 'Desktop\\n'; }}
+beagle_stream_client_list() {{
+  {{
+    echo "_amdgpu_device_initialize: amdgpu_query_info(ACCEL_WORKING) failed (-13)"
+    echo "amdgpu: amdgpu_device_initialize failed."
+    echo "Desktop"
+  }} >"$TMP_LIST_LOG"
+  return 1
+}}
+export BEAGLE_STREAM_CLIENT_LIST_LOG="$TMP_LIST_LOG"
+export BEAGLE_STREAM_CLIENT_PAIR_LOG="{tmp_path / "pair.log"}"
+beagle_stream_client_stream_ready
+'''
+    result = _run_pairing_ready_script(script, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "after listing configured app" in (tmp_path / "pair.log").read_text(encoding="utf-8")
+
+
 def test_ensure_paired_retries_until_manager_token_available(tmp_path: Path) -> None:
     script = f'''
 source "{PAIRING_SH}"
