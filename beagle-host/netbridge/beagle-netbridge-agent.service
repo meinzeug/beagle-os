@@ -17,7 +17,7 @@ PrivateTmp=yes
 StateDirectory=beagle/netbridge
 # Stream presets and update actions write into Beagle state/cache and, on live
 # media, the persisted USB slot layout.
-ReadWritePaths=/var/lib/beagle-os /var/cache/beagle-os /var/log/beagle-os /run/live/medium /lib/live/mount/medium
+ReadWritePaths=/var/lib/beagle-os /var/cache/beagle-os /var/log/beagle-os -/run/live/medium -/lib/live/mount/medium
 
 [Install]
 WantedBy=multi-user.target

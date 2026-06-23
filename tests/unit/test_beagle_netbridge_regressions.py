@@ -331,6 +331,10 @@ def test_tray_uses_system_tray_and_manager_actions() -> None:
     assert "self._pending_data" in script
     assert "Thinclient Verwaltung öffnen" in script
     assert "def action_open_admin(self)" in script
+    assert "TRAY_WAIT_TIMEOUT_SECONDS" in script
+    assert "def wait_for_system_tray(app, tray_class)" in script
+    assert "beagle-netbridge-tray: waiting for system tray" in script
+    assert "no system tray available after wait" in script
 
 
 def test_thinclient_admin_app_exists_and_covers_full_management_center() -> None:
@@ -365,12 +369,15 @@ def test_agent_service_grants_state_directory() -> None:
         text = unit.read_text(encoding="utf-8")
         assert "StateDirectory=beagle/netbridge" in text
         assert "ReadWritePaths=/var/lib/beagle-os /var/cache/beagle-os /var/log/beagle-os" in text
+        assert "-/run/live/medium" in text
+        assert "-/lib/live/mount/medium" in text
 
 
 def test_firstboot_installs_tray_manager() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
     # PyQt5 powers the tray; it is installed alongside the CUPS tooling.
     assert "python3-pyqt5" in script
+    assert "python3-cups" in script
     assert "BEAGLE_NETBRIDGE_TRAY_B64" in script
     assert "BEAGLE_THINCLIENT_ADMIN_B64" in script
     assert "BEAGLE_THINCLIENT_ADMIN_DESKTOP_B64" in script
@@ -411,3 +418,6 @@ def test_firstboot_embedded_tray_is_non_blocking() -> None:
     assert "beagle-netbridge-tray.png" in script
     assert "gtk-update-icon-cache" in script
     assert "Icon=beagle-netbridge-tray" in script
+    assert "TRAY_WAIT_TIMEOUT_SECONDS" in script
+    assert "def wait_for_system_tray(app, tray_class)" in script
+    assert "no system tray available after wait" in script

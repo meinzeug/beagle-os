@@ -2922,7 +2922,7 @@ EOF
     # advertises into CUPS so the streamed desktop can print on them.
     # the streamed desktop can print on them. The PyQt5 dependency powers the
     # in-VM tray manager (beagle-netbridge-tray).
-    apt_retry apt-get install -y --no-install-recommends cups cups-client cups-ipp-utils python3-pyqt5 || true
+    apt_retry apt-get install -y --no-install-recommends cups cups-client cups-ipp-utils python3-cups python3-pyqt5 || true
 
     install -d -m 0755 /etc/beagle
     if [[ ! -f /etc/beagle/netbridge.env ]]; then
@@ -3229,6 +3229,8 @@ DEFAULT_AGENTS = "10.88.1.1:47100"
 ENV_FILE = "/etc/beagle/netbridge.env"
 MANAGED_PREFIX = "beagle-net-"
 CONTROL_TIMEOUT = 6
+TRAY_WAIT_TIMEOUT_SECONDS = float(os.environ.get("BEAGLE_NETBRIDGE_TRAY_WAIT_TIMEOUT", "90"))
+TRAY_WAIT_INTERVAL_SECONDS = float(os.environ.get("BEAGLE_NETBRIDGE_TRAY_WAIT_INTERVAL", "1"))
 APP_ID = "com.beagle-os.netbridge.tray"
 APP_NAME = "Beagle NetBridge"
 ADMIN_APP_PATHS = (
@@ -3436,6 +3438,20 @@ def selftest() -> int:
 # --------------------------------------------------------------------------- #
 # Tray UI (PyQt5)
 # --------------------------------------------------------------------------- #
+def wait_for_system_tray(app, tray_class) -> bool:
+    deadline = time.monotonic() + max(0.0, TRAY_WAIT_TIMEOUT_SECONDS)
+    logged = False
+    while not tray_class.isSystemTrayAvailable():
+        if not logged:
+            sys.stderr.write("beagle-netbridge-tray: waiting for system tray\n")
+            logged = True
+        if time.monotonic() >= deadline:
+            return False
+        app.processEvents()
+        time.sleep(max(0.1, TRAY_WAIT_INTERVAL_SECONDS))
+    return True
+
+
 def run_tray() -> int:
     from PyQt5 import QtCore, QtGui, QtWidgets
 
@@ -3913,8 +3929,8 @@ def run_tray() -> int:
     app.setDesktopFileName(APP_ID)
     app.setQuitOnLastWindowClosed(False)
 
-    if not QtWidgets.QSystemTrayIcon.isSystemTrayAvailable():
-        sys.stderr.write("beagle-netbridge-tray: no system tray available\n")
+    if not wait_for_system_tray(app, QtWidgets.QSystemTrayIcon):
+        sys.stderr.write("beagle-netbridge-tray: no system tray available after wait\n")
         return 1
 
     manager = TrayManager(app)
