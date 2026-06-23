@@ -61,6 +61,43 @@ def test_live_usb_boot_entries_include_ryzen_usb_compatibility_guards() -> None:
     assert "Beagle OS Installer (copy to RAM compatibility mode)" in BUILD_SCRIPT.read_text(encoding="utf-8")
 
 
+def test_default_usb_and_installed_boot_entries_show_real_boot_progress() -> None:
+    writer = WRITE_STAGE.read_text(encoding="utf-8")
+    local_installer = LOCAL_INSTALLER.read_text(encoding="utf-8")
+    windows_installer = WINDOWS_USB_INSTALLER.read_text(encoding="utf-8")
+    build_script = BUILD_SCRIPT.read_text(encoding="utf-8")
+
+    visible_args = "loglevel=5 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=1 consoleblank=0"
+    assert visible_args in writer
+    assert visible_args in local_installer
+    assert visible_args in windows_installer
+    assert visible_args in build_script
+
+    live_entry = writer.split("menuentry 'Beagle OS Live' {", 1)[1].split("initrd /live/initrd.img", 1)[0]
+    installed_desktop_entry = local_installer.split("menuentry 'Beagle OS Desktop' {", 1)[1].split("initrd /live/current/initrd.img", 1)[0]
+    installed_gaming_entry = local_installer.split("menuentry 'Beagle OS Gaming' {", 1)[1].split("initrd /live/current/initrd.img", 1)[0]
+    windows_live_entry = windows_installer.split("menuentry 'Beagle OS Live' {", 1)[1].split("initrd /live/initrd.img", 1)[0]
+    installer_entry = build_script.split("menuentry 'Beagle OS Installer' {", 1)[1].split("initrd /live/initrd.img", 1)[0]
+
+    for boot_entry in [live_entry, installed_desktop_entry, installed_gaming_entry, windows_live_entry, installer_entry]:
+        assert "quiet" not in boot_entry
+        assert "splash" not in boot_entry
+        assert "systemd.show_status=0" not in boot_entry
+        assert "vt.global_cursor_default=0" not in boot_entry
+        assert "plymouth.ignore-serial-consoles" not in boot_entry
+
+    assert "${live_boot_visible_args}" in live_entry
+    assert "$visible_boot_args" in installed_desktop_entry
+    assert "$visible_boot_args" in installed_gaming_entry
+    assert "$runtimeVisibleArgs" in windows_live_entry
+    assert "$beagle_visible_args" in installer_entry
+
+    assert "set gfxpayload=text" in writer
+    assert "set gfxpayload=text" in local_installer
+    assert "set gfxpayload=text" in windows_installer
+    assert "set gfxpayload=text" in build_script
+
+
 def test_live_usb_network_choice_is_persistent_and_can_be_overridden() -> None:
     script = RUNTIME_MENU.read_text(encoding="utf-8")
 

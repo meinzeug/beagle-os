@@ -1827,6 +1827,7 @@ write_grub_cfg() {
   local irq_args_legacy="nomodeset irqpoll noapic nolapic"
   local ryzen_usb_args="usbcore.autosuspend=-1 idle=nomwait processor.max_cstate=1"
   local compatibility_live_args="live-media-timeout=30 ignore_uuid toram ${ryzen_usb_args}"
+  local visible_boot_args="loglevel=5 systemd.show_status=1 systemd.gpt_auto=0 vt.global_cursor_default=1 consoleblank=0 console=tty0 console=ttyS0,115200n8 plymouth.enable=0"
 
   cat > "$TARGET_MOUNT/boot/grub/grub.cfg" <<EOF
 if [ "\$grub_platform" = "pc" ]; then
@@ -1838,16 +1839,17 @@ insmod ext2
 terminal_output console
 set default=0
 set timeout=4
+set gfxpayload=text
 
 menuentry 'Beagle OS Desktop' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current $compatibility_live_args quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop $irq_args_default
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current $compatibility_live_args $visible_boot_args pve_thin_client.mode=runtime pve_thin_client.client_mode=desktop $irq_args_default
   initrd /live/current/initrd.img
 }
 
 menuentry 'Beagle OS Gaming' {
   search --no-floppy --fs-uuid --set=root $root_uuid
-  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current $compatibility_live_args quiet splash loglevel=3 systemd.show_status=0 systemd.gpt_auto=0 vt.global_cursor_default=0 console=tty0 console=ttyS0,115200n8 plymouth.ignore-serial-consoles pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_default
+  linux /live/current/vmlinuz boot=live components username=thinclient hostname=$HOSTNAME_VALUE live-media=/dev/disk/by-uuid/$root_uuid live-media-path=/live/current $compatibility_live_args $visible_boot_args pve_thin_client.mode=runtime pve_thin_client.client_mode=gaming $irq_args_default
   initrd /live/current/initrd.img
 }
 

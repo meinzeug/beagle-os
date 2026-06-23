@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+LIVE_BUILD_AUTO_CONFIG = ROOT / "thin-client-assistant" / "live-build" / "auto" / "config"
 PACKAGE_LIST = ROOT / "thin-client-assistant" / "live-build" / "config" / "package-lists" / "pve-thin-client.list.chroot"
 VERIFY_HOOK = ROOT / "thin-client-assistant" / "live-build" / "config" / "hooks" / "live" / "011-verify-runtime-deps.hook.chroot"
 PREPARE_RUNTIME = ROOT / "thin-client-assistant" / "runtime" / "prepare-runtime.sh"
@@ -51,6 +52,22 @@ def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None
     assert "wireguard-tools" in package_text
     assert "dbus-user-session" in package_text
     assert "libpam-systemd" in package_text
+
+
+def test_live_build_default_boot_args_show_real_boot_progress() -> None:
+    config_text = LIVE_BUILD_AUTO_CONFIG.read_text(encoding="utf-8")
+    boot_args_line = next(line for line in config_text.splitlines() if line.startswith("BOOT_ARGS="))
+
+    assert "quiet" not in boot_args_line
+    assert "splash" not in boot_args_line
+    assert "systemd.show_status=0" not in boot_args_line
+    assert "vt.global_cursor_default=0" not in boot_args_line
+    assert "plymouth.ignore-serial-consoles" not in boot_args_line
+    assert "loglevel=5" in boot_args_line
+    assert "systemd.show_status=1" in boot_args_line
+    assert "vt.global_cursor_default=1" in boot_args_line
+    assert "consoleblank=0" in boot_args_line
+    assert "plymouth.enable=0" in boot_args_line
 
 
 def test_thin_client_live_image_verifies_wireguard_commands() -> None:
