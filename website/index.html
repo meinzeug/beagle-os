@@ -12,7 +12,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=8.3.17">
+    <link rel="stylesheet" href="/styles.css?v=8.3.18">
   </head>
   <body class="auth-only">
     <!-- Hidden SVG icon sprite -->
@@ -145,13 +145,15 @@
           <button class="icon-button" id="stream-tune-close" type="button" aria-label="Schliessen">×</button>
         </div>
         <div class="stream-preset-grid" role="group" aria-label="Verbindung auswaehlen">
-          <button class="stream-preset" type="button" data-stream-preset="slow_dsl"><strong>Langsames DSL</strong><span>Fluessiger bei wenig Bandbreite</span></button>
-          <button class="stream-preset" type="button" data-stream-preset="balanced"><strong>Normal</strong><span>Guter Alltag auf stabiler Leitung</span></button>
-          <button class="stream-preset" type="button" data-stream-preset="fast"><strong>Schnell</strong><span>Scharf und direkt bei guter Leitung</span></button>
-          <button class="stream-preset" type="button" data-stream-preset="sharp"><strong>Sehr scharf</strong><span>Hohe Qualitaet fuer starke Leitung</span></button>
+          <button class="stream-preset" type="button" data-stream-preset="auto"><strong>Automatisch</strong><span>Passt Qualitaet dynamisch an</span></button>
+          <button class="stream-preset" type="button" data-stream-preset="lan-ultra"><strong>LAN Ultra</strong><span>Maximal direkt im lokalen Netz</span></button>
+          <button class="stream-preset" type="button" data-stream-preset="smooth"><strong>Fluessig</strong><span>60 FPS bei stabiler Leitung</span></button>
+          <button class="stream-preset" type="button" data-stream-preset="balanced"><strong>Balance</strong><span>Ruhiges Bild fuer Alltag</span></button>
+          <button class="stream-preset" type="button" data-stream-preset="economy"><strong>Sparsam</strong><span>Weniger Bandbreite und Last</span></button>
+          <button class="stream-preset" type="button" data-stream-preset="survival"><strong>Notfall</strong><span>Robust bei schwacher Verbindung</span></button>
         </div>
         <form class="stream-tune-grid" id="stream-tune-form">
-          <label class="field"><span>Aufloesung</span><select id="stream-tune-resolution" class="input-select"><option value="1280x720">HD</option><option value="1600x900">HD+</option><option value="1920x1080">Full HD</option><option value="2560x1440">QHD</option><option value="3840x2160">4K</option></select></label>
+          <label class="field"><span>Aufloesung</span><select id="stream-tune-resolution" class="input-select"><option value="auto">Automatisch</option><option value="1280x720">HD</option><option value="1600x900">HD+</option><option value="1920x1080">Full HD</option><option value="2560x1440">QHD</option><option value="3840x2160">4K</option></select></label>
           <label class="field"><span>Bilder pro Sekunde</span><input id="stream-tune-fps" type="number" min="24" max="120" step="1"></label>
           <label class="field"><span>Bildrate</span><input id="stream-tune-bitrate" type="number" min="1500" max="60000" step="500"></label>
           <label class="field"><span>Videocodec</span><select id="stream-tune-codec" class="input-select"><option value="H.264">H.264</option><option value="H.265">H.265</option><option value="AV1">AV1</option></select></label>
@@ -3046,6 +3048,6 @@
 
     <script src="/beagle-web-ui-config.js"></script>
     <script src="/core/platform/browser-common.js"></script>
-    <script type="module" src="/main.js?v=8.3.17"></script>
+    <script type="module" src="/main.js?v=8.3.18"></script>
   </body>
 </html>

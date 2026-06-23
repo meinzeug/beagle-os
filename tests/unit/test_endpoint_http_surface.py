@@ -529,10 +529,10 @@ def test_device_sync_route_returns_policy_and_commands() -> None:
     service._device_registry.update_stream_profile(
         "endpoint-a",
         {
-            "preset": "slow_dsl",
+            "preset": "economy",
             "resolution": "1280x720",
             "fps": 30,
-            "bitrate": 6000,
+            "bitrate": 10000,
             "video_codec": "H.264",
         },
     )
@@ -554,8 +554,48 @@ def test_device_sync_route_returns_policy_and_commands() -> None:
     assert response["payload"]["vpn"]["active"] is True
     assert response["payload"]["device"]["last_runtime_report"] == {}
     assert response["payload"]["health"]["anomaly_count"] == 0
-    assert response["payload"]["policy"]["stream_profile"]["preset"] == "slow_dsl"
+    assert response["payload"]["policy"]["stream_profile"]["preset"] == "economy"
     assert response["payload"]["commands"]["restart_stream"] is True
+
+
+def test_device_sync_route_promotes_local_netbridge_stream_profile_to_policy() -> None:
+    service = _service()
+    response = service.route_post(
+        "/api/v1/endpoints/device/sync",
+        endpoint_identity={"endpoint_id": "endpoint-a", "vmid": 100, "node": "beagle-0", "hostname": "thin-01"},
+        query={},
+        json_payload={
+            "hardware": {"cpu_model": "Intel", "cpu_cores": 4, "ram_gb": 8, "gpu_model": "", "network_interfaces": ["eth0"], "disk_gb": 64},
+            "reports": {
+                "runtime": {
+                    "stream": {
+                        "profile": {
+                            "source": "thinclient_netbridge",
+                            "local_override": True,
+                            "updated_by": "thinclient-netbridge",
+                            "preset": "fast",
+                            "resolution": "1920x1080",
+                            "fps": 60,
+                            "bitrate": 32000,
+                            "packet_size": 1360,
+                            "video_codec": "H.264",
+                            "video_decoder": "auto",
+                            "audio_config": "stereo",
+                            "frame_pacing": False,
+                            "vsync": False,
+                        }
+                    }
+                }
+            },
+        },
+    )
+
+    assert int(response["status"]) == 200
+    stream_profile = response["payload"]["policy"]["stream_profile"]
+    assert stream_profile["preset"] == "smooth"
+    assert stream_profile["bitrate"] == 32000
+    assert stream_profile["updated_by"] == "thinclient-netbridge"
+    assert service._device_registry.devices["endpoint-a"]["pending_stream_profile"]["preset"] == "smooth"
 
 
 def test_device_sync_route_returns_persisted_offline_update_targets() -> None:

@@ -37,10 +37,30 @@ class PoolsHttpSurfaceService:
     _POOL_SCALE = re.compile(r"^/api/v1/pools/(?P<pool_id>[A-Za-z0-9._-]+)/scale$")
     _POOL_TEMPLATE = re.compile(r"^/api/v1/pool-templates/(?P<tid>[A-Za-z0-9._-]+)$")
     _SESSION_STREAM_PROFILE = re.compile(r"^/api/v1/sessions/(?P<session_id>[A-Za-z0-9._:-]+)/stream-profile$")
-    _RESOLUTIONS = {"1280x720", "1600x900", "1920x1080", "2560x1440", "3840x2160"}
+    _RESOLUTIONS = {"auto", "1280x720", "1600x900", "1920x1080", "2560x1440", "3840x2160"}
     _CODECS = {"H.264", "H.265", "AV1"}
     _DECODERS = {"auto", "software", "hardware"}
     _AUDIO_CONFIGS = {"off", "mono", "stereo", "surround"}
+    _STREAM_PRESETS = {
+        "auto": {"resolution": "auto", "fps": "auto", "bitrate": "auto", "packet_size": "auto", "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": "auto", "vsync": "auto"},
+        "lan-ultra": {"resolution": "auto", "fps": 60, "bitrate": 45000, "packet_size": 1392, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": False, "vsync": False},
+        "smooth": {"resolution": "1920x1080", "fps": 60, "bitrate": 32000, "packet_size": 1360, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": False, "vsync": False},
+        "balanced": {"resolution": "1920x1080", "fps": 45, "bitrate": 22000, "packet_size": 1280, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
+        "economy": {"resolution": "1280x720", "fps": 30, "bitrate": 10000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "software", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
+        "survival": {"resolution": "1280x720", "fps": 24, "bitrate": 3000, "packet_size": 1100, "video_codec": "H.264", "video_decoder": "software", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
+    }
+    _STREAM_PRESET_ALIASES = {
+        "lan_ultra": "lan-ultra",
+        "fast": "smooth",
+        "sharp": "lan-ultra",
+        "slow-dsl": "economy",
+        "slow_dsl": "economy",
+        "low": "economy",
+        "medium": "balanced",
+        "high": "smooth",
+        "ultra": "lan-ultra",
+        "manual": "custom",
+    }
 
     def __init__(
         self,
@@ -184,18 +204,38 @@ class PoolsHttpSurfaceService:
             parsed = default
         return max(minimum, min(maximum, parsed))
 
+    @classmethod
+    def _canonical_stream_preset(cls, value: Any) -> str:
+        preset = str(value or "balanced").strip().lower().replace("_", "-")
+        return cls._STREAM_PRESET_ALIASES.get(preset, preset)
+
+    @staticmethod
+    def _clamp_int_or_auto(value: Any, *, default: int, minimum: int, maximum: int) -> int | str:
+        if str(value).strip().lower() == "auto":
+            return "auto"
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            parsed = default
+        return max(minimum, min(maximum, parsed))
+
+    @staticmethod
+    def _bool_or_auto(value: Any, *, default: bool = False) -> bool | str:
+        text = str(value).strip().lower()
+        if text == "auto":
+            return "auto"
+        if text in {"1", "true", "yes", "on"}:
+            return True
+        if text in {"0", "false", "no", "off"}:
+            return False
+        return bool(default if value in (None, "") else value)
+
     def _normalize_stream_profile_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        preset = str(payload.get("preset") or "balanced").strip().lower().replace("-", "_")
-        presets: dict[str, dict[str, Any]] = {
-            "slow_dsl": {"resolution": "1280x720", "fps": 30, "bitrate": 6000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
-            "balanced": {"resolution": "1920x1080", "fps": 45, "bitrate": 16000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
-            "fast": {"resolution": "1920x1080", "fps": 60, "bitrate": 32000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": False, "vsync": False},
-            "sharp": {"resolution": "2560x1440", "fps": 60, "bitrate": 45000, "packet_size": 1200, "video_codec": "H.265", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": False, "vsync": True},
-        }
-        base = dict(presets.get(preset, presets["balanced"]))
-        if preset == "manual" or payload.get("manual"):
+        preset = self._canonical_stream_preset(payload.get("preset") or payload.get("profile") or "balanced")
+        base = dict(self._STREAM_PRESETS.get(preset, self._STREAM_PRESETS["balanced"]))
+        if preset == "custom" or payload.get("manual"):
             base.update({k: payload.get(k, base.get(k)) for k in base})
-        elif "resolution" in payload or "fps" in payload or "bitrate" in payload:
+        elif any(k in payload for k in ("resolution", "fps", "bitrate", "packet_size")):
             base.update({k: payload.get(k, base.get(k)) for k in base})
 
         resolution = str(base.get("resolution") or "1920x1080").strip()
@@ -212,11 +252,11 @@ class PoolsHttpSurfaceService:
         audio_config = str(base.get("audio_config") or "stereo").strip().lower()
         if audio_config not in self._AUDIO_CONFIGS:
             raise ValueError("audio_config must be one of: off, mono, stereo, surround")
-        bitrate = self._clamp_int(base.get("bitrate"), default=16000, minimum=1500, maximum=60000)
-        fps = self._clamp_int(base.get("fps"), default=45, minimum=24, maximum=120)
-        packet_size = self._clamp_int(base.get("packet_size"), default=1200, minimum=900, maximum=1400)
+        bitrate = self._clamp_int_or_auto(base.get("bitrate"), default=22000, minimum=1500, maximum=60000)
+        fps = self._clamp_int_or_auto(base.get("fps"), default=45, minimum=24, maximum=120)
+        packet_size = self._clamp_int_or_auto(base.get("packet_size"), default=1280, minimum=900, maximum=1400)
         return {
-            "preset": preset if preset in {*presets, "manual"} else "balanced",
+            "preset": preset if preset in {*self._STREAM_PRESETS, "custom"} else "balanced",
             "resolution": resolution,
             "fps": fps,
             "bitrate": bitrate,
@@ -224,8 +264,8 @@ class PoolsHttpSurfaceService:
             "video_codec": codec,
             "video_decoder": decoder,
             "audio_config": audio_config,
-            "frame_pacing": bool(base.get("frame_pacing")),
-            "vsync": bool(base.get("vsync")),
+            "frame_pacing": self._bool_or_auto(base.get("frame_pacing"), default=True),
+            "vsync": self._bool_or_auto(base.get("vsync"), default=False),
             "updated_at": self._utcnow(),
             "updated_by": str(self._requester_identity() or ""),
         }

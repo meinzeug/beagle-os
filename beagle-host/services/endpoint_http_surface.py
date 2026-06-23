@@ -7,6 +7,31 @@ from core.virtualization.streaming_profile import StreamingNetworkMode
 
 
 class EndpointHttpSurfaceService:
+    _STREAM_PRESETS = {
+        "auto": {"resolution": "auto", "fps": "auto", "bitrate": "auto", "packet_size": "auto", "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": "auto", "vsync": "auto"},
+        "lan-ultra": {"resolution": "auto", "fps": 60, "bitrate": 45000, "packet_size": 1392, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": False, "vsync": False},
+        "smooth": {"resolution": "1920x1080", "fps": 60, "bitrate": 32000, "packet_size": 1360, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": False, "vsync": False},
+        "balanced": {"resolution": "1920x1080", "fps": 45, "bitrate": 22000, "packet_size": 1280, "video_codec": "H.264", "video_decoder": "auto", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
+        "economy": {"resolution": "1280x720", "fps": 30, "bitrate": 10000, "packet_size": 1200, "video_codec": "H.264", "video_decoder": "software", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
+        "survival": {"resolution": "1280x720", "fps": 24, "bitrate": 3000, "packet_size": 1100, "video_codec": "H.264", "video_decoder": "software", "audio_config": "stereo", "frame_pacing": True, "vsync": False},
+    }
+    _STREAM_PRESET_ALIASES = {
+        "lan_ultra": "lan-ultra",
+        "fast": "smooth",
+        "sharp": "lan-ultra",
+        "slow-dsl": "economy",
+        "slow_dsl": "economy",
+        "low": "economy",
+        "medium": "balanced",
+        "high": "smooth",
+        "ultra": "lan-ultra",
+        "manual": "custom",
+    }
+    _STREAM_RESOLUTIONS = {"auto", "1280x720", "1600x900", "1920x1080", "2560x1440", "3840x2160"}
+    _STREAM_CODECS = {"H.264", "H.265", "AV1"}
+    _STREAM_DECODERS = {"auto", "software", "hardware"}
+    _STREAM_AUDIO_CONFIGS = {"off", "mono", "stereo", "surround"}
+
     def __init__(
         self,
         *,
@@ -163,6 +188,81 @@ class EndpointHttpSurfaceService:
             return str(mode.value or "").strip().lower()
         return str(mode or "").strip().lower()
 
+    @classmethod
+    def _canonical_stream_preset(cls, value: Any) -> str:
+        preset = str(value or "balanced").strip().lower().replace("_", "-")
+        return cls._STREAM_PRESET_ALIASES.get(preset, preset)
+
+    @staticmethod
+    def _clamp_int_or_auto(value: Any, *, default: int, minimum: int, maximum: int) -> int | str:
+        if str(value).strip().lower() == "auto":
+            return "auto"
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            parsed = default
+        return max(minimum, min(maximum, parsed))
+
+    @staticmethod
+    def _bool_or_auto(value: Any, *, default: bool = False) -> bool | str:
+        text = str(value).strip().lower()
+        if text == "auto":
+            return "auto"
+        if text in {"1", "true", "yes", "on"}:
+            return True
+        if text in {"0", "false", "no", "off"}:
+            return False
+        return bool(default if value in (None, "") else value)
+
+    def _normalize_stream_profile(self, payload: dict[str, Any], *, updated_by: str) -> dict[str, Any]:
+        preset = self._canonical_stream_preset(payload.get("preset") or payload.get("profile") or "balanced")
+        base = dict(self._STREAM_PRESETS.get(preset, self._STREAM_PRESETS["balanced"]))
+        if preset == "custom" or payload.get("manual"):
+            base.update({key: payload.get(key, base.get(key)) for key in base})
+        elif any(key in payload for key in ("resolution", "fps", "bitrate", "packet_size")):
+            base.update({key: payload.get(key, base.get(key)) for key in base})
+
+        resolution = str(base.get("resolution") or "1920x1080").strip()
+        if resolution not in self._STREAM_RESOLUTIONS:
+            raise ValueError("resolution must be one of: " + ", ".join(sorted(self._STREAM_RESOLUTIONS)))
+        codec = str(base.get("video_codec") or "H.264").strip().upper().replace("H264", "H.264").replace("H265", "H.265")
+        if codec == "HEVC":
+            codec = "H.265"
+        if codec not in self._STREAM_CODECS:
+            raise ValueError("video_codec must be one of: H.264, H.265, AV1")
+        decoder = str(base.get("video_decoder") or "auto").strip().lower()
+        if decoder not in self._STREAM_DECODERS:
+            raise ValueError("video_decoder must be one of: auto, software, hardware")
+        audio_config = str(base.get("audio_config") or "stereo").strip().lower()
+        if audio_config not in self._STREAM_AUDIO_CONFIGS:
+            raise ValueError("audio_config must be one of: off, mono, stereo, surround")
+        return {
+            "preset": preset if preset in {*self._STREAM_PRESETS, "custom"} else "balanced",
+            "resolution": resolution,
+            "fps": self._clamp_int_or_auto(base.get("fps"), default=45, minimum=24, maximum=120),
+            "bitrate": self._clamp_int_or_auto(base.get("bitrate"), default=22000, minimum=1500, maximum=60000),
+            "packet_size": self._clamp_int_or_auto(base.get("packet_size"), default=1280, minimum=900, maximum=1400),
+            "video_codec": codec,
+            "video_decoder": decoder,
+            "audio_config": audio_config,
+            "frame_pacing": self._bool_or_auto(base.get("frame_pacing"), default=True),
+            "vsync": self._bool_or_auto(base.get("vsync"), default=False),
+            "updated_at": self._utcnow(),
+            "updated_by": str(updated_by or ""),
+        }
+
+    def _local_stream_profile_from_runtime_report(self, runtime_report: dict[str, Any]) -> dict[str, Any]:
+        stream = runtime_report.get("stream") if isinstance(runtime_report, dict) else {}
+        if not isinstance(stream, dict):
+            return {}
+        profile = stream.get("profile") if isinstance(stream.get("profile"), dict) else {}
+        if not isinstance(profile, dict):
+            return {}
+        source = str(profile.get("source") or "").strip().lower()
+        if source != "thinclient_netbridge" and not bool(profile.get("local_override")):
+            return {}
+        return self._normalize_stream_profile(profile, updated_by=str(profile.get("updated_by") or "thinclient-netbridge"))
+
     def route_get(
         self,
         path: str,
@@ -313,6 +413,9 @@ class EndpointHttpSurfaceService:
                 device = self._device_registry.update_wipe_report(device_id, wipe_report)
             if runtime_report:
                 device = self._device_registry.update_runtime_report(device_id, runtime_report)
+                local_stream_profile = self._local_stream_profile_from_runtime_report(runtime_report)
+                if local_stream_profile and hasattr(self._device_registry, "update_stream_profile"):
+                    device = self._device_registry.update_stream_profile(device_id, local_stream_profile)
             logs_payload = payload.get("logs") if isinstance(payload.get("logs"), dict) else {}
             if logs_payload and self._device_log_service is not None:
                 try:

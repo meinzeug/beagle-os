@@ -74,13 +74,16 @@ THINCLIENT_UPDATE_STATUS_FILE = os.environ.get(
 )
 
 STREAM_PROFILE_KEYS = {
+    "preset": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET",
     "resolution": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION",
     "fps": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS",
     "bitrate": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE",
     "packet_size": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE",
+    "video_codec": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC",
     "frame_pacing": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING",
     "vsync": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC",
     "video_decoder": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER",
+    "audio_config": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG",
     "display_mode": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_DISPLAY_MODE",
     "absolute_mouse": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_ABSOLUTE_MOUSE",
     "auto_quality": "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUTO_QUALITY",
@@ -91,10 +94,14 @@ STREAM_PRESETS = {
         "label": "Automatisch",
         "values": {
             "auto_quality": "1",
+            "preset": "auto",
             "resolution": "auto",
             "fps": "auto",
             "bitrate": "auto",
             "packet_size": "auto",
+            "video_codec": "H.264",
+            "video_decoder": "auto",
+            "audio_config": "stereo",
             "frame_pacing": "auto",
             "vsync": "auto",
         },
@@ -103,10 +110,14 @@ STREAM_PRESETS = {
         "label": "LAN Ultra",
         "values": {
             "auto_quality": "0",
+            "preset": "lan-ultra",
             "resolution": "auto",
             "fps": "60",
             "bitrate": "45000",
             "packet_size": "1392",
+            "video_codec": "H.264",
+            "video_decoder": "auto",
+            "audio_config": "stereo",
             "frame_pacing": "0",
             "vsync": "0",
         },
@@ -115,10 +126,14 @@ STREAM_PRESETS = {
         "label": "Flüssig",
         "values": {
             "auto_quality": "0",
+            "preset": "smooth",
             "resolution": "1920x1080",
             "fps": "60",
             "bitrate": "32000",
             "packet_size": "1360",
+            "video_codec": "H.264",
+            "video_decoder": "auto",
+            "audio_config": "stereo",
             "frame_pacing": "0",
             "vsync": "0",
         },
@@ -127,10 +142,14 @@ STREAM_PRESETS = {
         "label": "Balance",
         "values": {
             "auto_quality": "0",
+            "preset": "balanced",
             "resolution": "1920x1080",
             "fps": "45",
             "bitrate": "22000",
             "packet_size": "1280",
+            "video_codec": "H.264",
+            "video_decoder": "auto",
+            "audio_config": "stereo",
             "frame_pacing": "1",
             "vsync": "0",
         },
@@ -139,10 +158,14 @@ STREAM_PRESETS = {
         "label": "Sparsam",
         "values": {
             "auto_quality": "0",
+            "preset": "economy",
             "resolution": "1280x720",
             "fps": "30",
             "bitrate": "10000",
             "packet_size": "1200",
+            "video_codec": "H.264",
+            "video_decoder": "software",
+            "audio_config": "stereo",
             "frame_pacing": "1",
             "vsync": "0",
         },
@@ -151,10 +174,14 @@ STREAM_PRESETS = {
         "label": "Notfall",
         "values": {
             "auto_quality": "0",
+            "preset": "survival",
             "resolution": "1280x720",
             "fps": "24",
             "bitrate": "3000",
             "packet_size": "1100",
+            "video_codec": "H.264",
+            "video_decoder": "software",
+            "audio_config": "stereo",
             "frame_pacing": "1",
             "vsync": "0",
         },
@@ -305,6 +332,8 @@ def _parse_env_file(path: str) -> dict[str, str]:
                 line = line.strip()
                 if not line or line.startswith("#") or "=" not in line:
                     continue
+                if line.startswith("export "):
+                    line = line[len("export "):].strip()
                 key, _, value = line.partition("=")
                 value = value.strip().strip('"').strip("'")
                 values[key.strip()] = value
@@ -348,9 +377,10 @@ def _write_stream_profile(request: dict) -> dict:
     if profile in STREAM_PRESETS:
         values = dict(STREAM_PRESETS[profile]["values"])
     elif profile == "custom":
-        values = {}
+        values = {"preset": "custom"}
     else:
         return {"ok": False, "error": "unknown stream profile"}
+    values.setdefault("preset", profile)
 
     for name in STREAM_PROFILE_KEYS:
         if name in request and str(request[name]).strip():
@@ -370,10 +400,10 @@ def _write_stream_profile(request: dict) -> dict:
     with open(tmp, "w", encoding="utf-8") as handle:
         handle.write("# Managed by Beagle NetBridge.\n")
         handle.write(f"# Updated at {time.strftime('%Y-%m-%dT%H:%M:%S%z')}.\n")
-        handle.write(f"BEAGLE_NETBRIDGE_STREAM_PROFILE={shlex.quote(profile)}\n")
+        handle.write(f"export BEAGLE_NETBRIDGE_STREAM_PROFILE={shlex.quote(profile)}\n")
         for name, env_key in STREAM_PROFILE_KEYS.items():
             if name in cleaned:
-                handle.write(f"{env_key}={shlex.quote(cleaned[name])}\n")
+                handle.write(f"export {env_key}={shlex.quote(cleaned[name])}\n")
     os.replace(tmp, STREAM_PROFILE_FILE)
     log(f"stream profile set to {profile}")
     return {"ok": True, "stream": _stream_profile_status()}

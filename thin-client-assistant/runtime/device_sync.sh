@@ -367,7 +367,7 @@ PY
 }
 
 runtime_report_json() {
-  local lock_active lock_marker lock_pid session_type backend displays_json info_file stream_active stream_pid stream_started stream_host stream_port stream_app stream_vmid stream_profile_json profile_override_env
+  local lock_active lock_marker lock_pid session_type backend displays_json info_file stream_active stream_pid stream_started stream_host stream_port stream_app stream_vmid stream_profile_json profile_override_env allexport_was_enabled
   if [[ -f "$(runtime_lock_state_file_path)" ]]; then
     lock_active=1
   else
@@ -405,7 +405,15 @@ PY
   profile_override_env="${BEAGLE_STREAM_PROFILE_OVERRIDE_ENV:-$(beagle_state_dir)/stream-profile.env}"
   if [[ -r "$profile_override_env" ]]; then
     # shellcheck disable=SC1090
+    case "$-" in
+      *a*) allexport_was_enabled=1 ;;
+      *) allexport_was_enabled=0 ;;
+    esac
+    set -a
     source "$profile_override_env"
+    if [[ "$allexport_was_enabled" != "1" ]]; then
+      set +a
+    fi
   fi
   if pgrep -x beagle-stream >/dev/null 2>&1 || pgrep -x beagle-stream-client >/dev/null 2>&1; then
     stream_active=1
@@ -429,24 +437,41 @@ import os
 def env(name, default=""):
     return str(os.environ.get(name, default) or default)
 
-def as_int(name, default):
+def as_int_or_auto(name, default):
+    value = env(name, str(default))
+    if value.strip().lower() == "auto":
+        return "auto"
     try:
-        return int(env(name, str(default)))
+        return int(value)
     except ValueError:
         return default
 
+def as_bool_or_auto(name, default=False):
+    value = env(name, "1" if default else "0").strip().lower()
+    if value == "auto":
+        return "auto"
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return bool(default)
+
 payload = {
-    "preset": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET", ""),
+    "preset": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET", env("BEAGLE_NETBRIDGE_STREAM_PROFILE", "")),
     "resolution": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION", "auto"),
-    "fps": as_int("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS", 60),
-    "bitrate": as_int("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE", 32000),
-    "packet_size": as_int("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE", 0),
+    "fps": as_int_or_auto("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS", 60),
+    "bitrate": as_int_or_auto("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE", 32000),
+    "packet_size": as_int_or_auto("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE", 0),
     "video_codec": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC", "H.264"),
     "video_decoder": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER", "auto"),
     "audio_config": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG", "stereo"),
-    "frame_pacing": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING", "") == "1",
-    "vsync": env("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC", "") == "1",
+    "frame_pacing": as_bool_or_auto("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING", False),
+    "vsync": as_bool_or_auto("PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC", False),
 }
+if env("BEAGLE_NETBRIDGE_STREAM_PROFILE", ""):
+    payload["source"] = "thinclient_netbridge"
+    payload["local_override"] = True
+    payload["updated_by"] = "thinclient-netbridge"
 print(json.dumps(payload))
 PY
 )"
@@ -616,6 +641,11 @@ def shell_value(value):
   text = str(value)
   return "'" + text.replace("'", "'\\''") + "'"
 
+def stream_bool_env(value):
+  if str(value).strip().lower() == "auto":
+    return "auto"
+  return "1" if bool(value) else "0"
+
 env_map = {}
 if stream_profile:
   env_map = {
@@ -627,8 +657,8 @@ if stream_profile:
     "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC": stream_profile.get("video_codec", "H.264"),
     "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER": stream_profile.get("video_decoder", "auto"),
     "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG": stream_profile.get("audio_config", "stereo"),
-    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING": "1" if stream_profile.get("frame_pacing") else "0",
-    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC": "1" if stream_profile.get("vsync") else "0",
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING": stream_bool_env(stream_profile.get("frame_pacing")),
+    "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC": stream_bool_env(stream_profile.get("vsync")),
   }
 
 content = "".join(f"export {key}={shell_value(value)}\n" for key, value in env_map.items())

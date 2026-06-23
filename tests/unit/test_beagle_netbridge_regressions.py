@@ -164,9 +164,13 @@ def test_agent_exposes_thinclient_inventory_and_stream_profiles() -> None:
         "lan-ultra",
         "survival",
         "BEAGLE_NETBRIDGE_STREAM_PROFILE",
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET",
         "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE",
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC",
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG",
     ):
         assert snippet in script
+        assert snippet in TC_AGENT.read_text(encoding="utf-8")
 
 
 def test_agent_writes_stream_profile_override_safely() -> None:
@@ -176,11 +180,17 @@ def test_agent_writes_stream_profile_override_safely() -> None:
         result = agent._write_stream_profile({"profile": "economy"})
         assert result["ok"] is True
         written = Path(agent.STREAM_PROFILE_FILE).read_text(encoding="utf-8")
+        status = agent._stream_profile_status()
 
-    assert "BEAGLE_NETBRIDGE_STREAM_PROFILE=economy" in written
-    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION=1280x720" in written
-    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS=30" in written
-    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE=10000" in written
+    assert "export BEAGLE_NETBRIDGE_STREAM_PROFILE=economy" in written
+    assert "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET=economy" in written
+    assert "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION=1280x720" in written
+    assert "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS=30" in written
+    assert "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE=10000" in written
+    assert "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC=H.264" in written
+    assert "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER=software" in written
+    assert "export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG=stereo" in written
+    assert status["profile"] == "economy"
     assert agent._write_stream_profile({"profile": "unknown"})["ok"] is False
     assert agent._write_stream_profile({"profile": "custom", "fps": "60\nbad"})["ok"] is False
 

@@ -50,16 +50,16 @@ def test_apply_runtime_sync_response_writes_stream_profile_env(tmp_path: Path) -
                 "commands": {"restart_stream": True},
                 "policy": {
                     "stream_profile": {
-                        "preset": "slow_dsl",
-                        "resolution": "1280x720",
-                        "fps": 30,
-                        "bitrate": 6000,
-                        "packet_size": 1200,
+                        "preset": "auto",
+                        "resolution": "auto",
+                        "fps": "auto",
+                        "bitrate": "auto",
+                        "packet_size": "auto",
                         "video_codec": "H.264",
-                        "video_decoder": "software",
+                        "video_decoder": "auto",
                         "audio_config": "stereo",
-                        "frame_pacing": True,
-                        "vsync": False,
+                        "frame_pacing": "auto",
+                        "vsync": "auto",
                     }
                 },
             }
@@ -75,10 +75,53 @@ def test_apply_runtime_sync_response_writes_stream_profile_env(tmp_path: Path) -
     subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), check=True)
 
     profile_env = (state_dir / "stream-profile.env").read_text(encoding="utf-8")
-    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET='slow_dsl'" in profile_env
-    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION='1280x720'" in profile_env
-    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE='6000'" in profile_env
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET='auto'" in profile_env
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION='auto'" in profile_env
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS='auto'" in profile_env
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE='auto'" in profile_env
+    assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING='auto'" in profile_env
+    assert "BEAGLE_NETBRIDGE_STREAM_PROFILE" not in profile_env
     assert not (state_dir / "stream-profile.restart").exists()
+
+
+def test_runtime_device_sync_payload_reports_local_netbridge_stream_profile(tmp_path: Path) -> None:
+    bindir = tmp_path / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    _write_stub(bindir / "nproc", "#!/usr/bin/env bash\nprintf '4\\n'\n")
+    _write_stub(bindir / "pgrep", "#!/usr/bin/env bash\nexit 1\n")
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "stream-profile.env").write_text(
+        "BEAGLE_NETBRIDGE_STREAM_PROFILE=smooth\n"
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PRESET=smooth\n"
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_RESOLUTION=1920x1080\n"
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FPS=60\n"
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_BITRATE=32000\n"
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PACKET_SIZE=1360\n"
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_CODEC=H.264\n"
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VIDEO_DECODER=auto\n"
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_CONFIG=stereo\n"
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_FRAME_PACING=0\n"
+        "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_VSYNC=0\n",
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    cmd = (
+        f"source {SCRIPT}\n"
+        f"export BEAGLE_STATE_DIR={state_dir}\n"
+        "runtime_device_sync_payload endpoint-001 thin-01 wg-beagle 0 ''\n"
+    )
+    result = subprocess.run(["bash", "-lc", cmd], cwd=str(ROOT_DIR), env=env, text=True, capture_output=True, check=True)
+    payload = json.loads(result.stdout)
+    profile = payload["reports"]["runtime"]["stream"]["profile"]
+    assert profile["preset"] == "smooth"
+    assert profile["source"] == "thinclient_netbridge"
+    assert profile["local_override"] is True
+    assert profile["updated_by"] == "thinclient-netbridge"
+    assert profile["bitrate"] == 32000
 
 
 def test_apply_runtime_sync_response_persists_update_targets_and_markers(tmp_path: Path) -> None:

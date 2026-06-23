@@ -591,11 +591,33 @@ def test_stream_profile_update_sanitizes_and_stores_direct_endpoint_policy() -> 
     assert response["status"] == HTTPStatus.OK
     assert registry.updated[0][0] == "thinclient-100"
     profile = registry.updated[0][1]
+    assert profile["preset"] == "economy"
     assert profile["fps"] == 24
     assert profile["bitrate"] == 60000
     assert profile["packet_size"] == 1400
     assert profile["video_codec"] == "H.264"
     assert response["payload"]["stream_profile"]["resolution"] == "1280x720"
+
+
+def test_stream_profile_update_keeps_auto_profile_values() -> None:
+    registry = _DeviceRegistryStub()
+    service, _ = _make_service(device_registry=registry)
+
+    response = service.route_post(
+        "/api/v1/sessions/direct:thinclient-100:100/stream-profile",
+        json_payload={"preset": "auto"},
+    )
+
+    assert response is not None
+    assert response["status"] == HTTPStatus.OK
+    profile = registry.updated[0][1]
+    assert profile["preset"] == "auto"
+    assert profile["resolution"] == "auto"
+    assert profile["fps"] == "auto"
+    assert profile["bitrate"] == "auto"
+    assert profile["packet_size"] == "auto"
+    assert profile["frame_pacing"] == "auto"
+    assert profile["vsync"] == "auto"
 
 
 def test_allocate_route_registers_session_with_current_node() -> None:

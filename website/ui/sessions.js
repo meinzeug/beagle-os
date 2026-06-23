@@ -52,11 +52,88 @@ function selectedSession() {
 }
 
 const STREAM_PRESETS = {
-  slow_dsl: { resolution: '1280x720', fps: 30, bitrate: 6000, packet_size: 1200, video_codec: 'H.264', video_decoder: 'software', audio_config: 'stereo', frame_pacing: true, vsync: false },
-  balanced: { resolution: '1920x1080', fps: 45, bitrate: 16000, packet_size: 1200, video_codec: 'H.264', video_decoder: 'auto', audio_config: 'stereo', frame_pacing: true, vsync: false },
-  fast: { resolution: '1920x1080', fps: 60, bitrate: 32000, packet_size: 1200, video_codec: 'H.264', video_decoder: 'auto', audio_config: 'stereo', frame_pacing: false, vsync: false },
-  sharp: { resolution: '2560x1440', fps: 60, bitrate: 45000, packet_size: 1200, video_codec: 'H.265', video_decoder: 'auto', audio_config: 'stereo', frame_pacing: false, vsync: true }
+  auto: { resolution: 'auto', fps: 'auto', bitrate: 'auto', packet_size: 'auto', video_codec: 'H.264', video_decoder: 'auto', audio_config: 'stereo', frame_pacing: 'auto', vsync: 'auto' },
+  'lan-ultra': { resolution: 'auto', fps: 60, bitrate: 45000, packet_size: 1392, video_codec: 'H.264', video_decoder: 'auto', audio_config: 'stereo', frame_pacing: false, vsync: false },
+  smooth: { resolution: '1920x1080', fps: 60, bitrate: 32000, packet_size: 1360, video_codec: 'H.264', video_decoder: 'auto', audio_config: 'stereo', frame_pacing: false, vsync: false },
+  balanced: { resolution: '1920x1080', fps: 45, bitrate: 22000, packet_size: 1280, video_codec: 'H.264', video_decoder: 'auto', audio_config: 'stereo', frame_pacing: true, vsync: false },
+  economy: { resolution: '1280x720', fps: 30, bitrate: 10000, packet_size: 1200, video_codec: 'H.264', video_decoder: 'software', audio_config: 'stereo', frame_pacing: true, vsync: false },
+  survival: { resolution: '1280x720', fps: 24, bitrate: 3000, packet_size: 1100, video_codec: 'H.264', video_decoder: 'software', audio_config: 'stereo', frame_pacing: true, vsync: false }
 };
+
+const STREAM_PRESET_ALIASES = {
+  lan_ultra: 'lan-ultra',
+  fast: 'smooth',
+  sharp: 'lan-ultra',
+  slow_dsl: 'economy',
+  'slow-dsl': 'economy',
+  low: 'economy',
+  medium: 'balanced',
+  high: 'smooth',
+  ultra: 'lan-ultra',
+  manual: 'custom'
+};
+
+function canonicalPreset(value) {
+  const preset = String(value || 'balanced').trim().toLowerCase().replace(/_/g, '-');
+  if (STREAM_PRESET_ALIASES[preset]) {
+    return STREAM_PRESET_ALIASES[preset];
+  }
+  if (preset === 'custom') {
+    return preset;
+  }
+  if (Object.prototype.hasOwnProperty.call(STREAM_PRESETS, preset)) {
+    return preset;
+  }
+  return 'balanced';
+}
+
+function numericOrAuto(value, fallback) {
+  const text = String(value == null ? '' : value).trim();
+  if (!text) {
+    return fallback;
+  }
+  if (text.toLowerCase() === 'auto') {
+    return 'auto';
+  }
+  const num = Number(text);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function fpsLabel(value) {
+  if (value == null || value === '') {
+    return '-';
+  }
+  if (String(value).trim().toLowerCase() === 'auto') {
+    return 'auto';
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? String(Math.round(num)) + ' FPS' : '-';
+}
+
+function bitrateLabel(value) {
+  if (value == null || value === '') {
+    return '-';
+  }
+  if (String(value).trim().toLowerCase() === 'auto') {
+    return 'auto';
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? String(Math.round(num / 1000)) + ' Mbit' : '-';
+}
+
+function checkedBool(value) {
+  const text = String(value == null ? '' : value).trim().toLowerCase();
+  if (text === 'auto') {
+    return false;
+  }
+  if (['1', 'true', 'yes', 'on'].includes(text)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(text)) {
+    return false;
+  }
+  return Boolean(value);
+}
 
 function setModalHidden(modal, hidden) {
   if (!modal) {
@@ -72,17 +149,23 @@ function encodeSessionId(sessionId) {
 }
 
 function updatePresetButtons(preset) {
+  const selected = canonicalPreset(preset);
   document.querySelectorAll('[data-stream-preset]').forEach((button) => {
-    button.classList.toggle('is-active', String(button.getAttribute('data-stream-preset') || '') === String(preset || ''));
+    button.classList.toggle('is-active', canonicalPreset(button.getAttribute('data-stream-preset') || '') === selected);
   });
 }
 
 function fillTuneForm(profile, preset) {
-  const values = Object.assign({}, STREAM_PRESETS[preset] || STREAM_PRESETS.balanced, profile || {});
+  const selectedPreset = canonicalPreset(preset || (profile && profile.preset) || 'balanced');
+  const values = Object.assign({}, STREAM_PRESETS[selectedPreset] || STREAM_PRESETS.balanced, profile || {});
   const setValue = (id, value) => {
     const node = qs(id);
     if (node) {
-      node.value = String(value == null ? '' : value);
+      if (node.type === 'number' && String(value).trim().toLowerCase() === 'auto') {
+        node.value = '';
+      } else {
+        node.value = String(value == null ? '' : value);
+      }
     }
   };
   setValue('stream-tune-resolution', values.resolution || '1920x1080');
@@ -95,12 +178,12 @@ function fillTuneForm(profile, preset) {
   const framePacing = qs('stream-tune-frame-pacing');
   const vsync = qs('stream-tune-vsync');
   if (framePacing) {
-    framePacing.checked = Boolean(values.frame_pacing);
+    framePacing.checked = checkedBool(values.frame_pacing);
   }
   if (vsync) {
-    vsync.checked = Boolean(values.vsync);
+    vsync.checked = checkedBool(values.vsync);
   }
-  state.streamTunePreset = preset || values.preset || 'balanced';
+  state.streamTunePreset = selectedPreset;
   updatePresetButtons(state.streamTunePreset);
 }
 
@@ -115,7 +198,7 @@ function openTuneModal(session) {
     label.textContent = 'Session ' + state.streamTuneSessionId + ' auf VM ' + String(session.vmid || '-') + '.';
   }
   const profile = session.stream_profile && typeof session.stream_profile === 'object' ? session.stream_profile : {};
-  fillTuneForm(profile, profile.preset || 'balanced');
+  fillTuneForm(profile, canonicalPreset(profile.preset || 'balanced'));
   setModalHidden(qs('stream-tune-modal'), false);
 }
 
@@ -126,20 +209,30 @@ function closeTuneModal() {
 function collectTunePayload() {
   const value = (id, fallback) => {
     const node = qs(id);
-    return node ? node.value : fallback;
+    const raw = node ? String(node.value || '').trim() : '';
+    return raw || fallback;
+  };
+  const preset = canonicalPreset(state.streamTunePreset || 'balanced');
+  const presetValues = STREAM_PRESETS[preset] || STREAM_PRESETS.balanced;
+  const checkboxValue = (id, fallback) => {
+    if (String(fallback).trim().toLowerCase() === 'auto') {
+      return 'auto';
+    }
+    const node = qs(id);
+    return node ? Boolean(node.checked) : Boolean(fallback);
   };
   return {
-    preset: state.streamTunePreset || 'manual',
+    preset,
     manual: true,
-    resolution: value('stream-tune-resolution', '1920x1080'),
-    fps: Number(value('stream-tune-fps', 45)),
-    bitrate: Number(value('stream-tune-bitrate', 16000)),
-    packet_size: Number(value('stream-tune-packet', 1200)),
-    video_codec: value('stream-tune-codec', 'H.264'),
-    video_decoder: value('stream-tune-decoder', 'auto'),
-    audio_config: value('stream-tune-audio', 'stereo'),
-    frame_pacing: Boolean(qs('stream-tune-frame-pacing') && qs('stream-tune-frame-pacing').checked),
-    vsync: Boolean(qs('stream-tune-vsync') && qs('stream-tune-vsync').checked)
+    resolution: value('stream-tune-resolution', presetValues.resolution || '1920x1080'),
+    fps: numericOrAuto(value('stream-tune-fps', presetValues.fps || 45), presetValues.fps || 45),
+    bitrate: numericOrAuto(value('stream-tune-bitrate', presetValues.bitrate || 22000), presetValues.bitrate || 22000),
+    packet_size: numericOrAuto(value('stream-tune-packet', presetValues.packet_size || 1280), presetValues.packet_size || 1280),
+    video_codec: value('stream-tune-codec', presetValues.video_codec || 'H.264'),
+    video_decoder: value('stream-tune-decoder', presetValues.video_decoder || 'auto'),
+    audio_config: value('stream-tune-audio', presetValues.audio_config || 'stereo'),
+    frame_pacing: checkboxValue('stream-tune-frame-pacing', presetValues.frame_pacing),
+    vsync: checkboxValue('stream-tune-vsync', presetValues.vsync)
   };
 }
 
@@ -200,8 +293,8 @@ function renderSessionDetail(session) {
     '</div>' +
     '<div class="stream-profile-summary">' +
     '<span>' + escapeHtml(String(profile && profile.resolution ? profile.resolution : '-')) + '</span>' +
-    '<span>' + escapeHtml(String(profile && profile.fps ? profile.fps + ' FPS' : '-')) + '</span>' +
-    '<span>' + escapeHtml(String(profile && profile.bitrate ? Math.round(Number(profile.bitrate) / 1000) + ' Mbit' : '-')) + '</span>' +
+    '<span>' + escapeHtml(fpsLabel(profile && profile.fps)) + '</span>' +
+    '<span>' + escapeHtml(bitrateLabel(profile && profile.bitrate)) + '</span>' +
     '<span>' + escapeHtml(String(profile && profile.video_codec ? profile.video_codec : '-')) + '</span>' +
     '</div>' +
     '<div class="session-detail-actions"><span class="session-source-chip">' + escapeHtml(sourceLabel) + '</span>' + tuneAction + '</div>';
@@ -334,7 +427,7 @@ export function bindSessionsEvents() {
   });
   document.querySelectorAll('[data-stream-preset]').forEach((button) => {
     button.addEventListener('click', () => {
-      const preset = String(button.getAttribute('data-stream-preset') || 'balanced');
+      const preset = canonicalPreset(button.getAttribute('data-stream-preset') || 'balanced');
       state.streamTunePreset = preset;
       fillTuneForm(STREAM_PRESETS[preset] || STREAM_PRESETS.balanced, preset);
     });
