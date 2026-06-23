@@ -361,10 +361,12 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_ON_HOST:-0' in runtime_exec_text
     assert 'out_ref+=(--audio-on-host)' in runtime_exec_text
     assert 'beagle_stream_startup_status_pace()' in launcher_text
-    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_ENABLED:-0' in launcher_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_ENABLED:-1' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_PACE_SEC:-0.5' in launcher_text
     assert "if (p+0 < 0.5) print 0.5; else print p+0" in launcher_text
     assert "window.location.replace(current.toString())" in launcher_text
+    assert launcher_text.count('beagle_stream_startup_status_step "10"') == 1
+    assert launcher_text.index('beagle_stream_startup_status_step "10"') < launcher_text.index('beagle_stream_startup_status_stop\n\n  # GTK hint')
     assert "initial_state = json.dumps(state, ensure_ascii=True)" in launcher_text
     assert "initial_state = html.escape(json.dumps(state, ensure_ascii=True))" not in launcher_text
     assert 'if [[ "$method" == "broker" && -r /etc/beagle/enrollment.conf ]]; then' in launch_session_text
@@ -392,6 +394,11 @@ def test_beaglestream_launcher_waits_for_manager_registration_before_stream_exec
     assert 'ip route replace "$endpoint_host" via "$default_gw" dev "$default_dev"' in launcher_text
     assert 'route_uses_dev "$route_spec" "$iface" && return 0' in launcher_text
     assert launcher_text.index('wait_for_beagle_stream_client_manager_registration || {') < launcher_text.index('beagle-stream-client.exec')
+    wait_function = launcher_text.split("wait_for_beagle_stream_client_manager_registration() {", 1)[1].split("\n}\n\nmain() {", 1)[0]
+    assert 'if beagle_stream_client_stream_ready >/dev/null 2>&1; then' in wait_function
+    assert 'beagle-stream-client.register-wait-fail-open" "host=${host} port=${port:-default} attempt=${attempt}/${max_attempts}' in wait_function
+    assert wait_function.index('if beagle_stream_client_stream_ready >/dev/null 2>&1; then') < wait_function.index('beagle-stream-client.register-wait"')
+    assert wait_function.index('beagle-stream-client.register-wait-fail-open" "host=${host} port=${port:-default} attempt=${attempt}/${max_attempts}') < wait_function.index('sleep "$retry_sleep"')
     assert 'beagle_stream_client_manager_url()' in manager_registration_text
     assert 'beagle_stream_enrollment_value control_plane' in manager_registration_text
     assert 'awk -F= \'$1 == "control_plane"' in manager_registration_text

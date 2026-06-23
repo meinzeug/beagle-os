@@ -77,7 +77,7 @@ BEAGLE_STREAM_CLIENT_STARTUP_UI_PID=""
 mkdir -p "$BEAGLE_STREAM_CLIENT_LOG_DIR" 2>/dev/null || true
 
 beagle_stream_startup_status_enabled() {
-  [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_ENABLED:-0}" == "1" ]]
+  [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_STATUS_ENABLED:-1}" == "1" ]]
 }
 
 beagle_stream_startup_wallpaper_source() {
@@ -698,7 +698,10 @@ wait_for_beagle_stream_client_manager_registration() {
       beagle_log_event "beagle-stream-client.registered" "host=${host} port=${port:-default} attempt=${attempt}/${max_attempts}"
       return 0
     fi
-    beagle_stream_client_stream_ready >/dev/null 2>&1 || true
+    if beagle_stream_client_stream_ready >/dev/null 2>&1; then
+      beagle_log_event "beagle-stream-client.register-wait-fail-open" "host=${host} port=${port:-default} attempt=${attempt}/${max_attempts}"
+      return 0
+    fi
     beagle_log_event "beagle-stream-client.register-wait" "host=${host} port=${port:-default} attempt=${attempt}/${max_attempts}"
     sleep "$retry_sleep"
     attempt=$((attempt + 1))
@@ -1017,6 +1020,8 @@ main() {
     printf '\n'
   } >>"$BEAGLE_STREAM_CLIENT_STREAM_LOG"
 
+  beagle_stream_startup_status_step "10" "Mit VM-Desktop verbinden" "RTSP/Video-Session wird aufgebaut"
+
   # Remove the fullscreen startup UI before the actual stream window appears,
   # otherwise Chromium can stay visually on top of the desktop session.
   beagle_stream_startup_status_stop
@@ -1047,7 +1052,6 @@ main() {
   wg_peer_watchdog &
   wg_watchdog_pid=$!
   while :; do
-    beagle_stream_startup_status_step "10" "Mit VM-Desktop verbinden" "RTSP/Video-Session wird aufgebaut"
     build_stream_args args
     if [[ "$stream_attempt" -gt 1 ]]; then
       beagle_log_event "beagle-stream-client.restart" "attempt=${stream_attempt}/${max_attempts} app=${app}"
