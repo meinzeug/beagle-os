@@ -52,6 +52,10 @@ class BusyError(RuntimeError):
     pass
 
 
+class UpdateDeferred(RuntimeError):
+    pass
+
+
 def utcnow() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -767,19 +771,19 @@ def guard_volatile_download(required_bytes: int) -> int:
     if not path_is_ram_backed(CACHE_ROOT):
         return 0
     if not bool_from_config(os.environ.get("BEAGLE_UPDATE_ALLOW_VOLATILE_CACHE", "0"), False):
-        raise RuntimeError(
+        raise UpdateDeferred(
             "update cache fell back to volatile RAM-backed storage (USB medium full); "
             "deferring payload download to keep the live session responsive"
         )
     mem_available = mem_available_bytes()
     budget = mem_available - VOLATILE_RAM_RESERVE_BYTES
     if mem_available <= 0 or budget <= 0:
-        raise RuntimeError(
+        raise UpdateDeferred(
             f"insufficient RAM to download into volatile cache: {mem_available} bytes available, "
             f"reserve {VOLATILE_RAM_RESERVE_BYTES}; deferring update"
         )
     if required_bytes > 0 and int(required_bytes * 1.2) > budget:
-        raise RuntimeError(
+        raise UpdateDeferred(
             f"payload (~{required_bytes} bytes) exceeds the safe RAM budget {budget} bytes; deferring update"
         )
     return budget
@@ -1331,7 +1335,22 @@ def scan_command(config: dict[str, str], *, auto_apply_if_idle: bool = False, fo
             last_error="",
         )
     feed = fetch_feed(config, medium)
-    status = stage_update(feed, config, force=force)
+    try:
+        status = stage_update(feed, config, force=force)
+    except UpdateDeferred as exc:
+        status = update_status(
+            state="deferred",
+            last_scan_at=utcnow(),
+            current_version=current_version(config, medium),
+            current_slot=current_slot,
+            latest_version=str(feed.get("latest_version", "")).strip(),
+            available=bool(feed.get("available", False)),
+            pending_reboot=False,
+            pending_confirm=False,
+            behavior=str(feed.get("behavior", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR", "prompt"))),
+            channel=str(feed.get("channel", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL", "stable"))),
+            last_error=str(exc),
+        )
     boot_id = current_boot_id()
     if boot_id:
         status = update_status(last_boot_scan_id=boot_id)

@@ -72,6 +72,7 @@ BEAGLE_STREAM_CLIENT_STARTUP_JSON_FILE="$BEAGLE_STREAM_CLIENT_LOG_DIR/beagle-str
 BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE="$BEAGLE_STREAM_CLIENT_LOG_DIR/beagle-stream-client-startup.html"
 BEAGLE_STREAM_CLIENT_STARTUP_WALLPAPER_FILE="$BEAGLE_STREAM_CLIENT_LOG_DIR/beagle-stream-client-wallpaper.png"
 BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE="$BEAGLE_STREAM_CLIENT_LOG_DIR/browser-profile"
+BEAGLE_STREAM_CLIENT_STARTUP_UI_LOG_FILE="$BEAGLE_STREAM_CLIENT_LOG_DIR/beagle-stream-client-startup-ui.log"
 BEAGLE_STREAM_CLIENT_STARTUP_UI_PID=""
 
 mkdir -p "$BEAGLE_STREAM_CLIENT_LOG_DIR" 2>/dev/null || true
@@ -122,6 +123,41 @@ beagle_stream_startup_browser_bin() {
   return 1
 }
 
+beagle_stream_startup_status_pid_alive() {
+  local pid="${1:-}"
+  [[ -n "$pid" ]] || return 1
+  kill -0 "$pid" >/dev/null 2>&1
+}
+
+beagle_stream_startup_status_launch_browser() {
+  local browser_bin="$1"
+  local verify_delay
+
+  mkdir -p "$BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE" >/dev/null 2>&1 || true
+  (
+    exec 9>&- || true
+    "$browser_bin" \
+      --kiosk "file://${BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE}" \
+      --user-data-dir="$BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE" \
+      --allow-file-access-from-files \
+      --window-position=0,0 \
+      --start-fullscreen \
+      --no-first-run \
+      --no-default-browser-check \
+      --noerrdialogs \
+      --disable-infobars \
+      --disable-session-crashed-bubble \
+      --disable-translate \
+      --disable-features=Translate \
+      --disable-gpu
+  ) >>"$BEAGLE_STREAM_CLIENT_STARTUP_UI_LOG_FILE" 2>&1 &
+  BEAGLE_STREAM_CLIENT_STARTUP_UI_PID="$!"
+
+  verify_delay="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_UI_VERIFY_SEC:-0.8}"
+  sleep "$verify_delay" 2>/dev/null || true
+  beagle_stream_startup_status_pid_alive "$BEAGLE_STREAM_CLIENT_STARTUP_UI_PID"
+}
+
 beagle_stream_startup_status_start() {
   local browser_bin title
 
@@ -132,29 +168,27 @@ beagle_stream_startup_status_start() {
   beagle_stream_startup_status_render "1" "active" "Runtime initialisieren" "Launcher startet"
 
   if browser_bin="$(beagle_stream_startup_browser_bin 2>/dev/null)"; then
-    mkdir -p "$BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE" >/dev/null 2>&1 || true
-    (
-      exec 9>&- || true
-      "$browser_bin" \
-        --kiosk "file://${BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE}" \
-        --user-data-dir="$BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE" \
-        --allow-file-access-from-files \
-        --window-position=0,0 \
-        --start-fullscreen \
-        --no-first-run \
-        --no-default-browser-check \
-        --noerrdialogs \
-        --disable-infobars \
-        --disable-session-crashed-bubble \
-        --disable-translate \
-        --disable-features=Translate
-    ) >/dev/null 2>&1 &
-    BEAGLE_STREAM_CLIENT_STARTUP_UI_PID="$!"
-  elif command -v firefox >/dev/null 2>&1; then
-    (exec 9>&- || true; firefox --kiosk "file://${BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE}") >/dev/null 2>&1 &
-    BEAGLE_STREAM_CLIENT_STARTUP_UI_PID="$!"
-  elif command -v zenity >/dev/null 2>&1; then
+    if beagle_stream_startup_status_launch_browser "$browser_bin"; then
+      beagle_log_event "beagle-stream-client.startup-ui" "backend=browser bin=${browser_bin}"
+      return 0
+    fi
+    beagle_log_event "beagle-stream-client.startup-ui-fallback" "backend=browser bin=${browser_bin} reason=process-exited"
+    BEAGLE_STREAM_CLIENT_STARTUP_UI_PID=""
+    rm -rf "$BEAGLE_STREAM_CLIENT_STARTUP_BROWSER_PROFILE" >/dev/null 2>&1 || true
+  fi
+
+  if command -v zenity >/dev/null 2>&1; then
+    beagle_log_event "beagle-stream-client.startup-ui" "backend=zenity"
     beagle_stream_startup_status_zenity "$title"
+  elif command -v firefox >/dev/null 2>&1; then
+    (exec 9>&- || true; firefox --kiosk "file://${BEAGLE_STREAM_CLIENT_STARTUP_HTML_FILE}") >>"$BEAGLE_STREAM_CLIENT_STARTUP_UI_LOG_FILE" 2>&1 &
+    BEAGLE_STREAM_CLIENT_STARTUP_UI_PID="$!"
+    beagle_log_event "beagle-stream-client.startup-ui" "backend=firefox"
+  elif command -v xmessage >/dev/null 2>&1; then
+    beagle_log_event "beagle-stream-client.startup-ui" "backend=xmessage"
+    beagle_stream_startup_status_xmessage "$title"
+  else
+    beagle_log_event "beagle-stream-client.startup-ui-unavailable" "reason=no-browser-or-dialog"
   fi
 }
 
@@ -179,7 +213,21 @@ beagle_stream_startup_status_zenity() {
       --title "$title" \
       --text "Starte Stream..." \
       --width "560" \
-      >/dev/null 2>&1 &
+      >>"$BEAGLE_STREAM_CLIENT_STARTUP_UI_LOG_FILE" 2>&1 &
+  BEAGLE_STREAM_CLIENT_STARTUP_UI_PID="$!"
+}
+
+beagle_stream_startup_status_xmessage() {
+  local title="$1"
+  local step
+
+  step="$(cat "$BEAGLE_STREAM_CLIENT_STARTUP_STATE_FILE" 2>/dev/null || printf 'Starte Stream...')"
+  (
+    exec 9>&- || true
+    xmessage -center -buttons "" "$title
+
+$step"
+  ) >>"$BEAGLE_STREAM_CLIENT_STARTUP_UI_LOG_FILE" 2>&1 &
   BEAGLE_STREAM_CLIENT_STARTUP_UI_PID="$!"
 }
 
@@ -685,11 +733,24 @@ wait_for_beagle_stream_client_manager_registration() {
   host="$(beagle_stream_client_connect_host)"
   port="$(beagle_stream_client_port)"
   [[ -n "$(beagle_stream_client_manager_url 2>/dev/null || true)" && -n "${PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-}" ]] || return 0
+
+  if [[ "${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_REQUIRED:-0}" != "1" ]]; then
+    beagle_log_event "beagle-stream-client.register-wait-skip" "host=${host} port=${port:-default} reason=nonblocking"
+    return 0
+  fi
+
   max_attempts="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_ATTEMPTS:-30}"
   retry_sleep="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_SLEEP:-2}"
   attempt=1
+  if beagle_stream_client_stream_ready >/dev/null 2>&1; then
+    beagle_log_event "beagle-stream-client.register-wait-fail-open" "host=${host} port=${port:-default} attempt=0/${max_attempts} reason=stream-ready"
+    return 0
+  fi
   while [[ "$attempt" -le "$max_attempts" ]]; do
     if ! extract_beagle_stream_client_certificate_pem >/dev/null 2>&1; then
+      if declare -F ensure_beagle_stream_client_config >/dev/null 2>&1; then
+        ensure_beagle_stream_client_config >/dev/null 2>&1 || true
+      fi
       bootstrap_beagle_stream_client >/dev/null 2>&1 || true
       seed_beagle_stream_client_host_from_runtime_config >/dev/null 2>&1 || true
       retarget_beagle_stream_client_host_from_runtime_config >/dev/null 2>&1 || true
@@ -871,6 +932,14 @@ main() {
       beagle_log_event "beagle-stream-client.local-route" "local_host=$(beagle_stream_client_local_host) via=${connect_host:-$host}"
     fi
 
+    if declare -F ensure_beagle_stream_client_config >/dev/null 2>&1; then
+      if ensure_beagle_stream_client_config; then
+        beagle_log_event "beagle-stream-client.credentials-ready" "config=$(beagle_stream_client_config_path 2>/dev/null || true)"
+      else
+        beagle_log_event "beagle-stream-client.credentials-missing" "config=$(beagle_stream_client_default_config_path 2>/dev/null || true)"
+      fi
+    fi
+
     if seed_beagle_stream_client_host_from_runtime_config; then
       beagle_log_event "beagle-stream-client.seeded-config" "host=${host} connect_host=${connect_host:-$host} port=${port:-default} source=runtime-credentials"
     fi
@@ -910,6 +979,14 @@ main() {
   else
     beagle_stream_startup_status_step "5" "Hostless-Konfiguration synchronisieren" "Broker-Ziel lokal zwischenspeichern"
     if [[ -n "${host:-}" ]]; then
+      if declare -F ensure_beagle_stream_client_config >/dev/null 2>&1; then
+        if ensure_beagle_stream_client_config; then
+          beagle_log_event "beagle-stream-client.credentials-ready" "mode=hostless config=$(beagle_stream_client_config_path 2>/dev/null || true)"
+        else
+          beagle_log_event "beagle-stream-client.credentials-missing" "mode=hostless config=$(beagle_stream_client_default_config_path 2>/dev/null || true)"
+        fi
+      fi
+
       if seed_beagle_stream_client_host_from_runtime_config; then
         beagle_log_event "beagle-stream-client.seeded-config" "mode=hostless host=${host} connect_host=${connect_host:-$host} port=${port:-default} source=runtime-credentials"
       fi
@@ -1066,6 +1143,14 @@ main() {
     while kill -0 "$stream_pid" >/dev/null 2>&1; do
       if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eq 'Qt Critical: Connection terminated|Connection terminated|Error code: -1'; then
         beagle_log_event "beagle-stream-client.connection-terminated" "attempt=${stream_attempt}/${max_attempts} pid=${stream_pid}"
+        kill -TERM "$stream_pid" >/dev/null 2>&1 || true
+        sleep 1
+        kill -KILL "$stream_pid" >/dev/null 2>&1 || true
+        stream_forced_restart=1
+        break
+      fi
+      if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi 'Server certificate mismatch|"applist" request failed|Failed to find application|Failed to load application|has not been paired|not been paired|please open moonlight to pair|unauthorized|not paired'; then
+        beagle_log_event "beagle-stream-client.repair-trigger" "attempt=${stream_attempt}/${max_attempts} pid=${stream_pid} reason=applist-or-pairing"
         kill -TERM "$stream_pid" >/dev/null 2>&1 || true
         sleep 1
         kill -KILL "$stream_pid" >/dev/null 2>&1 || true

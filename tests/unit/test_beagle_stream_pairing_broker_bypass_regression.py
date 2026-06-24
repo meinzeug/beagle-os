@@ -19,5 +19,7 @@ def test_broker_pairing_bypass_requires_explicit_override() -> None:
 def test_pair_status_uses_client_uniqueid_context() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
 
-    assert 'uniqueid="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_UNIQUEID:-0123456789ABCDEF}"' in script
+    assert 'uniqueid="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_UNIQUEID:-}"' in script
+    assert 'beagle_stream_client_uniqueid 2>/dev/null || true' in script
+    assert 'uniqueid="${uniqueid:-0123456789ABCDEF}"' in script
     assert '"http://${host}:${port}/serverinfo?uniqueid=${uniqueid}"' in script

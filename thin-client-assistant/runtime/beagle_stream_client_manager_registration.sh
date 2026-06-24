@@ -321,8 +321,10 @@ exchange_beagle_stream_client_pairing_token_via_manager() {
   build_beagle_stream_client_pair_exchange_payload "$pairing_token" >"$payload_file"
   http_status="$("${curl_args[@]}" --data-binary "@${payload_file}" "${manager_url%/}/api/v1/endpoints/beagle-stream-client/pair-exchange" || true)"
 
+  unset PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_MODE
   if [[ "$http_status" == "200" ]]; then
     if mapfile -t parsed < <(parse_beagle_stream_client_pair_exchange_response "$response_file" 2>/dev/null); then
+      export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_MODE="${parsed[0]:-}"
       if [[ "${parsed[0]:-}" == "pin-compat" && -n "${parsed[1]:-}" ]]; then
         export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_COMPAT_PIN="${parsed[1]}"
       fi

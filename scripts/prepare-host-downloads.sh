@@ -204,28 +204,15 @@ any_source_newer_than() {
   return 1
 }
 
-refresh_live_rootfs_from_repo() {
-  local squashfs_path="$1"
-  local rootfs_stage cleanup_cmd
+populate_live_rootfs_stage_from_repo() {
+  local rootfs_stage="$1"
+  local rsync_chown="${2:-0}"
+  local -a rsync_args
 
-  command -v unsquashfs >/dev/null 2>&1 || {
-    echo "unsquashfs not found; cannot refresh live rootfs from repo sources" >&2
-    return 1
-  }
-  command -v mksquashfs >/dev/null 2>&1 || {
-    echo "mksquashfs not found; cannot refresh live rootfs from repo sources" >&2
-    return 1
-  }
-  command -v rsync >/dev/null 2>&1 || {
-    echo "rsync not found; cannot refresh live rootfs from repo sources" >&2
-    return 1
-  }
-
-  rootfs_stage="$(mktemp -d)"
-  cleanup_cmd="$(printf 'rm -rf %q' "$rootfs_stage")"
-  trap "$cleanup_cmd" RETURN
-
-  unsquashfs -d "$rootfs_stage" "$squashfs_path" >/dev/null
+  rsync_args=(-a --delete)
+  if [[ "$rsync_chown" == "1" ]]; then
+    rsync_args+=(--chown=root:root)
+  fi
 
   install -d -m 0755 \
     "$rootfs_stage/usr/local/lib/pve-thin-client/runtime" \
@@ -233,16 +220,16 @@ refresh_live_rootfs_from_repo() {
     "$rootfs_stage/usr/local/lib/pve-thin-client/usb" \
     "$rootfs_stage/usr/local/lib/pve-thin-client/templates"
 
-  rsync -a --delete --chown=root:root \
+  rsync "${rsync_args[@]}" \
     "$ROOT_DIR/thin-client-assistant/runtime/" \
     "$rootfs_stage/usr/local/lib/pve-thin-client/runtime/"
-  rsync -a --delete --chown=root:root \
+  rsync "${rsync_args[@]}" \
     "$ROOT_DIR/thin-client-assistant/installer/" \
     "$rootfs_stage/usr/local/lib/pve-thin-client/installer/"
-  rsync -a --delete --chown=root:root \
+  rsync "${rsync_args[@]}" \
     "$ROOT_DIR/thin-client-assistant/usb/" \
     "$rootfs_stage/usr/local/lib/pve-thin-client/usb/"
-  rsync -a --delete --chown=root:root \
+  rsync "${rsync_args[@]}" \
     "$ROOT_DIR/thin-client-assistant/templates/" \
     "$rootfs_stage/usr/local/lib/pve-thin-client/templates/"
 
@@ -258,12 +245,170 @@ refresh_live_rootfs_from_repo() {
   install -D -m 0644 \
     "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-network-menu.service" \
     "$rootfs_stage/etc/systemd/system/pve-thin-client-network-menu.service"
+  install -D -m 0755 \
+    "$ROOT_DIR/thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-runtime-heartbeat" \
+    "$rootfs_stage/usr/local/sbin/beagle-runtime-heartbeat"
+  for script_path in \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-endpoint-report" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-endpoint-dispatch" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-healthcheck" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-support-bundle" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-identity-apply" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-egress-apply" \
+    "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-update-client"
+  do
+    install -D -m 0755 "$script_path" "$rootfs_stage/usr/local/sbin/$(basename "$script_path")"
+  done
+}
+
+write_live_rootfs_overlay_defs() {
+  local overlay_stage="$1"
+  local exclude_file="$2"
+  local pseudo_file="$3"
+  local path rel mode target quoted_path
+
+  cat >"$exclude_file" <<'EOF'
+usr/local/lib/pve-thin-client/runtime
+usr/local/lib/pve-thin-client/installer
+usr/local/lib/pve-thin-client/usb
+usr/local/lib/pve-thin-client/templates
+usr/local/lib/scripts/lib/trace-guard.sh
+usr/local/sbin/beagle-runtime-heartbeat
+usr/local/sbin/beagle-endpoint-report
+usr/local/sbin/beagle-endpoint-dispatch
+usr/local/sbin/beagle-healthcheck
+usr/local/sbin/beagle-support-bundle
+usr/local/sbin/beagle-identity-apply
+usr/local/sbin/beagle-egress-apply
+usr/local/sbin/beagle-update-client
+etc/systemd/system/beagle-thin-client-prepare.service
+etc/systemd/system/pve-thin-client-prepare.service
+etc/systemd/system/pve-thin-client-network-menu.service
+EOF
+
+  : >"$pseudo_file"
+  while IFS= read -r path; do
+    rel="${path#"$overlay_stage"/}"
+    [[ "$rel" != "." ]] || continue
+    mode="$(stat -c '%a' "$path")"
+    printf '%s d 0%s 0 0\n' "$rel" "$mode" >>"$pseudo_file"
+  done < <(find "$overlay_stage" -mindepth 1 -type d | sort)
+
+  while IFS= read -r path; do
+    rel="${path#"$overlay_stage"/}"
+    if [[ -L "$path" ]]; then
+      mode="$(stat -c '%a' "$path")"
+      target="$(readlink "$path")"
+      printf '%s s 0%s 0 0 %s\n' "$rel" "$mode" "$target" >>"$pseudo_file"
+      continue
+    fi
+    mode="$(stat -c '%a' "$path")"
+    printf -v quoted_path '%q' "$path"
+    printf '%s f 0%s 0 0 cat %s\n' "$rel" "$mode" "$quoted_path" >>"$pseudo_file"
+  done < <(find "$overlay_stage" -mindepth 1 \( -type f -o -type l \) | sort)
+}
+
+run_maybe_sudo() {
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    "$@"
+    return $?
+  fi
+  if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+    sudo "$@"
+    return $?
+  fi
+  "$@"
+}
+
+cleanup_live_rootfs_overlay() {
+  if [[ "${mounted:-0}" == "1" && -n "${rootfs_mount:-}" ]]; then
+    run_maybe_sudo umount "$rootfs_mount" >/dev/null 2>&1 || true
+  fi
+  rm -rf "${rootfs_mount:-}" "${overlay_stage:-}" "${exclude_file:-}" "${pseudo_file:-}"
+}
+
+cleanup_rootfs_stage() {
+  rm -rf "${rootfs_stage:-}"
+}
+
+cleanup_tmpstage() {
+  rm -rf "${tmpstage:-}"
+}
+
+cleanup_tmproot_tmpstage() {
+  rm -rf "${tmproot:-}" "${tmpstage:-}"
+}
+
+cleanup_tmpcheck() {
+  rm -rf "${tmpcheck:-}"
+}
+
+refresh_live_rootfs_from_repo_overlay() {
+  local squashfs_path="$1"
+  local rootfs_mount="" overlay_stage="" exclude_file="" pseudo_file="" mounted=0
+
+  command -v mount >/dev/null 2>&1 || return 1
+  command -v umount >/dev/null 2>&1 || return 1
+  command -v stat >/dev/null 2>&1 || return 1
+
+  rootfs_mount="$(mktemp -d)"
+  overlay_stage="$(mktemp -d)"
+  exclude_file="$(mktemp)"
+  pseudo_file="$(mktemp)"
+  trap 'cleanup_live_rootfs_overlay' RETURN
+
+  if ! run_maybe_sudo mount -o loop,ro "$squashfs_path" "$rootfs_mount"; then
+    trap - RETURN
+    cleanup_live_rootfs_overlay
+    return 1
+  fi
+  mounted=1
+
+  populate_live_rootfs_stage_from_repo "$overlay_stage" 0
+  write_live_rootfs_overlay_defs "$overlay_stage" "$exclude_file" "$pseudo_file"
+
+  run_maybe_sudo mksquashfs "$rootfs_mount" "${squashfs_path}.new" -comp xz -noappend -ef "$exclude_file" -pf "$pseudo_file" >/dev/null
+  run_maybe_sudo umount "$rootfs_mount"
+  mounted=0
+  mv "${squashfs_path}.new" "$squashfs_path"
+
+  trap - RETURN
+  cleanup_live_rootfs_overlay
+}
+
+refresh_live_rootfs_from_repo() {
+  local squashfs_path="$1"
+  local rootfs_stage=""
+
+  command -v mksquashfs >/dev/null 2>&1 || {
+    echo "mksquashfs not found; cannot refresh live rootfs from repo sources" >&2
+    return 1
+  }
+  command -v rsync >/dev/null 2>&1 || {
+    echo "rsync not found; cannot refresh live rootfs from repo sources" >&2
+    return 1
+  }
+
+  if refresh_live_rootfs_from_repo_overlay "$squashfs_path"; then
+    return 0
+  fi
+
+  command -v unsquashfs >/dev/null 2>&1 || {
+    echo "unsquashfs not found; cannot refresh live rootfs from repo sources" >&2
+    return 1
+  }
+
+  rootfs_stage="$(mktemp -d)"
+  trap 'cleanup_rootfs_stage' RETURN
+
+  unsquashfs -d "$rootfs_stage" "$squashfs_path" >/dev/null
+  populate_live_rootfs_stage_from_repo "$rootfs_stage" 1
 
   mksquashfs "$rootfs_stage" "${squashfs_path}.new" -comp xz -noappend >/dev/null
   mv "${squashfs_path}.new" "$squashfs_path"
 
   trap - RETURN
-  eval "$cleanup_cmd"
+  cleanup_rootfs_stage
 }
 
 local_live_assets_complete() {
@@ -282,7 +427,7 @@ rebuild_packaged_payload_from_live_assets() {
   local payload_latest="$DIST_DIR/pve-thin-client-usb-payload-latest.tar.gz"
   local bootstrap_versioned="$DIST_DIR/pve-thin-client-usb-bootstrap-v${VERSION}.tar.gz"
   local bootstrap_latest="$DIST_DIR/pve-thin-client-usb-bootstrap-latest.tar.gz"
-  local tmpstage cleanup_cmd live_dir
+  local tmpstage="" live_dir
 
   local_live_assets_complete "$live_src" || return 1
   command -v rsync >/dev/null 2>&1 || {
@@ -294,8 +439,7 @@ rebuild_packaged_payload_from_live_assets() {
 
   tmpstage="$(mktemp -d)"
   live_dir="$tmpstage/dist/pve-thin-client-installer/live"
-  cleanup_cmd="$(printf 'rm -rf %q' "$tmpstage")"
-  trap "$cleanup_cmd" RETURN
+  trap 'cleanup_tmpstage' RETURN
 
   install -d -m 0755 "$live_dir"
   rsync -a --delete "$live_src/" "$live_dir/"
@@ -325,7 +469,7 @@ rebuild_packaged_payload_from_live_assets() {
 
   echo "USB payload tarball rebuilt from local live assets: $payload_latest"
   trap - RETURN
-  eval "$cleanup_cmd"
+  cleanup_tmpstage
 }
 
 # Build the canonical payload tarball from an already-present installer ISO
@@ -360,14 +504,13 @@ ensure_bootstrap_from_deployed_iso() {
 
   echo "Building USB payload tarball from deployed ISO: $iso"
 
-  local tmproot tmpstage cleanup_cmd
+  local tmproot="" tmpstage=""
   tmproot="$(mktemp -d)"
   tmpstage="$(mktemp -d)"
   local live_dir="$tmpstage/dist/pve-thin-client-installer/live"
   mkdir -p "$live_dir"
 
-  cleanup_cmd="$(printf 'rm -rf %q %q' "$tmproot" "$tmpstage")"
-  trap "$cleanup_cmd" RETURN
+  trap 'cleanup_tmproot_tmpstage' RETURN
 
   xorriso -osirrox on -indev "$iso" \
     -extract /live/vmlinuz          "$live_dir/vmlinuz" \
@@ -376,6 +519,8 @@ ensure_bootstrap_from_deployed_iso() {
     -extract /live/SHA256SUMS       "$live_dir/SHA256SUMS" \
     >/dev/null 2>&1 || {
       echo "Failed to extract live assets from $iso" >&2
+      trap - RETURN
+      cleanup_tmproot_tmpstage
       return 1
     }
 
@@ -404,7 +549,7 @@ ensure_bootstrap_from_deployed_iso() {
 
   echo "USB payload tarball built: $packaged_payload"
   trap - RETURN
-  eval "$cleanup_cmd"
+  cleanup_tmproot_tmpstage
 }
 
 recover_packaged_artifacts_from_existing_builds() {
@@ -429,9 +574,10 @@ validate_and_repair_payload_assets() {
   [[ -f "$packaged_payload" ]] || return 0
 
   # Check if payload contains required live assets
-  local tmpcheck="$(mktemp -d)"
+  local tmpcheck=""
   local has_assets=1
-  trap "rm -rf '$tmpcheck'" RETURN
+  tmpcheck="$(mktemp -d)"
+  trap 'cleanup_tmpcheck' RETURN
 
   for required_asset in "dist/pve-thin-client-installer/live/vmlinuz" \
                         "dist/pve-thin-client-installer/live/initrd.img" \
@@ -443,7 +589,13 @@ validate_and_repair_payload_assets() {
     fi
   done
 
-  [[ "$has_assets" -eq 1 ]] && return 0
+  if [[ "$has_assets" -eq 1 ]]; then
+    trap - RETURN
+    cleanup_tmpcheck
+    return 0
+  fi
+  trap - RETURN
+  cleanup_tmpcheck
 
   # Payload is missing live assets; try to rebuild from ISO.
   # Not fatal: the rest of the install flow will attempt to download the ISO via
@@ -462,12 +614,13 @@ validate_and_repair_payload_assets() {
 
   echo "Repairing payload tarball: extracting live assets from ISO..."
 
-  local tmpstage="$(mktemp -d)"
-  local live_dir="$tmpstage/dist/pve-thin-client-installer/live"
+  local tmpstage=""
+  local live_dir=""
+  tmpstage="$(mktemp -d)"
+  live_dir="$tmpstage/dist/pve-thin-client-installer/live"
   mkdir -p "$live_dir"
 
-  local cleanup_cmd="$(printf 'rm -rf %q' "$tmpstage")"
-  trap "$cleanup_cmd" RETURN
+  trap 'cleanup_tmpstage' RETURN
 
   xorriso -osirrox on -indev "$iso" \
     -extract /live/vmlinuz          "$live_dir/vmlinuz" \
@@ -476,6 +629,8 @@ validate_and_repair_payload_assets() {
     -extract /live/SHA256SUMS       "$live_dir/SHA256SUMS" \
     >/dev/null 2>&1 || {
       echo "ERROR: Failed to extract live assets from $iso for payload repair" >&2
+      trap - RETURN
+      cleanup_tmpstage
       return 1
     }
 
@@ -505,7 +660,7 @@ validate_and_repair_payload_assets() {
   echo "Payload tarball repaired: $packaged_payload"
 
   trap - RETURN
-  eval "$cleanup_cmd"
+  cleanup_tmpstage
 }
 
 

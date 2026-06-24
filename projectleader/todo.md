@@ -45,7 +45,14 @@ Last updated: 2026-05-31
 
 ## Streaming Gate
 
-- [ ] After the VM is installed and stable, verify BeagleStream server/client path.
+- [x] Reproduce and hotfix local thinclient boot-to-stream delay on `192.168.178.30`.
+- [x] Verify BeagleStream server/client path on the local thinclient after hotfix.
+- [x] Verify first local no-hotpatch Slot-B boot contains the hotfix and keeps heartbeat/update-scan healthy.
+- [x] Fix fresh-boot PairStatus/TLS readiness regression found during Slot-B boot.
+- [x] Fix fresh-boot missing BeagleStream client credentials and Manager token-mode pairing regression.
+- [x] Build a local fixed 8.3.18 thin-client payload for hardware recovery (`filesystem.squashfs=668fed9d...`, payload SHA256 `18bb7bfc...`).
+- [ ] Physically power-cycle or otherwise restart local thinclient, then install the corrected `668fed...` Slot-B image before the old pairing loop wedges SSH again.
+- [ ] Publish a fixed thin-client payload that contains the boot-to-stream hotfix.
 - [ ] Confirm streaming from a fresh thin-client payload without manual hotpatches.
 - [ ] Check WireGuard-required path, stream health events and absence of secrets in
   logs.

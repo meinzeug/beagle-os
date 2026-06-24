@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
+
+import pytest
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 PAIRING_SH = ROOT_DIR / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh"
 MANAGER_REGISTRATION_SH = ROOT_DIR / "thin-client-assistant" / "runtime" / "beagle_stream_client_manager_registration.sh"
+CONFIG_STATE_SH = ROOT_DIR / "thin-client-assistant" / "runtime" / "beagle_stream_client_config_state.sh"
 
 
 def _run_pairing_ready_script(script_body: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
@@ -55,6 +59,39 @@ beagle_stream_client_stream_ready
 '''
     result = _run_pairing_ready_script(script, tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_stream_ready_rejects_pair_status_without_local_host_config(tmp_path: Path) -> None:
+    script = f'''
+source "{PAIRING_SH}"
+beagle_stream_client_pair_status() {{ printf '1\\n'; return 0; }}
+beagle_stream_client_host_configured() {{ return 1; }}
+sync_beagle_stream_client_host_from_serverinfo_probe() {{ return 1; }}
+if beagle_stream_client_stream_ready; then
+  echo "ready"
+  exit 1
+fi
+exit 0
+'''
+    result = _run_pairing_ready_script(script, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_stream_ready_repairs_local_host_config_from_pair_status(tmp_path: Path) -> None:
+    marker = tmp_path / "sync-called"
+    script = f'''
+source "{PAIRING_SH}"
+beagle_stream_client_pair_status() {{ printf '1\\n'; return 0; }}
+beagle_stream_client_host_configured() {{ return 1; }}
+sync_beagle_stream_client_host_from_serverinfo_probe() {{
+  printf sync >"{marker}"
+  return 0
+}}
+beagle_stream_client_stream_ready
+'''
+    result = _run_pairing_ready_script(script, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert marker.read_text(encoding="utf-8") == "sync"
 
 
 def test_stream_ready_rejects_explicit_unpaired_status_without_list_fallback(tmp_path: Path) -> None:
@@ -131,6 +168,40 @@ ensure_paired
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_ensure_paired_accepts_token_mode_without_pin_handshake(tmp_path: Path) -> None:
+    script = f'''
+source "{PAIRING_SH}"
+beagle_stream_client_bin() {{ printf '/usr/bin/false\n'; }}
+beagle_stream_client_connect_host() {{ printf '127.0.0.1\n'; }}
+beagle_stream_client_port() {{ printf '47984\n'; }}
+beagle_stream_client_target() {{ printf '127.0.0.1:47984\n'; }}
+beagle_stream_client_stream_ready() {{ return 1; }}
+register_beagle_stream_client_via_manager() {{ return 0; }}
+request_beagle_stream_client_pairing_token_via_manager() {{
+  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN='TOKEN_OK'
+  return 0
+}}
+exchange_beagle_stream_client_pairing_token_via_manager() {{
+  export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_MODE='token'
+  return 0
+}}
+complete_beagle_stream_client_pairing_handshake() {{
+  echo "pin handshake should not run" >&2
+  return 99
+}}
+submit_beagle_stream_server_pairing_token() {{ return 1; }}
+beagle_stream_client_pair_status_ready() {{ return 1; }}
+beagle_stream_client_pairing_timeout() {{ printf '1\n'; }}
+beagle_stream_client_pairing_retry_sleep() {{ printf '0\n'; }}
+beagle_log_event() {{ return 0; }}
+export BEAGLE_STREAM_CLIENT_PAIR_LOG='{tmp_path / "pair.log"}'
+ensure_paired
+'''
+    result = _run_pairing_ready_script(script, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "mode=token" in (tmp_path / "pair.log").read_text(encoding="utf-8")
+
+
 def test_manager_registration_keeps_bearer_token_out_of_curl_argv() -> None:
     script = MANAGER_REGISTRATION_SH.read_text(encoding="utf-8")
 
@@ -165,6 +236,30 @@ ensure_paired
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_client_config_bootstrap_creates_certificate_key_and_uniqueid(tmp_path: Path) -> None:
+    if shutil.which("openssl") is None:
+        pytest.skip("openssl is required for client credential bootstrap")
+
+    config_path = tmp_path / "BeagleStream.conf"
+    script = f'''
+export BEAGLE_STREAM_CLIENT_HOST_SYNC_SH=/dev/null
+export PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_CONFIG='{config_path}'
+source "{CONFIG_STATE_SH}"
+ensure_beagle_stream_client_config
+extract_beagle_stream_client_certificate_pem
+printf 'uniqueid=%s\n' "$(beagle_stream_client_uniqueid)"
+'''
+    result = _run_pairing_ready_script(script, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    text = config_path.read_text(encoding="utf-8")
+    assert 'certificate="@ByteArray(-----BEGIN CERTIFICATE-----' in text
+    assert 'key="@ByteArray(-----BEGIN PRIVATE KEY-----' in text
+    assert "\nuniqueid=" in text
+    assert text.index('certificate="@ByteArray(') < text.index('\nkey="@ByteArray(')
+    assert "BEGIN CERTIFICATE" in result.stdout
+    assert "uniqueid=" in result.stdout
+
+
 def test_pair_status_ignores_authenticated_apps_helper(tmp_path: Path) -> None:
     script = f'''
 source "{PAIRING_SH}"
@@ -184,6 +279,30 @@ if [[ "$(beagle_stream_client_pair_status)" != "0" ]]; then
   echo "expected unpaired"
   exit 1
 fi
+'''
+    result = _run_pairing_ready_script(script, tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_pair_status_uses_config_uniqueid_when_env_missing(tmp_path: Path) -> None:
+    script = f'''
+source "{PAIRING_SH}"
+beagle_stream_client_connect_host() {{ printf '192.168.123.114\n'; }}
+beagle_stream_client_port() {{ printf '50000\n'; }}
+beagle_stream_client_uniqueid() {{ printf 'ABCDEF1234567890\n'; }}
+curl() {{
+  case "$*" in
+    *"uniqueid=ABCDEF1234567890"*)
+      printf '<root><PairStatus>1</PairStatus></root>\n'
+      return 0
+      ;;
+    *)
+      printf 'bad uniqueid: %s\n' "$*" >&2
+      return 1
+      ;;
+  esac
+}}
+[[ "$(beagle_stream_client_pair_status)" == "1" ]]
 '''
     result = _run_pairing_ready_script(script, tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr

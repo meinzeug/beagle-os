@@ -5,7 +5,19 @@ STATE_DIR="/var/lib/beagle-os"
 STATUS_FILE="$STATE_DIR/runtime-heartbeat.status"
 TRACE_FILE="$STATE_DIR/runtime-trace.log"
 PREV_FILE="$STATE_DIR/runtime-heartbeat.prev"
-COMMON_SH="/usr/local/lib/pve-thin-client/runtime/common.sh"
+
+# Copy runtime helpers to tmpfs before sourcing so heartbeat survives
+# transient squashfs/overlayfs read faults during live boot.
+_rt_orig="${BEAGLE_RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}"
+_rt_run="/run/pve-thin-client/runtime"
+if [[ ! -f "${_rt_run}/common.sh" ]]; then
+  mkdir -p "$_rt_run" 2>/dev/null || true
+  cp -a "${_rt_orig}/." "$_rt_run/" 2>/dev/null || true
+fi
+[[ -f "${_rt_run}/common.sh" ]] && _rt_orig="$_rt_run"
+COMMON_SH="$_rt_orig/common.sh"
+DEVICE_SYNC_SH="$_rt_orig/device_sync.sh"
+unset _rt_orig _rt_run
 
 install -d -m 0755 "$STATE_DIR"
 
@@ -14,10 +26,17 @@ if [[ -r "$COMMON_SH" ]]; then
   source "$COMMON_SH"
   load_runtime_config >/dev/null 2>&1 || true
 fi
+if [[ -r "$DEVICE_SYNC_SH" ]]; then
+  # shellcheck disable=SC1090
+  source "$DEVICE_SYNC_SH"
+fi
 
 timestamp="$(date -Iseconds 2>/dev/null || date)"
 
 if declare -F beagle_streaming_session_active >/dev/null 2>&1 && beagle_streaming_session_active; then
+  if declare -F sync_device_runtime_state >/dev/null 2>&1; then
+    sync_device_runtime_state >/dev/null 2>&1 || true
+  fi
   {
     printf 'timestamp=%q\n' "$timestamp"
     printf 'streaming=%q\n' "1"
@@ -28,7 +47,13 @@ if declare -F beagle_streaming_session_active >/dev/null 2>&1 && beagle_streamin
 fi
 
 xorg_state="$(pgrep -f '/usr/lib/xorg/Xorg :0' >/dev/null 2>&1 && printf 1 || printf 0)"
-beagle_stream_client_state="$(pgrep -x beagle-stream-client >/dev/null 2>&1 && printf 1 || printf 0)"
+beagle_stream_client_state="$(
+  if pgrep -x beagle-stream-client >/dev/null 2>&1 || pgrep -f '(^|/)beagle-stream stream( |$)' >/dev/null 2>&1; then
+    printf 1
+  else
+    printf 0
+  fi
+)"
 kiosk_state="$(pgrep -x beagle-kiosk >/dev/null 2>&1 && printf 1 || printf 0)"
 openbox_state="$(pgrep -x openbox >/dev/null 2>&1 && printf 1 || printf 0)"
 route_state="$(ip route show default 2>/dev/null | head -n 1 || true)"
@@ -45,6 +70,10 @@ last_trace="$(tail -n 1 "$TRACE_FILE" 2>/dev/null || true)"
   printf 'last_trace=%q\n' "$last_trace"
   printf 'kernel_tail=%q\n' "$drm_tail"
 } >"$STATUS_FILE"
+
+if declare -F sync_device_runtime_state >/dev/null 2>&1; then
+  sync_device_runtime_state >/dev/null 2>&1 || true
+fi
 
 state_signature="xorg=${xorg_state};beagle-stream-client=${beagle_stream_client_state};kiosk=${kiosk_state};openbox=${openbox_state};route=${route_state}"
 prev_signature="$(cat "$PREV_FILE" 2>/dev/null || true)"

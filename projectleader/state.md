@@ -62,6 +62,13 @@ LastHope/Diamond gates moving forward.
 - Live hotfixes on `srv1` must never remain only on the host.
 - Heavy artifact builds on live hosts can overload the machine; stop unintended
   refresh jobs before starting new release work.
+- Local thinclient `192.168.178.30` currently requires a physical power-cycle or
+  another way to restart the device: it pings, WireGuard handshakes through
+  `srv1` stay fresh, and TCP/22 is open, but sshd no longer sends a banner.
+  NetBridge/47100 is not reachable.
+- A corrected local thinclient payload exists, but the Streaming Gate is still
+  open until the device boots `filesystem.squashfs=668fed9d...` without
+  hotpatching and reaches a working VM desktop stream.
 
 ## Operator Notes
 
@@ -69,3 +76,49 @@ LastHope/Diamond gates moving forward.
 - If a password is needed for `srv1`, load it from the local operator file
   specified by the user instead of printing it.
 - `AGENTS.md` is local policy and must not be committed.
+
+## Runtime Validation 2026-06-23
+
+- Local thinclient evidence:
+  - Device `192.168.178.30`, user `thinclient`, live runtime boot.
+  - Current installed/runtime version reported by update status: `8.3.17`.
+  - Public/update feed seen on device advertises `latest_version=8.3.18`.
+- Root causes found:
+  - BeagleStream was ready but blocked in `beagle-stream-client.register-wait`
+    for 30 attempts before launching.
+  - Startup indicator browser output was discarded, so UI failures were silent.
+  - Runtime heartbeat only checked `beagle-stream-client`, not the actual
+    `beagle-stream stream` process.
+  - Live-USB update scan treated RAM-backed cache deferral as a failed systemd
+    unit.
+- Hotfix validation on the device after copying repo scripts:
+  - `ready` proceeded to `register-wait-skip` and then stream exec.
+  - Chromium startup indicator process was active and logged to
+    `beagle-stream-client-startup-ui.log`.
+  - `beagle-stream stream 192.168.123.114:50000 Desktop ...` established the
+    VM desktop stream and received video/audio packets.
+  - `beagle-runtime-heartbeat` reported `beagle-stream-client=1`.
+  - `beagle-update-client scan --auto-apply-if-idle` exited 0 with
+    `state=deferred`; `systemctl --failed` was empty after reset.
+- No-hotpatch Slot-B attempt:
+  - First rebuilt Slot `b` booted without copying scripts after boot.
+  - Booted medium showed `/run/live/medium/live/current -> b` and the expected
+    hotfix markers in the rootfs.
+  - Heartbeat/update-scan stayed healthy, but the fresh BeagleStream client had
+    no local server certificate (`srvcert`) and hit SSL/app lookup failures.
+  - Repo now requires local host config readiness when `PairStatus=1` and forces
+    the stream repair loop on live app/TLS errors.
+  - A later local 8.3.18 Slot-B boot reached Xorg/Openbox/startup UI with no
+    failed units but hung in Pairing step 6 because no local BeagleStream client
+    config/certificate existed before manager token exchange.
+  - Repo now bootstraps local BeagleStream QSettings credentials before
+    register/pair/stream and treats manager `pairing_mode=token` as accepted
+    without running the legacy PIN follow-up.
+  - Corrected local payload:
+    `.tmp-thinclient-fix/20260623/pve-thin-client-usb-payload-v8.3.18-bootstreamfix-20260623.tar.gz`.
+    Payload SHA256: `18bb7bfc6c2bb350c01f8fd181f212bf573e546156c5fb78e23975c35001c94c`.
+    Live rootfs SHA256: `668fed9d3def1ae57360d4f12b1a16523143caf0eaccd113bd78a8497506776e`.
+  - Local verification after the credential/token fix:
+    `120 passed` for the focused unit/integration suite covering payload repair,
+    pairing runtime, launcher runtime, heartbeat/update deferral and endpoint
+    boot-to-stream tests; `git diff --check` and shell syntax checks are clean.

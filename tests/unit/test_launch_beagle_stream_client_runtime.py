@@ -18,6 +18,15 @@ def test_launcher_has_audio_host_down_recovery_logic() -> None:
     assert "PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_AUDIO_AUTO_DRIVER" in text
 
 
+def test_launcher_forces_repair_when_running_stream_reports_app_or_tls_error() -> None:
+    text = LAUNCHER.read_text(encoding="utf-8")
+    assert "beagle-stream-client.repair-trigger" in text
+    assert "reason=applist-or-pairing" in text
+    assert '"applist" request failed' in text
+    assert "Failed to find application" in text
+    assert "Server certificate mismatch" in text
+
+
 def _write_executable(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
     path.chmod(0o755)

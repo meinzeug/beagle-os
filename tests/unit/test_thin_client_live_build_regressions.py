@@ -224,13 +224,15 @@ def test_runtime_scripts_normalize_live_boot_var_local_overlay_paths() -> None:
 
 def test_runtime_heartbeat_uses_tmpfs_runtime_copy_before_sourcing_common() -> None:
     heartbeat = (ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "usr" / "local" / "sbin" / "beagle-runtime-heartbeat").read_text(encoding="utf-8")
+    installed_heartbeat = (ROOT / "beagle-os" / "overlay" / "usr" / "local" / "sbin" / "beagle-runtime-heartbeat").read_text(encoding="utf-8")
 
-    assert '_rt_run="/run/pve-thin-client/runtime"' in heartbeat
-    assert 'cp -a "${_rt_orig}/." "$_rt_run/"' in heartbeat
-    assert 'COMMON_SH="$_rt_orig/common.sh"' in heartbeat
-    assert 'DEVICE_SYNC_SH="$_rt_orig/device_sync.sh"' in heartbeat
-    assert "pgrep -x beagle-stream-client" in heartbeat
-    assert "pgrep -f '(^|/)beagle-stream stream( |$)'" in heartbeat
+    for script_text in (heartbeat, installed_heartbeat):
+        assert '_rt_run="/run/pve-thin-client/runtime"' in script_text
+        assert 'cp -a "${_rt_orig}/." "$_rt_run/"' in script_text
+        assert 'COMMON_SH="$_rt_orig/common.sh"' in script_text
+        assert 'DEVICE_SYNC_SH="$_rt_orig/device_sync.sh"' in script_text
+        assert "pgrep -x beagle-stream-client" in script_text
+        assert "pgrep -f '(^|/)beagle-stream stream( |$)'" in script_text
 
 
 def test_prepare_runtime_persists_redacted_live_usb_debug_reports() -> None:
@@ -337,6 +339,8 @@ def test_hostless_beagle_stream_runtime_uses_enrollment_without_static_host() ->
     assert 'beagle-stream-client.port-fallback' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_TOKEN' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
     assert 'while [[ "$attempt" -lt "$(beagle_stream_client_pairing_timeout)" ]]; do' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_MODE' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
+    assert 'pairing_mode" == "token"' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_SERVER_PIN:-' not in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_pairing.sh").read_text(encoding="utf-8")
     assert '/api/pair-token' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
     assert 'https://${candidate}:${api_port}' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_stream_client_remote_api.sh").read_text(encoding="utf-8")
@@ -382,8 +386,12 @@ def test_beaglestream_launcher_waits_for_manager_registration_before_stream_exec
     assert 'beagle_stream_client_manager_url 2>/dev/null || true' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_MANAGER_TOKEN:-' in launcher_text
     assert 'extract_beagle_stream_client_certificate_pem >/dev/null 2>&1' in launcher_text
+    assert 'ensure_beagle_stream_client_config' in launcher_text
+    assert 'beagle-stream-client.credentials-ready' in launcher_text
     assert 'bootstrap_beagle_stream_client >/dev/null 2>&1 || true' in launcher_text
     assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_ATTEMPTS:-30' in launcher_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_REQUIRED:-0' in launcher_text
+    assert 'beagle-stream-client.register-wait-skip' in launcher_text
     assert 'beagle-stream-client.register-wait' in launcher_text
     assert 'beagle-stream-client.register-wait-fail-open' in launcher_text
     assert 'beagle-stream-client.register-wait-timeout' in launcher_text
@@ -395,6 +403,7 @@ def test_beaglestream_launcher_waits_for_manager_registration_before_stream_exec
     assert 'route_uses_dev "$route_spec" "$iface" && return 0' in launcher_text
     assert launcher_text.index('wait_for_beagle_stream_client_manager_registration || {') < launcher_text.index('beagle-stream-client.exec')
     wait_function = launcher_text.split("wait_for_beagle_stream_client_manager_registration() {", 1)[1].split("\n}\n\nmain() {", 1)[0]
+    assert wait_function.index('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_REQUIRED:-0') < wait_function.index('PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_ATTEMPTS:-30')
     assert 'if beagle_stream_client_stream_ready >/dev/null 2>&1; then' in wait_function
     assert 'beagle-stream-client.register-wait-fail-open" "host=${host} port=${port:-default} attempt=${attempt}/${max_attempts}' in wait_function
     assert wait_function.index('if beagle_stream_client_stream_ready >/dev/null 2>&1; then') < wait_function.index('beagle-stream-client.register-wait"')
@@ -402,6 +411,19 @@ def test_beaglestream_launcher_waits_for_manager_registration_before_stream_exec
     assert 'beagle_stream_client_manager_url()' in manager_registration_text
     assert 'beagle_stream_enrollment_value control_plane' in manager_registration_text
     assert 'awk -F= \'$1 == "control_plane"' in manager_registration_text
+
+
+def test_beaglestream_startup_indicator_has_crash_fallback_and_log() -> None:
+    launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+
+    assert 'BEAGLE_STREAM_CLIENT_STARTUP_UI_LOG_FILE="$BEAGLE_STREAM_CLIENT_LOG_DIR/beagle-stream-client-startup-ui.log"' in launcher_text
+    assert 'beagle_stream_startup_status_launch_browser()' in launcher_text
+    assert 'PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_STARTUP_UI_VERIFY_SEC:-0.8' in launcher_text
+    assert 'beagle-stream-client.startup-ui-fallback' in launcher_text
+    assert 'beagle_stream_startup_status_zenity "$title"' in launcher_text
+    assert 'beagle_stream_startup_status_xmessage "$title"' in launcher_text
+    assert '>>"$BEAGLE_STREAM_CLIENT_STARTUP_UI_LOG_FILE" 2>&1' in launcher_text
+    assert '--disable-gpu' in launcher_text
 
 
 def test_prepare_host_downloads_rebuilds_payload_after_public_mirror_fallback() -> None:

@@ -91,3 +91,100 @@ Agenten-Struktur + baseline CI als eigenen PR-Slice finalisieren, danach den nae
 	- Ergebnis: `12 passed`.
 - Offenes Risiko: Der neue Prerelease-Run muss bis zum Ende beobachtet werden, um die separaten Mirror-URLs live zu verifizieren.
 - Naechster Schritt: Alpha-Run `v8.3.10-alpha.2` fertig beobachten und danach Live-Links/Artefaktpfade gegen die Public-Mirror-URLs pruefen.
+
+## Session Update 2026-06-23 (Thinclient Boot-to-Stream Hotfix)
+
+- Analysiert: lokaler Thinclient `192.168.178.30` per SSH, Live-Boot `runtime`, Version `8.3.17`, Update-Feed `latest_version=8.3.18`.
+- Reproduziert:
+	- Stream wurde grundsaetzlich erfolgreich gestartet, aber erst nach blockierendem `beagle-stream-client.register-wait attempt=1/30 ... 30/30`.
+	- Die 10-Schritt-Startanzeige hatte keine verwertbare UI-Diagnose und konnte bei Browser-Crash still verschwinden.
+	- `beagle-runtime-heartbeat` meldete `beagle-stream-client=0`, obwohl der neue `beagle-stream stream ...` Prozess lief.
+	- `beagle-update-scan.service` blieb failed, wenn der Live-USB-Updatecache wegen vollem Medium auf RAM zurueckfiel.
+- Geaendert:
+	- `thin-client-assistant/runtime/launch-beagle-stream-client.sh`: Manager-Registrierungs-Wait ist standardmaessig nonblocking (`REGISTER_WAIT_REQUIRED=0`), die Startanzeige prueft den Browserprozess, loggt nach `beagle-stream-client-startup-ui.log` und faellt auf `zenity`/`xmessage` zurueck.
+	- `beagle-os/overlay/usr/local/sbin/beagle-runtime-heartbeat`: erkennt auch `beagle-stream stream` und nutzt denselben tmpfs/device-sync Pfad wie die Live-Heartbeat-Variante.
+	- `beagle-os/overlay/usr/local/sbin/beagle-update-client`: Live-USB/RAM-Cache-Deferral wird als `state=deferred` mit Exit 0 behandelt, statt den systemd Scan als failed zu markieren.
+	- Regressionstests fuer Register-Wait, Startanzeige-Fallback, Heartbeat und Update-Deferral ergaenzt.
+- Getestet lokal:
+	- `bash -n thin-client-assistant/runtime/launch-beagle-stream-client.sh`
+	- `bash -n beagle-os/overlay/usr/local/sbin/beagle-runtime-heartbeat`
+	- `python3 -m py_compile beagle-os/overlay/usr/local/sbin/beagle-update-client`
+	- `python3 -m pytest -q tests/unit/test_endpoint_update_self_heal_regressions.py tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_launch_beagle_stream_client_runtime.py tests/unit/test_beagle_stream_client_pairing_runtime.py tests/unit/test_stream_auto_quality_runtime.py`
+	- Ergebnis: `87 passed`.
+	- `python3 -m pytest -q tests/integration/test_endpoint_boot_to_streaming.py`
+	- Ergebnis: `18 passed`.
+- Getestet auf Thinclient:
+	- Hotfix-Skripte installiert und laufenden Stream-Launcher neu gestartet.
+	- Neuer Ablauf: `ready` -> `register-wait-skip` statt 30 blockierende Versuche.
+	- Chromium-Startanzeige lief als Kiosk-Prozess und schrieb `beagle-stream-client-startup-ui.log`.
+	- Neuer `beagle-stream` Prozess verbunden mit erster Video-/Audio-Session nach RTSP-Handshake.
+	- Heartbeat meldete danach `beagle-stream-client=1`.
+	- `beagle-update-client scan --auto-apply-if-idle` endete mit `scan_rc=0`, `state=deferred`; `systemctl --failed` leer.
+- Offenes Risiko:
+	- Die Verifikation ist ein Hotfix auf dem laufenden Thinclient, noch kein frisch gebautes/publiziertes Live-USB- oder Installationsartefakt.
+	- Shellcheck fuer den grossen Launcher zeigt bestehende Warnungen (`SC2034`, `SC2024`, `SC2155`, `SC2015`), keine neu isolierte Runtime-Regression; Heartbeat ist syntaktisch sauber.
+- Naechster Schritt:
+	- Commit/PR fuer den Hotfix, danach neues Thinclient-Artefakt bauen/publizieren und den lokalen Thinclient von diesem Artefakt frisch booten bzw. neu installieren.
+
+## Session Update 2026-06-23 (Thinclient No-Hotpatch Slot-B Attempt)
+
+- Thinclient-eMMC analysiert: installiertes A/B-Layout mit `live/current -> a`, leerem Slot `b` und ca. 5 GB freiem Platz auf `BEAGLEROOT`.
+- Lokalen Slot `b` aus Slot `a` gebaut und die ersten Hotfix-Dateien ins SquashFS integriert; Checksummen und Readback aus dem neuen SquashFS waren erfolgreich.
+- No-hotpatch-Reboot von `live/current -> b` verifiziert:
+	- Neuer Boot-ID: `33ae60e3-286b-4281-95f3-5e5f82bf123b`.
+	- `/run/live/medium/live/current -> b`.
+	- Gebootetes `filesystem.squashfs` hatte Hash `1640ec0dd62169af8833bdf0d902bc6ad56681b50d6cbff5c92c86d3bc9362ba`.
+	- Repo-Fixmarker fuer Launcher, Heartbeat und Update-Deferral waren im gebooteten Rootfs vorhanden.
+	- Heartbeat meldete `xorg=1`, `openbox=1`, `beagle-stream-client=1`; `systemctl --failed` blieb leer.
+	- `beagle-update-client scan --auto-apply-if-idle` endete erneut mit `scan_rc=0`, `state=deferred`, `latest_version=8.3.18`.
+- Neuer frischer-Boot-Befund:
+	- Der Launcher erreichte `beagle-stream-client.exec`, aber der Stream-Log zeigte nach frischem Boot `No existing credentials found`, `QNetworkReply::SslHandshakeFailedError` und `Failed to find application Desktop`.
+	- Ursache im Runtime-Pfad: `PairStatus=1` wurde als ready akzeptiert, obwohl die lokale BeagleStream-Host-Konfiguration noch keinen Server-Cert-Eintrag (`srvcert`) hatte; der Streamprozess blieb trotz App-/TLS-Fehlern am Leben, sodass die bestehende Repair-Logik nicht griff.
+- Repo-Fix ergaenzt:
+	- `beagle_stream_client_stream_ready` akzeptiert `PairStatus=1` nur noch, wenn `beagle_stream_client_host_configured` erfolgreich ist oder `sync_beagle_stream_client_host_from_serverinfo_probe` die lokale Host-Konfiguration reparieren kann.
+	- Der Stream-Watchdog im Launcher beendet laufende Streamprozesse bei App-/TLS-/Pairing-Fehlern im Log gezielt mit `beagle-stream-client.repair-trigger`, damit die vorhandene Restart-/Repair-Schleife sofort laeuft.
+	- Neue Regressionstests fuer PairStatus-ohne-lokalen-Cert und den Repair-Trigger.
+- Getestet lokal:
+	- `bash -n thin-client-assistant/runtime/launch-beagle-stream-client.sh thin-client-assistant/runtime/beagle_stream_client_pairing.sh`
+	- `python3 -m pytest -q tests/unit/test_endpoint_update_self_heal_regressions.py tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_launch_beagle_stream_client_runtime.py tests/unit/test_beagle_stream_client_pairing_runtime.py tests/unit/test_stream_auto_quality_runtime.py tests/integration/test_endpoint_boot_to_streaming.py`
+	- Ergebnis: `108 passed`.
+- Blocker:
+	- Zweiter Slot-`b`-Rebuild fuer den Pairing-Fix wurde gestartet, dabei wurde das Medium vorab auf `live/current -> a` zurueckgesetzt und der alte Slot `b` entfernt.
+	- Der Remote-`unsquashfs`-Schritt hing danach; lokaler SSH-Abbruch beendete den Thinclient-Zugriff nicht sauber.
+	- Thinclient pingt weiter und TCP/22 ist offen, aber sshd sendet keinen SSH-Banner mehr. Remote Cleanup/Reboot ist aktuell nicht moeglich.
+	- Naechster Schritt nach manuellem Power-Cycle oder wenn SSH wieder antwortet: `/mnt/beagle-root` mounten, temporaere `build-rootfs-slot-b-*`/`b.new-*` entfernen, Slot `b` mit dem Pairing-Fix neu bauen und erneut no-hotpatch booten.
+
+## Session Update 2026-06-24 (Thinclient Credential Bootstrap + Local Payload)
+
+- Zweiter no-hotpatch-Boot aus lokalem 8.3.18-Slot `b` wurde erreicht, aber der frische Start blieb bei Pairing-Schritt 6 haengen:
+	- Boot-ID: `0b9ab391-43db-42ab-9922-947cee64985a`.
+	- `/run/live/medium/live/current -> b`.
+	- Gebootetes `filesystem.squashfs`: `d3fd03989412f92ad9c58dd9f5c1027090330d5cf246fb38f93a1983cb7689b2`.
+	- Xorg/Openbox/Startup-UI liefen und `systemctl --failed` war leer.
+	- Pairing-Log wiederholte `pair-token acquired via manager`, danach `pair-exchange failed via manager; trying direct submit`.
+- Neue Ursache:
+	- Frische BeagleStream-Clients hatten noch keine lokale QSettings-Konfiguration mit Client-Zertifikat/Key/`uniqueid`.
+	- Der Manager antwortete im Token-Modus; der Runtime-Pfad erwartete weiter PIN-Kompatibilitaet und startete dadurch einen falschen Folge-Handshake.
+- Repo-Fix ergaenzt:
+	- `ensure_beagle_stream_client_config` erzeugt vor Manager-Register/Pairing/Direct-Stream eine minimale lokale BeagleStream-Konfiguration mit selbstsigniertem Client-Zertifikat, Key und stabiler `uniqueid`.
+	- Explizite `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_CONFIG` Pfade werden nicht mehr still ignoriert, wenn sie unlesbar sind.
+	- Manager-`pairing_mode=token` wird als akzeptierter Exchange behandelt; PIN-Folgehandshake laeuft nur noch fuer `pin-compat`.
+	- Launcher loggt `beagle-stream-client.credentials-ready` vor Direct-/Hostless-Stream und bereitet Credentials auch im Register-Wait-Pfad vor.
+- Korrigiertes lokales 8.3.18-Payload gebaut und validiert:
+	- Rootfs: `668fed9d3def1ae57360d4f12b1a16523143caf0eaccd113bd78a8497506776e`.
+	- Kernel: `4cc864b8e34c86c281f66b36157a52945a95a1b290762245c608b7c7e3934a11`.
+	- Initrd: `65852b4959ca7a995befa5b4a75719ca613d2f59e961aae06e83105ea0eb9d7e`.
+	- Payload: `.tmp-thinclient-fix/20260623/pve-thin-client-usb-payload-v8.3.18-bootstreamfix-20260623.tar.gz`.
+	- Payload-SHA256 nach aktuellem Workspace-Rebuild: `18bb7bfc6c2bb350c01f8fd181f212bf573e546156c5fb78e23975c35001c94c`.
+	- Archivstruktur, `SHA256SUMS`, `gzip -t` und SquashFS-Marker fuer Credential-/Token-Fix erfolgreich geprueft.
+- Getestet lokal:
+	- `bash -n thin-client-assistant/runtime/beagle_stream_client_config_state.sh thin-client-assistant/runtime/beagle_stream_client_pairing.sh thin-client-assistant/runtime/beagle_stream_client_manager_registration.sh thin-client-assistant/runtime/launch-beagle-stream-client.sh scripts/prepare-host-downloads.sh`
+	- `python3 -m pytest -q tests/unit/test_prepare_host_downloads_status_regressions.py tests/unit/test_beagle_stream_client_pairing_runtime.py tests/unit/test_beagle_stream_pairing_broker_bypass_regression.py tests/unit/test_launch_beagle_stream_client_runtime.py tests/unit/test_endpoint_update_self_heal_regressions.py tests/unit/test_thin_client_live_build_regressions.py tests/unit/test_stream_auto_quality_runtime.py tests/integration/test_endpoint_boot_to_streaming.py`
+	- Ergebnis: `120 passed`.
+	- `git diff --check` sauber.
+	- ShellCheck fuer die geaenderten Shell-Skripte hat nur bestehende Warnungen in `prepare-host-downloads.sh`/`launch-beagle-stream-client.sh` gemeldet; die neuen Repack-Trap-Warnungen wurden bereinigt.
+- Aktueller Blocker:
+	- Thinclient pingt lokal weiter, WireGuard-Handshakes ueber `srv1` bleiben frisch und TCP/22 ist offen.
+	- SSH sendet aber keinen Banner mehr; NetBridge/47100 ist lokal `Connection refused` und ueber WireGuard nicht erreichbar.
+	- Korrigiertes `668fed...` Slot-Image ist noch nicht auf dem Thinclient installiert/gebootet.
+	- Naechster Schritt: physischen Power-Cycle ausloesen, direkt im fruehen Bootfenster per SSH Slot `b` durch die lokalen `668fed...` Live-Dateien ersetzen und danach den frischen no-hotpatch Boot-to-Stream beweisen.

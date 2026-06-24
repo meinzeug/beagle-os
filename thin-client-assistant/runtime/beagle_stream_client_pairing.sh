@@ -25,7 +25,11 @@ beagle_stream_client_pair_status() {
   host="$(beagle_stream_client_connect_host)"
   port="$(beagle_stream_client_port)"
   [[ -n "$host" && -n "$port" ]] || return 1
-  uniqueid="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_UNIQUEID:-0123456789ABCDEF}"
+  uniqueid="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_UNIQUEID:-}"
+  if [[ -z "$uniqueid" ]] && declare -F beagle_stream_client_uniqueid >/dev/null 2>&1; then
+    uniqueid="$(beagle_stream_client_uniqueid 2>/dev/null || true)"
+  fi
+  uniqueid="${uniqueid:-0123456789ABCDEF}"
   response="$(curl -fsS --connect-timeout 2 --max-time 5 "http://${host}:${port}/serverinfo?uniqueid=${uniqueid}" 2>/dev/null || true)"
   [[ -n "$response" ]] || return 1
 
@@ -111,6 +115,13 @@ beagle_stream_client_stream_ready() {
 
   pair_status="$(beagle_stream_client_pair_status 2>/dev/null || true)"
   if [[ "$pair_status" == "1" ]]; then
+    if declare -F beagle_stream_client_host_configured >/dev/null 2>&1; then
+      beagle_stream_client_host_configured && return 0
+      if declare -F sync_beagle_stream_client_host_from_serverinfo_probe >/dev/null 2>&1; then
+        sync_beagle_stream_client_host_from_serverinfo_probe >/dev/null 2>&1 && return 0
+      fi
+      return 1
+    fi
     return 0
   fi
   if [[ "$pair_status" == "0" ]]; then
@@ -158,7 +169,7 @@ complete_beagle_stream_client_pairing_handshake() {
 }
 
 ensure_paired() {
-  local bin host port paired_ok attempt target pairing_token retry_sleep connection_method
+  local bin host port paired_ok attempt target pairing_token retry_sleep connection_method pairing_mode
 
   bin="$(beagle_stream_client_bin)"
   host="$(beagle_stream_client_connect_host)"
@@ -175,6 +186,10 @@ ensure_paired() {
 
   if beagle_stream_client_stream_ready; then
     return 0
+  fi
+
+  if declare -F ensure_beagle_stream_client_config >/dev/null 2>&1; then
+    ensure_beagle_stream_client_config >/dev/null 2>&1 || true
   fi
 
   if register_beagle_stream_client_via_manager; then
@@ -213,7 +228,14 @@ ensure_paired() {
       register_beagle_stream_client_via_manager >/dev/null 2>&1 || true
     fi
     if exchange_beagle_stream_client_pairing_token_via_manager "$pairing_token"; then
-      beagle_stream_client_pair_log "pair-exchange accepted via manager"
+      pairing_mode="${PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_PAIRING_MODE:-}"
+      beagle_stream_client_pair_log "pair-exchange accepted via manager mode=${pairing_mode:-unknown}"
+      if [[ "$pairing_mode" == "token" ]]; then
+        paired_ok="1"
+        beagle_stream_client_pair_status_ready >/dev/null 2>&1 || true
+        beagle_stream_client_stream_ready >/dev/null 2>&1 || true
+        break
+      fi
       if complete_beagle_stream_client_pairing_handshake; then
         paired_ok="1"
         beagle_stream_client_pair_log "pairing handshake completed via beagle-stream client"

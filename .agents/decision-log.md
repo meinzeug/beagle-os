@@ -43,3 +43,23 @@
 - Entscheidung: Prerelease-Artefakte liegen unter `beagle-updates/prereleases/<version>/` und erhalten ein eigenes `beagle-downloads-prerelease-status.json`.
 - Entscheidung: Die Download-Seite zeigt beide Kanäle gleichzeitig an und lädt sie ueber einen wiederverwendbaren Status-Widget-Code.
 - Grund: Alpha/Beta/RC sollen öffentlich downloadbar sein, ohne die stabile Downloadlinie zu verwässern oder zu überschreiben.
+
+## 2026-06-23 - Thinclient stream startup waits are nonblocking by default
+
+- Entscheidung: Die BeagleStream-Manager-Registrierung darf den direkten VM-Desktop-Stream nicht mehr blockieren, wenn der Client bereits stream-ready ist; blockierendes Warten gibt es nur noch per `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_REGISTER_WAIT_REQUIRED=1`.
+- Entscheidung: Die Stream-Startanzeige muss ihren UI-Prozess pruefen, in ein persistentes UI-Log schreiben und auf `zenity`/`xmessage` zurueckfallen, statt bei Browserproblemen still zu verschwinden.
+- Entscheidung: Live-USB-Update-Scans, die wegen vollem Medium RAM-Cache-Downloads bewusst verschieben, sind ein `deferred` Zustand mit Exit 0 und kein systemd-Failure.
+- Grund: Der lokale Thinclient hat nach erkennbarem Stream-Ready mehrere Minuten in `register-wait` verloren und dadurch die sichtbare Ladeanzeige/Boot-to-stream Experience unzuverlaessig gemacht.
+
+## 2026-06-23 - PairStatus requires local TLS-ready host config
+
+- Entscheidung: `PairStatus=1` aus `serverinfo` gilt im BeagleStream-Launcher nur noch als ready, wenn die lokale BeagleStream-Host-Konfiguration vollstaendig ist oder per `sync_beagle_stream_client_host_from_serverinfo_probe` repariert werden kann.
+- Entscheidung: Der Stream-Watchdog beendet einen laufenden Client bei App-/TLS-/Pairing-Fehlern im Log aktiv, damit die bestehende Restart-/Repair-Schleife greift.
+- Grund: Ein frischer no-hotpatch Live-Boot erzeugte neue Client-Credentials ohne lokalen `srvcert`; der Server meldete trotzdem `PairStatus=1`, der Streamprozess blieb mit SSL/App-Lookup-Fehlern am Leben und wurde nicht repariert.
+
+## 2026-06-24 - Fresh clients bootstrap local BeagleStream credentials
+
+- Entscheidung: Der Runtime-Pfad erzeugt vor Manager-Registrierung, Pairing und Direct-/Hostless-Stream eine lokale BeagleStream-QSettings-Konfiguration mit Client-Zertifikat, Key und `uniqueid`, falls noch keine existiert.
+- Entscheidung: Ein explizit gesetzter `PVE_THIN_CLIENT_BEAGLE_STREAM_CLIENT_CONFIG` Pfad ist autoritativ; ein unlesbarer Pfad faellt nicht still auf fremde User-Konfigurationen zurueck.
+- Entscheidung: Manager-`pairing_mode=token` wird als erfolgreiche Token-Kopplung behandelt. Der alte PIN-Kompatibilitaets-Handshake laeuft nur noch fuer `pin-compat`.
+- Grund: Der lokale no-hotpatch-Boot aus Slot `b` blieb bei Schritt 6 stehen, weil der frische Client vor dem Manager-Exchange keine lokale Client-Credentials hatte und der Token-Modus faelschlich in den PIN-Pfad weiterlief.

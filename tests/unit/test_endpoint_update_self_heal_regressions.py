@@ -48,6 +48,7 @@ def test_update_client_prevents_parallel_update_commands_and_stalled_downloads()
     assert "LOCK_FILE = Path(\"/run/beagle-os/update-client.lock\")" in script
     assert "def acquire_command_lock(command: str)" in script
     assert "another update command is running" in script
+    assert "class UpdateDeferred(RuntimeError):" in script
     assert "PAYLOAD_DOWNLOAD_MAX_TIME_SECONDS" in script
     assert "--speed-limit" in script
     assert "--speed-time" in script
@@ -153,6 +154,45 @@ def test_update_client_load_config_applies_runtime_update_env_overrides(tmp_path
     assert config["PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL"] == "rolling"
     assert config["PVE_THIN_CLIENT_BEAGLE_UPDATE_BEHAVIOR"] == "auto"
     assert config["PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN"] == "8.4.0"
+
+
+def test_update_scan_defers_volatile_cache_without_failed_unit(monkeypatch) -> None:
+    module = _load_update_client_module()
+
+    feed = {
+        "latest_version": "8.3.18",
+        "available": True,
+        "behavior": "auto",
+        "channel": "stable",
+    }
+
+    monkeypatch.setattr(module, "boot_mode", lambda: "runtime")
+    monkeypatch.setattr(module, "ensure_slot_layout", lambda _config, writable=False: (Path("/run/live/medium"), "a"))
+    monkeypatch.setattr(module, "fetch_feed", lambda _config, _medium: feed)
+    monkeypatch.setattr(module, "current_version", lambda _config, _medium: "8.3.17")
+    monkeypatch.setattr(module, "current_boot_id", lambda: "boot-test")
+
+    def fake_stage_update(_feed, _config, *, force=False):
+        raise module.UpdateDeferred("update cache fell back to volatile RAM-backed storage")
+
+    stored_status: dict = {}
+
+    def fake_update_status(**kwargs):
+        stored_status.update(kwargs)
+        return dict(stored_status)
+
+    monkeypatch.setattr(module, "stage_update", fake_stage_update)
+    monkeypatch.setattr(module, "update_status", fake_update_status)
+
+    status = module.scan_command({}, auto_apply_if_idle=True)
+
+    assert status["state"] == "deferred"
+    assert status["current_version"] == "8.3.17"
+    assert status["latest_version"] == "8.3.18"
+    assert status["available"] is True
+    assert status["pending_reboot"] is False
+    assert status["pending_confirm"] is False
+    assert "volatile RAM-backed" in status["last_error"]
 
 
 def test_installed_thinclient_ab_update_path_keeps_two_slots_and_pending_manifest() -> None:

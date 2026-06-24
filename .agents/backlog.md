@@ -6,6 +6,19 @@ Stand: 2026-06-01
 
 - [x] Agenten-Grundstruktur (`.agents/`, Skills, Policies, `ongoing.md`) eingerichtet.
 - [x] Baseline-CI-Entryworkflow (`.github/workflows/ci.yml`) hinzugefuegt.
+- [ ] Thinclient Boot-to-Stream fuer Live-USB/Neuinstallation stabilisieren.
+	- [x] Lokalen Thinclient `192.168.178.30` reproduzierbar analysiert.
+	- [x] Blockierende Manager-Registrierung im direkten BeagleStream-Pfad nonblocking gemacht.
+	- [x] Stream-Startanzeige mit Browser-Healthcheck, UI-Log und Dialog-Fallback gehaertet.
+	- [x] Heartbeat erkennt `beagle-stream stream` als aktiven Desktop-Stream.
+	- [x] Live-USB-Update-Scan defers RAM-Cache-Downloads ohne failed systemd unit.
+	- [x] Hotfix auf lokalem Thinclient verifiziert: Stream startet, Heartbeat gruen, `systemctl --failed` leer.
+	- [x] Lokalen no-hotpatch Slot-B-Boot fuer ersten Hotfix verifiziert; Rootfs-Fixmarker, Heartbeat und Update-Deferral waren nach Reboot vorhanden.
+	- [x] Frischen-Boot Pairing-/TLS-Folgefehler gefunden und Repo-Fix plus Regressionstests ergaenzt.
+	- [x] Frischen-Boot Credential-/Token-Folgefehler gefunden: lokale BeagleStream-Client-Credentials fehlten und Manager-Token-Modus lief in PIN-Folgehandshake.
+	- [x] Lokales 8.3.18-Bootstreamfix-Payload gebaut und validiert (`filesystem.squashfs=668fed9d...`, Payload-SHA256 `18bb7bfc...`).
+	- [ ] Thinclient physisch power-cyclen oder wieder per SSH erreichen; Slot `b` mit dem korrigierten `668fed...` Image ersetzen.
+	- [ ] Neues Thinclient-Artefakt publizieren und frischen Live-USB-/Neuinstallationsstart ohne Hotpatch verifizieren.
 - [ ] Release-Versionierungslogik (stable/prerelease) gemaess `projectleader/todo.md` fertigstellen und absichern.
 	- [x] `scripts/resolve-release-version.sh`: Stable + Prerelease SemVer akzeptieren, `release_class` ausgeben, 4-part Versionsschema ablehnen.
 	- [x] `release.yml`: `release_class` fuer prerelease-spezifisches GitHub Release Verhalten (`--prerelease --latest=false`) verdrahten.

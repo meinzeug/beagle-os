@@ -134,9 +134,13 @@ def test_prepare_host_downloads_refreshes_live_squashfs_from_repo_sources() -> N
     script = (ROOT / "scripts" / "prepare-host-downloads.sh").read_text(encoding="utf-8")
 
     assert "refresh_live_rootfs_from_repo()" in script
+    assert "refresh_live_rootfs_from_repo_overlay()" in script
+    assert 'run_maybe_sudo mksquashfs "$rootfs_mount" "${squashfs_path}.new" -comp xz -noappend -ef "$exclude_file" -pf "$pseudo_file"' in script
     assert 'unsquashfs -d "$rootfs_stage" "$squashfs_path"' in script
     assert 'mksquashfs "$rootfs_stage" "${squashfs_path}.new" -comp xz -noappend' in script
     assert '"$ROOT_DIR/thin-client-assistant/runtime/"' in script
+    assert '"$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-update-client"' in script
+    assert '"$ROOT_DIR/thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-runtime-heartbeat"' in script
     assert '"$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-network-menu.service"' in script
 
 

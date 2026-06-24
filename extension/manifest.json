@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Beagle OS Integration",
-  "version": "8.3.18",
+  "version": "8.3.19",
   "description": "Adds Beagle profile, installer and control-plane actions to VM pages.",
   "permissions": [
     "storage"
@@ -36,5 +36,5 @@
       "id": "beagle-os@beagle-os.com"
     }
   },
-  "version_name": "8.3.18"
+  "version_name": "8.3.19"
 }
