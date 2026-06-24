@@ -267,6 +267,7 @@ def test_tray_control_client_and_queue_naming() -> None:
     control.status()
     control.set_stream_profile("balanced")
     control.service_action("stream", "restart")
+    control.set_custom_stream_profile({"fps": "60", "bitrate": "32000"})
     control.thinclient_update("scan")
     control.thinclient_power("reboot")
     control.usb_bind("1-2")
@@ -280,6 +281,7 @@ def test_tray_control_client_and_queue_naming() -> None:
         "status",
         "set_stream_profile",
         "service_action",
+        "set_stream_profile",
         "thinclient_update",
         "thinclient_power",
         "usb_bind",
@@ -289,9 +291,11 @@ def test_tray_control_client_and_queue_naming() -> None:
     assert captured[2]["id"] == "static-1-2-3-4-9100"
     assert captured[5]["profile"] == "balanced"
     assert captured[6]["service"] == "stream"
-    assert captured[7]["action"] == "scan"
-    assert captured[8]["action"] == "reboot"
-    assert captured[9]["busid"] == "1-2"
+    assert captured[7]["profile"] == "custom"
+    assert captured[7]["fps"] == "60"
+    assert captured[8]["action"] == "scan"
+    assert captured[9]["action"] == "reboot"
+    assert captured[10]["busid"] == "1-2"
 
 
 def test_tray_uses_system_tray_and_manager_actions() -> None:
@@ -308,6 +312,8 @@ def test_tray_uses_system_tray_and_manager_actions() -> None:
     assert "Desktop-Profil erneuern" in script
     assert "def guest_update_snapshot()" in script
     assert "def run_guest_updater(" in script
+    assert "CONTROL_STATUS_TIMEOUT" in script
+    assert "CONTROL_LONG_ACTION_TIMEOUT" in script
     assert "def action_update_scan(self)" in script
     assert "def action_update_apply(self)" in script
     assert "def action_desktop_profile_refresh(self)" in script
@@ -353,13 +359,18 @@ def test_thinclient_admin_app_exists_and_covers_full_management_center() -> None
     py_compile.compile(str(THINCLIENT_ADMIN), doraise=True)
     script = THINCLIENT_ADMIN.read_text(encoding="utf-8")
     for snippet in (
-        "Updates & Neustart",
+        "Updates",
         "Thinclient-Update installieren + Neustart",
         "VM neu starten",
         "Thinclient neu starten",
         "Streamprofil setzen",
-        "USB, Audio, Webcam",
-        "LAN-Geraete",
+        "Custom-Profil",
+        "Custom-Profil anwenden",
+        "InfoCard",
+        "StatusPill",
+        "agent_status: ok",
+        "USB/AV",
+        "Geräte",
         "Diagnose",
         "def thinclient_update_action(self",
         "def vm_power_action(self",

@@ -41,6 +41,51 @@ def compact(value: object, default: str = "-") -> str:
     return text[:180]
 
 
+def full_text(value: object, default: str = "-") -> str:
+    return str(value if value not in (None, "") else default)
+
+
+def normalize_state(value: object) -> str:
+    return str(value if value not in (None, "") else "unknown").strip().lower()
+
+
+def tone_for_state(value: object) -> str:
+    state = normalize_state(value)
+    if state in {"active", "running", "ready", "bereit", "current", "healthy", "online", "ok", "connected", "verbunden", "erkannt"}:
+        return "good"
+    if "neustart" in state or "verfügbar" in state or "verfuegbar" in state:
+        return "warn"
+    if state in {"available", "staged", "installing", "deferred", "reboot-required", "warning", "prüfen", "pruefen"}:
+        return "warn"
+    if state in {"failed", "error", "blocked", "missing", "offline", "inactive", "not erreichbar"}:
+        return "bad"
+    return "muted"
+
+
+def update_summary(status: dict, fallback: str = "unknown") -> str:
+    if not isinstance(status, dict):
+        return fallback
+    if status.get("pending_reboot"):
+        return f"{status.get('state', fallback)} - Neustart erforderlich"
+    if status.get("available") or status.get("desktop_profile_available"):
+        return "Update verfügbar"
+    return str(status.get("state", fallback) or fallback)
+
+
+def service_count_summary(services: dict) -> tuple[int, int]:
+    if not isinstance(services, dict):
+        return 0, 0
+    total = 0
+    active = 0
+    for value in services.values():
+        if not isinstance(value, dict):
+            continue
+        total += 1
+        if value.get("active") == "active":
+            active += 1
+    return active, total
+
+
 def service_label(key: str) -> str:
     labels = {
         "usb_tunnel": "USB/Mic Tunnel",
@@ -131,8 +176,57 @@ class AddDeviceDialog:
         }
 
 
-def run_app() -> int:
+def run_app(screenshot_path: str = "") -> int:
     from PyQt5 import QtCore, QtGui, QtWidgets
+
+    class StatusPill(QtWidgets.QLabel):
+        def __init__(self, text: str = "-", tone: str = "muted") -> None:
+            super().__init__(text)
+            self.setObjectName("statusPill")
+            self.setAlignment(QtCore.Qt.AlignCenter)
+            self.setMinimumHeight(26)
+            self.set_tone(tone)
+
+        def set_tone(self, tone: str) -> None:
+            self.setProperty("tone", tone)
+            self.style().unpolish(self)
+            self.style().polish(self)
+
+        def update(self, text: str, tone: str = "muted") -> None:  # type: ignore[override]
+            self.setText(text)
+            self.set_tone(tone)
+
+    class InfoCard(QtWidgets.QFrame):
+        def __init__(self, title: str, icon: str = "") -> None:
+            super().__init__()
+            self.setObjectName("infoCard")
+            self.setMinimumHeight(128)
+            layout = QtWidgets.QVBoxLayout(self)
+            layout.setContentsMargins(16, 14, 16, 14)
+            layout.setSpacing(8)
+
+            top = QtWidgets.QHBoxLayout()
+            self.title = QtWidgets.QLabel(title)
+            self.title.setObjectName("cardTitle")
+            self.pill = StatusPill("-", "muted")
+            top.addWidget(self.title, 1)
+            top.addWidget(self.pill, 0)
+            layout.addLayout(top)
+
+            self.value = QtWidgets.QLabel(icon or "-")
+            self.value.setObjectName("cardValue")
+            self.value.setWordWrap(True)
+            layout.addWidget(self.value)
+
+            self.meta = QtWidgets.QLabel("-")
+            self.meta.setObjectName("cardMeta")
+            self.meta.setWordWrap(True)
+            layout.addWidget(self.meta)
+
+        def set_data(self, value: str, meta: str = "-", pill: str = "-", tone: str = "muted") -> None:
+            self.value.setText(value or "-")
+            self.meta.setText(meta or "-")
+            self.pill.update(pill or "-", tone)
 
     class AdminWindow(QtWidgets.QMainWindow):
         dataReady = QtCore.pyqtSignal(object, object, object)
@@ -147,7 +241,7 @@ def run_app() -> int:
             self._busy = False
 
             self.setWindowTitle(APP_NAME)
-            self.setMinimumSize(980, 680)
+            self.setMinimumSize(1180, 760)
             self.setWindowIcon(self._icon())
             self._build_ui()
 
@@ -176,23 +270,47 @@ def run_app() -> int:
         def _build_ui(self) -> None:
             root = QtWidgets.QWidget()
             layout = QtWidgets.QVBoxLayout(root)
-            layout.setContentsMargins(14, 14, 14, 14)
-            layout.setSpacing(10)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
 
-            header = QtWidgets.QHBoxLayout()
+            header_frame = QtWidgets.QFrame()
+            header_frame.setObjectName("topBar")
+            header = QtWidgets.QHBoxLayout(header_frame)
+            header.setContentsMargins(22, 18, 22, 18)
+            header.setSpacing(14)
+
+            title_block = QtWidgets.QVBoxLayout()
+            title_block.setSpacing(2)
             title = QtWidgets.QLabel(APP_NAME)
             title.setObjectName("appTitle")
-            self.status_label = QtWidgets.QLabel("Status wird geladen")
+            self.subtitle_label = QtWidgets.QLabel("Arbeitsplatz, Stream und Thinclient an einem Ort")
+            self.subtitle_label.setObjectName("appSubtitle")
+            title_block.addWidget(title)
+            title_block.addWidget(self.subtitle_label)
+
+            self.agent_pill = StatusPill("Agent wird geladen", "muted")
+            self.status_label = QtWidgets.QLabel("Noch nicht synchronisiert")
+            self.status_label.setObjectName("headerStatus")
             self.status_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
             self.refresh_button = QtWidgets.QPushButton("Aktualisieren")
+            self.refresh_button.setObjectName("primaryButton")
             self.refresh_button.clicked.connect(self.refresh)
-            header.addWidget(title, 1)
+            header.addLayout(title_block, 3)
+            header.addWidget(self.agent_pill, 0)
             header.addWidget(self.status_label, 2)
             header.addWidget(self.refresh_button)
-            layout.addLayout(header)
+            layout.addWidget(header_frame)
+
+            body = QtWidgets.QWidget()
+            body_layout = QtWidgets.QVBoxLayout(body)
+            body_layout.setContentsMargins(18, 18, 18, 18)
+            body_layout.setSpacing(12)
 
             self.tabs = QtWidgets.QTabWidget()
-            layout.addWidget(self.tabs, 1)
+            self.tabs.setObjectName("mainTabs")
+            self.tabs.setUsesScrollButtons(False)
+            body_layout.addWidget(self.tabs, 1)
+            layout.addWidget(body, 1)
             self.setCentralWidget(root)
 
             self.overview = QtWidgets.QWidget()
@@ -204,12 +322,12 @@ def run_app() -> int:
             self.network = QtWidgets.QWidget()
             self.diagnostics = QtWidgets.QWidget()
             for widget, label in (
-                (self.overview, "Uebersicht"),
-                (self.updates, "Updates & Neustart"),
+                (self.overview, "Übersicht"),
+                (self.updates, "Updates"),
                 (self.stream, "Stream"),
                 (self.services, "Dienste"),
-                (self.usb, "USB, Audio, Webcam"),
-                (self.devices, "LAN-Geraete"),
+                (self.usb, "USB/AV"),
+                (self.devices, "Geräte"),
                 (self.network, "Netzwerk"),
                 (self.diagnostics, "Diagnose"),
             ):
@@ -227,27 +345,57 @@ def run_app() -> int:
 
         def _build_overview(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.overview)
-            self.overview_grid = QtWidgets.QTableWidget(0, 2)
-            self.overview_grid.setHorizontalHeaderLabels(["Bereich", "Status"])
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(14)
+
+            self.overview_cards: dict[str, InfoCard] = {}
+            card_grid = QtWidgets.QGridLayout()
+            card_grid.setSpacing(12)
+            for index, (key, title) in enumerate((
+                ("agent", "Verbindung"),
+                ("stream", "Desktop-Stream"),
+                ("vm_update", "VM-Update"),
+                ("thin_update", "Thinclient-Update"),
+                ("services", "Dienste"),
+                ("devices", "Geräte & USB"),
+            )):
+                card = InfoCard(title)
+                self.overview_cards[key] = card
+                card_grid.addWidget(card, index // 3, index % 3)
+            layout.addLayout(card_grid)
+
+            actions_frame = QtWidgets.QFrame()
+            actions_frame.setObjectName("actionStrip")
+            actions = QtWidgets.QGridLayout(actions_frame)
+            actions.setContentsMargins(12, 10, 12, 10)
+            actions.setSpacing(8)
+            for index, (text, slot, primary) in enumerate((
+                ("Updates suchen", self.scan_updates, True),
+                ("Updates installieren", self.apply_updates, False),
+                ("VM neu starten", lambda: self.vm_power_action("reboot"), False),
+                ("Thinclient neu starten", lambda: self.thinclient_power_action("reboot"), False),
+                ("Stream neu starten", lambda: self.service_action("stream", "restart"), False),
+                ("Agent neu starten", self.restart_agent, False),
+            )):
+                button = QtWidgets.QPushButton(text)
+                button.setMinimumHeight(36)
+                if primary:
+                    button.setObjectName("primaryButton")
+                button.clicked.connect(slot)
+                actions.addWidget(button, index // 3, index % 3)
+            actions.setColumnStretch(3, 1)
+            layout.addWidget(actions_frame)
+
+            detail_title = QtWidgets.QLabel("Live-Details")
+            detail_title.setObjectName("sectionTitle")
+            layout.addWidget(detail_title)
+
+            self.overview_grid = QtWidgets.QTableWidget(0, 3)
+            self.overview_grid.setHorizontalHeaderLabels(["Bereich", "Status", "Details"])
             self.overview_grid.horizontalHeader().setStretchLastSection(True)
             self.overview_grid.verticalHeader().setVisible(False)
             self.overview_grid.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-            layout.addWidget(self.overview_grid)
-
-            actions = QtWidgets.QHBoxLayout()
-            for text, slot in (
-                ("Updates suchen", self.scan_updates),
-                ("Updates installieren", self.apply_updates),
-                ("VM neu starten", lambda: self.vm_power_action("reboot")),
-                ("Thinclient neu starten", lambda: self.thinclient_power_action("reboot")),
-                ("Stream neu starten", lambda: self.service_action("stream", "restart")),
-                ("Agent neu starten", self.restart_agent),
-            ):
-                button = QtWidgets.QPushButton(text)
-                button.clicked.connect(slot)
-                actions.addWidget(button)
-            actions.addStretch(1)
-            layout.addLayout(actions)
+            layout.addWidget(self.overview_grid, 1)
 
         def _build_updates(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.updates)
@@ -303,13 +451,17 @@ def run_app() -> int:
 
         def _build_stream(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.stream)
+            layout.setSpacing(12)
+            top = QtWidgets.QHBoxLayout()
             self.stream_table = QtWidgets.QTableWidget(0, 2)
             self.stream_table.setHorizontalHeaderLabels(["Feld", "Wert"])
             self.stream_table.horizontalHeader().setStretchLastSection(True)
             self.stream_table.verticalHeader().setVisible(False)
             self.stream_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-            layout.addWidget(self.stream_table)
-            actions = QtWidgets.QHBoxLayout()
+            top.addWidget(self.stream_table, 3)
+
+            preset_box = QtWidgets.QGroupBox("Schnellprofil")
+            preset_layout = QtWidgets.QVBoxLayout(preset_box)
             self.stream_profile_combo = QtWidgets.QComboBox()
             for key, label in (
                 ("auto", "Automatisch"),
@@ -321,14 +473,64 @@ def run_app() -> int:
             ):
                 self.stream_profile_combo.addItem(label, key)
             apply_button = QtWidgets.QPushButton("Streamprofil setzen")
+            apply_button.setObjectName("primaryButton")
             apply_button.clicked.connect(self.set_selected_stream_profile)
             restart_button = QtWidgets.QPushButton("Stream neu starten")
             restart_button.clicked.connect(lambda: self.service_action("stream", "restart"))
-            actions.addWidget(self.stream_profile_combo)
-            actions.addWidget(apply_button)
-            actions.addWidget(restart_button)
-            actions.addStretch(1)
-            layout.addLayout(actions)
+            preset_layout.addWidget(self.stream_profile_combo)
+            preset_layout.addWidget(apply_button)
+            preset_layout.addWidget(restart_button)
+            preset_layout.addStretch(1)
+            top.addWidget(preset_box, 1)
+            layout.addLayout(top, 1)
+
+            custom_box = QtWidgets.QGroupBox("Custom-Profil")
+            custom_grid = QtWidgets.QGridLayout(custom_box)
+            custom_grid.setHorizontalSpacing(10)
+            custom_grid.setVerticalSpacing(8)
+            self.custom_resolution = QtWidgets.QComboBox()
+            for value in ("auto", "2560x1440", "1920x1080", "1600x900", "1280x720"):
+                self.custom_resolution.addItem(value)
+            self.custom_fps = QtWidgets.QSpinBox()
+            self.custom_fps.setRange(15, 144)
+            self.custom_fps.setValue(60)
+            self.custom_bitrate = QtWidgets.QSpinBox()
+            self.custom_bitrate.setRange(1000, 80000)
+            self.custom_bitrate.setSingleStep(1000)
+            self.custom_bitrate.setSuffix(" kbit/s")
+            self.custom_bitrate.setValue(32000)
+            self.custom_packet_size = QtWidgets.QSpinBox()
+            self.custom_packet_size.setRange(900, 1450)
+            self.custom_packet_size.setValue(1360)
+            self.custom_codec = QtWidgets.QComboBox()
+            for value in ("H.264", "H.265", "AV1"):
+                self.custom_codec.addItem(value)
+            self.custom_decoder = QtWidgets.QComboBox()
+            for value in ("auto", "hardware", "software"):
+                self.custom_decoder.addItem(value)
+            self.custom_frame_pacing = QtWidgets.QCheckBox("Frame pacing")
+            self.custom_vsync = QtWidgets.QCheckBox("VSync")
+            self.custom_absolute_mouse = QtWidgets.QCheckBox("Absolute Maus")
+            self.custom_apply = QtWidgets.QPushButton("Custom-Profil anwenden")
+            self.custom_apply.setObjectName("primaryButton")
+            self.custom_apply.clicked.connect(self.apply_custom_stream_profile)
+
+            controls = (
+                ("Auflösung", self.custom_resolution),
+                ("FPS", self.custom_fps),
+                ("Bitrate", self.custom_bitrate),
+                ("Paketgröße", self.custom_packet_size),
+                ("Codec", self.custom_codec),
+                ("Decoder", self.custom_decoder),
+            )
+            for idx, (label, widget) in enumerate(controls):
+                custom_grid.addWidget(QtWidgets.QLabel(label), idx // 3 * 2, idx % 3)
+                custom_grid.addWidget(widget, idx // 3 * 2 + 1, idx % 3)
+            custom_grid.addWidget(self.custom_frame_pacing, 4, 0)
+            custom_grid.addWidget(self.custom_vsync, 4, 1)
+            custom_grid.addWidget(self.custom_absolute_mouse, 4, 2)
+            custom_grid.addWidget(self.custom_apply, 5, 0, 1, 3)
+            layout.addWidget(custom_box)
 
         def _build_services(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.services)
@@ -425,18 +627,115 @@ def run_app() -> int:
         def _apply_style(self) -> None:
             self.setStyleSheet(
                 """
-                QMainWindow { background: #f6f7f9; }
-                QLabel#appTitle { font-size: 22px; font-weight: 700; color: #162033; }
-                QGroupBox { border: 1px solid #cfd6df; border-radius: 6px; margin-top: 12px; padding: 10px; font-weight: 700; }
-                QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
-                QTabWidget::pane { border: 1px solid #cfd6df; background: #ffffff; }
-                QTabBar::tab { padding: 8px 14px; }
-                QTabBar::tab:selected { background: #ffffff; border: 1px solid #cfd6df; border-bottom: 0; }
-                QTableWidget { background: #ffffff; gridline-color: #e3e7ed; selection-background-color: #dce9ff; }
-                QHeaderView::section { background: #eef2f6; padding: 6px; border: 0; font-weight: 600; }
-                QPushButton { padding: 7px 12px; border: 1px solid #b8c2cf; border-radius: 4px; background: #ffffff; }
-                QPushButton:hover { background: #eef5ff; }
-                QLineEdit, QComboBox { padding: 6px; border: 1px solid #b8c2cf; border-radius: 4px; background: #ffffff; }
+                QMainWindow { background: #f5f7fb; color: #18202f; }
+                QFrame#topBar {
+                    background: #ffffff;
+                    border-bottom: 1px solid #dde3ec;
+                }
+                QLabel#appTitle { font-size: 24px; font-weight: 800; color: #111827; letter-spacing: 0; }
+                QLabel#appSubtitle { color: #5b6472; font-size: 12px; }
+                QLabel#headerStatus { color: #5b6472; }
+                QLabel#sectionTitle { color: #222b3a; font-size: 14px; font-weight: 800; }
+                QFrame#infoCard {
+                    background: #ffffff;
+                    border: 1px solid #dde3ec;
+                    border-radius: 8px;
+                }
+                QLabel#cardTitle { color: #5b6472; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+                QLabel#cardValue { color: #111827; font-size: 20px; font-weight: 800; letter-spacing: 0; }
+                QLabel#cardMeta { color: #626b7a; font-size: 12px; }
+                QLabel#statusPill {
+                    border-radius: 13px;
+                    padding: 3px 10px;
+                    font-size: 11px;
+                    font-weight: 800;
+                }
+                QLabel#statusPill[tone="good"] { color: #065f46; background: #d1fae5; }
+                QLabel#statusPill[tone="warn"] { color: #92400e; background: #fef3c7; }
+                QLabel#statusPill[tone="bad"] { color: #991b1b; background: #fee2e2; }
+                QLabel#statusPill[tone="muted"] { color: #475569; background: #e5e7eb; }
+                QFrame#actionStrip {
+                    background: #ffffff;
+                    border: 1px solid #dde3ec;
+                    border-radius: 8px;
+                }
+                QGroupBox {
+                    background: #ffffff;
+                    border: 1px solid #dde3ec;
+                    border-radius: 8px;
+                    margin-top: 12px;
+                    padding: 12px;
+                    font-weight: 800;
+                    color: #222b3a;
+                }
+                QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 6px; background: #ffffff; }
+                QTabWidget#mainTabs::pane {
+                    border: 1px solid #dde3ec;
+                    border-radius: 8px;
+                    background: #ffffff;
+                    top: -1px;
+                }
+                QTabBar::tab {
+                    padding: 10px 15px;
+                    min-width: 94px;
+                    margin-right: 2px;
+                    border: 1px solid transparent;
+                    border-top-left-radius: 8px;
+                    border-top-right-radius: 8px;
+                    color: #475569;
+                    font-weight: 700;
+                }
+                QTabBar::tab:selected {
+                    color: #0f766e;
+                    background: #ffffff;
+                    border: 1px solid #dde3ec;
+                    border-bottom: 1px solid #ffffff;
+                }
+                QTableWidget {
+                    background: #ffffff;
+                    border: 1px solid #dde3ec;
+                    border-radius: 8px;
+                    gridline-color: #edf1f6;
+                    selection-background-color: #dbeafe;
+                    alternate-background-color: #f8fafc;
+                }
+                QHeaderView::section {
+                    background: #f1f5f9;
+                    color: #334155;
+                    padding: 8px;
+                    border: 0;
+                    border-bottom: 1px solid #dde3ec;
+                    font-weight: 800;
+                }
+                QPushButton {
+                    padding: 8px 12px;
+                    border: 1px solid #cbd5e1;
+                    border-radius: 6px;
+                    background: #ffffff;
+                    color: #1f2937;
+                    font-weight: 700;
+                }
+                QPushButton:hover { background: #f8fafc; border-color: #94a3b8; }
+                QPushButton#primaryButton {
+                    color: #ffffff;
+                    border-color: #0f766e;
+                    background: #0f766e;
+                }
+                QPushButton#primaryButton:hover { background: #115e59; }
+                QLineEdit, QComboBox, QSpinBox {
+                    padding: 7px;
+                    border: 1px solid #cbd5e1;
+                    border-radius: 6px;
+                    background: #ffffff;
+                }
+                QPlainTextEdit {
+                    border: 1px solid #dde3ec;
+                    border-radius: 8px;
+                    background: #0b1020;
+                    color: #d1fae5;
+                    font-family: monospace;
+                    font-size: 12px;
+                }
                 """
             )
 
@@ -483,7 +782,9 @@ def run_app() -> int:
             self.wired = wired if isinstance(wired, dict) else {}
             self.update_status = updates if isinstance(updates, dict) else {}
             agent = self.catalog.get("agent_host", "?") if self.catalog else "nicht erreichbar"
-            self.status_label.setText(f"Agent: {agent} | {time.strftime('%H:%M:%S')}")
+            tone = "good" if self.catalog else "bad"
+            self.agent_pill.update("Agent verbunden" if self.catalog else "Agent offline", tone)
+            self.status_label.setText(f"{agent} | {time.strftime('%H:%M:%S')}")
             self._render_overview()
             self._render_updates()
             self._render_stream()
@@ -495,11 +796,22 @@ def run_app() -> int:
 
         def _set_rows(self, table, rows: list[list[object]]) -> None:
             table.setRowCount(len(rows))
+            table.setAlternatingRowColors(True)
             for row_index, row in enumerate(rows):
                 for col_index, value in enumerate(row):
                     item = QtWidgets.QTableWidgetItem(compact(value))
+                    item.setToolTip(full_text(value))
                     if col_index == 0:
                         item.setData(QtCore.Qt.UserRole, value)
+                        item.setForeground(QtGui.QColor("#475569"))
+                    elif col_index == 1:
+                        state_tone = tone_for_state(value)
+                        if state_tone == "good":
+                            item.setForeground(QtGui.QColor("#047857"))
+                        elif state_tone == "warn":
+                            item.setForeground(QtGui.QColor("#b45309"))
+                        elif state_tone == "bad":
+                            item.setForeground(QtGui.QColor("#b91c1c"))
                     table.setItem(row_index, col_index, item)
             table.resizeColumnsToContents()
 
@@ -517,17 +829,92 @@ def run_app() -> int:
             thin_update = thin.get("update", {}) if isinstance(thin.get("update"), dict) else {}
             devices = self.catalog.get("devices", []) if self.catalog else []
             updates = self.update_status
+            active_services, total_services = service_count_summary(services)
+            wired_count = len(self.wired)
+            stream_profile = str(stream.get("profile", "-") or "-")
+            stream_auto = stream.get("auto_quality", {}) if isinstance(stream.get("auto_quality"), dict) else {}
+            self.overview_cards["agent"].set_data(
+                str(self.catalog.get("agent_host", "-") if self.catalog else "Nicht erreichbar"),
+                f"{len(devices)} LAN-Geräte, {wired_count} CUPS-Queues",
+                "online" if self.catalog else "offline",
+                "good" if self.catalog else "bad",
+            )
+            self.overview_cards["stream"].set_data(
+                stream_profile,
+                f"Auto: {stream_auto.get('bucket', '-') or '-'} · RTT {stream_auto.get('rtt_avg_ms', '-') or '-'} ms",
+                "bereit" if stream else "unbekannt",
+                "good" if stream else "muted",
+            )
+            self.overview_cards["vm_update"].set_data(
+                update_summary(updates),
+                f"{updates.get('current_version', '-') or '-'} -> {updates.get('latest_version', '-') or '-'}",
+                str(updates.get("state", "unknown") or "unknown"),
+                tone_for_state(update_summary(updates)),
+            )
+            self.overview_cards["thin_update"].set_data(
+                update_summary(thin_update),
+                f"{thin_update.get('current_version') or thin_update.get('installed_version') or '-'} -> {thin_update.get('latest_version') or thin_update.get('staged_version') or '-'}",
+                str(thin_update.get("state", "unknown") or "unknown"),
+                tone_for_state(update_summary(thin_update)),
+            )
+            self.overview_cards["services"].set_data(
+                f"{active_services}/{total_services} aktiv",
+                "Stream, USB, Webcam, Agent und Audio-Brücke",
+                "ok" if total_services and active_services == total_services else "prüfen",
+                "good" if total_services and active_services == total_services else "warn",
+            )
+            self.overview_cards["devices"].set_data(
+                f"{len(devices)} LAN · {len(usb.get('devices', []) if isinstance(usb.get('devices'), list) else [])} USB",
+                f"{wired_count} Druckerqueues verbunden",
+                "verbunden" if devices or wired_count else "leer",
+                "good" if devices or wired_count else "muted",
+            )
+            usb_devices = usb.get("devices", []) if isinstance(usb.get("devices"), list) else []
+            audio = thin.get("audio", {}) if isinstance(thin.get("audio"), dict) else {}
+            video = thin.get("video", {}) if isinstance(thin.get("video"), dict) else {}
+            capture_devices = audio.get("capture_devices", []) if isinstance(audio.get("capture_devices"), list) else []
+            video_devices = video.get("devices", []) if isinstance(video.get("devices"), list) else []
             rows = [
-                ["Agent", self.catalog.get("agent_host", "nicht erreichbar") if self.catalog else "nicht erreichbar"],
-                ["Streamprofil", stream.get("profile", "-")],
-                ["Geraete", len(devices)],
-                ["CUPS-Queues", len(self.wired)],
-                ["USB-Tunnel", usb.get("tunnel_state", "-")],
-                ["VM-Update", update_state_label(updates)],
-                ["VM-Neustartziel", reboot_target_label(updates, "Diese VM")],
-                ["Thinclient-Update", update_state_label(thin_update)],
-                ["Thinclient-Neustartziel", reboot_target_label(thin_update, "Thinclient")],
-                ["Dienste aktiv", sum(1 for item in services.values() if isinstance(item, dict) and item.get("active") == "active")],
+                [
+                    "Agent",
+                    "online" if self.catalog else "offline",
+                    self.catalog.get("agent_host", "nicht erreichbar") if self.catalog else "nicht erreichbar",
+                ],
+                [
+                    "Desktop-Stream",
+                    "bereit" if stream else "unbekannt",
+                    f"Profil {stream_profile} | Auto {stream_auto.get('bucket', '-') or '-'} | RTT {stream_auto.get('rtt_avg_ms', '-') or '-'} ms",
+                ],
+                [
+                    "VM-Update",
+                    update_summary(updates),
+                    f"{updates.get('current_version', '-') or '-'} -> {updates.get('latest_version', '-') or '-'} | Neustart: {'ja' if updates.get('pending_reboot') else 'nein'}",
+                ],
+                [
+                    "Thinclient-Update",
+                    update_summary(thin_update),
+                    f"{thin_update.get('current_version') or thin_update.get('installed_version') or '-'} -> {thin_update.get('latest_version') or thin_update.get('staged_version') or '-'} | Neustart: {'ja' if thin_update.get('pending_reboot') else 'nein'}",
+                ],
+                [
+                    "Dienste",
+                    "ok" if total_services and active_services == total_services else "prüfen",
+                    f"{active_services}/{total_services} aktiv",
+                ],
+                [
+                    "LAN-Geräte",
+                    "verbunden" if devices or wired_count else "leer",
+                    f"{len(devices)} erkannt | {wired_count} CUPS-Queues",
+                ],
+                [
+                    "USB",
+                    usb.get("tunnel_state", "unknown"),
+                    f"{len(usb_devices)} Gerät(e)",
+                ],
+                [
+                    "Audio/Video",
+                    "erkannt" if capture_devices or video_devices else "leer",
+                    f"{len(capture_devices)} Mikrofon(e) | {len(video_devices)} Webcam(s)",
+                ],
             ]
             self._set_rows(self.overview_grid, rows)
 
@@ -580,6 +967,36 @@ def run_app() -> int:
                 if key in values:
                     rows.append([key, values.get(key)])
             self._set_rows(self.stream_table, rows)
+            self._sync_custom_stream_controls(values)
+
+        def _combo_set_text(self, combo, value: object) -> None:
+            text = str(value or "").strip()
+            if not text:
+                return
+            index = combo.findText(text)
+            if index >= 0:
+                combo.setCurrentIndex(index)
+
+        def _sync_custom_stream_controls(self, values: dict) -> None:
+            if not isinstance(values, dict):
+                return
+            self._combo_set_text(self.custom_resolution, values.get("resolution"))
+            self._combo_set_text(self.custom_codec, values.get("video_codec"))
+            self._combo_set_text(self.custom_decoder, values.get("video_decoder"))
+            for widget, key in (
+                (self.custom_fps, "fps"),
+                (self.custom_bitrate, "bitrate"),
+                (self.custom_packet_size, "packet_size"),
+            ):
+                try:
+                    numeric = int(str(values.get(key, "")).split()[0])
+                except (TypeError, ValueError):
+                    continue
+                if widget.minimum() <= numeric <= widget.maximum():
+                    widget.setValue(numeric)
+            self.custom_frame_pacing.setChecked(str(values.get("frame_pacing", "")).lower() in {"1", "true", "yes"})
+            self.custom_vsync.setChecked(str(values.get("vsync", "")).lower() in {"1", "true", "yes"})
+            self.custom_absolute_mouse.setChecked(str(values.get("absolute_mouse", "")).lower() in {"1", "true", "yes"})
 
         def _render_services(self) -> None:
             services = self.thinclient().get("services", {})
@@ -774,6 +1191,29 @@ def run_app() -> int:
                 return f"Streamprofil gesetzt: {profile}. Falls bereits eine Sitzung laeuft, Stream neu starten."
             self._run_action("Stream", op)
 
+        def apply_custom_stream_profile(self) -> None:
+            values = {
+                "resolution": self.custom_resolution.currentText(),
+                "fps": str(self.custom_fps.value()),
+                "bitrate": str(self.custom_bitrate.value()),
+                "packet_size": str(self.custom_packet_size.value()),
+                "video_codec": self.custom_codec.currentText(),
+                "video_decoder": self.custom_decoder.currentText(),
+                "frame_pacing": "1" if self.custom_frame_pacing.isChecked() else "0",
+                "vsync": "1" if self.custom_vsync.isChecked() else "0",
+                "absolute_mouse": "1" if self.custom_absolute_mouse.isChecked() else "0",
+                "auto_quality": "0",
+            }
+
+            def op() -> str:
+                result = self.control.set_custom_stream_profile(values)
+                if result is None:
+                    raise RuntimeError("Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    raise RuntimeError(str(result.get("error", "unbekannter Fehler")))
+                return "Custom-Streamprofil wurde gespeichert. Laufenden Stream neu starten, damit alle Werte aktiv werden."
+            self._run_action("Stream", op)
+
         def usb_action(self, action: str) -> None:
             busid = self.usb_busid.text().strip()
             if not busid and self.usb_table.currentRow() >= 0 and self.usb_table.item(self.usb_table.currentRow(), 0):
@@ -870,6 +1310,23 @@ def run_app() -> int:
     app.setDesktopFileName(APP_ID)
     window = AdminWindow()
     window.show()
+    if screenshot_path:
+        saved = {"done": False}
+
+        def save_and_quit() -> None:
+            if saved["done"]:
+                return
+            saved["done"] = True
+            pixmap = window.grab()
+            if not pixmap.save(screenshot_path):
+                print(f"screenshot failed: {screenshot_path}", file=sys.stderr)
+                app.exit(1)
+                return
+            print(f"screenshot: {screenshot_path}")
+            app.quit()
+
+        window.dataReady.connect(lambda *_args: QtCore.QTimer.singleShot(700, save_and_quit))
+        QtCore.QTimer.singleShot(30000, save_and_quit)
     return app.exec_()
 
 
@@ -878,6 +1335,18 @@ def selftest() -> int:
     print(f"backend: {backend.__file__}")
     print(f"agent endpoints: {control.endpoints}")
     print(f"update_state: {backend.guest_update_snapshot().get('state', 'unknown')}")
+    status = control.status()
+    if not isinstance(status, dict):
+        print("agent_status: unavailable")
+    else:
+        thin = status.get("thinclient", {}) if isinstance(status.get("thinclient"), dict) else {}
+        devices = status.get("devices", []) if isinstance(status.get("devices"), list) else []
+        services = thin.get("services", {}) if isinstance(thin.get("services"), dict) else {}
+        active, total = service_count_summary(services)
+        print(f"agent_status: ok host={status.get('agent_host', '-')}")
+        print(f"thinclient_sections: {','.join(sorted(thin.keys()))}")
+        print(f"device_count: {len(devices)}")
+        print(f"service_count: {active}/{total}")
     print("RESULT: ok")
     return 0
 
@@ -886,7 +1355,14 @@ def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     if "--selftest" in argv:
         return selftest()
-    return run_app()
+    screenshot_path = ""
+    if "--screenshot" in argv:
+        index = argv.index("--screenshot")
+        if index + 1 >= len(argv):
+            print("--screenshot requires a path", file=sys.stderr)
+            return 2
+        screenshot_path = argv[index + 1]
+    return run_app(screenshot_path=screenshot_path)
 
 
 if __name__ == "__main__":

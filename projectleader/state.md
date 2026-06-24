@@ -1,6 +1,6 @@
 # Projectleader State
 
-Last updated: 2026-05-31
+Last updated: 2026-06-24
 
 ## Role
 
@@ -122,3 +122,33 @@ LastHope/Diamond gates moving forward.
     `120 passed` for the focused unit/integration suite covering payload repair,
     pairing runtime, launcher runtime, heartbeat/update deferral and endpoint
     boot-to-stream tests; `git diff --check` and shell syntax checks are clean.
+
+## Runtime Validation 2026-06-24 Thinclient Admin
+
+- VM100 on `srv1` was used as the live desktop VM for the NetBridge tray/admin
+  path.
+- The Beagle Thinclient Verwaltung was rebuilt as the full Thinclient management
+  center launched from `beagle-netbridge`:
+  - modern dashboard header, status pills, overview cards and quick actions;
+  - clear tabs for updates, stream, services, USB/AV, devices, network and
+    diagnostics;
+  - overview Live-Details now use explicit `Bereich | Status | Details`
+    columns;
+  - stream settings now support presets and editable custom profile values.
+- Root cause for empty data in the admin view was the tray backend control
+  timeout: the full thinclient `status` response can exceed the old 6 second
+  generic timeout. The status/action/long-action paths now use dedicated
+  configurable timeouts.
+- VM100 hot validation:
+  - current admin and tray files were deployed through the QEMU guest agent;
+  - `/usr/local/bin/beagle-thinclient-admin --selftest` returned
+    `agent_status: ok host=10.88.1.1`;
+  - `/usr/local/bin/beagle-netbridge-tray --selftest` returned
+    `agent_host: 10.88.1.1` and `stream_profile: custom`;
+  - VM100 offscreen screenshot was generated as `.tmp-thinclient-admin-smoke.png`
+    and showed visible overview statuses.
+- Local direct check for `192.168.178.30:47100` returned connection refused;
+  the active production path from VM100 through WireGuard to `10.88.1.1:47100`
+  is working.
+- GitHub already had published `v8.3.19`; the next stable release for this
+  admin fix is prepared as `8.3.20`.

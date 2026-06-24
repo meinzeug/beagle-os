@@ -1,6 +1,6 @@
 # Autonomous Status
 
-Stand: 2026-06-01
+Stand: 2026-06-24
 
 ## Session Summary
 
@@ -17,8 +17,9 @@ Stand: 2026-06-01
 
 ## Aktueller Fokus
 
-- Commit/Push der neuen Agenten-Struktur und CI-Ergaenzung im Branch `chore/autonomous-agent-framework`.
-- PR-Vorbereitung inkl. Auto-Merge-Einschaetzung nach `.agents/review-policy.md` und `.agents/merge-policy.md`.
+- Beagle Thinclient Verwaltung aus dem NetBridge-Tray modernisieren und reparieren.
+- Hot-Test auf `srv1`/VM100 mit echtem NetBridge-Agenten, danach Commit/Push auf `main` und Stable-Release-Workflow.
+- `/goal`-Tool-Hinweis: Der alte usage-limited Goal-Eintrag konnte mit den verfuegbaren Tools nicht durch das neue Ziel ersetzt werden; der aktive Arbeitsstand wird deshalb hier und in `projectleader/state.md` festgehalten.
 
 ## Offene Risiken
 
@@ -28,7 +29,7 @@ Stand: 2026-06-01
 
 ## Naechster sinnvoller Schritt
 
-Agenten-Struktur + baseline CI als eigenen PR-Slice finalisieren, danach den naechsten kleinen P0/P1-Schritt aus `projectleader/todo.md` umsetzen (Release-Versionierung stable/prerelease).
+Thinclient-Verwaltungsfix final committen, auf `main` pushen und danach `release.yml` fuer den Stable-Release neu starten.
 
 ## Session Update 2026-06-01 (Release Resolver Slice)
 
@@ -188,3 +189,27 @@ Agenten-Struktur + baseline CI als eigenen PR-Slice finalisieren, danach den nae
 	- SSH sendet aber keinen Banner mehr; NetBridge/47100 ist lokal `Connection refused` und ueber WireGuard nicht erreichbar.
 	- Korrigiertes `668fed...` Slot-Image ist noch nicht auf dem Thinclient installiert/gebootet.
 	- Naechster Schritt: physischen Power-Cycle ausloesen, direkt im fruehen Bootfenster per SSH Slot `b` durch die lokalen `668fed...` Live-Dateien ersetzen und danach den frischen no-hotpatch Boot-to-Stream beweisen.
+
+## Session Update 2026-06-24 (Thinclient Verwaltung Modernisierung)
+
+- Analysiert: `beagle-host/netbridge/beagle-thinclient-admin`, `beagle-host/netbridge/beagle-netbridge-tray` und NetBridge-Control-Fluss aus VM100 zum Thinclient-Agenten.
+- Ursache fuer "keine Daten": Der Admin nutzte den Thinclient-Statuspfad ueber den Tray-Backend-Client, aber der generische 6s-Control-Timeout war fuer vollstaendige Statusantworten zu knapp. Der Statuspfad nutzt jetzt laengere, konfigurierbare Timeouts.
+- Geaendert:
+	- Thinclient-Verwaltung auf modernes Dashboard mit Header, Status-Pills, Uebersichtskarten, Quick-Actions, klaren Tabs, alternierenden Tabellenzeilen und Diagnoseansicht umgebaut.
+	- Live-Details in der Uebersicht zeigen jetzt explizit `Bereich | Status | Details`, statt Status und Detailwerte zu vermischen.
+	- Stream-Profilverwaltung erweitert: Presets plus editierbares Custom-Profil fuer Aufloesung, FPS, Bitrate, Paketgroesse, Codec, Decoder, Frame-Pacing, VSync und absolute Maus.
+	- `--selftest` und `--screenshot` Smoke-Modus fuer reproduzierbare VM100-Pruefungen ergaenzt.
+	- Tray-Backend unterstuetzt laengere Status-/Action-/Long-Action-Timeouts sowie Custom-Streamprofile.
+- Getestet lokal:
+	- `python3 -m py_compile beagle-host/netbridge/beagle-thinclient-admin beagle-host/netbridge/beagle-netbridge-tray beagle-host/netbridge/beagle-netbridge-agent`
+	- `python3 -m pytest -q tests/unit/test_beagle_netbridge_regressions.py tests/unit/test_sync_release_version.py tests/unit/test_release_workflow_regressions.py`
+	- `git diff --check`
+	- Ergebnis: `26 passed`, Diff-Check sauber.
+- Getestet auf `srv1`/VM100:
+	- Aktuelle Admin-/Tray-Dateien per QEMU Guest Agent nach VM100 deployt.
+	- `/usr/local/bin/beagle-thinclient-admin --selftest`: `agent_status: ok host=10.88.1.1`, Thinclient-Sektionen `audio,network,services,stream,update,usb,video`.
+	- `/usr/local/bin/beagle-netbridge-tray --selftest`: `agent_host: 10.88.1.1`, `stream_profile: custom`.
+	- Offscreen-Screenshot in VM100 erzeugt: `.tmp-thinclient-admin-smoke.png` mit sichtbaren Uebersichtsstatuswerten.
+- Zusatzbefund:
+	- Direkter lokaler Zugriff auf `192.168.178.30:47100` ist `Connection refused`; der produktive VM/WireGuard-Pfad `10.88.1.1:47100` funktioniert.
+	- `v8.3.19` war bereits auf GitHub veroeffentlicht; der Abschluss-Release fuer diese Aenderung wird deshalb als `8.3.20` vorbereitet.

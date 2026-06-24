@@ -38,6 +38,9 @@ DEFAULT_AGENTS = "10.88.1.1:47100"
 ENV_FILE = "/etc/beagle/netbridge.env"
 MANAGED_PREFIX = "beagle-net-"
 CONTROL_TIMEOUT = 6
+CONTROL_STATUS_TIMEOUT = int(os.environ.get("BEAGLE_NETBRIDGE_STATUS_TIMEOUT", "22"))
+CONTROL_ACTION_TIMEOUT = int(os.environ.get("BEAGLE_NETBRIDGE_ACTION_TIMEOUT", "45"))
+CONTROL_LONG_ACTION_TIMEOUT = int(os.environ.get("BEAGLE_NETBRIDGE_LONG_ACTION_TIMEOUT", "1800"))
 TRAY_WAIT_TIMEOUT_SECONDS = float(os.environ.get("BEAGLE_NETBRIDGE_TRAY_WAIT_TIMEOUT", "90"))
 TRAY_WAIT_INTERVAL_SECONDS = float(os.environ.get("BEAGLE_NETBRIDGE_TRAY_WAIT_INTERVAL", "1"))
 APP_ID = "com.beagle-os.netbridge.tray"
@@ -104,15 +107,16 @@ class NetBridgeControl:
     def __init__(self, endpoints: list[tuple[str, int]] | None = None) -> None:
         self.endpoints = endpoints if endpoints is not None else agent_endpoints()
 
-    def request(self, op: str = "catalog", **fields) -> dict | None:
+    def request(self, op: str = "catalog", timeout: int | None = None, **fields) -> dict | None:
         payload = {"op": op}
         payload.update(fields)
         line = (json.dumps(payload) + "\n").encode("utf-8")
+        effective_timeout = int(timeout or CONTROL_TIMEOUT)
         for host, port in self.endpoints:
             try:
-                with socket.create_connection((host, port), timeout=CONTROL_TIMEOUT) as sock:
+                with socket.create_connection((host, port), timeout=effective_timeout) as sock:
                     sock.sendall(line)
-                    sock.settimeout(CONTROL_TIMEOUT)
+                    sock.settimeout(effective_timeout)
                     buffer = bytearray()
                     while b"\n" not in buffer:
                         chunk = sock.recv(4096)
@@ -150,25 +154,31 @@ class NetBridgeControl:
         return self.request("restart")
 
     def status(self) -> dict | None:
-        return self.request("status")
+        return self.request("status", timeout=CONTROL_STATUS_TIMEOUT)
 
     def set_stream_profile(self, profile: str) -> dict | None:
-        return self.request("set_stream_profile", profile=profile)
+        return self.request("set_stream_profile", timeout=CONTROL_ACTION_TIMEOUT, profile=profile)
+
+    def set_custom_stream_profile(self, values: dict[str, object]) -> dict | None:
+        payload = {"profile": "custom"}
+        payload.update(values)
+        return self.request("set_stream_profile", timeout=CONTROL_ACTION_TIMEOUT, **payload)
 
     def service_action(self, service: str, action: str = "restart") -> dict | None:
-        return self.request("service_action", service=service, action=action)
+        return self.request("service_action", timeout=CONTROL_ACTION_TIMEOUT, service=service, action=action)
 
     def thinclient_update(self, action: str = "status") -> dict | None:
-        return self.request("thinclient_update", action=action)
+        timeout = CONTROL_LONG_ACTION_TIMEOUT if action in {"apply", "rollback"} else CONTROL_STATUS_TIMEOUT
+        return self.request("thinclient_update", timeout=timeout, action=action)
 
     def thinclient_power(self, action: str) -> dict | None:
-        return self.request("thinclient_power", action=action)
+        return self.request("thinclient_power", timeout=CONTROL_ACTION_TIMEOUT, action=action)
 
     def usb_bind(self, busid: str) -> dict | None:
-        return self.request("usb_bind", busid=busid)
+        return self.request("usb_bind", timeout=CONTROL_ACTION_TIMEOUT, busid=busid)
 
     def usb_unbind(self, busid: str) -> dict | None:
-        return self.request("usb_unbind", busid=busid)
+        return self.request("usb_unbind", timeout=CONTROL_ACTION_TIMEOUT, busid=busid)
 
 
 # --------------------------------------------------------------------------- #
