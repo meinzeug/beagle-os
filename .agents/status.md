@@ -213,3 +213,28 @@ Thinclient-Verwaltungsfix final committen, auf `main` pushen und danach `release
 - Zusatzbefund:
 	- Direkter lokaler Zugriff auf `192.168.178.30:47100` ist `Connection refused`; der produktive VM/WireGuard-Pfad `10.88.1.1:47100` funktioniert.
 	- `v8.3.19` war bereits auf GitHub veroeffentlicht; der Abschluss-Release fuer diese Aenderung wird deshalb als `8.3.20` vorbereitet.
+
+## Session Update 2026-06-24 (Thinclient Verwaltung Tab-Nachbesserung)
+
+- Release-Run `28087083296` fuer Commit `2f7f73d5` auf Benutzeranweisung abgebrochen; GitHub-Status danach `completed/cancelled`.
+- In VM100 fuer alle Reiter Screenshots erzeugt und lokal unter `.tmp-thinclient-tabs/` abgelegt.
+- Befund aus den Screenshots:
+	- `Updates`: Aktionsbuttons waren abgeschnitten.
+	- `USB/AV`: USB-Geraete wurden als Platzhalter/IDs und Audio als rohes JSON angezeigt.
+	- `Geraete`: keine LAN-Geraete und kein sinnvoller Leerzustand; manuelle Anlage war nur ueber Dialog erreichbar.
+	- `Dienste`/`Netzwerk`: Daten vorhanden, aber ohne verwertbare Zusammenfassung.
+- Nachbesserung:
+	- Update-, Stream-, Dienste-, USB/AV- und Netzwerk-Reiter mit Statuskarten ergaenzt.
+	- Update-Aktionen auf kurze Grid-Buttons umgestellt, keine abgeschnittenen Texte mehr.
+	- LAN-Geraete-Reiter mit Inline-Formular fuer Name, Adresse, Typ, Port und IPP-Pfad.
+	- Leere Tabellen erhalten sichtbare Leerzustandskarten.
+	- USB/AV zeigt lesbare Bus-ID/Status/Geraet/Kennung und Audio-Details statt JSON.
+	- Dienstetabelle waehlt den Dienst fuer Start/Restart direkt ueber die markierte Zeile.
+- Hot-Test auf VM100:
+	- `/usr/local/bin/beagle-thinclient-admin --selftest`: `agent_status: ok host=10.88.1.1`.
+	- Alle acht Reiter erneut als VM100-Screenshots erzeugt; kritische Reiter `Updates`, `USB/AV`, `Geraete`, `Dienste`, `Netzwerk`, `Stream` visuell geprueft.
+- Getestet lokal:
+	- `python3 -m py_compile beagle-host/netbridge/beagle-thinclient-admin beagle-host/netbridge/beagle-netbridge-tray beagle-host/netbridge/beagle-netbridge-agent`
+	- `python3 -m pytest -q tests/unit/test_beagle_netbridge_regressions.py`
+	- `git diff --check`
+	- Ergebnis: `17 passed`, Diff-Check sauber.

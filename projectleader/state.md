@@ -152,3 +152,11 @@ LastHope/Diamond gates moving forward.
   is working.
 - GitHub already had published `v8.3.19`; the next stable release for this
   admin fix is prepared as `8.3.20`.
+- Release run `28087083296` for `2f7f73d5` was cancelled on user request before
+  shipping because per-tab screenshots showed the first admin UI pass was still
+  too empty and table-like.
+- Follow-up VM100 screenshot pass captured all tabs under `.tmp-thinclient-tabs/`.
+  The admin now has visible status cards on the operational tabs, unclipped
+  update actions, readable USB/AV rows, inline LAN-device creation, explicit
+  empty states and row-driven service actions. No new release was started after
+  this follow-up.

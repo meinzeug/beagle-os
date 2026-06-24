@@ -51,13 +51,13 @@ def normalize_state(value: object) -> str:
 
 def tone_for_state(value: object) -> str:
     state = normalize_state(value)
-    if state in {"active", "running", "ready", "bereit", "current", "healthy", "online", "ok", "connected", "verbunden", "erkannt"}:
+    if state in {"active", "running", "ready", "bereit", "current", "healthy", "online", "ok", "connected", "verbunden", "erkannt", "frei", "aktiv"}:
         return "good"
     if "neustart" in state or "verfügbar" in state or "verfuegbar" in state:
         return "warn"
     if state in {"available", "staged", "installing", "deferred", "reboot-required", "warning", "prüfen", "pruefen"}:
         return "warn"
-    if state in {"failed", "error", "blocked", "missing", "offline", "inactive", "not erreichbar"}:
+    if state in {"failed", "error", "blocked", "missing", "fehlt", "offline", "inactive", "inaktiv", "not erreichbar"}:
         return "bad"
     return "muted"
 
@@ -343,6 +343,42 @@ def run_app(screenshot_path: str = "") -> int:
             self._build_diagnostics()
             self._apply_style()
 
+        def _table(self, columns: list[str]):
+            table = QtWidgets.QTableWidget(0, len(columns))
+            table.setHorizontalHeaderLabels(columns)
+            table.horizontalHeader().setStretchLastSection(True)
+            table.verticalHeader().setVisible(False)
+            table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+            table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+            table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            return table
+
+        def _empty_label(self, text: str):
+            label = QtWidgets.QLabel(text)
+            label.setObjectName("emptyState")
+            label.setWordWrap(True)
+            label.setVisible(False)
+            return label
+
+        def _attach_empty_state(self, table, label) -> None:
+            table.empty_label = label
+
+        def _button(self, text: str, slot, primary: bool = False):
+            button = QtWidgets.QPushButton(text)
+            button.setMinimumHeight(36)
+            if primary:
+                button.setObjectName("primaryButton")
+            button.clicked.connect(slot)
+            return button
+
+        def _add_button_grid(self, layout, actions: list[tuple[str, object, bool]], columns: int = 2) -> None:
+            grid = QtWidgets.QGridLayout()
+            grid.setHorizontalSpacing(8)
+            grid.setVerticalSpacing(8)
+            for index, (text, slot, primary) in enumerate(actions):
+                grid.addWidget(self._button(text, slot, primary), index // columns, index % columns)
+            layout.addLayout(grid)
+
         def _build_overview(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.overview)
             layout.setContentsMargins(0, 0, 0, 0)
@@ -399,51 +435,45 @@ def run_app(screenshot_path: str = "") -> int:
 
         def _build_updates(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.updates)
+            layout.setSpacing(12)
+            self.update_cards: dict[str, InfoCard] = {}
+            summary = QtWidgets.QGridLayout()
+            summary.setSpacing(12)
+            for index, (key, title) in enumerate((
+                ("vm", "VM-Update"),
+                ("thinclient", "Thinclient-Update"),
+                ("desktop_profile", "Desktop-Profil"),
+            )):
+                card = InfoCard(title)
+                self.update_cards[key] = card
+                summary.addWidget(card, 0, index)
+            layout.addLayout(summary)
+
             split = QtWidgets.QHBoxLayout()
 
             vm_box = QtWidgets.QGroupBox("Diese VM")
             vm_layout = QtWidgets.QVBoxLayout(vm_box)
-            self.update_grid = QtWidgets.QTableWidget(0, 2)
-            self.update_grid.setHorizontalHeaderLabels(["Feld", "Wert"])
-            self.update_grid.horizontalHeader().setStretchLastSection(True)
-            self.update_grid.verticalHeader().setVisible(False)
-            self.update_grid.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            self.update_grid = self._table(["Feld", "Wert"])
             vm_layout.addWidget(self.update_grid)
-            vm_actions = QtWidgets.QHBoxLayout()
-            for text, slot in (
-                ("Nach Updates suchen", self.scan_updates),
-                ("Updates installieren + Neustart", self.apply_updates),
-                ("Desktop-Profil erneuern", self.refresh_desktop_profile),
-                ("VM neu starten", lambda: self.vm_power_action("reboot")),
-                ("VM herunterfahren", lambda: self.vm_power_action("shutdown")),
-            ):
-                button = QtWidgets.QPushButton(text)
-                button.clicked.connect(slot)
-                vm_actions.addWidget(button)
-            vm_actions.addStretch(1)
-            vm_layout.addLayout(vm_actions)
+            self._add_button_grid(vm_layout, [
+                ("Suchen", self.scan_updates, True),
+                ("Installieren", self.apply_updates, False),
+                ("Profil erneuern", self.refresh_desktop_profile, False),
+                ("Neu starten", lambda: self.vm_power_action("reboot"), False),
+                ("Herunterfahren", lambda: self.vm_power_action("shutdown"), False),
+            ])
 
             tc_box = QtWidgets.QGroupBox("Thinclient")
             tc_layout = QtWidgets.QVBoxLayout(tc_box)
-            self.thin_update_grid = QtWidgets.QTableWidget(0, 2)
-            self.thin_update_grid.setHorizontalHeaderLabels(["Feld", "Wert"])
-            self.thin_update_grid.horizontalHeader().setStretchLastSection(True)
-            self.thin_update_grid.verticalHeader().setVisible(False)
-            self.thin_update_grid.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            self.thin_update_grid = self._table(["Feld", "Wert"])
             tc_layout.addWidget(self.thin_update_grid)
-            tc_actions = QtWidgets.QHBoxLayout()
-            for text, slot in (
-                ("Thinclient-Update suchen", lambda: self.thinclient_update_action("scan")),
-                ("Thinclient-Update installieren + Neustart", lambda: self.thinclient_update_action("apply")),
-                ("Rollback + Neustart", lambda: self.thinclient_update_action("rollback")),
-                ("Thinclient neu starten", lambda: self.thinclient_power_action("reboot")),
-                ("Thinclient herunterfahren", lambda: self.thinclient_power_action("poweroff")),
-            ):
-                button = QtWidgets.QPushButton(text)
-                button.clicked.connect(slot)
-                tc_actions.addWidget(button)
-            tc_actions.addStretch(1)
-            tc_layout.addLayout(tc_actions)
+            self._add_button_grid(tc_layout, [
+                ("Suchen", lambda: self.thinclient_update_action("scan"), True),
+                ("Installieren", lambda: self.thinclient_update_action("apply"), False),
+                ("Rollback", lambda: self.thinclient_update_action("rollback"), False),
+                ("Neu starten", lambda: self.thinclient_power_action("reboot"), False),
+                ("Herunterfahren", lambda: self.thinclient_power_action("poweroff"), False),
+            ])
 
             split.addWidget(vm_box, 1)
             split.addWidget(tc_box, 1)
@@ -452,12 +482,21 @@ def run_app(screenshot_path: str = "") -> int:
         def _build_stream(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.stream)
             layout.setSpacing(12)
+            self.stream_cards: dict[str, InfoCard] = {}
+            stream_summary = QtWidgets.QGridLayout()
+            stream_summary.setSpacing(12)
+            for index, (key, title) in enumerate((
+                ("profile", "Aktives Profil"),
+                ("quality", "Qualität"),
+                ("transport", "Transport"),
+            )):
+                card = InfoCard(title)
+                self.stream_cards[key] = card
+                stream_summary.addWidget(card, 0, index)
+            layout.addLayout(stream_summary)
+
             top = QtWidgets.QHBoxLayout()
-            self.stream_table = QtWidgets.QTableWidget(0, 2)
-            self.stream_table.setHorizontalHeaderLabels(["Feld", "Wert"])
-            self.stream_table.horizontalHeader().setStretchLastSection(True)
-            self.stream_table.verticalHeader().setVisible(False)
-            self.stream_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            self.stream_table = self._table(["Einstellung", "Wert"])
             top.addWidget(self.stream_table, 3)
 
             preset_box = QtWidgets.QGroupBox("Schnellprofil")
@@ -534,82 +573,140 @@ def run_app(screenshot_path: str = "") -> int:
 
         def _build_services(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.services)
-            self.service_table = QtWidgets.QTableWidget(0, 4)
-            self.service_table.setHorizontalHeaderLabels(["Dienst", "Unit", "Aktiv", "Aktiviert"])
-            self.service_table.horizontalHeader().setStretchLastSection(True)
-            self.service_table.verticalHeader().setVisible(False)
-            self.service_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            layout.setSpacing(12)
+            self.service_cards: dict[str, InfoCard] = {}
+            service_summary = QtWidgets.QGridLayout()
+            service_summary.setSpacing(12)
+            for index, (key, title) in enumerate((
+                ("active", "Aktive Dienste"),
+                ("stream", "Stream"),
+                ("agent", "Agent"),
+            )):
+                card = InfoCard(title)
+                self.service_cards[key] = card
+                service_summary.addWidget(card, 0, index)
+            layout.addLayout(service_summary)
+            self.service_table = self._table(["Dienst", "Status", "Start", "Unit"])
+            self.service_table.itemSelectionChanged.connect(self.sync_service_from_table)
             layout.addWidget(self.service_table)
             actions = QtWidgets.QHBoxLayout()
             self.service_combo = QtWidgets.QComboBox()
             for key in ("stream", "usb_tunnel", "camera_stream", "netbridge_agent"):
                 self.service_combo.addItem(service_label(key), key)
+            self.service_combo.setMinimumWidth(220)
             actions.addWidget(self.service_combo)
-            start = QtWidgets.QPushButton("Starten")
-            start.clicked.connect(lambda: self.service_action(self.service_combo.currentData(), "start"))
-            restart = QtWidgets.QPushButton("Neu starten")
-            restart.clicked.connect(lambda: self.service_action(self.service_combo.currentData(), "restart"))
-            actions.addWidget(start)
-            actions.addWidget(restart)
+            actions.addWidget(self._button("Starten", lambda: self.service_action(self.service_combo.currentData(), "start")))
+            actions.addWidget(self._button("Neu starten", lambda: self.service_action(self.service_combo.currentData(), "restart"), True))
             actions.addStretch(1)
             layout.addLayout(actions)
 
         def _build_usb(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.usb)
-            self.usb_table = QtWidgets.QTableWidget(0, 5)
-            self.usb_table.setHorizontalHeaderLabels(["Bus-ID", "Name", "Hersteller", "Exportiert", "Klasse"])
-            self.usb_table.horizontalHeader().setStretchLastSection(True)
-            self.usb_table.verticalHeader().setVisible(False)
-            self.usb_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            layout.setSpacing(12)
+            self.usb_cards: dict[str, InfoCard] = {}
+            usb_summary = QtWidgets.QGridLayout()
+            usb_summary.setSpacing(12)
+            for index, (key, title) in enumerate((
+                ("tunnel", "USB-Tunnel"),
+                ("devices", "USB-Geräte"),
+                ("av", "Audio/Video"),
+            )):
+                card = InfoCard(title)
+                self.usb_cards[key] = card
+                usb_summary.addWidget(card, 0, index)
+            layout.addLayout(usb_summary)
+
+            self.usb_table = self._table(["Bus-ID", "Status", "Gerät", "Kennung"])
+            self.usb_table.itemSelectionChanged.connect(self.sync_usb_busid_from_table)
             layout.addWidget(self.usb_table)
+            self.usb_empty = self._empty_label("Keine USB-Geräte vom Thinclient-Agenten gemeldet.")
+            self._attach_empty_state(self.usb_table, self.usb_empty)
+            layout.addWidget(self.usb_empty)
+
             actions = QtWidgets.QHBoxLayout()
             self.usb_busid = QtWidgets.QLineEdit()
             self.usb_busid.setPlaceholderText("Bus-ID, z. B. 1-2")
-            bind = QtWidgets.QPushButton("Fuer VM freigeben")
-            bind.clicked.connect(lambda: self.usb_action("bind"))
-            unbind = QtWidgets.QPushButton("Vom VM-Tunnel loesen")
-            unbind.clicked.connect(lambda: self.usb_action("unbind"))
             actions.addWidget(self.usb_busid, 1)
-            actions.addWidget(bind)
-            actions.addWidget(unbind)
+            actions.addWidget(self._button("Für VM freigeben", lambda: self.usb_action("bind"), True))
+            actions.addWidget(self._button("Tunnel lösen", lambda: self.usb_action("unbind")))
             layout.addLayout(actions)
-            self.av_table = QtWidgets.QTableWidget(0, 3)
-            self.av_table.setHorizontalHeaderLabels(["Typ", "Geraet", "Detail"])
-            self.av_table.horizontalHeader().setStretchLastSection(True)
-            self.av_table.verticalHeader().setVisible(False)
-            self.av_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+
+            self.av_table = self._table(["Typ", "Gerät", "Details"])
             layout.addWidget(self.av_table)
+            self.av_empty = self._empty_label("Keine Mikrofone oder Webcams gemeldet.")
+            self._attach_empty_state(self.av_table, self.av_empty)
+            layout.addWidget(self.av_empty)
 
         def _build_devices(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.devices)
-            self.device_table = QtWidgets.QTableWidget(0, 6)
-            self.device_table.setHorizontalHeaderLabels(["Name", "Adresse", "Art", "Queue", "CUPS", "Manuell"])
-            self.device_table.horizontalHeader().setStretchLastSection(True)
-            self.device_table.verticalHeader().setVisible(False)
-            self.device_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            layout.setSpacing(12)
+
+            manual_box = QtWidgets.QGroupBox("Manuelles LAN-Gerät")
+            manual = QtWidgets.QGridLayout(manual_box)
+            manual.setHorizontalSpacing(10)
+            manual.setVerticalSpacing(8)
+            self.device_name_edit = QtWidgets.QLineEdit()
+            self.device_name_edit.setPlaceholderText("Bürodrucker")
+            self.device_address_edit = QtWidgets.QLineEdit()
+            self.device_address_edit.setPlaceholderText("192.168.178.50 oder printer.local")
+            self.device_kind_combo = QtWidgets.QComboBox()
+            self.device_kind_combo.addItem("Raw / JetDirect", "raw")
+            self.device_kind_combo.addItem("IPP", "ipp")
+            self.device_port_spin = QtWidgets.QSpinBox()
+            self.device_port_spin.setRange(1, 65535)
+            self.device_port_spin.setValue(9100)
+            self.device_rp_edit = QtWidgets.QLineEdit("ipp/print")
+            self.device_kind_combo.currentIndexChanged.connect(self.sync_inline_device_kind)
+            for column, (label, widget) in enumerate((
+                ("Name", self.device_name_edit),
+                ("Adresse", self.device_address_edit),
+                ("Typ", self.device_kind_combo),
+                ("Port", self.device_port_spin),
+                ("IPP-Pfad", self.device_rp_edit),
+            )):
+                manual.addWidget(QtWidgets.QLabel(label), 0, column)
+                manual.addWidget(widget, 1, column)
+            manual.addWidget(self._button("Hinzufügen", self.add_device_from_inline, True), 1, 5)
+            layout.addWidget(manual_box)
+
+            self.device_table = self._table(["Name", "Adresse", "Typ", "Queue", "CUPS", "Quelle"])
             layout.addWidget(self.device_table)
+            self.device_empty = self._empty_label("Keine LAN-Geräte erkannt. Manuelle Geräte können oben direkt angelegt werden.")
+            self._attach_empty_state(self.device_table, self.device_empty)
+            layout.addWidget(self.device_empty)
+
             actions = QtWidgets.QHBoxLayout()
             for text, slot in (
-                ("Geraete suchen", self.rescan_devices),
-                ("Geraet hinzufuegen", self.add_device),
-                ("Ausgewaehltes Geraet entfernen", self.remove_selected_device),
+                ("Suchen", self.rescan_devices),
+                ("Entfernen", self.remove_selected_device),
                 ("Testseite drucken", self.print_selected_device),
-                ("CUPS oeffnen", self.open_cups),
+                ("CUPS öffnen", self.open_cups),
             ):
-                button = QtWidgets.QPushButton(text)
-                button.clicked.connect(slot)
-                actions.addWidget(button)
+                actions.addWidget(self._button(text, slot, primary=(text == "Suchen")))
             actions.addStretch(1)
             layout.addLayout(actions)
+            self.sync_inline_device_kind()
 
         def _build_network(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.network)
-            self.network_table = QtWidgets.QTableWidget(0, 6)
-            self.network_table.setHorizontalHeaderLabels(["Interface", "Status", "IPv4", "MAC", "Speed", "WLAN"])
-            self.network_table.horizontalHeader().setStretchLastSection(True)
-            self.network_table.verticalHeader().setVisible(False)
-            self.network_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            layout.setSpacing(12)
+            self.network_cards: dict[str, InfoCard] = {}
+            network_summary = QtWidgets.QGridLayout()
+            network_summary.setSpacing(12)
+            for index, (key, title) in enumerate((
+                ("lan", "LAN"),
+                ("wireguard", "WireGuard"),
+                ("wifi", "WLAN"),
+            )):
+                card = InfoCard(title)
+                self.network_cards[key] = card
+                network_summary.addWidget(card, 0, index)
+            layout.addLayout(network_summary)
+            self.network_table = self._table(["Interface", "Status", "IPv4", "MAC", "Tempo", "Typ"])
             layout.addWidget(self.network_table)
+            self.network_empty = self._empty_label("Keine Netzwerkinterfaces vom Thinclient-Agenten gemeldet.")
+            self._attach_empty_state(self.network_table, self.network_empty)
+            layout.addWidget(self.network_empty)
 
         def _build_diagnostics(self) -> None:
             layout = QtWidgets.QVBoxLayout(self.diagnostics)
@@ -636,6 +733,14 @@ def run_app(screenshot_path: str = "") -> int:
                 QLabel#appSubtitle { color: #5b6472; font-size: 12px; }
                 QLabel#headerStatus { color: #5b6472; }
                 QLabel#sectionTitle { color: #222b3a; font-size: 14px; font-weight: 800; }
+                QLabel#emptyState {
+                    background: #f8fafc;
+                    border: 1px dashed #cbd5e1;
+                    border-radius: 8px;
+                    color: #475569;
+                    padding: 12px;
+                    font-weight: 700;
+                }
                 QFrame#infoCard {
                     background: #ffffff;
                     border: 1px solid #dde3ec;
@@ -727,6 +832,7 @@ def run_app(screenshot_path: str = "") -> int:
                     border: 1px solid #cbd5e1;
                     border-radius: 6px;
                     background: #ffffff;
+                    min-height: 18px;
                 }
                 QPlainTextEdit {
                     border: 1px solid #dde3ec;
@@ -795,6 +901,9 @@ def run_app(screenshot_path: str = "") -> int:
             self._render_diagnostics()
 
         def _set_rows(self, table, rows: list[list[object]]) -> None:
+            empty_label = getattr(table, "empty_label", None)
+            if empty_label is not None:
+                empty_label.setVisible(len(rows) == 0)
             table.setRowCount(len(rows))
             table.setAlternatingRowColors(True)
             for row_index, row in enumerate(rows):
@@ -921,6 +1030,27 @@ def run_app(screenshot_path: str = "") -> int:
         def _render_updates(self) -> None:
             status = self.update_status
             profile = status.get("desktop_profile", {}) if isinstance(status.get("desktop_profile"), dict) else {}
+            thin_status = self.thinclient().get("update", {})
+            if not isinstance(thin_status, dict):
+                thin_status = {}
+            self.update_cards["vm"].set_data(
+                update_summary(status),
+                f"{status.get('current_version', '-') or '-'} -> {status.get('latest_version', '-') or '-'}",
+                str(status.get("state", "unknown") or "unknown"),
+                tone_for_state(update_summary(status)),
+            )
+            self.update_cards["thinclient"].set_data(
+                update_summary(thin_status),
+                f"{thin_status.get('current_version') or thin_status.get('installed_version') or '-'} -> {thin_status.get('latest_version') or thin_status.get('staged_version') or '-'}",
+                str(thin_status.get("state", "unknown") or "unknown"),
+                tone_for_state(update_summary(thin_status)),
+            )
+            self.update_cards["desktop_profile"].set_data(
+                status.get("desktop_profile_version") or profile.get("profile_version") or "-",
+                "verfügbar" if status.get("desktop_profile_available") else "aktuell",
+                "prüfen" if status.get("desktop_profile_available") else "ok",
+                "warn" if status.get("desktop_profile_available") else "good",
+            )
             rows = [
                 ["Status", status.get("state", "unknown")],
                 ["Installiert", status.get("current_version", "-")],
@@ -933,9 +1063,6 @@ def run_app(screenshot_path: str = "") -> int:
                 ["Hinweis", status.get("last_error") or profile.get("last_error") or "-"],
             ]
             self._set_rows(self.update_grid, rows)
-            thin_status = self.thinclient().get("update", {})
-            if not isinstance(thin_status, dict):
-                thin_status = {}
             thin_rows = [
                 ["Status", thin_status.get("state", "unknown")],
                 ["Installiert", thin_status.get("current_version") or thin_status.get("installed_version") or "-"],
@@ -955,6 +1082,36 @@ def run_app(screenshot_path: str = "") -> int:
                 stream = {}
             auto = stream.get("auto_quality", {}) if isinstance(stream.get("auto_quality"), dict) else {}
             values = stream.get("values", {}) if isinstance(stream.get("values"), dict) else {}
+            self.stream_cards["profile"].set_data(
+                str(stream.get("profile", "-") or "-"),
+                f"{values.get('resolution', '-') or '-'} @ {values.get('fps', '-') or '-'} FPS",
+                "bereit" if stream else "unbekannt",
+                "good" if stream else "muted",
+            )
+            self.stream_cards["quality"].set_data(
+                f"{values.get('bitrate', '-') or '-'} kbit/s",
+                f"Codec {values.get('video_codec', '-') or '-'} | Decoder {values.get('video_decoder', '-') or '-'}",
+                "custom" if stream.get("profile") == "custom" else str(stream.get("profile", "-") or "-"),
+                "good" if stream else "muted",
+            )
+            self.stream_cards["transport"].set_data(
+                f"Paket {values.get('packet_size', '-') or '-'}",
+                f"Auto {auto.get('bucket', '-') or '-'} | RTT {auto.get('rtt_avg_ms', '-') or '-'} ms",
+                "ok" if stream else "unbekannt",
+                "good" if stream else "muted",
+            )
+            value_labels = {
+                "resolution": "Auflösung",
+                "fps": "FPS",
+                "bitrate": "Bitrate",
+                "packet_size": "Paketgröße",
+                "frame_pacing": "Frame pacing",
+                "vsync": "VSync",
+                "video_codec": "Codec",
+                "video_decoder": "Decoder",
+                "display_mode": "Anzeige",
+                "audio_config": "Audio",
+            }
             rows = [
                 ["Aktives Profil", stream.get("profile", "-")],
                 ["Profil-Datei", stream.get("profile_file", "-")],
@@ -963,9 +1120,9 @@ def run_app(screenshot_path: str = "") -> int:
                 ["Paketverlust", auto.get("loss", "-")],
                 ["Geprueft", auto.get("checked_at", "-")],
             ]
-            for key in ("resolution", "fps", "bitrate", "packet_size", "frame_pacing", "vsync", "video_decoder", "display_mode"):
+            for key in ("resolution", "fps", "bitrate", "packet_size", "video_codec", "video_decoder", "frame_pacing", "vsync", "display_mode", "audio_config"):
                 if key in values:
-                    rows.append([key, values.get(key)])
+                    rows.append([value_labels.get(key, key), values.get(key)])
             self._set_rows(self.stream_table, rows)
             self._sync_custom_stream_controls(values)
 
@@ -1002,35 +1159,77 @@ def run_app(screenshot_path: str = "") -> int:
             services = self.thinclient().get("services", {})
             if not isinstance(services, dict):
                 services = {}
+            active, total = service_count_summary(services)
+            stream_state = services.get("stream", {}) if isinstance(services.get("stream"), dict) else {}
+            agent_state = services.get("netbridge_agent", {}) if isinstance(services.get("netbridge_agent"), dict) else {}
+            self.service_cards["active"].set_data(
+                f"{active}/{total} aktiv",
+                "Thinclient-Systemdienste",
+                "ok" if total and active == total else "prüfen",
+                "good" if total and active == total else "warn",
+            )
+            self.service_cards["stream"].set_data(
+                str(stream_state.get("active", "-") or "-"),
+                f"{stream_state.get('unit', '-') or '-'} | Start {stream_state.get('enabled', '-') or '-'}",
+                str(stream_state.get("active", "-") or "-"),
+                tone_for_state(stream_state.get("active", "-")),
+            )
+            self.service_cards["agent"].set_data(
+                str(agent_state.get("active", "-") or "-"),
+                f"{agent_state.get('unit', '-') or '-'} | Start {agent_state.get('enabled', '-') or '-'}",
+                str(agent_state.get("active", "-") or "-"),
+                tone_for_state(agent_state.get("active", "-")),
+            )
             rows = []
             for key in sorted(services):
                 state = services.get(key, {}) if isinstance(services.get(key), dict) else {}
-                rows.append([service_label(key), state.get("unit", key), state.get("active", "-"), state.get("enabled", "-")])
+                rows.append([service_label(key), state.get("active", "-"), state.get("enabled", "-"), state.get("unit", key)])
             self._set_rows(self.service_table, rows)
 
         def _render_usb_av(self) -> None:
             thin = self.thinclient()
             usb = thin.get("usb", {}) if isinstance(thin.get("usb"), dict) else {}
             devices = usb.get("devices", []) if isinstance(usb.get("devices"), list) else []
+            audio = thin.get("audio", {}) if isinstance(thin.get("audio"), dict) else {}
+            video = thin.get("video", {}) if isinstance(thin.get("video"), dict) else {}
+            capture_devices = audio.get("capture_devices", []) if isinstance(audio.get("capture_devices"), list) else []
+            video_devices = video.get("devices", []) if isinstance(video.get("devices"), list) else []
+            self.usb_cards["tunnel"].set_data(
+                str(usb.get("tunnel_state", "unknown") or "unknown"),
+                f"Host {usb.get('attach_host', '-') or '-'}",
+                "aktiv" if usb.get("tunnel_state") == "up" else "inaktiv",
+                "good" if usb.get("tunnel_state") == "up" else "warn",
+            )
+            self.usb_cards["devices"].set_data(
+                f"{len(devices)} erkannt",
+                f"{usb.get('bound_count', 0) or 0} für VM freigegeben",
+                "bereit" if devices else "leer",
+                "good" if devices else "muted",
+            )
+            self.usb_cards["av"].set_data(
+                f"{len(capture_devices)} Mikrofon · {len(video_devices)} Webcam",
+                "Audio/Video vom Thinclient",
+                "erkannt" if capture_devices or video_devices else "leer",
+                "good" if capture_devices or video_devices else "muted",
+            )
             self._set_rows(self.usb_table, [
                 [
                     item.get("busid", item.get("id", "")),
-                    item.get("product") or item.get("name") or "-",
-                    item.get("manufacturer", "-"),
-                    "ja" if item.get("bound") or item.get("exported") else "nein",
-                    item.get("class", "-"),
+                    "freigegeben" if item.get("bound") or item.get("exported") else "frei",
+                    item.get("product") or item.get("name") or item.get("description") or f"USB-Port {item.get('busid', '-')}",
+                    item.get("description") or item.get("class") or "-",
                 ]
                 for item in devices if isinstance(item, dict)
             ])
             rows = []
-            audio = thin.get("audio", {}) if isinstance(thin.get("audio"), dict) else {}
-            for item in audio.get("capture_devices", []) or []:
+            for item in capture_devices:
                 if isinstance(item, dict):
-                    rows.append(["Mikrofon", item.get("name") or item.get("summary") or item.get("id") or "-", json.dumps(item, ensure_ascii=False)])
-            video = thin.get("video", {}) if isinstance(thin.get("video"), dict) else {}
-            for item in video.get("devices", []) or []:
+                    details = f"Karte {item.get('card', '-')}, Gerät {item.get('device', '-')} | {item.get('id', '-')}"
+                    rows.append(["Mikrofon", item.get("name") or item.get("summary") or item.get("id") or "-", details])
+            for item in video_devices:
                 if isinstance(item, dict):
-                    rows.append(["Webcam", item.get("name") or item.get("node") or "-", json.dumps(item, ensure_ascii=False)])
+                    details = item.get("node") or item.get("id") or item.get("path") or "-"
+                    rows.append(["Webcam", item.get("name") or item.get("node") or "-", details])
             self._set_rows(self.av_table, rows)
 
         def _render_devices(self) -> None:
@@ -1046,21 +1245,42 @@ def run_app(screenshot_path: str = "") -> int:
                     device.get("kind", "-"),
                     queue,
                     "ja" if queue in self.wired else "nein",
-                    "ja" if device.get("manual") else "nein",
+                    "manuell" if device.get("manual") else "Scan",
                 ])
             self._set_rows(self.device_table, rows)
 
         def _render_network(self) -> None:
             network = self.thinclient().get("network", {})
             interfaces = network.get("interfaces", []) if isinstance(network, dict) else []
+            lan = next((item for item in interfaces if isinstance(item, dict) and not item.get("wireless") and str(item.get("name", "")).startswith(("en", "eth"))), {})
+            wireguard = next((item for item in interfaces if isinstance(item, dict) and str(item.get("name", "")).startswith("wg")), {})
+            wifi = next((item for item in interfaces if isinstance(item, dict) and item.get("wireless")), {})
+            self.network_cards["lan"].set_data(
+                str(lan.get("ipv4", "-") or "-"),
+                f"{lan.get('name', '-') or '-'} | {lan.get('speed_mbps', '-') or '-'} Mbit/s",
+                str(lan.get("state", "unknown") or "unknown"),
+                tone_for_state(lan.get("state", "unknown")),
+            )
+            self.network_cards["wireguard"].set_data(
+                str(wireguard.get("ipv4", "-") or "-"),
+                str(wireguard.get("name", "-") or "-"),
+                "bereit" if wireguard else "fehlt",
+                "good" if wireguard else "bad",
+            )
+            self.network_cards["wifi"].set_data(
+                str(wifi.get("ipv4", "-") or "-"),
+                str(wifi.get("name", "-") or "-"),
+                str(wifi.get("state", "unknown") or "unknown") if wifi else "fehlt",
+                tone_for_state(wifi.get("state", "unknown") if wifi else "missing"),
+            )
             self._set_rows(self.network_table, [
                 [
                     item.get("name", "-"),
                     item.get("state", "-"),
                     item.get("ipv4", "-"),
                     item.get("mac", "-"),
-                    item.get("speed_mbps", "-"),
-                    "ja" if item.get("wireless") else "nein",
+                    f"{item.get('speed_mbps')} Mbit/s" if item.get("speed_mbps") else "-",
+                    "WLAN" if item.get("wireless") else "Kabel/VPN",
                 ]
                 for item in interfaces if isinstance(item, dict)
             ])
@@ -1076,6 +1296,29 @@ def run_app(screenshot_path: str = "") -> int:
                 },
             }
             self.diagnostics_text.setPlainText(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False))
+
+        def sync_service_from_table(self) -> None:
+            row = self.service_table.currentRow()
+            if row < 0 or not self.service_table.item(row, 0):
+                return
+            label = self.service_table.item(row, 0).text()
+            index = self.service_combo.findText(label)
+            if index >= 0:
+                self.service_combo.setCurrentIndex(index)
+
+        def sync_usb_busid_from_table(self) -> None:
+            row = self.usb_table.currentRow()
+            if row >= 0 and self.usb_table.item(row, 0):
+                self.usb_busid.setText(self.usb_table.item(row, 0).text())
+
+        def sync_inline_device_kind(self) -> None:
+            if self.device_kind_combo.currentData() == "raw":
+                self.device_port_spin.setValue(9100)
+                self.device_rp_edit.setEnabled(False)
+                return
+            if self.device_port_spin.value() == 9100:
+                self.device_port_spin.setValue(631)
+            self.device_rp_edit.setEnabled(True)
 
         def selected_device(self) -> dict | None:
             row = self.device_table.currentRow()
@@ -1238,6 +1481,26 @@ def run_app(screenshot_path: str = "") -> int:
                     raise RuntimeError("Agent nicht erreichbar.")
                 return f"Suche abgeschlossen: {len(result.get('devices', []))} Geraet(e)."
             self._run_action("LAN-Geraete", op)
+
+        def add_device_from_inline(self) -> None:
+            values = {
+                "name": self.device_name_edit.text().strip(),
+                "address": self.device_address_edit.text().strip(),
+                "port": self.device_port_spin.value(),
+                "rp": self.device_rp_edit.text().strip() or "ipp/print",
+            }
+            if not values["address"]:
+                QtWidgets.QMessageBox.warning(self, "LAN-Geräte", "Bitte eine Adresse angeben.")
+                return
+
+            def op() -> str:
+                result = self.control.add_static(values["address"], values["port"], values["name"], values["rp"])
+                if result is None:
+                    raise RuntimeError("Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    raise RuntimeError(str(result.get("error", "unbekannter Fehler")))
+                return "Gerät wurde hinzugefügt."
+            self._run_action("LAN-Geräte", op)
 
         def add_device(self) -> None:
             dialog = AddDeviceDialog(self)

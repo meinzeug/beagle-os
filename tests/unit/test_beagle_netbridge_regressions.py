@@ -360,7 +360,8 @@ def test_thinclient_admin_app_exists_and_covers_full_management_center() -> None
     script = THINCLIENT_ADMIN.read_text(encoding="utf-8")
     for snippet in (
         "Updates",
-        "Thinclient-Update installieren + Neustart",
+        "Manuelles LAN-Gerät",
+        "Für VM freigeben",
         "VM neu starten",
         "Thinclient neu starten",
         "Streamprofil setzen",
