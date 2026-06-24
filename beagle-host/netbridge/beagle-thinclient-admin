@@ -200,7 +200,7 @@ def run_app(screenshot_path: str = "") -> int:
         def __init__(self, title: str, icon: str = "") -> None:
             super().__init__()
             self.setObjectName("infoCard")
-            self.setMinimumHeight(128)
+            self.setMinimumHeight(106)
             layout = QtWidgets.QVBoxLayout(self)
             layout.setContentsMargins(16, 14, 16, 14)
             layout.setSpacing(8)
@@ -241,7 +241,7 @@ def run_app(screenshot_path: str = "") -> int:
             self._busy = False
 
             self.setWindowTitle(APP_NAME)
-            self.setMinimumSize(1180, 760)
+            self.setMinimumSize(1240, 820)
             self.setWindowIcon(self._icon())
             self._build_ui()
 
@@ -422,15 +422,57 @@ def run_app(screenshot_path: str = "") -> int:
             actions.setColumnStretch(3, 1)
             layout.addWidget(actions_frame)
 
+            manage = QtWidgets.QHBoxLayout()
+            manage.setSpacing(12)
+
+            stream_box = QtWidgets.QGroupBox("Streamprofil")
+            stream_layout = QtWidgets.QGridLayout(stream_box)
+            self.overview_stream_profile_combo = QtWidgets.QComboBox()
+            for key, label in (
+                ("auto", "Automatisch"),
+                ("lan-ultra", "LAN Ultra"),
+                ("smooth", "Flüssig"),
+                ("balanced", "Balance"),
+                ("economy", "Sparsam"),
+                ("survival", "Notfall"),
+            ):
+                self.overview_stream_profile_combo.addItem(label, key)
+            stream_layout.addWidget(self.overview_stream_profile_combo, 0, 0, 1, 2)
+            stream_layout.addWidget(self._button("Setzen", self.set_overview_stream_profile, True), 1, 0)
+            stream_layout.addWidget(self._button("Neustart", lambda: self.service_action("stream", "restart")), 1, 1)
+            manage.addWidget(stream_box, 1)
+
+            device_box = QtWidgets.QGroupBox("LAN-Gerät hinzufügen")
+            device_layout = QtWidgets.QGridLayout(device_box)
+            self.overview_device_name_edit = QtWidgets.QLineEdit()
+            self.overview_device_name_edit.setPlaceholderText("Name")
+            self.overview_device_address_edit = QtWidgets.QLineEdit()
+            self.overview_device_address_edit.setPlaceholderText("Adresse")
+            self.overview_device_port_spin = QtWidgets.QSpinBox()
+            self.overview_device_port_spin.setRange(1, 65535)
+            self.overview_device_port_spin.setValue(9100)
+            device_layout.addWidget(self.overview_device_name_edit, 0, 0)
+            device_layout.addWidget(self.overview_device_address_edit, 0, 1)
+            device_layout.addWidget(self.overview_device_port_spin, 0, 2)
+            device_layout.addWidget(self._button("Hinzufügen", self.add_overview_device, True), 1, 0, 1, 3)
+            manage.addWidget(device_box, 2)
+
+            usb_box = QtWidgets.QGroupBox("USB")
+            usb_layout = QtWidgets.QGridLayout(usb_box)
+            self.overview_usb_busid = QtWidgets.QLineEdit()
+            self.overview_usb_busid.setPlaceholderText("Bus-ID")
+            usb_layout.addWidget(self.overview_usb_busid, 0, 0, 1, 2)
+            usb_layout.addWidget(self._button("Freigeben", lambda: self.overview_usb_action("bind"), True), 1, 0)
+            usb_layout.addWidget(self._button("Lösen", lambda: self.overview_usb_action("unbind")), 1, 1)
+            manage.addWidget(usb_box, 1)
+            layout.addLayout(manage)
+
             detail_title = QtWidgets.QLabel("Live-Details")
             detail_title.setObjectName("sectionTitle")
             layout.addWidget(detail_title)
 
-            self.overview_grid = QtWidgets.QTableWidget(0, 3)
-            self.overview_grid.setHorizontalHeaderLabels(["Bereich", "Status", "Details"])
-            self.overview_grid.horizontalHeader().setStretchLastSection(True)
-            self.overview_grid.verticalHeader().setVisible(False)
-            self.overview_grid.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            self.overview_grid = self._table(["Bereich", "Status", "Details"])
+            self.overview_grid.setMaximumHeight(130)
             layout.addWidget(self.overview_grid, 1)
 
         def _build_updates(self) -> None:
@@ -978,7 +1020,14 @@ def run_app(screenshot_path: str = "") -> int:
                 "verbunden" if devices or wired_count else "leer",
                 "good" if devices or wired_count else "muted",
             )
+            index = self.overview_stream_profile_combo.findData(stream_profile)
+            if index >= 0:
+                self.overview_stream_profile_combo.setCurrentIndex(index)
             usb_devices = usb.get("devices", []) if isinstance(usb.get("devices"), list) else []
+            if not self.overview_usb_busid.text().strip() and usb_devices:
+                first_busid = usb_devices[0].get("busid", "") if isinstance(usb_devices[0], dict) else ""
+                if first_busid:
+                    self.overview_usb_busid.setPlaceholderText(f"Bus-ID, z. B. {first_busid}")
             audio = thin.get("audio", {}) if isinstance(thin.get("audio"), dict) else {}
             video = thin.get("video", {}) if isinstance(thin.get("video"), dict) else {}
             capture_devices = audio.get("capture_devices", []) if isinstance(audio.get("capture_devices"), list) else []
@@ -1434,6 +1483,18 @@ def run_app(screenshot_path: str = "") -> int:
                 return f"Streamprofil gesetzt: {profile}. Falls bereits eine Sitzung laeuft, Stream neu starten."
             self._run_action("Stream", op)
 
+        def set_overview_stream_profile(self) -> None:
+            profile = str(self.overview_stream_profile_combo.currentData() or "auto")
+
+            def op() -> str:
+                result = self.control.set_stream_profile(profile)
+                if result is None:
+                    raise RuntimeError("Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    raise RuntimeError(str(result.get("error", "unbekannter Fehler")))
+                return f"Streamprofil gesetzt: {profile}. Falls bereits eine Sitzung läuft, Stream neu starten."
+            self._run_action("Stream", op)
+
         def apply_custom_stream_profile(self) -> None:
             values = {
                 "resolution": self.custom_resolution.currentText(),
@@ -1474,6 +1535,21 @@ def run_app(screenshot_path: str = "") -> int:
                 return f"USB {busid} wurde aktualisiert."
             self._run_action("USB", op)
 
+        def overview_usb_action(self, action: str) -> None:
+            busid = self.overview_usb_busid.text().strip()
+            if not busid:
+                QtWidgets.QMessageBox.warning(self, "USB", "Bitte eine Bus-ID angeben.")
+                return
+
+            def op() -> str:
+                result = self.control.usb_bind(busid) if action == "bind" else self.control.usb_unbind(busid)
+                if result is None:
+                    raise RuntimeError("Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    raise RuntimeError(str(result.get("error", "unbekannter Fehler")))
+                return f"USB {busid} wurde aktualisiert."
+            self._run_action("USB", op)
+
         def rescan_devices(self) -> None:
             def op() -> str:
                 result = self.control.rescan()
@@ -1481,6 +1557,26 @@ def run_app(screenshot_path: str = "") -> int:
                     raise RuntimeError("Agent nicht erreichbar.")
                 return f"Suche abgeschlossen: {len(result.get('devices', []))} Geraet(e)."
             self._run_action("LAN-Geraete", op)
+
+        def add_overview_device(self) -> None:
+            values = {
+                "name": self.overview_device_name_edit.text().strip(),
+                "address": self.overview_device_address_edit.text().strip(),
+                "port": self.overview_device_port_spin.value(),
+                "rp": "ipp/print",
+            }
+            if not values["address"]:
+                QtWidgets.QMessageBox.warning(self, "LAN-Geräte", "Bitte eine Adresse angeben.")
+                return
+
+            def op() -> str:
+                result = self.control.add_static(values["address"], values["port"], values["name"], values["rp"])
+                if result is None:
+                    raise RuntimeError("Agent nicht erreichbar.")
+                if not result.get("ok"):
+                    raise RuntimeError(str(result.get("error", "unbekannter Fehler")))
+                return "Gerät wurde hinzugefügt."
+            self._run_action("LAN-Geräte", op)
 
         def add_device_from_inline(self) -> None:
             values = {

@@ -160,3 +160,8 @@ LastHope/Diamond gates moving forward.
   update actions, readable USB/AV rows, inline LAN-device creation, explicit
   empty states and row-driven service actions. No new release was started after
   this follow-up.
+- A later real X11 desktop check showed the tray-started app opened on the
+  overview, not on the improved detail tabs. The overview now exposes direct
+  controls for stream profile, LAN-device creation and USB attach/detach, with a
+  larger real desktop window. The active VM100 desktop screenshot evidence is
+  `.tmp-thinclient-real-desktop.png`; release remains cancelled.

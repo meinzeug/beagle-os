@@ -238,3 +238,19 @@ Thinclient-Verwaltungsfix final committen, auf `main` pushen und danach `release
 	- `python3 -m pytest -q tests/unit/test_beagle_netbridge_regressions.py`
 	- `git diff --check`
 	- Ergebnis: `17 passed`, Diff-Check sauber.
+
+## Session Update 2026-06-24 (Thinclient Verwaltung Real-Desktop-Abgleich)
+
+- Nach Benutzerhinweis wurde nicht erneut der Offscreen-Capture bewertet, sondern die echte X11-Desktop-Session in VM100.
+- Befund:
+	- In VM100 lief nur der Tray-Prozess; die Offscreen-Screenshots hatten Detailreiter ausgewaehlt, waehrend der echte Tray-Start auf der Uebersicht landete.
+	- Die Uebersicht selbst war noch die alte halbfertige Startseite und zeigte die verbesserten Bearbeitungsflaechen nicht direkt.
+- Fix:
+	- Uebersicht um direkte Verwaltungskacheln erweitert: Streamprofil setzen/neustarten, LAN-Geraet direkt hinzufuegen, USB per Bus-ID freigeben/loesen.
+	- Kartenhoehe reduziert, Mindestfenster auf `1240x820` erhoeht und Live-Details begrenzt, damit die Startseite in der realen 1920x1080-VM sichtbar bleibt.
+- Hot-Test auf VM100:
+	- Neue Datei nach `/usr/local/bin/beagle-thinclient-admin` deployed.
+	- Alte offene Admin-Instanz beendet und in der echten `dennis`-X11-Session neu gestartet.
+	- Echter Spectacle-Desktop-Screenshot erzeugt: `.tmp-thinclient-real-desktop.png`.
+	- Selftest weiter `agent_status: ok host=10.88.1.1`.
+- Release bleibt abgebrochen; kein neuer `release.yml`-Run gestartet.
