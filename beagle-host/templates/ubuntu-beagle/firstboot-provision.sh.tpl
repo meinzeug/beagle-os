@@ -1892,6 +1892,7 @@ if [[ ! -f "$DONE_FILE" ]]; then
     pipewire-pulse \
     wireplumber \
     pulseaudio-utils \
+    logrotate \
     nftables \
     x11vnc \
     fonts-ibm-plex \
@@ -2673,6 +2674,55 @@ EOF
     systemctl start beagle-usb-microphone-normalize.service >/dev/null 2>&1 || true
   }
 
+  install_pipewire_resource_limits() {
+    local dropin_dir="/home/$GUEST_USER/.config/systemd/user/pipewire-pulse.service.d"
+
+    install -d -m 0755 -o "$GUEST_USER" -g "$GUEST_USER" "$dropin_dir"
+    cat > "$dropin_dir/10-beagle-resource-limits.conf" <<'EOF'
+[Service]
+# Streaming and browser sessions can retain PipeWire event/memory descriptors
+# for long periods. Keep ample headroom so Pulse-compatible audio remains able
+# to create new streams during long-lived, linger-enabled desktop sessions.
+LimitNOFILE=65536
+EOF
+    chown "$GUEST_USER:$GUEST_USER" "$dropin_dir/10-beagle-resource-limits.conf"
+
+    if systemctl --user -M "$GUEST_USER@" daemon-reload >/dev/null 2>&1; then
+      systemctl --user -M "$GUEST_USER@" restart pipewire-pulse.service >/dev/null 2>&1 || true
+    fi
+  }
+
+  install_log_retention_policy() {
+    install -d -m 0755 /etc/systemd/journald.conf.d /etc/logrotate.d
+    cat > /etc/systemd/journald.conf.d/10-beagle-retention.conf <<'EOF'
+[Journal]
+Storage=persistent
+Compress=yes
+SystemMaxUse=256M
+SystemKeepFree=1G
+RuntimeMaxUse=64M
+RuntimeKeepFree=128M
+MaxRetentionSec=14day
+MaxFileSec=1day
+EOF
+
+    cat > /etc/logrotate.d/beagle <<'EOF'
+/var/log/beagle*.log /var/log/beagle/*.log /var/log/beagle-os/*.log /var/lib/beagle/guest-updater/*.log {
+    daily
+    rotate 14
+    maxsize 25M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su root root
+}
+EOF
+
+    systemctl try-reload-or-restart systemd-journald.service >/dev/null 2>&1 || true
+  }
+
   install_thinclient_microphone_bridge() {
     local mic_bridge_port="$((43000 + VMID + 100))"
     cat > /usr/local/bin/beagle-tc-mic-bridge <<'EOF'
@@ -2912,7 +2962,8 @@ WantedBy=graphical.target
 EOF
 
     systemctl daemon-reload >/dev/null 2>&1 || true
-    systemctl enable --now beagle-tc-mic-bridge.service >/dev/null 2>&1 || true
+    systemctl enable beagle-tc-mic-bridge.service >/dev/null 2>&1 || true
+    systemctl restart beagle-tc-mic-bridge.service >/dev/null 2>&1 || true
   }
 
   install_beagle_netbridge_client() {
@@ -4092,6 +4143,8 @@ EOF
     fi
     sleep 1
   done
+  install_pipewire_resource_limits
+  install_log_retention_policy
   configure_stream_port_guard
   install_beagle_guest_updater
   install_usb_microphone_normalizer

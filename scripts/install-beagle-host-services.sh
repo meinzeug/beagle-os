@@ -58,6 +58,8 @@ SSHD_BIN="$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)"
 KVM_UDEV_RULE_FILE="/etc/udev/rules.d/65-beagle-kvm.rules"
 INSTALLED_COMMIT_FILE="$INSTALL_DIR/.beagle-installed-commit"
 BEAGLE_LIBVIRT_IMAGES_DIR="${BEAGLE_LIBVIRT_IMAGES_DIR:-}"
+JOURNALD_RETENTION_FILE="/etc/systemd/journald.conf.d/10-beagle-retention.conf"
+LOGROTATE_RETENTION_FILE="/etc/logrotate.d/beagle"
 
 ensure_root() {
   if [[ "${EUID}" -eq 0 ]]; then
@@ -106,6 +108,18 @@ restart_unit_if_active() {
   if systemctl is-active --quiet "$unit_name"; then
     systemctl restart "$unit_name" 2>/dev/null || true
   fi
+}
+
+install_log_retention_policy() {
+  install -d -m 0755 /etc/systemd/journald.conf.d /etc/logrotate.d
+  install -m 0644 \
+    "$ROOT_DIR/beagle-host/config/journald/10-beagle-retention.conf" \
+    "$JOURNALD_RETENTION_FILE"
+  install -m 0644 \
+    "$ROOT_DIR/beagle-host/config/logrotate/beagle" \
+    "$LOGROTATE_RETENTION_FILE"
+
+  systemctl try-reload-or-restart systemd-journald.service >/dev/null 2>&1 || true
 }
 
 write_installed_commit_stamp() {
@@ -633,6 +647,7 @@ install -d -m 0755 "$HOST_RUNTIME_DIR/bin"
 install -d -m 0755 "$HOST_RUNTIME_DIR/providers"
 install -d -m 0755 "$HOST_RUNTIME_DIR/services"
 install -d -m 0755 "$HOST_RUNTIME_DIR/templates/ubuntu-beagle"
+install_log_retention_policy
 install_unit "$ROOT_DIR/beagle-host/systemd/$SERVICE_NAME" "$SYSTEMD_DIR/$SERVICE_NAME"
 install -m 0644 "$ROOT_DIR/beagle-host/systemd/$TIMER_NAME" "$SYSTEMD_DIR/$TIMER_NAME"
 install_unit "$ROOT_DIR/beagle-host/systemd/$WATCHDOG_SERVICE_NAME" "$SYSTEMD_DIR/$WATCHDOG_SERVICE_NAME"

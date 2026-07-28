@@ -1,0 +1,23 @@
+/var/lib/beagle-os/*.log /var/log/beagle*.log /var/log/beagle/*.log /var/log/beagle-os/*.log {
+    daily
+    rotate 14
+    maxsize 25M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su root root
+}
+
+/pve-thin-client/state/logs/*/*.log /run/live/medium/pve-thin-client/state/logs/*/*.log /tmp/pve-thin-client-logs/*/*.log /home/thinclient/.cache/pve-thin-client/*/*.log {
+    daily
+    rotate 14
+    maxsize 25M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su thinclient thinclient
+}

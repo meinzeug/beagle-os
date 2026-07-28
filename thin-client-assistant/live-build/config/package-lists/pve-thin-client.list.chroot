@@ -17,6 +17,7 @@ pipewire
 pipewire-pulse
 wireplumber
 pulseaudio-utils
+logrotate
 openssh-client
 openssh-server
 usbip

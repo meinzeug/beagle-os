@@ -73,6 +73,26 @@ def test_install_beagle_host_services_writes_installed_commit_stamp_when_git_che
     assert 'write_installed_commit_stamp' in script
 
 
+def test_host_install_enforces_bounded_log_retention() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+    journal_policy = (
+        ROOT / "beagle-host" / "config" / "journald" / "10-beagle-retention.conf"
+    ).read_text(encoding="utf-8")
+    logrotate_policy = (
+        ROOT / "beagle-host" / "config" / "logrotate" / "beagle"
+    ).read_text(encoding="utf-8")
+
+    assert "install_log_retention_policy()" in script
+    assert 'JOURNALD_RETENTION_FILE="/etc/systemd/journald.conf.d/10-beagle-retention.conf"' in script
+    assert 'LOGROTATE_RETENTION_FILE="/etc/logrotate.d/beagle"' in script
+    assert "systemctl try-reload-or-restart systemd-journald.service" in script
+    assert "SystemMaxUse=256M" in journal_policy
+    assert "SystemKeepFree=1G" in journal_policy
+    assert "MaxRetentionSec=14day" in journal_policy
+    assert "maxsize 25M" in logrotate_policy
+    assert "rotate 14" in logrotate_policy
+
+
 def test_host_install_initializes_opt_beagle_as_git_checkout_when_source_is_git() -> None:
     script = HOST_INSTALL_SCRIPT.read_text(encoding="utf-8")
 

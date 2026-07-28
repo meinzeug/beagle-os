@@ -42,6 +42,8 @@ USB_RUNTIME_USBIPD = ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_ru
 AUDIO_INPUT_BRIDGE = ROOT / "thin-client-assistant" / "runtime" / "beagle_audio_input_bridge.py"
 APPLY_ENROLLMENT_CONFIG = ROOT / "thin-client-assistant" / "runtime" / "apply_enrollment_config.py"
 ENSURE_XDG_RUNTIME_DIR = ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "usr" / "local" / "sbin" / "beagle-ensure-xdg-runtime-dir"
+JOURNAL_RETENTION = ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "etc" / "systemd" / "journald.conf.d" / "10-beagle-persistent.conf"
+LOGROTATE_RETENTION = ROOT / "thin-client-assistant" / "live-build" / "config" / "includes.chroot" / "etc" / "logrotate.d" / "beagle"
 
 
 def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None:
@@ -52,6 +54,25 @@ def test_thin_client_live_image_bundles_wireguard_runtime_dependencies() -> None
     assert "wireguard-tools" in package_text
     assert "dbus-user-session" in package_text
     assert "libpam-systemd" in package_text
+
+
+def test_thin_client_live_image_bounds_persistent_and_session_logs() -> None:
+    package_text = PACKAGE_LIST.read_text(encoding="utf-8")
+    verify_text = VERIFY_HOOK.read_text(encoding="utf-8")
+    journal_policy = JOURNAL_RETENTION.read_text(encoding="utf-8")
+    logrotate_policy = LOGROTATE_RETENTION.read_text(encoding="utf-8")
+
+    assert "logrotate" in package_text
+    assert "logrotate" in verify_text
+    assert "SystemMaxUse=256M" in journal_policy
+    assert "SystemKeepFree=1G" in journal_policy
+    assert "RuntimeMaxUse=64M" in journal_policy
+    assert "MaxRetentionSec=14day" in journal_policy
+    assert "/var/lib/beagle-os/*.log" in logrotate_policy
+    assert "/pve-thin-client/state/logs/*/*.log" in logrotate_policy
+    assert "/tmp/pve-thin-client-logs/*/*.log" in logrotate_policy
+    assert "maxsize 25M" in logrotate_policy
+    assert "rotate 14" in logrotate_policy
 
 
 def test_live_build_default_boot_args_show_real_boot_progress() -> None:
@@ -76,7 +97,7 @@ def test_thin_client_live_image_verifies_wireguard_commands() -> None:
     assert "wireguard-tools" in hook_text
     assert "dbus-user-session" in hook_text
     assert "libpam-systemd" in hook_text
-    assert 'for command_name in jq wg ip; do' in hook_text
+    assert 'for command_name in jq wg ip logrotate; do' in hook_text
     assert 'setcap cap_net_admin+ep "$(command -v wg)"' in hook_text
 
 

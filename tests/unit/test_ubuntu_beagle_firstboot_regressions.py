@@ -124,6 +124,32 @@ def test_firstboot_normalizes_usb_microphone_defaults() -> None:
     assert script.index('install_usb_microphone_normalizer') < script.index('systemctl enable --now beagle-stream-server.service')
 
 
+def test_firstboot_raises_pipewire_file_limit() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "install_pipewire_resource_limits() {" in script
+    assert "pipewire-pulse.service.d" in script
+    assert "10-beagle-resource-limits.conf" in script
+    assert "LimitNOFILE=65536" in script
+    assert 'systemctl --user -M "$GUEST_USER@" daemon-reload' in script
+    assert 'systemctl --user -M "$GUEST_USER@" restart pipewire-pulse.service' in script
+    assert script.index("install_pipewire_resource_limits\n") < script.index("install_usb_microphone_normalizer\n")
+
+
+def test_firstboot_bounds_log_growth() -> None:
+    script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "install_log_retention_policy() {" in script
+    assert "SystemMaxUse=256M" in script
+    assert "SystemKeepFree=1G" in script
+    assert "RuntimeMaxUse=64M" in script
+    assert "MaxRetentionSec=14day" in script
+    assert "maxsize 25M" in script
+    assert "rotate 14" in script
+    assert "systemctl try-reload-or-restart systemd-journald.service" in script
+    assert "install_log_retention_policy\n" in script
+
+
 def test_firstboot_installs_thinclient_microphone_bridge() -> None:
     script = FIRSTBOOT_TEMPLATE.read_text(encoding="utf-8")
 
@@ -134,7 +160,8 @@ def test_firstboot_installs_thinclient_microphone_bridge() -> None:
     assert 'local mic_bridge_port="$((43000 + VMID + 100))"' in script
     assert 'Environment=BEAGLE_TC_MIC_BRIDGE_HOST=192.168.123.1' in script
     assert 'Environment=BEAGLE_TC_MIC_BRIDGE_PORT=${mic_bridge_port}' in script
-    assert 'systemctl enable --now beagle-tc-mic-bridge.service' in script
+    assert 'systemctl enable beagle-tc-mic-bridge.service' in script
+    assert 'systemctl restart beagle-tc-mic-bridge.service' in script
     assert script.index('install_usb_microphone_normalizer') < script.index('install_thinclient_microphone_bridge')
     assert script.index('install_thinclient_microphone_bridge') < script.index('systemctl enable --now beagle-stream-server.service')
 

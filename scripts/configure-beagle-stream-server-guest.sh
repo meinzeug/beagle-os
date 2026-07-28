@@ -764,6 +764,7 @@ apt-get install -y \
   pipewire-pulse \
   wireplumber \
   pulseaudio-utils \
+  logrotate \
   xdg-utils \
   usbutils \
   linux-tools-generic \
@@ -1580,6 +1581,55 @@ MICNORMTIMER
   systemctl start beagle-usb-microphone-normalize.service >/dev/null 2>&1 || true
 }
 
+install_pipewire_resource_limits() {
+  local dropin_dir="/home/\$GUEST_USER/.config/systemd/user/pipewire-pulse.service.d"
+
+  install -d -m 0755 -o "\$GUEST_USER" -g "\$GUEST_USER" "\$dropin_dir"
+  cat > "\$dropin_dir/10-beagle-resource-limits.conf" <<'PIPEWIRELIMITS'
+[Service]
+# Streaming and browser sessions can retain PipeWire event/memory descriptors
+# for long periods. Keep ample headroom so Pulse-compatible audio remains able
+# to create new streams during long-lived, linger-enabled desktop sessions.
+LimitNOFILE=65536
+PIPEWIRELIMITS
+  chown "\$GUEST_USER:\$GUEST_USER" "\$dropin_dir/10-beagle-resource-limits.conf"
+
+  if systemctl --user -M "\$GUEST_USER@" daemon-reload >/dev/null 2>&1; then
+    systemctl --user -M "\$GUEST_USER@" restart pipewire-pulse.service >/dev/null 2>&1 || true
+  fi
+}
+
+install_log_retention_policy() {
+  install -d -m 0755 /etc/systemd/journald.conf.d /etc/logrotate.d
+  cat > /etc/systemd/journald.conf.d/10-beagle-retention.conf <<'JOURNALRETENTION'
+[Journal]
+Storage=persistent
+Compress=yes
+SystemMaxUse=256M
+SystemKeepFree=1G
+RuntimeMaxUse=64M
+RuntimeKeepFree=128M
+MaxRetentionSec=14day
+MaxFileSec=1day
+JOURNALRETENTION
+
+  cat > /etc/logrotate.d/beagle <<'LOGROTATERETENTION'
+/var/log/beagle*.log /var/log/beagle/*.log /var/log/beagle-os/*.log /var/lib/beagle/guest-updater/*.log {
+    daily
+    rotate 14
+    maxsize 25M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su root root
+}
+LOGROTATERETENTION
+
+  systemctl try-reload-or-restart systemd-journald.service >/dev/null 2>&1 || true
+}
+
 systemctl disable beagle-stream-server >/dev/null 2>&1 || true
 systemctl stop beagle-stream-server >/dev/null 2>&1 || true
 systemctl disable --now beagle-sunshine.service >/dev/null 2>&1 || true
@@ -1605,6 +1655,8 @@ for _ in {1..60}; do
   fi
   sleep 1
 done
+install_pipewire_resource_limits
+install_log_retention_policy
 configure_stream_port_guard
 install_usb_microphone_normalizer
 
@@ -1656,7 +1708,8 @@ sed -i \
   /etc/systemd/system/beagle-tc-mic-bridge.service
 chmod 0644 /etc/systemd/system/beagle-tc-mic-bridge.service
 systemctl daemon-reload >/dev/null 2>&1 || true
-systemctl enable --now beagle-tc-mic-bridge.service >/dev/null 2>&1 || true
+systemctl enable beagle-tc-mic-bridge.service >/dev/null 2>&1 || true
+systemctl restart beagle-tc-mic-bridge.service >/dev/null 2>&1 || true
 echo "[beagle] Thin-client microphone audio bridge enabled"
 
 # ── usbipd (USB/IP daemon): export TC-side devices to VM ─────────────────────

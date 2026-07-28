@@ -114,8 +114,11 @@ class EnergyService:
 
     def get_samples(self, node_id: str, *, days: int = 30) -> list[EnergySample]:
         import datetime
+        now = datetime.datetime.fromisoformat(self._utcnow().replace("Z", "+00:00"))
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=datetime.timezone.utc)
         cutoff = (
-            datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+            now.astimezone(datetime.timezone.utc) - datetime.timedelta(days=days)
         ).strftime("%Y-%m-%d")
         samples = []
         for shard in sorted(self._dir.glob(f"{node_id}_*.jsonl")):

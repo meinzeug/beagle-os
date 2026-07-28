@@ -116,6 +116,32 @@ def test_configure_beagle_stream_server_guest_normalizes_usb_microphones() -> No
     assert 'install_usb_microphone_normalizer' in content
 
 
+def test_configure_beagle_stream_server_guest_raises_pipewire_file_limit() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+
+    assert "install_pipewire_resource_limits()" in content
+    assert "pipewire-pulse.service.d" in content
+    assert "10-beagle-resource-limits.conf" in content
+    assert "LimitNOFILE=65536" in content
+    assert 'systemctl --user -M "\\$GUEST_USER@" daemon-reload' in content
+    assert 'systemctl --user -M "\\$GUEST_USER@" restart pipewire-pulse.service' in content
+    assert content.index("install_pipewire_resource_limits\n") < content.index("install_usb_microphone_normalizer\n")
+
+
+def test_configure_beagle_stream_server_guest_bounds_log_growth() -> None:
+    content = SCRIPT.read_text(encoding="utf-8")
+
+    assert "install_log_retention_policy()" in content
+    assert "SystemMaxUse=256M" in content
+    assert "SystemKeepFree=1G" in content
+    assert "RuntimeMaxUse=64M" in content
+    assert "MaxRetentionSec=14day" in content
+    assert "maxsize 25M" in content
+    assert "rotate 14" in content
+    assert "systemctl try-reload-or-restart systemd-journald.service" in content
+    assert "install_log_retention_policy\n" in content
+
+
 def test_configure_beagle_stream_server_guest_installs_thinclient_microphone_bridge() -> None:
     content = SCRIPT.read_text(encoding="utf-8")
 
@@ -127,7 +153,8 @@ def test_configure_beagle_stream_server_guest_installs_thinclient_microphone_bri
     assert '/etc/systemd/system/beagle-tc-mic-bridge.service' in content
     assert 'Environment=XDG_RUNTIME_DIR=/run/user/\\$GUEST_UID' in content
     assert 'Environment=BEAGLE_TC_MIC_BRIDGE_PORT=\\$BEAGLE_TC_MIC_BRIDGE_PORT' in content
-    assert 'systemctl enable --now beagle-tc-mic-bridge.service' in content
+    assert 'systemctl enable beagle-tc-mic-bridge.service' in content
+    assert 'systemctl restart beagle-tc-mic-bridge.service' in content
     service_template = (ROOT_DIR / "scripts" / "lib" / "beagle-tc-mic-bridge.service").read_text(encoding="utf-8")
     assert 'Environment=XDG_RUNTIME_DIR=/run/user/%U' in service_template
     assert 'ExecStartPre=/usr/bin/systemctl --user start pipewire.service pipewire-pulse.service wireplumber.service' in service_template
