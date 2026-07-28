@@ -1,0 +1,11 @@
+/var/log/beagle*.log /var/log/beagle/*.log /var/log/beagle-os/*.log /var/lib/beagle/guest-updater/*.log {
+    daily
+    rotate 14
+    maxsize 25M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su root root
+}

@@ -9,6 +9,7 @@ pipewire
 pipewire-pulse
 pipewire-alsa
 wireplumber
+logrotate
 dbus-user-session
 libpam-systemd
 plymouth
@@ -64,7 +65,7 @@ if [ ! -d /lib/firmware/intel ] || [ -z "$(ls -A /lib/firmware/intel 2>/dev/null
   exit 1
 fi
 
-for command_name in jq wg ip; do
+for command_name in jq wg ip logrotate; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Missing required runtime command in thin-client image: $command_name" >&2
     exit 1
