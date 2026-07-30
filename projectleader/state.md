@@ -62,6 +62,11 @@ LastHope/Diamond gates moving forward.
 - Live hotfixes on `srv1` must never remain only on the host.
 - Heavy artifact builds on live hosts can overload the machine; stop unintended
   refresh jobs before starting new release work.
+- Public host `beagle-os.com` (`212.227.63.45`) serves an expired Let's Encrypt
+  certificate (`notAfter=2026-06-28`). The repository deploys artifacts there
+  but does not manage that host's ACME lifecycle, and the available operator key
+  has no SSH access. Public downloads remain blocked until the external
+  certificate is renewed.
 - Local thinclient `192.168.178.30` is reachable again and currently streams
   VM100 successfully, but it is running the older live rootfs
   `filesystem.squashfs=11b66199...` with the current launcher/audio fixes

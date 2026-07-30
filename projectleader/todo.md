@@ -4,6 +4,9 @@ Last updated: 2026-07-30
 
 ## Immediate
 
+- [ ] Renew the expired TLS certificate for `beagle-os.com` on the external
+  public webhost (`212.227.63.45`) and verify the public download status,
+  thinclient payload and installer ISO without a TLS bypass.
 - [ ] Implement release channels for stable/prerelease:
   - accept stable `x.y.z`;
   - accept prerelease `x.y.z-alpha.N`, `x.y.z-beta.N`, `x.y.z-rc.N`;

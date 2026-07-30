@@ -26,6 +26,9 @@ Stand: 2026-07-30
 
 - Release-/Versionierungslogik bleibt hoch priorisiert (aus `projectleader/todo.md`).
 - Runtime-Gates brauchen weiter reale Host-Evidence.
+- `beagle-os.com` liefert seit 2026-06-28 ein abgelaufenes Zertifikat. Der
+  externe Webhost `212.227.63.45` ist mit dem vorhandenen SSH-Key nicht
+  zugaenglich; Public-Downloads bleiben bis zur Erneuerung blockiert.
 - Der aktuelle Hardware-Nachweis enthaelt Runtime-Deployments; ein frischer
   Image-Boot mit allen 2026-07-30-Fixes bleibt offen.
 - `AGENTS.md` ist aktuell in `.gitignore` enthalten; falls versioniert gewuenscht, muss bewusst entschieden werden, ob die Ignore-Regel angepasst oder `git add -f` genutzt wird.
