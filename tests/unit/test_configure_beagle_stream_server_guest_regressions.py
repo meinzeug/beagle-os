@@ -1,8 +1,25 @@
+import os
 from pathlib import Path
+import subprocess
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT_DIR / "scripts" / "configure-beagle-stream-server-guest.sh"
+
+
+def _extract_heredoc(content: str, start: str, end: str) -> str:
+    return content.split(start, 1)[1].split(end, 1)[0]
+
+
+def _firstboot_network_guardian() -> str:
+    content = (
+        ROOT_DIR / "beagle-host" / "templates" / "ubuntu-beagle" / "firstboot-provision.sh.tpl"
+    ).read_text(encoding="utf-8")
+    return _extract_heredoc(
+        content,
+        "  cat > /usr/local/bin/beagle-guest-network-guardian <<'EOF'\n",
+        "\nEOF\n  chmod 0755 /usr/local/bin/beagle-guest-network-guardian",
+    )
 
 
 def test_configure_beagle_stream_server_guest_disables_display_idle_and_lockers() -> None:
@@ -19,6 +36,9 @@ def test_configure_beagle_stream_server_guest_disables_display_idle_and_lockers(
     assert 'xset -dpms >/dev/null 2>&1 || true' in content
     assert 'xset s off >/dev/null 2>&1 || true' in content
     assert 'xset s noblank >/dev/null 2>&1 || true' in content
+    assert 'cat > "/home/\\$GUEST_USER/.config/kwalletrc"' in content
+    assert "Enabled=false" in content
+    assert "First Use=false" in content
     assert '/home/\\$GUEST_USER/.local' in content
     assert '/home/\\$GUEST_USER/.local/state' in content
     assert '/home/\\$GUEST_USER/.local/state/wireplumber' in content
@@ -185,13 +205,23 @@ def test_configure_beagle_stream_server_guest_installs_uptime_guardian() -> None
     assert 'service_is_transitioning() {' in content
     assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC="\\${BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC:-45}"' in content
     assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD="\\${BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD:-4}"' in content
+    assert 'BEAGLE_STREAM_SERVER_KWALLET_MAX_AGE_SEC="\\${BEAGLE_STREAM_SERVER_KWALLET_MAX_AGE_SEC:-120}"' in content
     assert 'record_readiness_failure() {' in content
     assert 'service_is_warming_up() {' in content
+    assert 'x11_session_ready() {' in content
+    assert 'reap_stale_chrome_wallet_queries() {' in content
+    assert '[[ "\\$comm" == "kwallet-query" ]] || continue' in content
+    assert '[[ "\\$args" == *"--read-password Chrome Safe Storage"* ]] || continue' in content
+    assert 'if ! x11_session_ready; then' in content
+    assert 'systemctl restart display-manager.service' in content
     assert 'activating|reloading|deactivating) return 0 ;;' in content
     assert '"http://127.0.0.1:\\${BEAGLE_STREAM_SERVER_PORT}/serverinfo"' in content
     assert 'if is_stream_ready || is_api_ready; then' in content
     assert 'if beagle_stream_server_is_running; then' in content
-    assert content.index('if beagle_stream_server_is_running; then', content.index('if has_rtsp_port_conflict; then')) < content.index('if record_readiness_failure; then')
+    port_conflict_pos = content.index('if has_rtsp_port_conflict; then')
+    assert content.index('if beagle_stream_server_is_running; then', port_conflict_pos) < content.index(
+        'if record_readiness_failure; then', port_conflict_pos
+    )
     assert 'if record_readiness_failure; then' in content
     assert 'ensure_timer()' not in content
     assert 'BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD="\\${BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD:-4}"' in content
@@ -203,19 +233,143 @@ def test_configure_beagle_stream_server_guest_installs_uptime_guardian() -> None
     assert "systemctl enable --now beagle-stream-server-guardian.service" in content
 
 
+def test_stream_guest_provisioners_install_dhcp_self_healing() -> None:
+    configure_content = SCRIPT.read_text(encoding="utf-8")
+    firstboot_content = (
+        ROOT_DIR / "beagle-host" / "templates" / "ubuntu-beagle" / "firstboot-provision.sh.tpl"
+    ).read_text(encoding="utf-8")
+
+    for content in (configure_content, firstboot_content):
+        assert "beagle-guest-network-guardian" in content
+        assert "systemctl is-active --quiet systemd-networkd.service" in content
+        assert "networkctl reconfigure" in content
+        assert "systemctl restart systemd-networkd.service" in content
+        assert "BEAGLE_GUEST_NETWORK_FAILURE_THRESHOLD" in content
+        assert "OnUnitActiveSec=30s" in content
+        assert "systemctl enable --now beagle-guest-network-guardian.timer" in content
+
+
+def test_stream_guest_network_guardian_copies_stay_in_sync() -> None:
+    configure_content = SCRIPT.read_text(encoding="utf-8")
+    configure_guardian = _extract_heredoc(
+        configure_content,
+        "cat > /usr/local/bin/beagle-guest-network-guardian <<'NETWORKGUARD'\n",
+        "\nNETWORKGUARD\nchmod 0755 /usr/local/bin/beagle-guest-network-guardian",
+    ).replace("\\$", "$")
+
+    assert configure_guardian == _firstboot_network_guardian()
+
+
+def _write_mock_command(path: Path, content: str) -> None:
+    path.write_text("#!/usr/bin/env bash\nset -eu\n" + content, encoding="utf-8")
+    path.chmod(0o755)
+
+
+def _run_network_guardian_repair(tmp_path: Path, recovery_method: str) -> list[str]:
+    guardian = tmp_path / "beagle-guest-network-guardian"
+    guardian.write_text(_firstboot_network_guardian(), encoding="utf-8")
+    guardian.chmod(0o755)
+
+    mock_bin = tmp_path / "bin"
+    mock_bin.mkdir()
+    calls = tmp_path / "calls"
+    ready = tmp_path / "ipv4-ready"
+    carrier = tmp_path / "carrier"
+    carrier.write_text("1\n", encoding="utf-8")
+
+    _write_mock_command(
+        mock_bin / "ip",
+        """
+printf 'ip %s\n' "$*" >>"$MOCK_CALLS"
+if [[ "$*" == "-4 -o addr show dev lo scope global" && -f "$MOCK_IPV4_READY" ]]; then
+  printf '1: lo inet 192.0.2.10/24 scope global lo\n'
+fi
+""",
+    )
+    _write_mock_command(
+        mock_bin / "networkctl",
+        """
+printf 'networkctl %s\n' "$*" >>"$MOCK_CALLS"
+case "${1:-}" in
+  status) printf 'State: degraded (failed)\n' ;;
+  reconfigure)
+    if [[ "$MOCK_RECOVERY_METHOD" == "reconfigure" ]]; then
+      touch "$MOCK_IPV4_READY"
+    fi
+    ;;
+esac
+""",
+    )
+    _write_mock_command(
+        mock_bin / "systemctl",
+        """
+printf 'systemctl %s\n' "$*" >>"$MOCK_CALLS"
+if [[ "${1:-}" == "restart" && "$MOCK_RECOVERY_METHOD" == "restart" ]]; then
+  touch "$MOCK_IPV4_READY"
+fi
+exit 0
+""",
+    )
+    _write_mock_command(
+        mock_bin / "logger",
+        """printf 'logger %s\n' "$*" >>"$MOCK_CALLS"\n""",
+    )
+
+    env = {
+        **os.environ,
+        "PATH": f"{mock_bin}:{os.environ['PATH']}",
+        "MOCK_CALLS": str(calls),
+        "MOCK_IPV4_READY": str(ready),
+        "MOCK_RECOVERY_METHOD": recovery_method,
+        "BEAGLE_GUEST_NETWORK_INTERFACE": "lo",
+        "BEAGLE_GUEST_NETWORK_CARRIER_FILE": str(carrier),
+        "BEAGLE_GUEST_NETWORK_GUARD_STATE_DIR": str(tmp_path / "state"),
+        "BEAGLE_GUEST_NETWORK_RECONFIGURE_WAIT_SEC": "1",
+        "BEAGLE_GUEST_NETWORK_RESTART_WAIT_SEC": "1",
+    }
+    subprocess.run([str(guardian)], check=True, env=env)
+    return calls.read_text(encoding="utf-8").splitlines()
+
+
+def test_stream_guest_network_guardian_repairs_failed_link_with_reconfigure(tmp_path: Path) -> None:
+    calls = _run_network_guardian_repair(tmp_path, "reconfigure")
+
+    assert "networkctl reconfigure lo" in calls
+    assert "systemctl restart systemd-networkd.service" not in calls
+    assert any("action=recovered method=reconfigure" in call for call in calls)
+
+
+def test_stream_guest_network_guardian_restarts_networkd_after_reconfigure_timeout(tmp_path: Path) -> None:
+    calls = _run_network_guardian_repair(tmp_path, "restart")
+
+    assert "networkctl reconfigure lo" in calls
+    assert "systemctl restart systemd-networkd.service" in calls
+    assert any("action=recovered method=restart-networkd" in call for call in calls)
+
+
 def test_firstboot_stream_server_healthcheck_avoids_startup_restart_loop() -> None:
     content = (ROOT_DIR / "beagle-host" / "templates" / "ubuntu-beagle" / "firstboot-provision.sh.tpl").read_text(encoding="utf-8")
 
     assert 'service_is_transitioning() {' in content
     assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC="${BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC:-45}"' in content
     assert 'BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD="${BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD:-4}"' in content
+    assert 'BEAGLE_STREAM_SERVER_KWALLET_MAX_AGE_SEC="${BEAGLE_STREAM_SERVER_KWALLET_MAX_AGE_SEC:-120}"' in content
     assert 'record_readiness_failure() {' in content
     assert 'service_is_warming_up() {' in content
+    assert 'x11_session_ready() {' in content
+    assert 'reap_stale_chrome_wallet_queries() {' in content
+    assert '[[ "$comm" == "kwallet-query" ]] || continue' in content
+    assert '[[ "$args" == *"--read-password Chrome Safe Storage"* ]] || continue' in content
+    assert 'if ! x11_session_ready; then' in content
+    assert 'systemctl restart display-manager.service' in content
     assert 'activating|reloading|deactivating) return 0 ;;' in content
     assert '"http://127.0.0.1:${BEAGLE_STREAM_SERVER_PORT}/serverinfo"' in content
     assert 'if is_stream_ready || is_api_ready; then' in content
     assert 'if beagle_stream_server_is_running; then' in content
-    assert content.index('if beagle_stream_server_is_running; then', content.index('if has_rtsp_port_conflict; then')) < content.index('if record_readiness_failure; then')
+    port_conflict_pos = content.index('if has_rtsp_port_conflict; then')
+    assert content.index('if beagle_stream_server_is_running; then', port_conflict_pos) < content.index(
+        'if record_readiness_failure; then', port_conflict_pos
+    )
     assert 'if record_readiness_failure; then' in content
     assert "cat > /usr/local/bin/beagle-stream-server-guardian <<'EOF'" in content
     assert 'BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD="${BEAGLE_STREAM_SERVER_GUARD_RESTART_THRESHOLD:-4}"' in content

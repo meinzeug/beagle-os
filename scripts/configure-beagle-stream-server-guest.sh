@@ -224,7 +224,7 @@ require_tool() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --beagle-host|--beagle-host) BEAGLE_HOST="$2"; shift 2 ;; # --beagle-host kept for backwards compat
+      --beagle-host) BEAGLE_HOST="$2"; shift 2 ;;
       --vmid) VMID="$2"; shift 2 ;;
       --guest-user) GUEST_USER="$2"; shift 2 ;;
       --guest-password) GUEST_PASSWORD="$2"; shift 2 ;;
@@ -987,6 +987,12 @@ fi
 XPROFILE
 chmod 0755 "/home/\$GUEST_USER/.xprofile"
 
+cat > "/home/\$GUEST_USER/.config/kwalletrc" <<'KWALLETRC'
+[Wallet]
+Enabled=false
+First Use=false
+KWALLETRC
+
 cat > "/home/\$GUEST_USER/.config/beagle-stream-server/beagle-stream-server.conf" <<SUNCONF
 beagle_stream_server_name = ${GUEST_USER}-beagle-stream-server
 min_log_level = info
@@ -1179,12 +1185,16 @@ BEAGLE_STREAM_SERVER_PASSWORD="\${BEAGLE_STREAM_SERVER_PASSWORD:-}"
 BEAGLE_STREAM_SERVER_PORT="\${BEAGLE_STREAM_SERVER_PORT:-}"
 BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC="\${BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC:-45}"
 BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD="\${BEAGLE_STREAM_SERVER_HEALTHCHECK_FAILURE_THRESHOLD:-4}"
+BEAGLE_STREAM_SERVER_KWALLET_MAX_AGE_SEC="\${BEAGLE_STREAM_SERVER_KWALLET_MAX_AGE_SEC:-120}"
 GUEST_USER="\${GUEST_USER:-beagle}"
 GUEST_UID="\${GUEST_UID:-\$(id -u "\$GUEST_USER" 2>/dev/null || echo 1000)}"
 
 repair="\${1:-}"
 if ! [[ "\$BEAGLE_STREAM_SERVER_PORT" =~ ^[0-9]+\$ ]]; then
   BEAGLE_STREAM_SERVER_PORT="50000"
+fi
+if ! [[ "\$BEAGLE_STREAM_SERVER_KWALLET_MAX_AGE_SEC" =~ ^[1-9][0-9]*\$ ]]; then
+  BEAGLE_STREAM_SERVER_KWALLET_MAX_AGE_SEC="120"
 fi
 api_port="\$((BEAGLE_STREAM_SERVER_PORT + 1))"
 rtsp_port="\$((BEAGLE_STREAM_SERVER_PORT + 21))"
@@ -1250,6 +1260,28 @@ service_is_warming_up() {
   [[ "\$(service_uptime_sec)" -lt "\$BEAGLE_STREAM_SERVER_HEALTHCHECK_GRACE_SEC" ]]
 }
 
+x11_session_ready() {
+  timeout 5 runuser -u "\$GUEST_USER" -- \
+    env DISPLAY=:0 XAUTHORITY="/home/\${GUEST_USER}/.Xauthority" \
+    xrandr --query >/dev/null 2>&1
+}
+
+reap_stale_chrome_wallet_queries() {
+  local pid elapsed comm args reaped=0
+
+  while read -r pid elapsed comm args; do
+    [[ "\$comm" == "kwallet-query" ]] || continue
+    [[ "\$elapsed" =~ ^[0-9]+\$ ]] || continue
+    [[ "\$elapsed" -ge "\$BEAGLE_STREAM_SERVER_KWALLET_MAX_AGE_SEC" ]] || continue
+    [[ "\$args" == *"--read-password Chrome Safe Storage"* ]] || continue
+    kill -TERM "\$pid" >/dev/null 2>&1 || true
+    reaped="\$((reaped + 1))"
+  done < <(ps -u "\$GUEST_USER" -o pid=,etimes=,comm=,args= 2>/dev/null)
+
+  [[ "\$reaped" -gt 0 ]] || return 1
+  logger -t beagle-stream-server-healthcheck "reaped \${reaped} stale Chrome KWallet helpers" >/dev/null 2>&1 || true
+}
+
 is_stream_ready() {
   curl -fsS --connect-timeout 3 --max-time 5 "http://127.0.0.1:\${BEAGLE_STREAM_SERVER_PORT}/serverinfo" >/dev/null
 }
@@ -1299,6 +1331,23 @@ if ! beagle_stream_server_is_running && ! pgrep -x sunshine >/dev/null 2>&1; the
 fi
 
 if service_is_warming_up; then
+  exit 0
+fi
+
+if ! x11_session_ready; then
+  if reap_stale_chrome_wallet_queries; then
+    sleep 1
+  fi
+  if x11_session_ready; then
+    reset_readiness_failures
+    restart_stack
+    exit 0
+  fi
+  if record_readiness_failure; then
+    reset_readiness_failures
+    systemctl restart display-manager.service >/dev/null 2>&1 || true
+    restart_stack
+  fi
   exit 0
 fi
 
@@ -1454,6 +1503,143 @@ RestartSec=2
 [Install]
 WantedBy=multi-user.target
 GUARDSVC
+
+cat > /usr/local/bin/beagle-guest-network-guardian <<'NETWORKGUARD'
+#!/usr/bin/env bash
+set -u
+
+state_dir="\${BEAGLE_GUEST_NETWORK_GUARD_STATE_DIR:-/run/beagle-guest-network-guardian}"
+failure_file="\${state_dir}/failures"
+failure_threshold="\${BEAGLE_GUEST_NETWORK_FAILURE_THRESHOLD:-2}"
+reconfigure_wait_sec="\${BEAGLE_GUEST_NETWORK_RECONFIGURE_WAIT_SEC:-15}"
+restart_wait_sec="\${BEAGLE_GUEST_NETWORK_RESTART_WAIT_SEC:-20}"
+interface="\${BEAGLE_GUEST_NETWORK_INTERFACE:-}"
+
+is_positive_integer() {
+  [[ "\${1:-}" =~ ^[1-9][0-9]*\$ ]]
+}
+
+select_interface() {
+  local candidate
+
+  if [[ -n "\$interface" && -d "/sys/class/net/\${interface}" ]]; then
+    return 0
+  fi
+
+  candidate="\$(ip -4 route show default 2>/dev/null | awk 'NR == 1 {print \$5}')"
+  if [[ -z "\$candidate" ]]; then
+    candidate="\$(networkctl list --no-legend --no-pager 2>/dev/null | awk '\$3 == "ether" && \$5 != "unmanaged" {print \$2; exit}')"
+  fi
+  [[ -n "\$candidate" && -d "/sys/class/net/\${candidate}" ]] || return 1
+  interface="\$candidate"
+}
+
+has_carrier() {
+  local carrier_file
+  carrier_file="\${BEAGLE_GUEST_NETWORK_CARRIER_FILE:-/sys/class/net/\${interface}/carrier}"
+  [[ -r "\$carrier_file" ]] && [[ "\$(cat "\$carrier_file" 2>/dev/null || true)" == "1" ]]
+}
+
+has_ipv4() {
+  ip -4 -o addr show dev "\$interface" scope global 2>/dev/null | grep -q .
+}
+
+wait_for_ipv4() {
+  local wait_sec="\$1" attempt
+
+  for attempt in \$(seq 1 "\$wait_sec"); do
+    has_ipv4 && return 0
+    sleep 1
+  done
+  return 1
+}
+
+reset_failures() {
+  rm -f "\$failure_file" >/dev/null 2>&1 || true
+}
+
+record_failure() {
+  local count
+
+  install -d -m 0755 "\$state_dir" >/dev/null 2>&1 || true
+  count="\$(cat "\$failure_file" 2>/dev/null || echo 0)"
+  [[ "\$count" =~ ^[0-9]+\$ ]] || count=0
+  count="\$((count + 1))"
+  printf '%s\n' "\$count" >"\$failure_file"
+  printf '%s\n' "\$count"
+}
+
+log_event() {
+  logger -t beagle-guest-network-guardian "interface=\${interface:-unknown} action=\$1 \${2:-}" >/dev/null 2>&1 || true
+}
+
+is_positive_integer "\$failure_threshold" || failure_threshold=2
+is_positive_integer "\$reconfigure_wait_sec" || reconfigure_wait_sec=15
+is_positive_integer "\$restart_wait_sec" || restart_wait_sec=20
+
+systemctl is-active --quiet systemd-networkd.service || exit 0
+select_interface || exit 0
+has_carrier || {
+  reset_failures
+  exit 0
+}
+has_ipv4 && {
+  reset_failures
+  exit 0
+}
+
+setup_failed=0
+networkctl status "\$interface" --no-pager 2>/dev/null | grep -Eq 'State:.*\(failed\)' && setup_failed=1
+failure_count="\$(record_failure)"
+if [[ "\$setup_failed" != "1" && "\$failure_count" -lt "\$failure_threshold" ]]; then
+  exit 0
+fi
+
+log_event reconfigure "setup_failed=\$setup_failed failures=\$failure_count"
+networkctl reconfigure "\$interface" >/dev/null 2>&1 || true
+if wait_for_ipv4 "\$reconfigure_wait_sec"; then
+  reset_failures
+  log_event recovered "method=reconfigure"
+  exit 0
+fi
+
+log_event restart-networkd "reason=reconfigure-timeout"
+systemctl restart systemd-networkd.service >/dev/null 2>&1 || true
+if wait_for_ipv4 "\$restart_wait_sec"; then
+  reset_failures
+  log_event recovered "method=restart-networkd"
+  exit 0
+fi
+
+log_event unavailable "reason=repair-exhausted"
+exit 0
+NETWORKGUARD
+chmod 0755 /usr/local/bin/beagle-guest-network-guardian
+
+cat > /etc/systemd/system/beagle-guest-network-guardian.service <<'NETWORKGUARDSVC'
+[Unit]
+Description=Repair a stalled Beagle guest DHCP lease
+After=systemd-networkd.service
+Wants=systemd-networkd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/beagle-guest-network-guardian
+NETWORKGUARDSVC
+
+cat > /etc/systemd/system/beagle-guest-network-guardian.timer <<'NETWORKGUARDTIMER'
+[Unit]
+Description=Check Beagle guest DHCP health periodically
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=30s
+RandomizedDelaySec=5s
+Unit=beagle-guest-network-guardian.service
+
+[Install]
+WantedBy=timers.target
+NETWORKGUARDTIMER
 
 configure_stream_port_guard() {
   local stream_port="\${BEAGLE_STREAM_SERVER_PORT:-50000}"
@@ -1628,6 +1814,7 @@ activate_wireguard_stream_endpoint
 systemctl enable --now beagle-stream-server.service >/dev/null 2>&1 || true
 systemctl enable --now beagle-stream-server-healthcheck.timer >/dev/null 2>&1 || true
 systemctl enable --now beagle-stream-server-guardian.service >/dev/null 2>&1 || true
+systemctl enable --now beagle-guest-network-guardian.timer >/dev/null 2>&1 || true
 /usr/local/bin/beagle-stream-server-healthcheck >/dev/null 2>&1 || true
 
 # ── USB/IP auto-attach: forward thin-client USB devices into the VM ──────────

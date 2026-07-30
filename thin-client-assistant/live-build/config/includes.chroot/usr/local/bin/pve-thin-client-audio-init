@@ -24,7 +24,7 @@ start_background_process() {
 
   log_dir="$(ensure_audio_log_dir)"
   log_file="$log_dir/$log_name"
-  nohup "$@" >>"$log_file" 2>&1 </dev/null &
+  nohup "$@" 8>&- 9>&- >>"$log_file" 2>&1 </dev/null &
 }
 
 start_wireplumber_session() {
@@ -42,7 +42,7 @@ start_wireplumber_session() {
 
   nohup dbus-run-session -- sh -lc \
     "export HOME='$runtime_home'; export XDG_RUNTIME_DIR='$runtime_dir'; export DISPLAY='$display'; exec wireplumber" \
-    >>"$log_file" 2>&1 </dev/null &
+    8>&- 9>&- >>"$log_file" 2>&1 </dev/null &
 }
 
 pulse_health_ready() {
@@ -96,9 +96,9 @@ ensure_audio_stack() {
 
   if command -v flock >/dev/null 2>&1; then
     {
-      flock -w "$lock_wait" 9 || return 0
+      flock -w "$lock_wait" 8 || return 0
       _ensure_audio_stack_unlocked
-    } 9>"$lock_file"
+    } 8>"$lock_file"
     return 0
   fi
 
@@ -161,9 +161,9 @@ alsa_pcm_candidates() {
 }
 
 select_default_pcm() {
-  local row score card dev
+  local _score card dev
 
-  while read -r score card dev; do
+  while read -r _score card dev; do
     [[ -n "${card:-}" && -n "${dev:-}" ]] || continue
     printf '%s,%s\n' "$card" "$dev"
     return 0
@@ -450,7 +450,7 @@ watch_mode() {
     done
   fi
 
-  for i in $(seq 1 "$loops"); do
+  for ((i = 1; i <= loops; i++)); do
     configure_alsa
     ensure_audio_stack
     configure_pulse

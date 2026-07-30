@@ -915,6 +915,7 @@ main() {
   fi
 
   if [[ "$hostless_beagle_stream" != "1" ]]; then
+    beagle_stream_startup_status_step "4" "Stream-Ziel pruefen" "VM-Adresse und Stream-API erreichen"
     wait_for_stream_target || {
       beagle_log_event "beagle-stream-client.unreachable" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
       echo "Beagle Stream Client host '$host' is unreachable from this network." >&2
@@ -1151,6 +1152,14 @@ main() {
       fi
       if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi 'Server certificate mismatch|"applist" request failed|Failed to find application|Failed to load application|has not been paired|not been paired|please open moonlight to pair|unauthorized|not paired'; then
         beagle_log_event "beagle-stream-client.repair-trigger" "attempt=${stream_attempt}/${max_attempts} pid=${stream_pid} reason=applist-or-pairing"
+        kill -TERM "$stream_pid" >/dev/null 2>&1 || true
+        sleep 1
+        kill -KILL "$stream_pid" >/dev/null 2>&1 || true
+        stream_forced_restart=1
+        break
+      fi
+      if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi 'Failed to initialize video capture/encoding|Host returned error:.*Error 503'; then
+        beagle_log_event "beagle-stream-client.repair-trigger" "attempt=${stream_attempt}/${max_attempts} pid=${stream_pid} reason=server-capture-unavailable"
         kill -TERM "$stream_pid" >/dev/null 2>&1 || true
         sleep 1
         kill -KILL "$stream_pid" >/dev/null 2>&1 || true

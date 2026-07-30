@@ -413,6 +413,15 @@ def test_beaglestream_launcher_waits_for_manager_registration_before_stream_exec
     assert 'awk -F= \'$1 == "control_plane"' in manager_registration_text
 
 
+def test_direct_stream_reachability_has_its_own_startup_step() -> None:
+    launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+
+    status_step = 'beagle_stream_startup_status_step "4" "Stream-Ziel pruefen"'
+    wait_call = "wait_for_stream_target || {"
+    assert status_step in launcher_text
+    assert launcher_text.index(status_step) < launcher_text.index(wait_call)
+
+
 def test_beaglestream_startup_indicator_has_crash_fallback_and_log() -> None:
     launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
 
@@ -424,6 +433,15 @@ def test_beaglestream_startup_indicator_has_crash_fallback_and_log() -> None:
     assert 'beagle_stream_startup_status_xmessage "$title"' in launcher_text
     assert '>>"$BEAGLE_STREAM_CLIENT_STARTUP_UI_LOG_FILE" 2>&1' in launcher_text
     assert '--disable-gpu' in launcher_text
+
+
+def test_beaglestream_launcher_retries_server_capture_failures() -> None:
+    launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+
+    assert "Failed to initialize video capture/encoding" in launcher_text
+    assert "Host returned error:.*Error 503" in launcher_text
+    assert "reason=server-capture-unavailable" in launcher_text
+    assert 'kill -TERM "$stream_pid"' in launcher_text
 
 
 def test_prepare_host_downloads_rebuilds_payload_after_public_mirror_fallback() -> None:

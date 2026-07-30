@@ -1,6 +1,6 @@
 # Projectleader State
 
-Last updated: 2026-06-24
+Last updated: 2026-07-30
 
 ## Role
 
@@ -62,13 +62,13 @@ LastHope/Diamond gates moving forward.
 - Live hotfixes on `srv1` must never remain only on the host.
 - Heavy artifact builds on live hosts can overload the machine; stop unintended
   refresh jobs before starting new release work.
-- Local thinclient `192.168.178.30` currently requires a physical power-cycle or
-  another way to restart the device: it pings, WireGuard handshakes through
-  `srv1` stay fresh, and TCP/22 is open, but sshd no longer sends a banner.
-  NetBridge/47100 is not reachable.
-- A corrected local thinclient payload exists, but the Streaming Gate is still
-  open until the device boots `filesystem.squashfs=668fed9d...` without
-  hotpatching and reaches a working VM desktop stream.
+- Local thinclient `192.168.178.30` is reachable again and currently streams
+  VM100 successfully, but it is running the older live rootfs
+  `filesystem.squashfs=11b66199...` with the current launcher/audio fixes
+  deployed at runtime.
+- A corrected local thinclient payload exists, but the Streaming Gate remains
+  open until a fresh image containing all 2026-07-30 fixes boots without
+  runtime deployment and reaches a working VM desktop stream.
 
 ## Operator Notes
 
@@ -165,3 +165,42 @@ LastHope/Diamond gates moving forward.
   controls for stream profile, LAN-device creation and USB attach/detach, with a
   larger real desktop window. The active VM100 desktop screenshot evidence is
   `.tmp-thinclient-real-desktop.png`; release remains cancelled.
+
+## Runtime Validation 2026-07-30 Stream Self-Healing
+
+- Reproduced the boot stop at step 3 on thinclient `192.168.178.30`.
+- Primary root cause in VM100:
+  - `systemd-networkd` failed a DHCPv4 renewal on `enp1s0`;
+  - VM100 lost `192.168.123.114`, while BeagleStream itself remained active;
+  - the launcher displayed step 3 while it was actually waiting for the stream
+    target.
+- Secondary root cause found after restoring the network:
+  - 221 stale `kwallet-query --read-password Chrome Safe Storage` helpers from
+    an unattended Chromium workload exhausted the X11 client limit;
+  - BeagleStream therefore returned HTTP 503 for video capture/encoding.
+- Third root cause found during the final E2E pass:
+  - PipeWire background processes inherited the audio initializer lock;
+  - the permanent watcher then blocked on that lock and never restored
+    WirePlumber, which stalled audio and the client's video event loop.
+- Repository fixes:
+  - guest network guardian with `networkctl reconfigure` and guarded
+    `systemd-networkd` restart fallback;
+  - X11-aware stream healthcheck, targeted stale Chrome-KWallet cleanup and
+    disabled KWallet for provisioned stream desktops;
+  - explicit thinclient stream-target step and controlled retry on capture 503;
+  - separate audio lock descriptor plus explicit lock closure for PipeWire and
+    WirePlumber background processes.
+- Live validation:
+  - forced IPv4 removal recovered automatically to `192.168.123.114`;
+  - network, healthcheck and stream guardians remained active;
+  - X11 stayed reachable with zero stale `kwallet-query` processes;
+  - BeagleStream selected `libx264`, opened a new X11 session and streamed the
+    actual VM100 desktop;
+  - thinclient RTSP reported 1920x1080 video and two-channel audio with zero
+    queue overflows after the audio repair;
+  - no failed units were present in VM100.
+- Local verification: `94 passed` for the consolidated provisioning, firstboot,
+  launcher, audio and endpoint suite; shell syntax checks and
+  `git diff --check` passed.
+- Remaining release requirement: build and boot a fresh thinclient image from
+  this commit; the current hardware proof includes runtime deployment.

@@ -1,6 +1,6 @@
 # Autonomous Status
 
-Stand: 2026-06-24
+Stand: 2026-07-30
 
 ## Session Summary
 
@@ -17,19 +17,23 @@ Stand: 2026-06-24
 
 ## Aktueller Fokus
 
-- Beagle Thinclient Verwaltung aus dem NetBridge-Tray modernisieren und reparieren.
-- Hot-Test auf `srv1`/VM100 mit echtem NetBridge-Agenten, danach Commit/Push auf `main` und Stable-Release-Workflow.
-- `/goal`-Tool-Hinweis: Der alte usage-limited Goal-Eintrag konnte mit den verfuegbaren Tools nicht durch das neue Ziel ersetzt werden; der aktive Arbeitsstand wird deshalb hier und in `projectleader/state.md` festgehalten.
+- Thinclient-Stream-Selbstheilung fuer Gastnetzwerk, X11/KWallet und lokalen
+  Audio-Stack abschliessen.
+- Live validierten Fix als Branch/PR veroeffentlichen und danach in ein frisches
+  Thinclient-Artefakt uebernehmen.
 
 ## Offene Risiken
 
 - Release-/Versionierungslogik bleibt hoch priorisiert (aus `projectleader/todo.md`).
 - Runtime-Gates brauchen weiter reale Host-Evidence.
+- Der aktuelle Hardware-Nachweis enthaelt Runtime-Deployments; ein frischer
+  Image-Boot mit allen 2026-07-30-Fixes bleibt offen.
 - `AGENTS.md` ist aktuell in `.gitignore` enthalten; falls versioniert gewuenscht, muss bewusst entschieden werden, ob die Ignore-Regel angepasst oder `git add -f` genutzt wird.
 
 ## Naechster sinnvoller Schritt
 
-Thinclient-Verwaltungsfix final committen, auf `main` pushen und danach `release.yml` fuer den Stable-Release neu starten.
+Branch committen/pushen, PR-Checks abwarten und danach ein frisches
+Thinclient-Artefakt bauen und ohne Hotpatch booten.
 
 ## Session Update 2026-06-01 (Release Resolver Slice)
 
@@ -254,3 +258,24 @@ Thinclient-Verwaltungsfix final committen, auf `main` pushen und danach `release
 	- Echter Spectacle-Desktop-Screenshot erzeugt: `.tmp-thinclient-real-desktop.png`.
 	- Selftest weiter `agent_status: ok host=10.88.1.1`.
 - Release bleibt abgebrochen; kein neuer `release.yml`-Run gestartet.
+
+## Session Update 2026-07-30 (Stream Self-Healing)
+
+- Thinclient-Stopp bei Schritt 3 auf `192.168.178.30` reproduziert.
+- VM100 hatte nach einem fehlgeschlagenen DHCP-Renew keine IPv4-Adresse mehr;
+  ein neuer Gast-Network-Guardian repariert diesen Zustand automatisch.
+- Nach der Netzreparatur blockierten 221 alte Chrome-KWallet-Helper X11 und
+  verursachten Encoder-503. Provisionierung deaktiviert KWallet; der
+  Healthcheck prueft X11 und entfernt nur passende, alte Helper.
+- Der Thinclient-Audio-Watcher erbte seinen eigenen Initialisierungs-Lock in
+  PipeWire-Kinder. Lock-Deskriptoren sind jetzt getrennt und werden vor jedem
+  Hintergrundstart geschlossen.
+- Live auf `srv1`/VM100/Thinclient validiert:
+  - automatische IPv4-Wiederherstellung nach Fault Injection;
+  - aktive Netzwerk-, Stream- und Healthcheck-Guardians;
+  - X11 und `libx264` bereit, keine stale KWallet-Helper;
+  - sichtbarer VM100-Desktop, RTSP 1920x1080, Stereo-Audio, keine
+    Queue-Overflows und keine fehlgeschlagenen VM-Units.
+- Relevante Unit-/Integrationstests, Shell-Syntax und Diff-Check sind gruen.
+- Offen bleibt der frische Boot aus einem neu gebauten Image; der aktuelle
+  Hardwarelauf nutzt den live deployten Repository-Stand.

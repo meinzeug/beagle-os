@@ -1,6 +1,6 @@
 # Projectleader Todo
 
-Last updated: 2026-05-31
+Last updated: 2026-07-30
 
 ## Immediate
 
@@ -51,9 +51,14 @@ Last updated: 2026-05-31
 - [x] Fix fresh-boot PairStatus/TLS readiness regression found during Slot-B boot.
 - [x] Fix fresh-boot missing BeagleStream client credentials and Manager token-mode pairing regression.
 - [x] Build a local fixed 8.3.18 thin-client payload for hardware recovery (`filesystem.squashfs=668fed9d...`, payload SHA256 `18bb7bfc...`).
-- [ ] Physically power-cycle or otherwise restart local thinclient, then install the corrected `668fed...` Slot-B image before the old pairing loop wedges SSH again.
-- [ ] Publish a fixed thin-client payload that contains the boot-to-stream hotfix.
-- [ ] Confirm streaming from a fresh thin-client payload without manual hotpatches.
+- [x] Repair VM100 DHCP/X11/KWallet failures and validate automatic network and
+  stream recovery on `srv1`.
+- [x] Fix the thinclient audio watcher lock inheritance and validate
+  WirePlumber, RTSP, 1920x1080 video and stereo audio on hardware.
+- [ ] Build and publish a fresh thin-client payload containing the boot,
+  network/capture retry and audio-lock fixes.
+- [ ] Install and boot that fresh payload on the local thinclient, then confirm
+  streaming without manual hotpatches.
 - [ ] Check WireGuard-required path, stream health events and absence of secrets in
   logs.
 
