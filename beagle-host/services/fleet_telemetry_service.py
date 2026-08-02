@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -75,6 +77,7 @@ class FleetTelemetryService:
         self._dir.mkdir(parents=True, exist_ok=True)
         self._utcnow = utcnow or self._default_utcnow
         self._migrate_vms_fn = migrate_vms_fn
+        self._telemetry_lock = threading.RLock()
         self._maintenance_store = JsonStateStore(
             self._dir / "maintenance_schedule.json",
             default_factory=list,
@@ -87,9 +90,10 @@ class FleetTelemetryService:
     def ingest(self, telemetry: DeviceTelemetry) -> None:
         """Store a telemetry record."""
         shard = self._dir / f"{telemetry.device_id}.jsonl"
-        with shard.open("a") as f:
-            f.write(json.dumps(asdict(telemetry)) + "\n")
-        self._prune(telemetry.device_id)
+        with self._telemetry_lock:
+            with shard.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(asdict(telemetry)) + "\n")
+            self._prune_locked(telemetry.device_id)
 
     def get_history(self, device_id: str, *, days: int = 30) -> list[DeviceTelemetry]:
         """Return telemetry history for a device (last N days)."""
@@ -100,12 +104,18 @@ class FleetTelemetryService:
         if not shard.exists():
             return []
         records = []
-        for line in shard.read_text().splitlines():
+        with self._telemetry_lock:
+            lines = shard.read_text(encoding="utf-8").splitlines()
+        for line in lines:
             if not line.strip():
                 continue
-            d = json.loads(line)
+            try:
+                d = json.loads(line)
+                record = DeviceTelemetry(**d)
+            except (json.JSONDecodeError, TypeError):
+                continue
             if d.get("timestamp", "") >= cutoff:
-                records.append(DeviceTelemetry(**d))
+                records.append(record)
         return records
 
     # ------------------------------------------------------------------
@@ -230,16 +240,39 @@ class FleetTelemetryService:
 
     def _prune(self, device_id: str) -> None:
         """Remove telemetry older than RETENTION_DAYS."""
+        with self._telemetry_lock:
+            self._prune_locked(device_id)
+
+    def _prune_locked(self, device_id: str) -> None:
         import datetime
         cutoff = (self._current_datetime() - datetime.timedelta(days=self.RETENTION_DAYS)).strftime("%Y-%m-%dT%H:%M:%S")
         shard = self._dir / f"{device_id}.jsonl"
         if not shard.exists():
             return
-        lines = [
-            line for line in shard.read_text().splitlines()
-            if line.strip() and json.loads(line).get("timestamp", "") >= cutoff
-        ]
-        shard.write_text("\n".join(lines) + ("\n" if lines else ""))
+        lines = []
+        changed = False
+        for line in shard.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                changed = True
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                changed = True
+                continue
+            if not isinstance(payload, dict) or payload.get("timestamp", "") < cutoff:
+                changed = True
+                continue
+            lines.append(line)
+        if not changed:
+            return
+
+        temp_path = shard.with_name(f".{shard.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+        try:
+            temp_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+            os.replace(temp_path, shard)
+        finally:
+            temp_path.unlink(missing_ok=True)
 
     @staticmethod
     def _default_utcnow() -> str:

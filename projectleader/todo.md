@@ -1,32 +1,15 @@
 # Projectleader Todo
 
-Last updated: 2026-07-30
+Last updated: 2026-08-02
 
 ## Immediate
 
 - [ ] Renew the expired TLS certificate for `beagle-os.com` on the external
   public webhost (`212.227.63.45`) and verify the public download status,
   thinclient payload and installer ISO without a TLS bypass.
-- [ ] Implement release channels for stable/prerelease:
-  - accept stable `x.y.z`;
-  - accept prerelease `x.y.z-alpha.N`, `x.y.z-beta.N`, `x.y.z-rc.N`;
-  - reject invalid four-part stable versions like `8.3.9.1` unless a deliberate
-    compatibility rule is added;
-  - expose a release-class output from `scripts/resolve-release-version.sh`.
-- [ ] Update release workflow so prereleases:
-  - are created with `gh release create --prerelease --latest=false`;
-  - do not run public stable artifact deployment;
-  - do not rewrite stable public `latest` files or `beagle-downloads-status.json`;
-  - still upload artifacts to the GitHub prerelease for testing.
-- [ ] Update `scripts/sync-release-version.py` so prerelease versions work with:
-  - root `VERSION`;
-  - WebUI cache-busting;
-  - Kiosk `package.json` and `package-lock.json`;
-  - browser extension manifest using numeric `version` plus full `version_name`.
-- [ ] Add unit/regression tests for stable vs alpha/beta/rc version resolution and
-  release workflow gating.
-- [ ] After release-system fix, build a new release from `f05e4b7` or newer and
-  validate it with a clean `srv1` installimage run.
+- [ ] Schedule maintenance for `srv1`: inspect SATA power/data paths and
+  controller logs, replace the two high-hour HGST RAID1 members in a controlled
+  sequence, and verify RAID rebuild plus extended SMART tests after each change.
 
 ## R1 Clean Install Gate
 
@@ -58,6 +41,12 @@ Last updated: 2026-07-30
   stream recovery on `srv1`.
 - [x] Fix the thinclient audio watcher lock inheritance and validate
   WirePlumber, RTSP, 1920x1080 video and stereo audio on hardware.
+- [x] Refresh VM-scoped USB tunnel configuration through device sync and support
+  legacy thinclient installer identities.
+- [x] Validate the USB/IP reverse listener and VM100 microphone bridge with an
+  active PipeWire recording (`dropped=0`, `reconnects=0`).
+- [x] Make telemetry JSONL recovery tolerant and restore recurring device sync
+  to HTTP 200.
 - [ ] Build and publish a fresh thin-client payload containing the boot,
   network/capture retry and audio-lock fixes.
 - [ ] Install and boot that fresh payload on the local thinclient, then confirm

@@ -44,3 +44,12 @@ def test_tc_mic_bridge_service_has_cpu_safety_limit() -> None:
 
     assert "Nice=5" in service
     assert "CPUQuota=25%" in service
+
+
+def test_tc_mic_bridge_rate_limits_unavailable_stream_logs() -> None:
+    script = (ROOT / "scripts" / "lib" / "beagle-tc-mic-bridge").read_text(encoding="utf-8")
+
+    assert 'BEAGLE_TC_MIC_RETRY_LOG_EVERY:-30' in script
+    assert 'raise SystemExit(75) from None' in script
+    assert 'failures=$((failures + 1))' in script
+    assert '$((failures % RETRY_LOG_EVERY))' in script

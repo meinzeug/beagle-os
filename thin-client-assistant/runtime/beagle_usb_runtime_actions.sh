@@ -176,7 +176,7 @@ usb_status_json() {
 
 run_usb_tunnel_daemon() {
   local ssh_cmd camera_pid=""
-  local tunnel_user tunnel_host tunnel_attach_host tunnel_port
+  local tunnel_user tunnel_host tunnel_attach_host tunnel_port tunnel_audio_port=""
   local rc
   local ssh_output=""
   local -a reverse_forwards=()
@@ -195,7 +195,8 @@ run_usb_tunnel_daemon() {
   start_audio_input_bridge || true
   reverse_forwards+=("-R" "${tunnel_attach_host}:${tunnel_port}:127.0.0.1:3240")
   if audio_input_bridge_enabled; then
-    reverse_forwards+=("-R" "$(usb_attach_host):$(audio_input_remote_port):127.0.0.1:$(audio_input_local_port)")
+    tunnel_audio_port="$(audio_input_remote_port)"
+    reverse_forwards+=("-R" "${tunnel_attach_host}:${tunnel_audio_port}:127.0.0.1:$(audio_input_local_port)")
   fi
   append_extra_reverse_forwards "$tunnel_attach_host" reverse_forwards
 
@@ -227,8 +228,10 @@ run_usb_tunnel_daemon() {
     local -a _audio_pids=()
     pgrep_cmd="$(pgrep_bin)"
     mapfile -t stale_tunnel_pids < <("$pgrep_cmd" -f "ssh .*${tunnel_user}@${tunnel_host}.*-R ${tunnel_attach_host}:${tunnel_port}:127.0.0.1:3240" 2>/dev/null || true)
-    mapfile -t _audio_pids < <("$pgrep_cmd" -f "ssh .*${tunnel_user}@${tunnel_host}.*-R ${tunnel_attach_host}:${tunnel_audio_port}:127.0.0.1:${tunnel_audio_port}" 2>/dev/null || true)
-    stale_tunnel_pids+=("${_audio_pids[@]}")
+    if [[ -n "$tunnel_audio_port" ]]; then
+      mapfile -t _audio_pids < <("$pgrep_cmd" -f "ssh .*${tunnel_user}@${tunnel_host}.*-R ${tunnel_attach_host}:${tunnel_audio_port}:127.0.0.1:$(audio_input_local_port)" 2>/dev/null || true)
+      stale_tunnel_pids+=("${_audio_pids[@]}")
+    fi
     if [[ "${#stale_tunnel_pids[@]}" -eq 0 ]]; then
       return 0
     fi

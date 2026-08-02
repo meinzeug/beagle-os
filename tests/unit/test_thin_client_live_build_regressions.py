@@ -444,6 +444,16 @@ def test_beaglestream_launcher_retries_server_capture_failures() -> None:
     assert 'kill -TERM "$stream_pid"' in launcher_text
 
 
+def test_beaglestream_launcher_force_kills_detached_stale_clients() -> None:
+    launcher_text = LAUNCH_BEAGLE_STREAM_CLIENT.read_text(encoding="utf-8")
+
+    assert "stop_stale_beagle_stream_processes()" in launcher_text
+    assert "pkill -TERM -u" in launcher_text
+    assert "pkill -KILL -u" in launcher_text
+    assert 'action=killed reason=term-timeout' in launcher_text
+    assert launcher_text.count("stop_stale_beagle_stream_processes") >= 3
+
+
 def test_prepare_host_downloads_rebuilds_payload_after_public_mirror_fallback() -> None:
     prepare_text = PREPARE_HOST_DOWNLOADS.read_text(encoding="utf-8")
 
@@ -519,7 +529,7 @@ def test_usbip_autobind_keeps_usb_audio_local_for_mic_bridge() -> None:
     assert 'printf \'%s\\n\' "/usr/sbin/usbip"' in (ROOT / "thin-client-assistant" / "runtime" / "beagle_usb_runtime_env.sh").read_text(encoding="utf-8")
     assert 'printf \'%s\\n\' "/usr/sbin/usbipd"' in actions_text
     assert 'beagle_audio_input_bridge.py' in actions_text
-    assert '$(usb_attach_host):$(audio_input_remote_port):127.0.0.1:$(audio_input_local_port)' in actions_text
+    assert '${tunnel_attach_host}:${tunnel_audio_port}:127.0.0.1:$(audio_input_local_port)' in actions_text
     assert 'PVE_THIN_CLIENT_BEAGLE_USB_EXTRA_REVERSE_FORWARDS' in actions_text
     assert 'append_extra_reverse_forwards "$tunnel_attach_host" reverse_forwards' in actions_text
     assert "ignoring invalid extra reverse forward" in actions_text
@@ -531,6 +541,9 @@ def test_usbip_autobind_keeps_usb_audio_local_for_mic_bridge() -> None:
     assert '"$ssh_cmd" -N \\' in actions_text
     assert 'exec "$ssh_cmd" -N \\' not in actions_text
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT:-43200' in actions_text
+    assert 'tunnel_audio_port="$(audio_input_remote_port)"' in actions_text
+    assert '${tunnel_attach_host}:${tunnel_audio_port}:127.0.0.1:$(audio_input_local_port)' in actions_text
+    assert '${tunnel_audio_port}:127.0.0.1:${tunnel_audio_port}' not in actions_text
     assert '"PVE_THIN_CLIENT_BEAGLE_USB_EXTRA_REVERSE_FORWARDS", config.get("usb_extra_reverse_forwards", "")' in apply_enrollment_text
     assert '"PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT", config.get("usb_audio_input_port", "")' in apply_enrollment_text
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT="$BEAGLE_AUDIO_INPUT_PORT"' in write_config_text
@@ -543,6 +556,9 @@ def test_usbip_autobind_keeps_usb_audio_local_for_mic_bridge() -> None:
     assert '--channels={channels}' in bridge_text
     assert '--frame-msec", type=int' in bridge_text
     assert 'PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_FRAME_MSEC", "20"' in bridge_text
+    assert 'apply_runtime_usb_config' in apply_enrollment_text
+    assert '--runtime-usb' in apply_enrollment_text
+    assert 'device.sync.usb-config' in DEVICE_SYNC.read_text(encoding="utf-8")
 
 
 def test_beaglestream_client_production_baseline_matches_live_smooth_profile() -> None:

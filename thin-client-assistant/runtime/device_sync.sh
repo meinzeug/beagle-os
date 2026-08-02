@@ -6,6 +6,7 @@ if [[ "$SCRIPT_DIR" == /var/local/* ]]; then
 fi
 COMMON_SH="${COMMON_SH:-$SCRIPT_DIR/common.sh}"
 RUNTIME_ENDPOINT_ENROLLMENT_SH="${RUNTIME_ENDPOINT_ENROLLMENT_SH:-$SCRIPT_DIR/runtime_endpoint_enrollment.sh}"
+APPLY_ENROLLMENT_CONFIG_PY="${APPLY_ENROLLMENT_CONFIG_PY:-$SCRIPT_DIR/apply_enrollment_config.py}"
 
 if [[ -r "$COMMON_SH" ]]; then
   # shellcheck disable=SC1090
@@ -696,6 +697,19 @@ if commands.get("install_sys_update") or system.get("install_requested"):
 else:
   system_marker.unlink(missing_ok=True)
 PY
+  local usb_config_result=""
+  if [[ -r "$APPLY_ENROLLMENT_CONFIG_PY" ]]; then
+    usb_config_result="$(python3 "$APPLY_ENROLLMENT_CONFIG_PY" --runtime-usb "$response_file" "$(runtime_thinclient_config_file)" 2>/dev/null || true)"
+  fi
+  if [[ "$usb_config_result" == "changed" ]]; then
+    load_runtime_config >/dev/null 2>&1 || true
+    if [[ "${PVE_THIN_CLIENT_BEAGLE_USB_ENABLED:-0}" == "1" ]]; then
+      systemctl restart --no-block beagle-usb-tunnel.service >/dev/null 2>&1 || true
+    else
+      systemctl stop --no-block beagle-usb-tunnel.service >/dev/null 2>&1 || true
+    fi
+    beagle_log_event "device.sync.usb-config" "status=changed tunnel_service=${PVE_THIN_CLIENT_BEAGLE_USB_ENABLED:-0}"
+  fi
   if [[ -f "$restart_marker" ]]; then
   rm -f "$restart_marker" >/dev/null 2>&1 || true
   if pgrep -x beagle-stream >/dev/null 2>&1 || pgrep -x beagle-stream-client >/dev/null 2>&1; then

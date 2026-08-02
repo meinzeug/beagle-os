@@ -1,6 +1,6 @@
 # Projectleader State
 
-Last updated: 2026-07-30
+Last updated: 2026-08-02
 
 ## Role
 
@@ -67,10 +67,15 @@ LastHope/Diamond gates moving forward.
   but does not manage that host's ACME lifecycle, and the available operator key
   has no SSH access. Public downloads remain blocked until the external
   certificate is renewed.
-- Local thinclient `192.168.178.30` is reachable again and currently streams
-  VM100 successfully, but it is running the older live rootfs
-  `filesystem.squashfs=11b66199...` with the current launcher/audio fixes
-  deployed at runtime.
+- Local thinclient `192.168.178.30` is reachable and currently streams VM100
+  successfully. The current launcher, runtime USB configuration and audio
+  bridge fixes are deployed at runtime; a fresh image validation is still
+  required.
+- `srv1` has repeated historical SATA NCQ timeouts on both RAID1 members.
+  RAID remains `[UU]` and SMART reports no pending or offline-uncorrectable
+  sectors, but the high reallocated-sector counters and 48-51 C temperatures
+  require scheduled disk/cable/controller inspection and likely disk
+  replacement. `smartd` is now enabled for continuous monitoring.
 - A corrected local thinclient payload exists, but the Streaming Gate remains
   open until a fresh image containing all 2026-07-30 fixes boots without
   runtime deployment and reaches a working VM desktop stream.
@@ -209,3 +214,27 @@ LastHope/Diamond gates moving forward.
   `git diff --check` passed.
 - Remaining release requirement: build and boot a fresh thinclient image from
   this commit; the current hardware proof includes runtime deployment.
+
+## Runtime Validation 2026-08-02 USB And Telemetry Recovery
+
+- Thinclient `192.168.178.30` had one orphaned BeagleStream process because the
+  launcher terminated only its shell wrapper. The launcher now terminates and
+  reaps stale client processes on retry and exit; live validation shows one
+  active desktop stream at 1920x1080 with stereo audio.
+- Existing installations retained their original VM-scoped installer token and
+  never refreshed USB tunnel settings. Device sync now returns only the current
+  VM-scoped USB configuration and updates tunnel files without rotating manager
+  or stream credentials. Legacy installer identities without endpoint metadata
+  remain supported through their authenticated node/VM scope.
+- The USB tunnel is active with reverse listeners for USB/IP, microphone audio
+  and camera transport. A physical SC420 USB microphone was selected
+  automatically as the unmuted default source after hotplug.
+- VM100 exposes `beagle_tc_microphone` as its default PipeWire source. An active
+  recording smoke test captured 983040 bytes with non-zero input signal and
+  transferred 496 frames with zero drops and zero reconnects.
+- A malformed telemetry JSONL record caused device sync HTTP 500 responses.
+  Telemetry reads now skip malformed records, ingestion is serialized, and
+  pruning replaces shards atomically. The live shard was repaired and repeated
+  device sync requests now return HTTP 200.
+- Thinclient, `srv1` and VM100 have no failed systemd units and no new error
+  journal entries after the fixes. RAID1 is healthy, and `smartd` is active.

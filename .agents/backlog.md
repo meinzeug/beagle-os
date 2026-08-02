@@ -1,6 +1,6 @@
 # Backlog
 
-Stand: 2026-06-01
+Stand: 2026-08-02
 
 ## P0
 
@@ -17,8 +17,12 @@ Stand: 2026-06-01
 	- [x] Frischen-Boot Pairing-/TLS-Folgefehler gefunden und Repo-Fix plus Regressionstests ergaenzt.
 	- [x] Frischen-Boot Credential-/Token-Folgefehler gefunden: lokale BeagleStream-Client-Credentials fehlten und Manager-Token-Modus lief in PIN-Folgehandshake.
 	- [x] Lokales 8.3.18-Bootstreamfix-Payload gebaut und validiert (`filesystem.squashfs=668fed9d...`, Payload-SHA256 `18bb7bfc...`).
-	- [ ] Thinclient physisch power-cyclen oder wieder per SSH erreichen; Slot `b` mit dem korrigierten `668fed...` Image ersetzen.
+	- [x] Thinclient wieder per SSH erreicht und den laufenden VM100-Stream auf genau einen Client-Prozess stabilisiert.
+	- [x] VM-scoped USB-Konfiguration im Device-Sync nachgezogen und USB-/Mikrofon-Bridge live validiert.
 	- [ ] Neues Thinclient-Artefakt publizieren und frischen Live-USB-/Neuinstallationsstart ohne Hotpatch verifizieren.
+- [ ] `srv1` SATA-/Disk-Risiko operativ beheben: beide HGST RAID1-Mitglieder
+  kontrolliert ersetzen und Kabel/Controller pruefen; RAID-Rebuild und lange
+  SMART-Selbsttests dokumentieren.
 - [ ] Release-Versionierungslogik (stable/prerelease) gemaess `projectleader/todo.md` fertigstellen und absichern.
 	- [x] `scripts/resolve-release-version.sh`: Stable + Prerelease SemVer akzeptieren, `release_class` ausgeben, 4-part Versionsschema ablehnen.
 	- [x] `release.yml`: `release_class` fuer prerelease-spezifisches GitHub Release Verhalten (`--prerelease --latest=false`) verdrahten.

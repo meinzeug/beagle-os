@@ -443,6 +443,34 @@ class TestStreamingConfigFields:
         assert cfg["usb_tunnel_attach_host"] == "usb.internal"
         assert "srv1 ssh-ed25519" in cfg["usb_tunnel_known_host"]
 
+    def test_authenticated_endpoint_can_refresh_usb_runtime_config(self, enrollment_store, endpoint_store):
+        vm = _make_vm(vmid=404, node="srv1")
+        svc = _make_enrollment_service(enrollment_store, endpoint_store, vm_registry={404: vm})
+
+        config = svc.build_runtime_usb_config(
+            {"endpoint_id": "ep-404", "vmid": 404, "node": "srv1"}
+        )
+
+        assert config["usb_tunnel_host"] == "srv1"
+        assert config["usb_tunnel_user"] == "beagle-usb"
+        assert config["usb_tunnel_port"] == 2222
+        assert config["usb_tunnel_private_key"] == "MOCK_PRIVATE_KEY"
+        assert "beagle_manager_token" not in config
+        assert svc.build_runtime_usb_config(
+            {"endpoint_id": "ep-404", "vmid": 404, "node": "other-node"}
+        ) == {}
+
+    def test_legacy_installer_identity_can_refresh_usb_runtime_config(self, enrollment_store, endpoint_store):
+        vm = _make_vm(vmid=405, node="srv1")
+        svc = _make_enrollment_service(enrollment_store, endpoint_store, vm_registry={405: vm})
+
+        config = svc.build_runtime_usb_config(
+            {"endpoint_id": "", "hostname": "", "vmid": 405, "node": "srv1", "role": "thin-client-installer"}
+        )
+
+        assert config["usb_tunnel_port"] == 2222
+        assert config["usb_tunnel_private_key"] == "MOCK_PRIVATE_KEY"
+
     def test_config_has_update_fields(self, enrollment_store, endpoint_store):
         result = self._enroll(402, enrollment_store, endpoint_store)
         cfg = result["config"]
