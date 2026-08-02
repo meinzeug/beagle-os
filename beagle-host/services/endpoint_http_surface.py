@@ -58,6 +58,7 @@ class EndpointHttpSurfaceService:
         summarize_action_result: Callable[[dict[str, Any] | None], dict[str, Any]],
         utcnow: Callable[[], str],
         version: str,
+        build_endpoint_runtime_config: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
     ) -> None:
         self._build_vm_profile = build_vm_profile
         self._dequeue_vm_actions = dequeue_vm_actions
@@ -82,6 +83,7 @@ class EndpointHttpSurfaceService:
         self._summarize_action_result = summarize_action_result
         self._utcnow = utcnow
         self._version = str(version or "")
+        self._build_endpoint_runtime_config = build_endpoint_runtime_config
 
     @staticmethod
     def _json_response(status: HTTPStatus, payload: dict[str, Any]) -> dict[str, Any]:
@@ -462,6 +464,15 @@ class EndpointHttpSurfaceService:
             if not isinstance(stream_profile, dict):
                 stream_profile = {}
             update_state = self._device_update_state(device)
+            runtime_config: dict[str, Any] = {}
+            if callable(self._build_endpoint_runtime_config):
+                try:
+                    candidate = self._build_endpoint_runtime_config(identity)
+                    if isinstance(candidate, dict):
+                        runtime_config = candidate
+                except Exception:
+                    # Reporting and policy sync must survive transient secret-store errors.
+                    runtime_config = {}
 
             return self._json_response(
                 HTTPStatus.OK,
@@ -486,6 +497,7 @@ class EndpointHttpSurfaceService:
                             "target_sys_update": update_state["system"]["target"],
                         },
                         updates=update_state,
+                        runtime_config=runtime_config,
                         policy={
                             "policy_id": str(getattr(policy, "policy_id", "__default__") or "__default__"),
                             "name": str(getattr(policy, "name", "Default") or "Default"),

@@ -3811,6 +3811,7 @@ def endpoint_http_surface_service() -> EndpointHttpSurfaceService:
     if ENDPOINT_HTTP_SURFACE_SERVICE is None:
         ENDPOINT_HTTP_SURFACE_SERVICE = EndpointHttpSurfaceService(
             build_vm_profile=build_profile,
+            build_endpoint_runtime_config=endpoint_enrollment_service().build_runtime_usb_config,
             dequeue_vm_actions=dequeue_vm_actions,
             device_registry_service=device_registry_service(),
             device_log_service=device_log_service(),

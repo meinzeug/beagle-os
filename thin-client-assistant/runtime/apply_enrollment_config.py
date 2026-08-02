@@ -52,6 +52,59 @@ def _remove_file_if_exists(path: Path) -> None:
         return
 
 
+def apply_runtime_usb_config(response_path: Path, config_path: Path) -> bool:
+    """Refresh USB tunnel material without rotating endpoint credentials."""
+    payload = json.loads(response_path.read_text(encoding="utf-8"))
+    config = payload.get("runtime_config", {}) if isinstance(payload, dict) else {}
+    if not isinstance(config, dict) or not config:
+        return False
+
+    existing = _load_env_file(config_path)
+    updated = dict(existing)
+    values = (
+        ("PVE_THIN_CLIENT_BEAGLE_USB_ENABLED", "usb_enabled", "1" if config.get("usb_enabled", True) else "0"),
+        ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_HOST", "usb_tunnel_host", config.get("usb_tunnel_host", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_USER", "usb_tunnel_user", config.get("usb_tunnel_user", "beagle")),
+        ("PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PORT", "usb_tunnel_port", config.get("usb_tunnel_port", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_CAMERA_STREAM_PORT", "usb_camera_stream_port", config.get("usb_camera_stream_port", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_AUDIO_INPUT_PORT", "usb_audio_input_port", config.get("usb_audio_input_port", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_USB_EXTRA_REVERSE_FORWARDS", "usb_extra_reverse_forwards", config.get("usb_extra_reverse_forwards", "")),
+        ("PVE_THIN_CLIENT_BEAGLE_USB_ATTACH_HOST", "usb_tunnel_attach_host", config.get("usb_tunnel_attach_host", "")),
+    )
+    for env_key, config_key, value in values:
+        if config_key in config:
+            updated[env_key] = _json_env(value)
+
+    key_path = config_path.parent / "usb-tunnel.key"
+    known_hosts_path = config_path.parent / "usb-tunnel-known_hosts"
+    updated["PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PRIVATE_KEY_FILE"] = _json_env(key_path)
+    updated["PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_KNOWN_HOSTS_FILE"] = _json_env(known_hosts_path)
+
+    changed = updated != existing
+    if changed:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_env_file(config_path, updated)
+
+    usb_key = str(config.get("usb_tunnel_private_key", "") or "")
+    if usb_key and (not key_path.exists() or key_path.read_text(encoding="utf-8") != usb_key):
+        key_path.write_text(usb_key, encoding="utf-8")
+        changed = True
+    if usb_key:
+        key_path.chmod(0o600)
+
+    usb_known_host = str(config.get("usb_tunnel_known_host", "") or "")
+    known_hosts_content = usb_known_host.rstrip() + "\n" if usb_known_host else ""
+    if known_hosts_content and (
+        not known_hosts_path.exists() or known_hosts_path.read_text(encoding="utf-8") != known_hosts_content
+    ):
+        known_hosts_path.write_text(known_hosts_content, encoding="utf-8")
+        changed = True
+    if known_hosts_content:
+        known_hosts_path.chmod(0o644)
+
+    return changed
+
+
 def apply_enrollment_config(
     response_path: Path,
     config_path: Path,
@@ -156,9 +209,14 @@ def apply_enrollment_config(
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    if len(args) == 3 and args[0] == "--runtime-usb":
+        changed = apply_runtime_usb_config(Path(args[1]), Path(args[2]))
+        print("changed" if changed else "unchanged")
+        return 0
     if len(args) not in {3, 4}:
         raise SystemExit(
-            "usage: apply_enrollment_config.py <response_json> <thinclient_conf> <credentials_env> [enrollment_conf]"
+            "usage: apply_enrollment_config.py <response_json> <thinclient_conf> <credentials_env> [enrollment_conf]\n"
+            "       apply_enrollment_config.py --runtime-usb <response_json> <thinclient_conf>"
         )
     enrollment_conf = Path(args[3]) if len(args) == 4 else None
     apply_enrollment_config(Path(args[0]), Path(args[1]), Path(args[2]), enrollment_conf)

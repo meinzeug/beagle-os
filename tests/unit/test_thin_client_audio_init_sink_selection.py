@@ -84,3 +84,12 @@ def test_select_sink_falls_back_to_usb_when_only_usb_exists(tmp_path: Path) -> N
         "56 alsa_output.usb-SC420_USB_Microphone_SC420_USB_Microphone_20220325-00.analog-stereo PipeWire s16le 2ch 48000Hz SUSPENDED\n",
     )
     assert selected == "alsa_output.usb-SC420_USB_Microphone_SC420_USB_Microphone_20220325-00.analog-stereo"
+
+
+def test_audio_background_processes_do_not_inherit_guard_locks() -> None:
+    content = AUDIO_INIT.read_text(encoding="utf-8")
+
+    assert 'nohup "$@" 8>&- 9>&-' in content
+    assert '8>&- 9>&- >>"$log_file"' in content
+    assert 'flock -w "$lock_wait" 8' in content
+    assert '} 8>"$lock_file"' in content

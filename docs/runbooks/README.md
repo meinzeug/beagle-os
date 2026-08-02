@@ -11,6 +11,7 @@ Produktivbetrieb. Pflicht-Lektuere fuer Operatoren vor Pilotbetrieb (R4).
 | [backup-restore.md](backup-restore.md) | VM-Backup, Restore, Single-File-Restore | Skelett |
 | [incident-response.md](incident-response.md) | Reaktion auf Stoerungen und Sicherheitsvorfaelle | Skelett |
 | [pilot.md](pilot.md) | Anleitung fuer Pilotkunden (Onboarding bis Tagesbetrieb) | Skelett |
+| [beaglestream-production-baseline.md](beaglestream-production-baseline.md) | Produktionsbaseline und Stream-Selbstheilung | Validiert |
 
 Status-Legende: **Skelett** = Struktur vorhanden, Befehle/Output fehlen ·
 **Entwurf** = erste Version mit echten Befehlen, ungetestet · **Validiert** =

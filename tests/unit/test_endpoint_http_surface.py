@@ -30,6 +30,7 @@ def _service(
     store_action_result=None,
     usb_key_sync_hook=None,
     device_log_service=None,
+    runtime_config_hook=None,
 ) -> EndpointHttpSurfaceService:
     vm = _Vm(100, "beagle-0")
     profiles = {
@@ -251,6 +252,7 @@ def _service(
         summarize_action_result=lambda payload: payload or {},
         utcnow=lambda: "2026-04-22T00:00:00Z",
         version="test",
+        build_endpoint_runtime_config=runtime_config_hook,
     )
 
 
@@ -641,6 +643,30 @@ def test_device_sync_route_returns_persisted_offline_update_targets() -> None:
     }
     assert response["payload"]["commands"]["install_update"] is True
     assert response["payload"]["commands"]["install_sys_update"] is True
+
+
+def test_device_sync_route_returns_current_runtime_config() -> None:
+    service = _service(
+        runtime_config_hook=lambda identity: {
+            "usb_tunnel_host": "srv1.beagle-os.com",
+            "usb_tunnel_port": 43100,
+            "endpoint": identity["endpoint_id"],
+        }
+    )
+
+    response = service.route_post(
+        "/api/v1/endpoints/device/sync",
+        endpoint_identity={"endpoint_id": "endpoint-a", "vmid": 100, "node": "beagle-0", "hostname": "thin-01"},
+        query={},
+        json_payload={"hardware": {"cpu_model": "Intel"}},
+    )
+
+    assert int(response["status"]) == 200
+    assert response["payload"]["runtime_config"] == {
+        "usb_tunnel_host": "srv1.beagle-os.com",
+        "usb_tunnel_port": 43100,
+        "endpoint": "endpoint-a",
+    }
 
 
 def test_device_sync_route_ingests_metrics_and_emits_alert_counts() -> None:

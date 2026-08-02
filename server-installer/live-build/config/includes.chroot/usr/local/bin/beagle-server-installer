@@ -836,7 +836,7 @@ install_host_provider_packages() {
   fi
   chroot_run_with_retry \
     "install standalone host packages" \
-    "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync certbot python3-certbot-nginx nginx websockify linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools mdadm libvirt-daemon-system qemu-system-x86 qemu-utils"
+    "apt-get install -y locales sudo curl ca-certificates gnupg wget ifupdown2 openssh-server fail2ban unattended-upgrades apt-listchanges nftables git python3 rsync certbot python3-certbot-nginx nginx websockify smartmontools linux-image-amd64 grub-pc grub-efi-amd64-bin efibootmgr dosfstools mdadm libvirt-daemon-system qemu-system-x86 qemu-utils"
 }
 
 configure_target_raid() {

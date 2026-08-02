@@ -1,6 +1,6 @@
 # BeagleStream Production Baseline
 
-Stand: 2026-05-07
+Stand: 2026-07-30
 
 Dieser Runbook-Eintrag friert den auf VM100/srv1/lokalem Thinclient live validierten Zustand ein. Er ist der aktuelle produktionsnahe Standard fuer Kundenbetrieb, bis Hardware-Encoding und native Latenzmetriken nachgezogen sind.
 
@@ -12,7 +12,7 @@ Dieser Runbook-Eintrag friert den auf VM100/srv1/lokalem Thinclient live validie
 - Thinclient-Renderer: SDL/OpenGL, Vulkan deaktiviert.
 - Thinclient-Decode: `software` als getesteter stabiler Default.
 - Client-Flags: `--display-mode windowed`, `--no-frame-pacing`, `--no-vsync`, `--absolute-mouse`, `--no-hdr`, `--no-yuv444`.
-- Guest/Sunshine: `encoder = software`, `sw_preset = ultrafast`, `sw_tune = zerolatency`, `capture = kms`, `minimum_fps_target = 60`, `max_bitrate = 35000`.
+- Guest/BeagleStream: `encoder = software`, `sw_preset = ultrafast`, `sw_tune = zerolatency`, `capture = x11`, `minimum_fps_target = 60`, `max_bitrate = 35000`.
 - Guest/Xorg: `SWCursor` ist fuer den modesetting-Treiber aktiv, damit KMS den Mauszeiger auch ohne dedizierten Cursor-Plane im Videoframe sieht.
 - VM-Grafik: libvirt `virtio` video, nicht legacy VGA/Bochs.
 - Prozessprioritaet: QEMU, Sunshine und Thinclient-Client koennen mit `scripts/apply-beagle-stream-latency-tuning.sh` auf `Nice=-10` gebracht werden.
@@ -64,6 +64,55 @@ Wenn dieser Modus fehlschlaegt, ist der Serverpfad nicht automatisch kaputt:
 Dann ist der Thinclient nicht am Beagle-WireGuard sichtbar oder hat noch keinen
 Handshake aufgebaut. In diesem Fall Thinclient lokal oder per SSH pruefen und
 `wg-beagle` sowie den BeagleStream-Client neu starten.
+
+## Automatische Wiederherstellung
+
+Stream-VMs erhalten bei der Provisionierung folgende Schutzmechanismen:
+
+- `beagle-guest-network-guardian.timer` prueft alle 30 Sekunden, ob das
+  verwaltete Interface bei vorhandenem Carrier eine globale IPv4-Adresse hat.
+  Nach zwei fehlgeschlagenen Pruefungen wird zuerst `networkctl reconfigure`
+  ausgefuehrt und bei ausbleibender Erholung `systemd-networkd` neu gestartet.
+- `beagle-stream-server-healthcheck.timer` prueft neben API und Stream-Port auch
+  die X11-Sitzung mit `xrandr`. Alte `kwallet-query`-Prozesse werden nur dann
+  beendet, wenn sie mindestens 120 Sekunden alt sind und explizit nach
+  `Chrome Safe Storage` fragen. Bleibt X11 ueber den bestehenden
+  Fehlerschwellwert unerreichbar, werden Display-Manager und Stream-Dienst neu
+  gestartet.
+- KWallet ist im provisionierten Desktop deaktiviert, damit unbeaufsichtigte
+  Chromium-Prozesse keine Passwortdialoge oder blockierten Helper ansammeln.
+- Der Thinclient zeigt die Zielerreichbarkeit als eigenen Startschritt 4 und
+  startet den Stream bei einem serverseitigen Capture-/Encoder-503 kontrolliert
+  neu.
+- Der Thinclient-Audio-Watcher startet PipeWire, `pipewire-pulse` und
+  WirePlumber ohne geerbte Lock-Dateideskriptoren. Damit kann der Watcher den
+  Audio-Stack dauerhaft pruefen, ohne sich selbst zu blockieren.
+
+Schnellpruefung in der Stream-VM:
+
+```bash
+systemctl is-active \
+  beagle-guest-network-guardian.timer \
+  beagle-stream-server-healthcheck.timer \
+  beagle-stream-server-guardian.service \
+  beagle-stream-server.service
+ip -4 -o addr show scope global
+sudo -u <desktop-user> env \
+  DISPLAY=:0 XAUTHORITY=/home/<desktop-user>/.Xauthority \
+  xrandr --query
+pgrep -a -u <desktop-user> -x kwallet-query || true
+journalctl -u beagle-guest-network-guardian.service \
+  -u beagle-stream-server-healthcheck.service --since -15min
+```
+
+Erwartet werden aktive Timer/Guardians, eine globale Gast-IPv4-Adresse, ein
+erfolgreiches `xrandr` und keine dauerhaft laufenden Chrome-KWallet-Helper.
+
+Live validiert am 2026-07-30 mit `srv1`/VM100 und Thinclient
+`192.168.178.30`: erzwungener IPv4-Verlust wurde automatisch per
+`networkctl reconfigure` repariert; X11 und `libx264` erholten sich; der
+Thinclient baute RTSP, 1920x1080-Video und Stereo-Audio ohne Queue-Overflows
+auf.
 
 ## Bekannte Grenze
 

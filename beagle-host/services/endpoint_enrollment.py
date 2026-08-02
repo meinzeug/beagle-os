@@ -13,6 +13,19 @@ from typing import Any, Callable
 
 
 class EndpointEnrollmentService:
+    _RUNTIME_USB_CONFIG_KEYS = (
+        "usb_enabled",
+        "usb_tunnel_host",
+        "usb_tunnel_user",
+        "usb_tunnel_port",
+        "usb_camera_stream_port",
+        "usb_audio_input_port",
+        "usb_extra_reverse_forwards",
+        "usb_tunnel_attach_host",
+        "usb_tunnel_private_key",
+        "usb_tunnel_known_host",
+    )
+
     def __init__(
         self,
         *,
@@ -135,6 +148,26 @@ class EndpointEnrollmentService:
             "endpoint": endpoint_payload,
             "config": self._build_endpoint_config(profile, secret, endpoint_token, endpoint_id=endpoint_id),
         }
+
+    def build_runtime_usb_config(self, identity: dict[str, Any]) -> dict[str, Any]:
+        """Return current USB tunnel settings for an authenticated endpoint."""
+        vmid = int(identity.get("vmid", 0) or 0)
+        node = str(identity.get("node", "") or "").strip()
+        if vmid <= 0 or not node:
+            return {}
+
+        vm = self._find_vm(vmid)
+        if vm is None or str(getattr(vm, "node", "") or "").strip() != node:
+            return {}
+
+        endpoint_id = str(identity.get("endpoint_id") or identity.get("hostname") or f"{node}-{vmid}").strip()
+        config = self._build_endpoint_config(
+            self._build_profile(vm),
+            self._ensure_vm_secret(vm),
+            "",
+            endpoint_id=endpoint_id,
+        )
+        return {key: config[key] for key in self._RUNTIME_USB_CONFIG_KEYS if key in config}
 
     def _build_endpoint_config(
         self,

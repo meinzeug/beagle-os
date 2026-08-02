@@ -717,14 +717,25 @@ ensure_beagle_stream_wireguard_ready() {
 }
 
 stop_stale_beagle_stream_processes() {
-  if ! command -v pkill >/dev/null 2>&1; then
+  local wait_round
+  if ! command -v pgrep >/dev/null 2>&1 || ! command -v pkill >/dev/null 2>&1; then
     return 0
   fi
   # A stale process from a previous failed run can reconnect before the launcher
   # reaches pairing checks. Kill only stream-mode client processes for this uid.
-  if pkill -u "$(id -u)" -f '^/opt/beagle-stream-client/usr/bin/beagle-stream stream ' >/dev/null 2>&1; then
-    beagle_log_event "beagle-stream-client.stale-process" "action=terminated"
+  if ! pgrep -u "$(id -u)" -f '^/opt/beagle-stream-client/usr/bin/beagle-stream stream ' >/dev/null 2>&1; then
+    return 0
   fi
+  pkill -TERM -u "$(id -u)" -f '^/opt/beagle-stream-client/usr/bin/beagle-stream stream ' >/dev/null 2>&1 || true
+  for wait_round in {1..10}; do
+    if ! pgrep -u "$(id -u)" -f '^/opt/beagle-stream-client/usr/bin/beagle-stream stream ' >/dev/null 2>&1; then
+      beagle_log_event "beagle-stream-client.stale-process" "action=terminated wait_round=${wait_round}"
+      return 0
+    fi
+    sleep 0.2
+  done
+  pkill -KILL -u "$(id -u)" -f '^/opt/beagle-stream-client/usr/bin/beagle-stream stream ' >/dev/null 2>&1 || true
+  beagle_log_event "beagle-stream-client.stale-process" "action=killed reason=term-timeout"
 }
 
 wait_for_beagle_stream_client_manager_registration() {
@@ -799,7 +810,7 @@ main() {
   stop_stale_beagle_stream_processes
 
   beagle_stream_startup_status_start
-  trap 'beagle_stream_startup_status_stop' EXIT
+  trap 'beagle_stream_startup_status_stop; stop_stale_beagle_stream_processes' EXIT
   beagle_stream_startup_status_step "1" "Runtime initialisieren" "Launcher und Runtime-Konfiguration laden"
 
   have_binary "$bin" || {
@@ -915,6 +926,7 @@ main() {
   fi
 
   if [[ "$hostless_beagle_stream" != "1" ]]; then
+    beagle_stream_startup_status_step "4" "Stream-Ziel pruefen" "VM-Adresse und Stream-API erreichen"
     wait_for_stream_target || {
       beagle_log_event "beagle-stream-client.unreachable" "host=${host} connect_host=${connect_host:-$host} port=${port:-default}"
       echo "Beagle Stream Client host '$host' is unreachable from this network." >&2
@@ -1157,6 +1169,14 @@ main() {
         stream_forced_restart=1
         break
       fi
+      if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi 'Failed to initialize video capture/encoding|Host returned error:.*Error 503'; then
+        beagle_log_event "beagle-stream-client.repair-trigger" "attempt=${stream_attempt}/${max_attempts} pid=${stream_pid} reason=server-capture-unavailable"
+        kill -TERM "$stream_pid" >/dev/null 2>&1 || true
+        sleep 1
+        kill -KILL "$stream_pid" >/dev/null 2>&1 || true
+        stream_forced_restart=1
+        break
+      fi
       sleep 2
     done
     if [[ "$stream_forced_restart" -eq 1 ]]; then
@@ -1167,6 +1187,9 @@ main() {
     else
       stream_exit=$?
     fi
+    # The client may detach from the wrapper or ignore TERM. Ensure a retry can
+    # never leave an older video/audio session running beside the next one.
+    stop_stale_beagle_stream_processes
 
     stream_unpaired_detected=0
     if tail -n +"$((stream_start_line + 1))" "$BEAGLE_STREAM_CLIENT_STREAM_LOG" 2>/dev/null | grep -Eqi 'has not been paired|not been paired|please open moonlight to pair|unauthorized|not paired'; then

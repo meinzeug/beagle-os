@@ -6,6 +6,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "install-beagle-host-services.sh"
 HOST_INSTALL_SCRIPT = ROOT / "scripts" / "install-beagle-host.sh"
+SERVER_INSTALLER = (
+    ROOT
+    / "server-installer"
+    / "live-build"
+    / "config"
+    / "includes.chroot"
+    / "usr"
+    / "local"
+    / "bin"
+    / "beagle-server-installer"
+)
 
 
 def test_legacy_host_runtime_dir_uses_underscore_alias() -> None:
@@ -83,6 +94,11 @@ def test_host_install_initializes_opt_beagle_as_git_checkout_when_source_is_git(
     assert 'git -C "$INSTALL_DIR" reset --hard "$target"' in script
     assert 'git -C "$INSTALL_DIR" config --local beagle.runtime true' in script
     assert "ensure_install_dir_git_checkout" in script.split('python3 "$INSTALL_DIR/scripts/sync-web-ui-version.py"', 1)[0]
+
+
+def test_server_install_paths_include_smart_monitoring() -> None:
+    assert "smartmontools" in HOST_INSTALL_SCRIPT.read_text(encoding="utf-8")
+    assert "smartmontools" in SERVER_INSTALLER.read_text(encoding="utf-8")
 
 
 def test_firewall_baseline_is_enabled_by_default_without_libvirt_dependency() -> None:

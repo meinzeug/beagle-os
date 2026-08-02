@@ -53,6 +53,19 @@ def test_get_history_returns_sample(tmp_path):
     assert history[0].cpu_temp_c == 55.0
 
 
+def test_ingest_repairs_malformed_shard_line(tmp_path):
+    svc = make_svc(tmp_path)
+    svc.ingest(normal_telemetry("dev-001", "2026-04-25T11:00:00Z"))
+    shard = tmp_path / "dev-001.jsonl"
+    with shard.open("a", encoding="utf-8") as handle:
+        handle.write('{"timestamp":"truncated"\n')
+
+    svc.ingest(normal_telemetry("dev-001"))
+
+    assert len(svc.get_history("dev-001", days=1)) == 2
+    assert all(line.endswith("}") for line in shard.read_text(encoding="utf-8").splitlines())
+
+
 def test_no_anomaly_for_healthy_device(tmp_path):
     svc = make_svc(tmp_path)
     for i in range(10):

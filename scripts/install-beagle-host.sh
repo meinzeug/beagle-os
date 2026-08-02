@@ -209,7 +209,7 @@ ensure_dependencies() {
   fi
 
   apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y rsync curl git
+  DEBIAN_FRONTEND=noninteractive apt-get install -y rsync curl git smartmontools
 }
 
 source_repo_url() {
