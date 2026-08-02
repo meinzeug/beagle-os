@@ -68,9 +68,16 @@ normalize_source() {
   pactl set-source-volume "$SOURCE_NAME" 100% >/dev/null 2>&1 || true
 }
 
+source_is_running() {
+  pactl list short sources 2>/dev/null \
+    | awk -v source="$SOURCE_NAME" '$2 == source && $NF == "RUNNING" {found=1} END {exit !found}'
+}
+
 stream_once() {
   python3 - "$BRIDGE_HOST" "$BRIDGE_PORT" "$FIFO_PATH" "$RATE" "$CHANNELS" "$FRAME_MSEC" "$PREBUFFER_MSEC" "$MAX_BUFFER_MSEC" "$STATS_INTERVAL_SEC" <<'PY'
+import errno
 import math
+import os
 import socket
 import sys
 import time
@@ -117,25 +124,34 @@ def emit_stats(prefix: str, fill_frames: int) -> None:
     f"silence={stats['silence_inserted']} dropped={stats['frames_dropped']} reconnects={stats['reconnects']}"
   )
 
-try:
-  sock = socket.create_connection((host, port), timeout=10)
-except OSError:
-  raise SystemExit(75) from None
-
-with sock:
+while True:
   try:
-    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    fifo_fd = os.open(fifo, os.O_WRONLY | os.O_NONBLOCK)
+    break
+  except OSError as exc:
+    if exc.errno != errno.ENXIO:
+      raise
+    time.sleep(0.1)
+
+with os.fdopen(fifo_fd, "wb", buffering=0) as handle:
+  try:
+    sock = socket.create_connection((host, port), timeout=10)
   except OSError:
-    pass
-  sock.settimeout(0.05)
-  net_buffer = bytearray()
-  frame_buffer: deque[bytes] = deque()
-  started = False
-  remote_closed = False
-  next_write_deadline = time.monotonic()
-  next_stats = time.monotonic() + stats_interval_sec
-  with open(fifo, "wb", buffering=0) as handle:
+    raise SystemExit(75) from None
+
+  with sock:
+    try:
+      sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+      sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    except OSError:
+      pass
+    sock.settimeout(0.05)
+    net_buffer = bytearray()
+    frame_buffer: deque[bytes] = deque()
+    started = False
+    remote_closed = False
+    next_write_deadline = time.monotonic()
+    next_stats = time.monotonic() + stats_interval_sec
     while True:
       now = time.monotonic()
 
@@ -173,7 +189,16 @@ with sock:
           stats["underruns"] += 1
           stats["silence_inserted"] += 1
 
-        handle.write(frame)
+        try:
+          written = handle.write(frame)
+        except (BlockingIOError, BrokenPipeError):
+          remote_closed = True
+          frame_buffer.clear()
+          break
+        if written != len(frame):
+          remote_closed = True
+          frame_buffer.clear()
+          break
         stats["frames_tx"] += 1
         next_write_deadline += frame_sec
         now = time.monotonic()
@@ -201,6 +226,10 @@ log "ready host=$BRIDGE_HOST port=$BRIDGE_PORT source=$SOURCE_NAME fifo=$FIFO_PA
 
 failures=0
 while true; do
+  if ! source_is_running; then
+    sleep "$RECONNECT_DELAY"
+    continue
+  fi
   if stream_once; then
     failures=0
     log "stream ended; reconnecting"

@@ -232,6 +232,11 @@ LastHope/Diamond gates moving forward.
 - VM100 exposes `beagle_tc_microphone` as its default PipeWire source. An active
   recording smoke test captured 983040 bytes with non-zero input signal and
   transferred 496 frames with zero drops and zero reconnects.
+- The VM microphone receiver now opens its TCP stream only while PipeWire marks
+  `beagle_tc_microphone` as `RUNNING`. A forced idle/active transition removed
+  the idle connection and `parec` process, then reconnected automatically with
+  zero drops. This prevents unconsumed PCM from growing to PulseAudio's 96 MB
+  allocation limit during long idle periods.
 - A malformed telemetry JSONL record caused device sync HTTP 500 responses.
   Telemetry reads now skip malformed records, ingestion is serialized, and
   pruning replaces shards atomically. The live shard was repaired and repeated
