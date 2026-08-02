@@ -53,3 +53,16 @@ def test_tc_mic_bridge_rate_limits_unavailable_stream_logs() -> None:
     assert 'raise SystemExit(75) from None' in script
     assert 'failures=$((failures + 1))' in script
     assert '$((failures % RETRY_LOG_EVERY))' in script
+
+
+def test_tc_mic_bridge_connects_only_while_source_is_consumed() -> None:
+    script = (ROOT / "scripts" / "lib" / "beagle-tc-mic-bridge").read_text(encoding="utf-8")
+
+    fifo_open = 'os.open(fifo, os.O_WRONLY | os.O_NONBLOCK)'
+    assert fifo_open in script
+    assert script.index(fifo_open) < script.index("socket.create_connection")
+    assert "except (BlockingIOError, BrokenPipeError):" in script
+    assert "frame_buffer.clear()" in script
+    assert "source_is_running()" in script
+    assert '$NF == "RUNNING"' in script
+    assert "if ! source_is_running; then" in script

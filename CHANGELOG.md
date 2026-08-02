@@ -4,6 +4,7 @@
 
 - Fixed thin-client stream retries so detached BeagleStream clients are terminated and reaped before relaunch, preventing duplicate video/audio sessions after recovery.
 - Added VM-scoped USB tunnel configuration refresh through device sync, including legacy installer-token support, corrected microphone reverse-forward cleanup, and rate-limited VM microphone reconnect logs.
+- Prevented idle microphone consumers from backpressuring the thinclient audio bridge until `parec` exhausts its internal buffer by connecting only while the VM PipeWire source is actively consumed.
 - Hardened fleet telemetry JSONL ingestion against malformed records and concurrent pruning, and added SMART monitoring packages to host installer paths.
 - Fixed thin-client USB preset propagation so `PVE_THIN_CLIENT_PRESET_BEAGLE_MANAGER_TOKEN` survives installer generation and local preset installs instead of being dropped, preventing fresh USB recreates from losing required manager auth context.
 - Added stable/rolling Beagle update channels: server repo auto-update can now follow stable release tags or rolling GitHub main, and the Update Center exposes the channel switch beside installed/remote versions.
