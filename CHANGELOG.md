@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Included VM-scoped USB/microphone tunnel settings and protected SSH provisioning data in installer presets for Linux and Windows Live USB creation; restore missing keys at boot and retry incomplete tunnel configuration instead of silently exiting.
+
 - Fixed thin-client stream retries so detached BeagleStream clients are terminated and reaped before relaunch, preventing duplicate video/audio sessions after recovery.
 - Added VM-scoped USB tunnel configuration refresh through device sync, including legacy installer-token support, corrected microphone reverse-forward cleanup, and rate-limited VM microphone reconnect logs.
 - Prevented idle microphone consumers from backpressuring the thinclient audio bridge until `parec` exhausts its internal buffer by connecting only while the VM PipeWire source is actively consumed.

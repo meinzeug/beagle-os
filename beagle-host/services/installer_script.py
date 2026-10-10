@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import base64
 import shlex
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from thin_client_preset import build_common_preset, build_runtime_extension_fields
 
@@ -34,6 +35,9 @@ class InstallerScriptService:
         raw_windows_installer_template_file: Path,
         safe_hostname: Callable[[str, int], str],
         beagle_stream_server_guest_user: Callable[[Any, dict[str, Any]], str],
+        usb_tunnel_user: str = "beagle-tunnel",
+        usb_tunnel_attach_host: str = "192.168.123.1",
+        usb_tunnel_known_host_line: Callable[[], str] = lambda: "",
     ) -> None:
         self._build_profile = build_profile
         self._ensure_vm_secret = ensure_vm_secret
@@ -57,6 +61,9 @@ class InstallerScriptService:
         self._raw_windows_installer_template_file = raw_windows_installer_template_file
         self._safe_hostname = safe_hostname
         self._beagle_stream_server_guest_user = beagle_stream_server_guest_user
+        self._usb_tunnel_user = usb_tunnel_user
+        self._usb_tunnel_attach_host = usb_tunnel_attach_host
+        self._usb_tunnel_known_host_line = usb_tunnel_known_host_line
 
     def _read_shell_template(self, preferred_template_file: Path) -> str:
         for candidate in (Path(preferred_template_file), self._raw_shell_installer_template_file):
@@ -163,7 +170,7 @@ class InstallerScriptService:
             beagle_stream_server_api_url=beagle_stream_server_api_url,
             beagle_stream_server_username=beagle_stream_server_username,
             beagle_stream_server_password=beagle_stream_server_password,
-            extra_fields=build_runtime_extension_fields(
+            extra_fields={**build_runtime_extension_fields(
                 network_static_address=meta.get("thinclient-network-static-address", ""),
                 network_static_prefix=meta.get("thinclient-network-static-prefix", "24"),
                 network_gateway=meta.get("thinclient-network-gateway", ""),
@@ -211,6 +218,20 @@ class InstallerScriptService:
                 beagle_stream_client_host=beagle_stream_client_host,
                 beagle_stream_server_api_url=beagle_stream_server_api_url,
             ),
+                "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_ENABLED": "1",
+                "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_HOST": self._public_server_name,
+                "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_USER": self._usb_tunnel_user,
+                "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_PORT": str(vm_secret.get("usb_tunnel_port") or ""),
+                "PVE_THIN_CLIENT_PRESET_BEAGLE_AUDIO_INPUT_PORT": str(vm_secret.get("usb_tunnel_audio_input_port") or ""),
+                "PVE_THIN_CLIENT_PRESET_BEAGLE_CAMERA_STREAM_PORT": str(vm_secret.get("usb_tunnel_camera_port") or ""),
+                "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_ATTACH_HOST": self._usb_tunnel_attach_host,
+                "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_PRIVATE_KEY_B64": base64.b64encode(
+                    str(vm_secret.get("usb_tunnel_private_key") or "").encode("utf-8")
+                ).decode("ascii"),
+                "PVE_THIN_CLIENT_PRESET_BEAGLE_USB_TUNNEL_KNOWN_HOST_B64": base64.b64encode(
+                    self._usb_tunnel_known_host_line().encode("utf-8")
+                ).decode("ascii"),
+            },
         )
 
     def _build_preset_for_vm(self, vm: Any) -> tuple[dict[str, str], str, str]:
