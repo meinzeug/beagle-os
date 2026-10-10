@@ -19,7 +19,7 @@
     "ip-address": "^10.2.0"
   },
   "devDependencies": {
-    "electron": "^42.0.1",
+    "electron": "^42.10.0",
     "electron-builder": "^26.0.12"
   }
 }
