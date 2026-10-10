@@ -182,8 +182,14 @@ run_usb_tunnel_daemon() {
   local -a reverse_forwards=()
 
   require_enabled
-  [[ -n "$(usb_host)" && -n "$(usb_port)" && -n "$(usb_user)" ]] || exit 0
-  [[ -r "$(usb_key_file)" && -r "$(usb_known_hosts_file)" ]] || exit 0
+  if [[ -z "$(usb_host)" || -z "$(usb_port)" || -z "$(usb_user)" ]]; then
+    echo "beagle-usb-tunnel: incomplete tunnel configuration; waiting for enrollment/heartbeat repair" >&2
+    return 75
+  fi
+  if [[ ! -s "$(usb_key_file)" || ! -s "$(usb_known_hosts_file)" ]]; then
+    echo "beagle-usb-tunnel: missing tunnel key or trusted host key; waiting for enrollment/heartbeat repair" >&2
+    return 75
+  fi
   tunnel_user="$(usb_user)"
   tunnel_host="$(usb_host)"
   tunnel_attach_host="$(usb_attach_host)"

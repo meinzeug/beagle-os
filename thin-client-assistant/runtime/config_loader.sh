@@ -63,5 +63,16 @@ load_runtime_config() {
   # Load runtime overrides for beagle-stream-client (e.g., direct host/port configuration)
   source_runtime_env_file "/etc/beagle/beagle-stream-client.env" "beagle-stream-client-override" || true
 
+  if [[ -n "${PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PRIVATE_KEY_B64:-}" || -n "${PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_KNOWN_HOST_B64:-}" ]]; then
+    local tunnel_key_dir="${PVE_THIN_CLIENT_USB_TUNNEL_KEY_DIR:-/run/beagle-os/usb-tunnel}"
+    if [[ -s "$CONFIG_DIR/usb-tunnel.key" && -s "$CONFIG_DIR/usb-tunnel-known_hosts" ]]; then
+      tunnel_key_dir="$CONFIG_DIR"
+    else
+      python3 "${RUNTIME_SCRIPT_DIR:-/usr/local/lib/pve-thin-client/runtime}/materialize_usb_tunnel_keys.py" "$CONFIG_DIR" "$tunnel_key_dir" || return 1
+    fi
+    PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_PRIVATE_KEY_FILE="$tunnel_key_dir/usb-tunnel.key"
+    PVE_THIN_CLIENT_BEAGLE_USB_TUNNEL_KNOWN_HOSTS_FILE="$tunnel_key_dir/usb-tunnel-known_hosts"
+  fi
+
   apply_runtime_mode_overrides
 }

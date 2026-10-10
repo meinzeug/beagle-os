@@ -13,6 +13,8 @@ Produktivbetrieb. Pflicht-Lektuere fuer Operatoren vor Pilotbetrieb (R4).
 | [pilot.md](pilot.md) | Anleitung fuer Pilotkunden (Onboarding bis Tagesbetrieb) | Skelett |
 | [beaglestream-production-baseline.md](beaglestream-production-baseline.md) | Produktionsbaseline und Stream-Selbstheilung | Validiert |
 
+| [thinclient-microphone-recovery.md](thinclient-microphone-recovery.md) | USB-Mikrofon, Provisionierung und verifizierte SSH-Reparatur | Validiert |
+
 Status-Legende: **Skelett** = Struktur vorhanden, Befehle/Output fehlen ·
 **Entwurf** = erste Version mit echten Befehlen, ungetestet · **Validiert** =
 mindestens 1x auf echter Hardware ausgefuehrt + Befund eingetragen.

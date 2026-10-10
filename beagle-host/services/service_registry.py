@@ -5620,6 +5620,9 @@ def installer_script_service() -> InstallerScriptService:
             raw_windows_installer_template_file=RAW_WINDOWS_INSTALLER_TEMPLATE_FILE,
             safe_hostname=metadata_support_service().safe_hostname,
             beagle_stream_server_guest_user=beagle_stream_server_guest_user,
+            usb_tunnel_user=USB_TUNNEL_SSH_USER,
+            usb_tunnel_attach_host=USB_TUNNEL_ATTACH_HOST,
+            usb_tunnel_known_host_line=usb_tunnel_known_host_line,
         )
     return INSTALLER_SCRIPT_SERVICE
 
