@@ -41,12 +41,13 @@ attach_all() {
 
   # usbip list output lines with busids look like:
   #        1-2.1.2: SC420 USB Microphone : ...
+  # Userspace servers may instead use IDs such as 1-55-3.
   # Note: --tcp-port is a global option, must come before the subcommand.
   remote_out="$(usbip --tcp-port "$USB_ATTACH_PORT" list -r "$USB_ATTACH_HOST" 2>/dev/null)" || return 0
 
   while IFS= read -r line; do
     # Match lines starting with whitespace + busid + colon
-    [[ "$line" =~ ^[[:space:]]+([0-9]+-[0-9]+(\.[0-9]+)*): ]] || continue
+    [[ "$line" =~ ^[[:space:]]+([0-9]+-[0-9]+([.-][0-9]+)*): ]] || continue
     busid="${BASH_REMATCH[1]}"
     already_attached "$busid" && continue
     if usbip --tcp-port "$USB_ATTACH_PORT" attach -r "$USB_ATTACH_HOST" -b "$busid" 2>/dev/null; then
