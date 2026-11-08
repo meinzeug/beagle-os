@@ -8,6 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME = ROOT / 'thin-client-assistant/runtime/beagle_usb_runtime_usbipd.sh'
 ATTACH = ROOT / 'scripts/lib/beagle-usb-attach'
+ACTIONS = ROOT / 'thin-client-assistant/runtime/beagle_usb_runtime_actions.sh'
 
 
 class UsbStabilityTests(unittest.TestCase):
@@ -27,6 +28,71 @@ sync_bound_devices
 '''
         result = subprocess.run(['bash', '-c', script, 'test', str(RUNTIME)], capture_output=True, text=True, check=True)
         self.assertNotIn('forbidden', result.stdout)
+
+    def test_manual_bind_is_idempotent_and_preserves_other_devices(self):
+        script = r'''BEAGLE_USB_RUNTIME_USBIPD_SH="$1"
+source "$2"
+require_enabled() { :; }
+ensure_usbipd() { :; }
+_is_eligible_for_autobind() { return 0; }
+is_bound_to_usbip_host() { return 0; }
+autobind_hotplug_device() { echo unexpected-rebind; return 1; }
+restart_usbipd() { echo unexpected-restart; return 1; }
+systemctl_bin() { echo /bin/true; }
+bound_add() { :; }
+usb_list_json() { echo ready; }
+bind_usb_device 1-2.1
+'''
+        result = subprocess.run(['bash', '-c', script, 'test', str(RUNTIME), str(ACTIONS)], capture_output=True, text=True, check=True)
+        self.assertEqual(result.stdout.strip(), 'ready')
+
+    def test_manual_bind_failure_is_not_recorded_as_success(self):
+        script = r'''BEAGLE_USB_RUNTIME_USBIPD_SH="$1"
+source "$2"
+require_enabled() { :; }
+ensure_usbipd() { :; }
+_is_eligible_for_autobind() { return 0; }
+is_bound_to_usbip_host() { return 1; }
+autobind_hotplug_device() { return 0; }
+systemctl_bin() { echo /bin/true; }
+bound_add() { echo unexpected-saved; }
+usb_list_json() { :; }
+bind_usb_device 1-2.1
+'''
+        result = subprocess.run(['bash', '-c', script, 'test', str(RUNTIME), str(ACTIONS)], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('unexpected-saved', result.stdout)
+        self.assertIn('unable to bind', result.stderr)
+
+    def test_successful_unbind_does_not_restart_usbip(self):
+        script = r'''BEAGLE_USB_RUNTIME_USBIPD_SH="$1"
+source "$2"
+require_enabled() { :; }
+is_bound_to_usbip_host() { return 0; }
+usbip_bin() { echo /bin/true; }
+bound_remove() { echo removed; }
+restart_usbipd() { echo unexpected-restart; }
+usb_list_json() { :; }
+unbind_usb_device 1-2.1
+'''
+        result = subprocess.run(['bash', '-c', script, 'test', str(RUNTIME), str(ACTIONS)], capture_output=True, text=True, check=True)
+        self.assertEqual(result.stdout.strip(), 'removed')
+
+    def test_failed_unbind_preserves_state_and_other_devices(self):
+        script = r'''BEAGLE_USB_RUNTIME_USBIPD_SH="$1"
+source "$2"
+require_enabled() { :; }
+is_bound_to_usbip_host() { return 0; }
+usbip_bin() { echo /bin/false; }
+bound_remove() { echo unexpected-removed; }
+restart_usbipd() { echo unexpected-restart; }
+usb_list_json() { :; }
+unbind_usb_device 1-2.1
+'''
+        result = subprocess.run(['bash', '-c', script, 'test', str(RUNTIME), str(ACTIONS)], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('unexpected', result.stdout)
+        self.assertIn('unable to unbind', result.stderr)
 
     def test_guest_reads_configured_endpoint(self):
         with tempfile.TemporaryDirectory() as tmp:

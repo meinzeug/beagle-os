@@ -138,35 +138,46 @@ usb_list_json() {
 }
 
 bind_usb_device() {
-  local busid="$1"
-  local usbip_cmd systemctl_cmd
+  local busid="$1" systemctl_cmd
 
   require_enabled
-  usbip_cmd="$(usbip_bin)"
   systemctl_cmd="$(systemctl_bin)"
   ensure_usbipd
-  _is_eligible_for_autobind "$busid" || {
-    echo "refusing to bind local input/reserved USB device: $busid" >&2
+  # Bound devices can lose their host-side interface entries while exported,
+  # so only evaluate the local-device policy before the first bind.
+  if ! is_bound_to_usbip_host "$busid"; then
+    _is_eligible_for_autobind "$busid" || {
+      echo "refusing to bind local input/reserved USB device: $busid" >&2
+      usb_list_json
+      return 1
+    }
+    autobind_hotplug_device "$busid" restore || true
+  fi
+  # A bind is idempotent. Never disconnect an active guest device or restart
+  # usbipd merely to add another device.
+  if ! is_bound_to_usbip_host "$busid"; then
+    echo "beagle-usb: unable to bind $busid" >&2
     usb_list_json
     return 1
-  }
-  "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1 || true
-  "$usbip_cmd" bind -b "$busid" >/dev/null 2>&1 || true
+  fi
   bound_add "$busid"
-  restart_usbipd
-  "$systemctl_cmd" restart --no-block "$(usb_tunnel_service_name)" >/dev/null 2>&1 || true
+  "$systemctl_cmd" start --no-block "$(usb_tunnel_service_name)" >/dev/null 2>&1 || true
   usb_list_json
 }
 
 unbind_usb_device() {
-  local busid="$1"
-  local usbip_cmd
+  local busid="$1" usbip_cmd
 
   require_enabled
   usbip_cmd="$(usbip_bin)"
-  "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1 || true
+  if is_bound_to_usbip_host "$busid"; then
+    if ! "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1; then
+      echo "beagle-usb: unable to unbind $busid" >&2
+      usb_list_json
+      return 1
+    fi
+  fi
   bound_remove "$busid"
-  restart_usbipd
   usb_list_json
 }
 
