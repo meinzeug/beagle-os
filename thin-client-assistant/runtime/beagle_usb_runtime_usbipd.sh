@@ -73,7 +73,11 @@ ensure_usbipd() {
   local modprobe_cmd
 
   require_enabled
-  modprobe_cmd="$(modprobe_bin)"
+  if declare -F modprobe_bin >/dev/null; then
+    modprobe_cmd="$(modprobe_bin)"
+  else
+    modprobe_cmd="$(command -v modprobe || printf /usr/sbin/modprobe)"
+  fi
   "$modprobe_cmd" usbip-host >/dev/null 2>&1 || true
   if ! have_usbipd; then
     restart_usbipd
@@ -155,82 +159,69 @@ is_bound_to_usbip_host() {
   [[ -e "/sys/bus/usb/drivers/usbip-host/$busid" ]]
 }
 
-# Bind all USB devices that are eligible for VM forwarding (auto-bind mode).
-# Skips devices that are already exported by usbip-host.
-auto_bind_eligible_devices() {
-  local usbip_cmd busid devpath
-
-  [[ "$(usb_auto_bind)" == "1" ]] || return 0
-  usbip_cmd="$(usbip_bin)"
+# Serialize hotplug and startup reconciliation: binding itself can cause more
+# udev events. Never disconnect a device already in use by a guest.
+autobind_hotplug_device() (
+  local busid="$1" usbip_cmd attempt_file now window count
+  [[ "$busid" =~ ^[0-9]+-[0-9]+(\.[0-9]+)*$ ]] || return 1
+  [[ "$(usb_auto_bind)" == "1" || "${2:-}" == "restore" ]] || return 0
   require_enabled
-  ensure_usbipd
-
-  for devpath in /sys/bus/usb/devices/*/; do
-    busid="$(basename "$devpath")"
-    # Only top-level devices: digits, dash, digits, optional dot-digits (1-2.1.3)
-    [[ "$busid" =~ ^[0-9]+-[0-9]+(\.[0-9]+)*$ ]] || continue
-    _is_eligible_for_autobind "$busid" || continue
-    # Skip if already bound to usbip-host, but keep status state accurate.
-    if is_bound_to_usbip_host "$busid"; then
-      bound_add "$busid" >/dev/null 2>&1 || true
-      continue
-    fi
-    "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1 || true
-    if "$usbip_cmd" bind -b "$busid" >/dev/null 2>&1; then
-      bound_add "$busid" >/dev/null 2>&1 || true
-      echo "beagle-usb: auto-bound $busid" >&2
-    fi
-  done
-}
-
-# Bind a single newly-plugged device (called from udev hotplug helper).
-autobind_hotplug_device() {
-  local busid="$1"
-  local usbip_cmd
-
-  [[ "$(usb_auto_bind)" == "1" ]] || return 0
-  require_enabled
+  mkdir -p /run/lock
+  exec 9>/run/lock/beagle-usb-autobind.lock
+  flock -x 9
+  if is_bound_to_usbip_host "$busid"; then
+    bound_add "$busid" >/dev/null 2>&1 || true
+    return 0
+  fi
   _is_eligible_for_autobind "$busid" || return 0
-  is_bound_to_usbip_host "$busid" && return 0
+  # A device that resets itself after binding can emit endless add events.
+  # Limit attempts in a rolling minute; a later physical replug can retry.
+  mkdir -p /run/beagle-usb
+  attempt_file="/run/beagle-usb/attempt-${busid}"
+  now=$(date +%s)
+  window=0; count=0
+  if [[ -r "$attempt_file" ]]; then
+    read -r window count < "$attempt_file" || true
+  fi
+  [[ "$window" =~ ^[0-9]+$ && "$count" =~ ^[0-9]+$ ]] || { window=0; count=0; }
+  if (( now - window >= 60 || now < window )); then window=$now; count=0; fi
+  if (( count >= 3 )); then
+    echo "beagle-usb: repeated reset for $busid; waiting for a later replug" >&2
+    return 1
+  fi
+  printf '%s %s\n' "$window" "$((count + 1))" > "$attempt_file"
   usbip_cmd="$(usbip_bin)"
   ensure_usbipd
-  "$usbip_cmd" unbind -b "$busid" >/dev/null 2>&1 || true
   if "$usbip_cmd" bind -b "$busid" >/dev/null 2>&1; then
     bound_add "$busid" >/dev/null 2>&1 || true
     echo "beagle-usb: hotplug-bound $busid" >&2
   fi
+)
+
+auto_bind_eligible_devices() {
+  local busid devpath
+  [[ "$(usb_auto_bind)" == "1" ]] || return 0
+  for devpath in /sys/bus/usb/devices/*/; do
+    busid="$(basename "$devpath")"
+    [[ "$busid" =~ ^[0-9]+-[0-9]+(\.[0-9]+)*$ ]] || continue
+    autobind_hotplug_device "$busid" || true
+  done
 }
 
+# The list of available exports does not include devices already attached by a
+# guest. Never interpret an empty list as a reason to restart or rebind them.
 sync_bound_devices() {
-  local item usbip_cmd sleep_cmd
-
-  usbip_cmd="$(usbip_bin)"
-  sleep_cmd="$(sleep_bin)"
+  local item
   ensure_usbipd
   for item in $(state_bound_busids); do
     [[ -n "$item" ]] || continue
     if is_bound_to_usbip_host "$item"; then
-      "$usbip_cmd" unbind -b "$item" >/dev/null 2>&1 || true
-      "$sleep_cmd" 1
+      continue
     fi
     if ! _is_eligible_for_autobind "$item"; then
-      "$usbip_cmd" unbind -b "$item" >/dev/null 2>&1 || true
       bound_remove "$item" >/dev/null 2>&1 || true
       continue
     fi
-    "$usbip_cmd" bind -b "$item" >/dev/null 2>&1 || true
+    autobind_hotplug_device "$item" restore || true
   done
-  "$sleep_cmd" 1
-  restart_usbipd
-  if [[ -n "$(state_bound_busids)" ]] && ! have_exportable_devices; then
-    for item in $(state_bound_busids); do
-      [[ -n "$item" ]] || continue
-      _is_eligible_for_autobind "$item" || continue
-      "$usbip_cmd" unbind -b "$item" >/dev/null 2>&1 || true
-      "$sleep_cmd" 1
-      "$usbip_cmd" bind -b "$item" >/dev/null 2>&1 || true
-    done
-    "$sleep_cmd" 1
-    restart_usbipd
-  fi
 }

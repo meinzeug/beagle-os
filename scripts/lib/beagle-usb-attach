@@ -13,12 +13,11 @@
 
 set -uo pipefail
 
+ENV_FILE="${BEAGLE_USB_ATTACH_ENV_FILE:-/etc/beagle/usb-attach.env}"
+[[ -r "$ENV_FILE" ]] && source "$ENV_FILE"
 USB_ATTACH_HOST="${BEAGLE_USB_ATTACH_HOST:-192.168.123.1}"
 USB_ATTACH_PORT="${BEAGLE_USB_ATTACH_PORT:-43100}"
 POLL_INTERVAL="${BEAGLE_USB_ATTACH_POLL:-5}"
-
-ENV_FILE="/etc/beagle/usb-attach.env"
-[[ -r "$ENV_FILE" ]] && source "$ENV_FILE"
 
 # ── kernel module ─────────────────────────────────────────────────────────────
 load_vhci() {

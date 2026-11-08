@@ -500,7 +500,8 @@ def test_usbip_autobind_keeps_local_hid_devices_off_usbip_host() -> None:
     assert 'if is_bound_to_usbip_host "$item"; then' in usbipd_text
     assert 'if ! _is_eligible_for_autobind "$item"; then' in usbipd_text
     assert 'bound_remove "$item"' in usbipd_text
-    assert 'autobind_hotplug_device "$BUSID" && is_bound_to_usbip_host "$BUSID"' in hotplug_text
+    assert 'autobind_hotplug_device "$BUSID"' in hotplug_text
+    assert 'systemctl restart beagle-usb-tunnel.service' not in hotplug_text
     assert '_is_eligible_for_autobind "$busid" || {' in actions_text
     assert 'refusing to bind local input/reserved USB device' in actions_text
 

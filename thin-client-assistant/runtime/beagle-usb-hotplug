@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # beagle-usb-hotplug — called by udev when a USB device is added.
-# Binds the device for USB/IP export and triggers a tunnel restart so the VM
-# receives it automatically.
+# Binds eligible devices for USB/IP export without interrupting active guests.
 #
 # Usage: beagle-usb-hotplug BUSID
 #
@@ -30,10 +29,5 @@ source "$RUNTIME_DIR/beagle_usb_runtime_state.sh"
 # shellcheck disable=SC1091
 source "$RUNTIME_DIR/beagle_usb_runtime_usbipd.sh"
 
-# Bind (if eligible) and persist only if usbip-host actually owns it.
-if autobind_hotplug_device "$BUSID" && is_bound_to_usbip_host "$BUSID"; then
-  bound_add "$BUSID" >/dev/null 2>&1 || true
-fi
-
-# Restart tunnel service in background so the new device is exported immediately
-systemctl restart beagle-usb-tunnel.service >/dev/null 2>&1 &
+# The persistent USB/IP tunnel needs no restart on device changes.
+autobind_hotplug_device "$BUSID" || true
