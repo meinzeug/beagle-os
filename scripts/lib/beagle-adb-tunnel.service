@@ -1,0 +1,12 @@
+[Unit]
+Description=Beagle Android Debug Bridge SSH tunnel
+After=network-online.target
+
+[Service]
+EnvironmentFile=%h/.config/beagle/adb-tunnel.env
+ExecStart=/usr/bin/ssh -N -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${BEAGLE_ADB_KNOWN_HOSTS} -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ConnectTimeout=5 -i ${BEAGLE_ADB_SSH_KEY} -L 127.0.0.1:5038:127.0.0.1:5037 ${BEAGLE_ADB_SSH_TARGET}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

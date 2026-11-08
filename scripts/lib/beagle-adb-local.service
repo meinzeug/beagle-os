@@ -1,0 +1,13 @@
+[Unit]
+Description=Beagle local Android Debug Bridge
+After=local-fs.target
+
+[Service]
+User=thinclient
+Environment=HOME=/home/thinclient
+ExecStart=/usr/bin/adb -L tcp:5037 server nodaemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

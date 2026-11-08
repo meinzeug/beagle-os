@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Connect to the local end of the SSH tunnel, not to a network-exposed ADB.
+set -euo pipefail
+exec adb -H 127.0.0.1 -P 5038 "$@"
