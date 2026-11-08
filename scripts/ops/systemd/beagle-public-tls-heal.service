@@ -1,0 +1,9 @@
+[Unit]
+Description=Repair the Beagle public ACME route and renew its certificate
+After=network-online.target apache2.service psa.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beagle-public-tls-heal
+TimeoutStartSec=5min

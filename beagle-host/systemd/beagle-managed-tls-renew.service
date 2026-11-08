@@ -1,0 +1,11 @@
+[Unit]
+Description=Renew Beagle manager TLS certificates in its private Certbot directory
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=beagle-manager
+Group=beagle-manager
+ExecStart=/usr/bin/certbot renew --non-interactive --quiet --config-dir /var/lib/beagle/beagle-manager/letsencrypt/config --work-dir /var/lib/beagle/beagle-manager/letsencrypt/work --logs-dir /var/lib/beagle/beagle-manager/letsencrypt/logs --deploy-hook /usr/local/sbin/beagle-managed-tls-deploy
+TimeoutStartSec=10min

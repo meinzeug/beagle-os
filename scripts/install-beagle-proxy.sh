@@ -843,21 +843,67 @@ cat > /etc/letsencrypt/renewal-hooks/deploy/beagle-tls.sh <<HOOK
 # Managed by install-beagle-proxy.sh — do not edit by hand.
 set -euo pipefail
 DOMAIN="${SERVER_NAME}"
-LE_LIVE="/etc/letsencrypt/live/\${DOMAIN}"
-BEAGLE_TLS_DIR="${CERT_FILE%/*}"
-if [[ ! -f "\${LE_LIVE}/fullchain.pem" ]]; then
-  echo "certbot deploy hook: no LE cert found at \${LE_LIVE}, skipping" >&2
+# Certbot sets RENEWED_LINEAGE for both system and manager-private stores.
+LE_LIVE="\${RENEWED_LINEAGE:-/etc/letsencrypt/live/\${DOMAIN}}"
+if [[ -n "\${RENEWED_DOMAINS:-}" && " \${RENEWED_DOMAINS} " != *" \${DOMAIN} "* ]]; then
   exit 0
 fi
-cp "\${LE_LIVE}/fullchain.pem" "${CERT_FILE}"
-cp "\${LE_LIVE}/privkey.pem" "${KEY_FILE}"
-chown ${BEAGLE_CONTROL_USER}:${BEAGLE_CONTROL_USER} "${CERT_FILE}" "${KEY_FILE}"
-chmod 644 "${CERT_FILE}"
-chmod 600 "${KEY_FILE}"
-BEAGLE_ENABLE_HSTS=auto /opt/beagle/scripts/install-beagle-proxy.sh
-systemctl reload nginx
-echo "[\$(date -Iseconds)] LE cert deployed to ${CERT_FILE}" >> /var/log/beagle-tls-deploy.log
+if [[ ! -f "\${LE_LIVE}/fullchain.pem" || ! -f "\${LE_LIVE}/privkey.pem" ]]; then
+  echo "certbot deploy hook: missing renewed certificate at \${LE_LIVE}" >&2
+  exit 1
+fi
+cert_tmp="\$(mktemp "${CERT_FILE}.new.XXXXXX")"
+key_tmp="\$(mktemp "${KEY_FILE}.new.XXXXXX")"
+cert_backup="\$(mktemp "${CERT_FILE}.backup.XXXXXX")"
+key_backup="\$(mktemp "${KEY_FILE}.backup.XXXXXX")"
+trap 'rm -f "\$cert_tmp" "\$key_tmp" "\$cert_backup" "\$key_backup"' EXIT
+install -m 0644 "\${LE_LIVE}/fullchain.pem" "\$cert_tmp"
+install -m 0600 "\${LE_LIVE}/privkey.pem" "\$key_tmp"
+if [[ "\$(id -u)" == 0 ]]; then
+  chown ${BEAGLE_CONTROL_USER}:${BEAGLE_CONTROL_USER} "\$cert_tmp" "\$key_tmp"
+fi
+cp -p "${CERT_FILE}" "\$cert_backup"
+cp -p "${KEY_FILE}" "\$key_backup"
+if ! mv -f "\$cert_tmp" "${CERT_FILE}" || ! mv -f "\$key_tmp" "${KEY_FILE}"; then
+  mv -f "\$cert_backup" "${CERT_FILE}"
+  mv -f "\$key_backup" "${KEY_FILE}"
+  echo "certbot deploy hook: replacement failed; previous files restored" >&2
+  exit 1
+fi
+if [[ "\$(id -u)" == 0 ]]; then
+  test_cmd=(/usr/sbin/nginx -t)
+  reload_cmd=(/bin/systemctl reload nginx)
+else
+  test_cmd=(sudo -n /usr/sbin/nginx -t)
+  reload_cmd=(sudo -n /bin/systemctl reload nginx)
+fi
+if ! "\${test_cmd[@]}" || ! "\${reload_cmd[@]}"; then
+  mv -f "\$cert_backup" "${CERT_FILE}"
+  mv -f "\$key_backup" "${KEY_FILE}"
+  echo "certbot deploy hook: nginx test or reload failed; previous files restored" >&2
+  exit 1
+fi
+# Root-run system Certbot may also refresh the HSTS policy; the unprivileged
+# manager renewal preserves the existing proxy configuration.
+if [[ "\$(id -u)" == 0 ]]; then
+  BEAGLE_ENABLE_HSTS=auto /opt/beagle/scripts/install-beagle-proxy.sh
+fi
+echo "LE certificate deployed to ${CERT_FILE}"
+
 HOOK
 chmod +x /etc/letsencrypt/renewal-hooks/deploy/beagle-tls.sh
+install -m 0755 /etc/letsencrypt/renewal-hooks/deploy/beagle-tls.sh /usr/local/sbin/beagle-managed-tls-deploy
+
+# The manager issues certificates in a private Certbot config directory,
+# which the distribution's default certbot.timer does not scan.
+install -d -m 0750 -o "$BEAGLE_CONTROL_USER" -g "$BEAGLE_CONTROL_USER" \
+  /var/lib/beagle/beagle-manager/letsencrypt/config \
+  /var/lib/beagle/beagle-manager/letsencrypt/work \
+  /var/lib/beagle/beagle-manager/letsencrypt/logs
+install -m 0644 "$ROOT_DIR/beagle-host/systemd/beagle-managed-tls-renew.service" /etc/systemd/system/beagle-managed-tls-renew.service
+sed -i -e "s/^User=beagle-manager$/User=$BEAGLE_CONTROL_USER/" -e "s/^Group=beagle-manager$/Group=$BEAGLE_CONTROL_USER/" /etc/systemd/system/beagle-managed-tls-renew.service
+install -m 0644 "$ROOT_DIR/beagle-host/systemd/beagle-managed-tls-renew.timer" /etc/systemd/system/beagle-managed-tls-renew.timer
+systemctl daemon-reload
+systemctl enable --now beagle-managed-tls-renew.timer
 
 log "Configured host-local HTTPS downloads on ${DOWNLOADS_BASE_URL%/}/"

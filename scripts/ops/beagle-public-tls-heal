@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""Keep beagle-os.com's Plesk ACME route and certificate working."""
+from __future__ import annotations
+
+import fcntl
+import json
+import os
+import pwd
+from pathlib import Path
+import secrets
+import socket
+import subprocess
+import tempfile
+
+DOMAIN = "beagle-os.com"
+VHOST = Path("/var/www/vhosts/system/beagle-os.com/conf/vhost_ssl.conf")
+CHALLENGE = Path("/var/www/vhosts/beagle-os.com/httpdocs/.well-known/acme-challenge")
+BEGIN = "# BEGIN BEAGLE ACME SELF-HEAL\n"
+END = "# END BEAGLE ACME SELF-HEAL\n"
+LEGACY = (
+    "ProxyPass /.well-known/acme-challenge/ !\n"
+    "Alias /.well-known/acme-challenge/ /var/www/vhosts/beagle-os.com/httpdocs/.well-known/acme-challenge/\n"
+    "<Directory /var/www/vhosts/beagle-os.com/httpdocs/.well-known/acme-challenge/>\n"
+    "    Require all granted\n"
+    "</Directory>\n"
+)
+BLOCK = BEGIN + LEGACY + END
+
+
+def run(args: list[str], *, data: bytes | None = None, timeout: int = 30) -> subprocess.CompletedProcess:
+    return subprocess.run(args, input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, check=True)
+
+
+def replace_preserving_metadata(path: Path, content: str) -> None:
+    stat = path.stat()
+    fd, name = tempfile.mkstemp(prefix=".beagle-acme-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+            os.fchmod(handle.fileno(), stat.st_mode & 0o7777)
+            os.fchown(handle.fileno(), stat.st_uid, stat.st_gid)
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def ensure_route(path: Path = VHOST) -> bool:
+    old = path.read_text(encoding="utf-8")
+    if old.startswith(BLOCK) and old.count(BEGIN) == 1 and old.count(END) == 1:
+        return False
+    if BEGIN in old or END in old:
+        if old.count(BEGIN) != 1 or old.count(END) != 1 or old.index(BEGIN) > old.index(END):
+            raise RuntimeError("unexpected managed ACME block; refusing to rewrite vhost")
+        start = old.index(BEGIN)
+        stop = old.index(END, start) + len(END)
+        rest = old[:start] + old[stop:]
+    else:
+        rest = old[len(LEGACY):] if old.startswith(LEGACY) else old
+    replace_preserving_metadata(path, BLOCK + rest)
+    try:
+        run(["apache2ctl", "configtest"])
+        run(["systemctl", "reload", "apache2"])
+    except Exception:
+        replace_preserving_metadata(path, old)
+        raise
+    return True
+
+
+def ensure_challenge_directory() -> None:
+    account = pwd.getpwnam("beagle-os")
+    for directory in (CHALLENGE.parent, CHALLENGE):
+        if directory.is_symlink():
+            raise RuntimeError("ACME challenge directory must not be a symlink")
+        if not directory.exists():
+            directory.mkdir(mode=0o755)
+            os.chown(directory, account.pw_uid, account.pw_gid)
+        if not directory.is_dir():
+            raise RuntimeError("ACME challenge path is not a directory")
+    # The domain's Plesk account must be able to create challenge tokens.
+    os.chown(CHALLENGE, account.pw_uid, account.pw_gid)
+    CHALLENGE.chmod(0o755)
+
+
+def local_domain_address() -> str:
+    links = json.loads(run(["ip", "-j", "-4", "address", "show"]).stdout)
+    local = {item.get("local") for link in links for item in link.get("addr_info", [])}
+    resolved = {info[4][0] for info in socket.getaddrinfo(DOMAIN, 443, socket.AF_INET, socket.SOCK_STREAM)}
+    matches = sorted(local & resolved)
+    if not matches:
+        raise RuntimeError("domain does not resolve to an IPv4 address on this host")
+    return matches[0]
+
+
+def probe_route(address: str) -> None:
+    ensure_challenge_directory()
+    token = "beagle-health-" + secrets.token_hex(12)
+    probe = CHALLENGE / token
+    try:
+        probe.write_text(token, encoding="ascii")
+        probe.chmod(0o644)
+        # A content probe to a verified local address; update TLS verification is unchanged.
+        response = run(["curl", "--noproxy", "*", "--fail", "--silent", "--show-error",
+                        "--insecure", "--connect-timeout", "5", "--max-time", "10",
+                        "--resolve", f"{DOMAIN}:443:{address}",
+                        f"https://{DOMAIN}/.well-known/acme-challenge/{token}"])
+        if response.stdout.decode("ascii").strip() != token:
+            raise RuntimeError("ACME challenge path does not serve its own file")
+    finally:
+        probe.unlink(missing_ok=True)
+
+
+def certificate_needs_renewal(address: str) -> bool:
+    response = run(["openssl", "s_client", "-connect", f"{address}:443", "-servername", DOMAIN], data=b"", timeout=15)
+    certificate = subprocess.run(["openssl", "x509", "-noout", "-checkend", str(30 * 86400)],
+                                 input=response.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+    if certificate.returncode != 0:
+        return True
+    validation = subprocess.run(
+        ["curl", "--noproxy", "*", "--silent", "--show-error", "--head", "--connect-timeout", "5",
+         "--max-time", "10", "--resolve", f"{DOMAIN}:443:{address}", f"https://{DOMAIN}/"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15,
+    )
+    if validation.returncode in {51, 60}:
+        return True
+    if validation.returncode != 0:
+        raise RuntimeError("TLS validation could not reach the local vhost")
+    return False
+
+
+def main() -> None:
+    with open("/run/lock/beagle-public-tls-heal.lock", "w", encoding="ascii") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        changed = ensure_route()
+        address = local_domain_address()
+        probe_route(address)
+        if certificate_needs_renewal(address):
+            run(["plesk", "ext", "sslit", "--certificate", "-issue", "-domain", DOMAIN,
+                 "-secure-domain", "-secure-www", "-challenge", "http"], timeout=240)
+            if certificate_needs_renewal(address):
+                raise RuntimeError("certificate is still close to expiry after renewal")
+            print("renewed certificate and verified the new expiry")
+        else:
+            print("ACME route and certificate are healthy" + ("; route repaired" if changed else ""))
+
+
+if __name__ == "__main__":
+    main()
