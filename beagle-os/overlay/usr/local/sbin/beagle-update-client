@@ -4,7 +4,9 @@ import fcntl
 import hashlib
 import json
 import os
+import posixpath
 import pwd
+import re
 import shutil
 import shlex
 import subprocess
@@ -26,6 +28,7 @@ DEVICE_UPDATE_ENV_CANDIDATES = [
     Path("/run/live/medium/pve-thin-client/state/device-updates.env"),
     Path("/lib/live/mount/medium/pve-thin-client/state/device-updates.env"),
 ]
+PHYSICAL_LIVE_MEDIUM = Path("/run/beagle-live-medium")
 LIVE_MEDIUM_CANDIDATES = [
     Path("/run/live/medium"),
     Path("/lib/live/mount/medium"),
@@ -247,6 +250,21 @@ def update_status(**changes) -> dict:
 
 
 def live_medium() -> Path:
+    # When live-boot uses toram, /run/live/medium is only a volatile copy.
+    # Accept the dedicated physical mount only when it matches the boot device.
+    try:
+        cmdline = Path("/proc/cmdline").read_text(encoding="utf-8").split()
+        boot_device = next((part.split("=", 1)[1] for part in cmdline
+                            if part.startswith("live-media=/dev/disk/by-uuid/")), "")
+        if "toram" in cmdline and boot_device and (PHYSICAL_LIVE_MEDIUM / "live").is_dir():
+            source = subprocess.check_output(
+                ["findmnt", "-nro", "SOURCE", "--mountpoint", str(PHYSICAL_LIVE_MEDIUM)],
+                text=True, stderr=subprocess.DEVNULL,
+            ).strip()
+            if source and Path(source).resolve(strict=True) == Path(boot_device).resolve(strict=True):
+                return PHYSICAL_LIVE_MEDIUM
+    except (OSError, subprocess.SubprocessError):
+        pass
     for candidate in LIVE_MEDIUM_CANDIDATES:
         if candidate.is_dir() and (candidate / "live").is_dir():
             return candidate
@@ -658,11 +676,10 @@ def manager_feed_url(config: dict[str, str], installed_version: str) -> str:
         raise RuntimeError("missing update feed URL")
     parsed = urlparse(base_url)
     query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    query.setdefault("channel", config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL", "stable"))
-    query.setdefault("installed_version", installed_version)
-    version_pin = config.get("PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN", "").strip()
-    if version_pin:
-        query.setdefault("version_pin", version_pin)
+    # Update policy and version pins are selected by the connected host.
+    query.pop("channel", None)
+    query.pop("version_pin", None)
+    query["installed_version"] = installed_version
     return urlunparse(parsed._replace(query=urlencode(query)))
 
 
@@ -686,6 +703,75 @@ def curl_args_for_url(url: str, *, pinned_pubkey: str = "", ca_cert: str = "", m
     return args
 
 
+def host_payload_url(config: dict[str, str], filename: str, advertised_url: str = "") -> str:
+    """Use only the connected manager's host for thin-client payloads."""
+    manager = urlparse(config.get("PVE_THIN_CLIENT_BEAGLE_MANAGER_URL", "").strip())
+    if manager.scheme != "https" or not manager.hostname or manager.username or manager.password:
+        raise RuntimeError("a valid HTTPS manager URL is required for host-local updates")
+    if not re.fullmatch(r"pve-thin-client-usb-payload-(?:latest|v[A-Za-z0-9][A-Za-z0-9._-]{0,79})\.tar\.gz", filename):
+        raise RuntimeError("invalid host payload filename")
+    advertised = urlparse(advertised_url)
+    if (advertised.scheme == "https" and advertised.hostname == manager.hostname
+            and not advertised.username and not advertised.password
+            and advertised.path.startswith("/") and "%" not in advertised.path
+            and ".." not in advertised.path.split("/")
+            and posixpath.basename(advertised.path) == filename):
+        return urlunparse(("https", advertised.netloc, advertised.path, "", "", ""))
+    return urlunparse(("https", manager.netloc, "/beagle-downloads/" + filename, "", "", ""))
+
+
+def normalize_host_feed(update: dict, config: dict[str, str], installed: str, host_status: dict | None = None) -> dict:
+    update = dict(update)
+    if not update.get("payload_url"):
+        return update
+    filename = str(update.get("payload_filename", "")).strip()
+    checksum = str(update.get("payload_sha256", "")).strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", checksum):
+        raise RuntimeError("missing or invalid host payload SHA-256")
+    update["payload_url"] = host_payload_url(config, filename, str(update.get("payload_url", "")))
+    feed_version = str(update.get("latest_version", "")).strip()
+    if feed_version.lower() == "latest" and not isinstance(host_status, dict):
+        raise RuntimeError("host version metadata is required for the latest alias")
+    if host_status is not None:
+        if not isinstance(host_status, dict):
+            raise RuntimeError("invalid host payload metadata")
+        version = str(host_status.get("version", "")).strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", version) or version.lower() == "latest":
+            raise RuntimeError("host reports an invalid payload version")
+        if str(host_status.get("payload_filename", "")).strip() != filename or str(host_status.get("payload_sha256", "")).strip().lower() != checksum:
+            raise RuntimeError("host payload metadata does not match the authenticated update feed")
+        if feed_version.lower() != "latest" and feed_version != version:
+            raise RuntimeError("host payload version does not match the authenticated update feed")
+        update["latest_version"] = version
+        try:
+            host_size = int(host_status.get("payload_size") or 0)
+            advertised_size = int(update.get("payload_size") or 0)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("host reports an invalid payload size") from exc
+        if host_size < 0 or advertised_size < 0 or (host_size and advertised_size and host_size != advertised_size):
+            raise RuntimeError("host payload size does not match the update feed")
+        update["payload_size"] = host_size or advertised_size
+        if version == installed:
+            update["available"] = False
+    return update
+
+
+def apply_rolling_revision(update: dict, installed: str, manifest: dict) -> dict:
+    """A rolling build may change without changing the human-readable version."""
+    update = dict(update)
+    pin = str(update.get("version_pin", "")).strip().lower()
+    checksum = str(update.get("payload_sha256", "")).strip().lower()
+    recorded = str(manifest.get("payload_sha256", "")).strip().lower()
+    if (str(update.get("channel", "")).lower() == "rolling"
+            and bool(update.get("enabled", False))
+            and str(update.get("update_path", "")) == "self_update"
+            and pin in {"", "latest"} and bool(update.get("payload_url"))
+            and str(update.get("latest_version", "")).strip() == installed
+            and re.fullmatch(r"[0-9a-f]{64}", checksum) and checksum != recorded):
+        update["available"] = True
+    return update
+
+
 def fetch_feed(config: dict[str, str], medium: Path) -> dict:
     installed = current_version(config, medium)
     url = manager_feed_url(config, installed)
@@ -701,6 +787,20 @@ def fetch_feed(config: dict[str, str], medium: Path) -> dict:
     update = payload.get("update", payload)
     if not isinstance(update, dict):
         raise RuntimeError("invalid update feed payload")
+    host_status = None
+    pin = str(update.get("version_pin", "")).strip().lower()
+    needs_host_status = (str(update.get("latest_version", "")).strip().lower() == "latest"
+                         or (not update.get("payload_size") and pin in {"", "latest"}))
+    if update.get("payload_url") and needs_host_status:
+        host_url = host_payload_url(config, str(update.get("payload_filename", "")).strip(), str(update.get("payload_url", "")))
+        parsed = urlparse(host_url)
+        status_path = posixpath.join(posixpath.dirname(parsed.path), "beagle-downloads-status.json")
+        status_url = urlunparse((parsed.scheme, parsed.netloc, status_path, "", "", ""))
+        status_args = curl_args_for_url(status_url, pinned_pubkey=manager_pin, ca_cert=manager_ca_cert)
+        status_result = subprocess.run([*status_args, status_url], check=True, capture_output=True, text=True)
+        host_status = json.loads(status_result.stdout or "{}")
+    update = normalize_host_feed(update, config, installed, host_status)
+    update = apply_rolling_revision(update, installed, read_install_manifest(medium))
     write_json_atomic(FEED_CACHE_FILE, update)
     return update
 
@@ -792,15 +892,20 @@ def guard_volatile_download(required_bytes: int) -> int:
 def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
     version = str(feed.get("latest_version", "")).strip()
     payload_url = str(feed.get("payload_url", "")).strip()
-    if not version or not payload_url:
-        raise RuntimeError("update feed is missing payload metadata")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", version) or not payload_url:
+        raise RuntimeError("update feed is missing or contains invalid payload metadata")
+    expected_sha = str(feed.get("payload_sha256", "")).strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+        raise RuntimeError("missing or invalid host payload SHA-256")
+    filename = str(feed.get("payload_filename", "")).strip()
+    if payload_url != host_payload_url(config, filename, payload_url):
+        raise RuntimeError("payload URL does not belong to the connected host")
     payload_size = int(feed.get("payload_size") or 0)
     target_dir = CACHE_ROOT / version
     target_dir.mkdir(parents=True, exist_ok=True)
     archive_path = target_dir / "payload.tar.gz"
     if archive_path.is_file():
-        expected_sha = str(feed.get("payload_sha256", "")).strip()
-        if not expected_sha or sha256sum(archive_path).lower() == expected_sha.lower():
+        if sha256sum(archive_path).lower() == expected_sha:
             return archive_path, version
         archive_path.unlink()
     # Never download a system-image payload into the RAM-backed volatile cache;
@@ -820,7 +925,7 @@ def download_payload(feed: dict, config: dict[str, str]) -> tuple[Path, str]:
         ca_cert=payload_ca_cert,
         max_time=PAYLOAD_DOWNLOAD_MAX_TIME_SECONDS,
     )
-    args.extend(["-L", "--retry", "4", "--retry-delay", "3", "--continue-at", "-"])
+    args.extend(["-L", "--max-redirs", "0", "--retry", "4", "--retry-delay", "3", "--continue-at", "-"])
     if max_filesize > 0:
         args.extend(["--max-filesize", str(max_filesize)])
     if PAYLOAD_DOWNLOAD_LOW_SPEED_LIMIT > 0 and PAYLOAD_DOWNLOAD_LOW_SPEED_TIME > 0:
@@ -873,13 +978,14 @@ def extract_payload(archive_path: Path) -> Path:
     return temp_dir
 
 
-def build_manifest(asset_dir: Path, version: str, payload_url: str, *, slot: str, previous_version: str) -> dict[str, object]:
+def build_manifest(asset_dir: Path, version: str, payload_url: str, *, slot: str, previous_version: str, payload_sha256: str = "") -> dict[str, object]:
     return {
         "project": "beagle-os",
         "project_version": version,
         "installed_at": utcnow(),
         "source_kind": "update-feed",
         "payload_source_url": payload_url,
+        "payload_sha256": payload_sha256,
         "vmlinuz_sha256": sha256sum(asset_dir / "vmlinuz"),
         "initrd_sha256": sha256sum(asset_dir / "initrd.img"),
         "filesystem_squashfs_sha256": sha256sum(asset_dir / "filesystem.squashfs"),
@@ -894,18 +1000,21 @@ def stage_update(feed: dict, config: dict[str, str], *, force: bool = False) -> 
     installed = current_version(config, medium)
     version = str(feed.get("latest_version", "")).strip()
     available = bool(feed.get("available", False))
-    if not available and version and version != installed:
-        available = True
-    medium, current_slot = ensure_slot_layout(config, writable=bool(version and available and version != installed))
+    # The host's enabled/availability decision is authoritative. Rolling
+    # revisions can legitimately share the same visible version number.
+    available = available and bool(feed.get("enabled", True)) and feed.get("update_path", "self_update") == "self_update"
+    medium, current_slot = ensure_slot_layout(config, writable=bool(version and available))
     status = load_json(STATUS_FILE, {})
     if (
         not force
+        and available
         and isinstance(status, dict)
         and str(status.get("staged_version", "")).strip() == version
+        and str(status.get("payload_sha256", "")).strip().lower() == str(feed.get("payload_sha256", "")).strip().lower()
         and str(status.get("state", "")).strip() in {"staged", "reboot-required"}
     ):
         return status
-    if not version or not available or version == installed:
+    if not version or not available:
         return update_status(
             state="idle",
             last_scan_at=utcnow(),
@@ -935,6 +1044,7 @@ def stage_update(feed: dict, config: dict[str, str], *, force: bool = False) -> 
             str(feed.get("payload_url", "")).strip(),
             slot=target_slot,
             previous_version=installed,
+            payload_sha256=str(feed.get("payload_sha256", "")).strip().lower(),
         )
         write_json_atomic(STAGED_MANIFEST_FILE, manifest)
     finally:
@@ -1061,12 +1171,17 @@ def maybe_prompt_interactive_update(config: dict[str, str], status: dict, instal
         return 0
 
     version = pending_update_version(status)
-    if not version or version == installed_version:
+    if not version or (version == installed_version and str(status.get("channel", "")).lower() != "rolling"):
         return 0
 
+    prompt_key = version
+    if str(status.get("channel", "")).lower() == "rolling":
+        revision = str(status.get("payload_sha256", "")).strip().lower()
+        if re.fullmatch(r"[0-9a-f]{64}", revision):
+            prompt_key = f"{version}:{revision}"
     gui_env = session_gui_env()
     prompt_state = load_session_prompt_state(gui_env)
-    if prompt_cooldown_active(prompt_state, version):
+    if prompt_cooldown_active(prompt_state, prompt_key):
         return 0
 
     env = os.environ.copy()
@@ -1104,7 +1219,7 @@ def maybe_prompt_interactive_update(config: dict[str, str], status: dict, instal
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    prompt_state["last_prompted_version"] = version
+    prompt_state["last_prompted_version"] = prompt_key
     prompt_state["last_prompted_at"] = utcnow()
     write_session_prompt_state(gui_env, prompt_state)
     if result.returncode == 0:

@@ -3,6 +3,9 @@ Description=Scan for Beagle OS updates
 After=beagle-thin-client-prepare.service beagle-healthcheck.service network-online.target
 Wants=beagle-healthcheck.service network-online.target
 
+After=beagle-live-medium.service
+Wants=beagle-live-medium.service
+
 [Service]
 Type=oneshot
 TimeoutStartSec=20min

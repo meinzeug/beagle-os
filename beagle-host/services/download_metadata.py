@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any, Callable
 from urllib.parse import urlparse
 
@@ -115,20 +116,36 @@ class DownloadMetadataService:
     def update_payload_metadata(self, version: str) -> dict[str, str]:
         downloads_status = self._load_json_file(self._downloads_status_file, {})
         latest_version = str(downloads_status.get("version", "")).strip()
-        filename = "pve-thin-client-usb-payload-latest.tar.gz"
-        payload_url = self.public_versioned_payload_url(version)
-        if version == latest_version:
-            payload_url = str(downloads_status.get("payload_url") or payload_url).strip()
-            filename = str(downloads_status.get("payload_filename") or filename).strip()
+        clean_version = str(version or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", clean_version):
+            return {"version": clean_version, "filename": "", "payload_url": "", "payload_sha256": "", "sha256sums_url": "", "payload_pinned_pubkey": ""}
+        filename = f"pve-thin-client-usb-payload-v{clean_version}.tar.gz"
+        if clean_version == latest_version:
+            filename = str(downloads_status.get("payload_filename") or "pve-thin-client-usb-payload-latest.tar.gz").strip()
+        if not re.fullmatch(r"pve-thin-client-usb-payload-(?:latest|v[A-Za-z0-9][A-Za-z0-9._-]{0,79})\.tar\.gz", filename):
+            return {"version": clean_version, "filename": "", "payload_url": "", "payload_sha256": "", "sha256sums_url": "", "payload_pinned_pubkey": ""}
+        # Update artifacts must be served by this Beagle host, not an external
+        # URL carried over from older download metadata.
+        payload_url = self._hosted_download_url(filename)
         payload_sha256 = self.checksum_for_dist_filename(filename)
-        if not payload_sha256 and version == latest_version:
+        if not payload_sha256 and clean_version == latest_version:
             payload_sha256 = str(downloads_status.get("payload_sha256", "")).strip()
+        payload_size = 0
+        try:
+            payload_size = (self._dist_sha256sums_file.parent / filename).stat().st_size
+        except OSError:
+            if clean_version == latest_version:
+                try:
+                    payload_size = max(0, int(downloads_status.get("payload_size") or 0))
+                except (TypeError, ValueError):
+                    payload_size = 0
         payload_pin = self._manager_pinned_pubkey if self.url_host_matches(payload_url, self._public_manager_url) else ""
         return {
-            "version": version,
+            "version": clean_version,
             "filename": filename,
             "payload_url": payload_url,
             "payload_sha256": payload_sha256,
-            "sha256sums_url": self.public_update_sha256sums_url(),
+            "payload_size": payload_size,
+            "sha256sums_url": self._hosted_download_url("SHA256SUMS"),
             "payload_pinned_pubkey": payload_pin,
         }

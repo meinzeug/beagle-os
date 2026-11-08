@@ -159,3 +159,13 @@ def test_prepare_host_downloads_treats_busy_artifact_lock_as_duplicate_success()
     assert 'if [[ "$lock_rc" -eq 75 ]]; then' in script
     assert 'if ! beagle_artifact_lock_acquire "prepare-host-downloads"; then' not in script
     assert "Skipping duplicate prepare-host-downloads run" in script
+
+
+def test_rolling_payload_includes_live_medium_update_and_agent_units():
+    script = (ROOT / "scripts" / "prepare-host-downloads.sh").read_text(encoding="utf-8")
+    for name in ("beagle-live-medium-prepare", "beagle-live-medium.service",
+                 "beagle-netbridge-agent.service", "beagle-ssh-hostkeys-prepare",
+                 "beagle-ssh-hostkeys.service", "beagle-update-scan.service",
+                 "beagle-update-confirm.service"):
+        assert name in script
+        assert script.count(name) >= 2

@@ -71,3 +71,28 @@ def test_update_payload_metadata_prefers_published_latest_payload_url() -> None:
     assert payload["filename"] == "pve-thin-client-usb-payload-v8.3.3.tar.gz"
     assert payload["payload_url"] == "https://srv1.beagle-os.com/beagle-downloads/pve-thin-client-usb-payload-v8.3.3.tar.gz"
     assert payload["payload_sha256"] == "abc123"
+
+
+def test_update_payload_metadata_ignores_external_url_and_serves_connected_host(tmp_path) -> None:
+    service = DownloadMetadataService(
+        cache_get=None, cache_put=None,
+        dist_sha256sums_file=tmp_path / 'SHA256SUMS',
+        downloads_status_file=tmp_path / 'status.json',
+        load_json_file=lambda _p, _d: {
+            'version': '8.3.20',
+            'payload_url': 'https://beagle-os.com/beagle-updates/stale.tar.gz',
+            'payload_filename': 'pve-thin-client-usb-payload-latest.tar.gz',
+            'payload_sha256': 'a' * 64,
+            'payload_size': 1432246878,
+        },
+        manager_pinned_pubkey='host-pin', public_downloads_path='/beagle-downloads',
+        public_downloads_port=443, public_manager_url='https://srv1.beagle-os.com/beagle-api',
+        public_server_name='srv1.beagle-os.com', public_update_base_url='https://beagle-os.com/beagle-updates', version='8.3.20',
+    )
+    payload = service.update_payload_metadata('8.3.20')
+    assert payload['payload_url'] == 'https://srv1.beagle-os.com/beagle-downloads/pve-thin-client-usb-payload-latest.tar.gz'
+    assert payload['sha256sums_url'] == 'https://srv1.beagle-os.com/beagle-downloads/SHA256SUMS'
+    assert payload['payload_pinned_pubkey'] == 'host-pin'
+    assert payload['payload_sha256'] == 'a' * 64
+    assert payload['payload_size'] == 1432246878
+    assert not service.update_payload_metadata('../untrusted')['payload_url']

@@ -1,7 +1,7 @@
 [Unit]
 Description=Beagle NetBridge agent (share local LAN devices with the streamed VM)
-After=network-online.target wg-quick@wg-beagle.service
-Wants=network-online.target
+After=network-online.target wg-quick@wg-beagle.service beagle-live-medium.service
+Wants=network-online.target beagle-live-medium.service
 
 [Service]
 Type=simple
@@ -15,9 +15,12 @@ ProtectHome=yes
 PrivateTmp=yes
 # Persist manual devices added through the in-VM manager under /var/lib/beagle/netbridge.
 StateDirectory=beagle/netbridge
+# The shared updater lock is in /run; keep it across agent restarts.
+RuntimeDirectory=beagle-os
+RuntimeDirectoryPreserve=yes
 # Stream presets and update actions write into Beagle state/cache and, on live
 # media, the persisted USB slot layout.
-ReadWritePaths=/var/lib/beagle-os /var/cache/beagle-os /var/log/beagle-os -/run/live/medium -/lib/live/mount/medium
+ReadWritePaths=/var/lib/beagle-os /var/cache/beagle-os /var/log/beagle-os /run/beagle-os -/run/beagle-live-medium -/run/live/medium -/lib/live/mount/medium
 
 [Install]
 WantedBy=multi-user.target

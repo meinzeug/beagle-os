@@ -391,6 +391,9 @@ def test_agent_service_grants_state_directory() -> None:
         text = unit.read_text(encoding="utf-8")
         assert "StateDirectory=beagle/netbridge" in text
         assert "ReadWritePaths=/var/lib/beagle-os /var/cache/beagle-os /var/log/beagle-os" in text
+        assert "RuntimeDirectory=beagle-os" in text
+        assert "RuntimeDirectoryPreserve=yes" in text
+        assert "/run/beagle-os" in next(line for line in text.splitlines() if line.startswith("ReadWritePaths="))
         assert "-/run/live/medium" in text
         assert "-/lib/live/mount/medium" in text
 

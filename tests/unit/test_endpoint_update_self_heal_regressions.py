@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import sys
+
+import pytest
 from pathlib import Path
 
 
@@ -757,3 +759,170 @@ def test_guard_volatile_download_allows_non_volatile_cache() -> None:
     # persistent USB medium / real disk -> no RAM cap, download proceeds
     assert module.guard_volatile_download(0) == 0
     assert module.guard_volatile_download(900 * 1024 ** 2) == 0
+
+
+def test_live_medium_prefers_verified_disk_when_booted_toram(tmp_path, monkeypatch):
+    module = _load_update_client_module()
+    physical = tmp_path / "physical"
+    volatile = tmp_path / "volatile"
+    (physical / "live").mkdir(parents=True)
+    (volatile / "live").mkdir(parents=True)
+    monkeypatch.setattr(module, "PHYSICAL_LIVE_MEDIUM", physical)
+    monkeypatch.setattr(module, "LIVE_MEDIUM_CANDIDATES", [volatile])
+    original_read_text = module.Path.read_text
+    original_resolve = module.Path.resolve
+    def read_text(path, *args, **kwargs):
+        if str(path) == "/proc/cmdline":
+            return "boot=live toram live-media=/dev/disk/by-uuid/abc"
+        return original_read_text(path, *args, **kwargs)
+    def resolve(path, *args, **kwargs):
+        if str(path) in {"/dev/disk/by-uuid/abc", "/dev/testdisk"}:
+            return module.Path("/dev/canonical-test")
+        return original_resolve(path, *args, **kwargs)
+    monkeypatch.setattr(module.Path, "read_text", read_text)
+    monkeypatch.setattr(module.Path, "resolve", resolve)
+    monkeypatch.setattr(module.subprocess, "check_output", lambda *_a, **_kw: "/dev/testdisk\n")
+    assert module.live_medium() == physical
+
+
+def test_live_medium_rejects_a_different_mounted_disk(tmp_path, monkeypatch):
+    module = _load_update_client_module()
+    physical = tmp_path / "physical"
+    volatile = tmp_path / "volatile"
+    (physical / "live").mkdir(parents=True)
+    (volatile / "live").mkdir(parents=True)
+    monkeypatch.setattr(module, "PHYSICAL_LIVE_MEDIUM", physical)
+    monkeypatch.setattr(module, "LIVE_MEDIUM_CANDIDATES", [volatile])
+    original_read_text = module.Path.read_text
+    def read_text(path, *args, **kwargs):
+        if str(path) == "/proc/cmdline":
+            return "boot=live toram live-media=/dev/disk/by-uuid/absent"
+        return original_read_text(path, *args, **kwargs)
+    monkeypatch.setattr(module.Path, "read_text", read_text)
+    monkeypatch.setattr(module.subprocess, "check_output", lambda *_a, **_kw: "/dev/unrelated\n")
+    assert module.live_medium() == volatile
+
+
+def test_update_feed_resolves_latest_pin_to_actual_host_version():
+    service = UpdateFeedService(
+        downloads_status_file=Path('/unused'),
+        load_json_file=lambda _p, _d: {'version': '8.3.20'},
+        update_payload_metadata=lambda version: {'version': version, 'filename': 'pve-thin-client-usb-payload-latest.tar.gz', 'payload_url': 'https://srv1/beagle-downloads/payload', 'payload_sha256': 'a' * 64},
+        public_update_sha256sums_url=lambda: '',
+    )
+    feed = service.build_update_feed({'update_channel': 'rolling', 'update_version_pin': 'latest'}, installed_version='8.3.19')
+    assert feed['channel'] == 'rolling'
+    assert feed['latest_version'] == '8.3.20'
+    assert feed['version_pin'] == ''
+
+
+def test_legacy_external_payload_is_rebased_and_version_verified_on_connected_host():
+    module = _load_update_client_module()
+    checksum = 'a' * 64
+    name = 'pve-thin-client-usb-payload-latest.tar.gz'
+    config = {'PVE_THIN_CLIENT_BEAGLE_MANAGER_URL': 'https://srv1.beagle-os.com/beagle-api'}
+    feed = {'payload_filename': name, 'payload_url': 'https://beagle-os.com/old.tar.gz', 'payload_sha256': checksum, 'latest_version': 'latest', 'available': True}
+    status = {'version': '8.3.20', 'payload_filename': name, 'payload_sha256': checksum, 'payload_size': 1432246878}
+    normalized = module.normalize_host_feed(feed, config, '8.3.19', status)
+    assert normalized['payload_url'] == 'https://srv1.beagle-os.com/beagle-downloads/' + name
+    assert normalized['latest_version'] == '8.3.20'
+    assert normalized['payload_size'] == 1432246878
+    custom = {**feed, 'payload_url': 'https://srv1.beagle-os.com:8443/custom-downloads/' + name}
+    assert module.normalize_host_feed(custom, config, '8.3.19', status)['payload_url'] == custom['payload_url']
+    assert module.normalize_host_feed(feed, config, '8.3.20', status)['available'] is False
+    with pytest.raises(RuntimeError, match='does not match'):
+        module.normalize_host_feed(feed, config, '8.3.19', {**status, 'payload_sha256': 'b' * 64})
+    with pytest.raises(RuntimeError, match='filename'):
+        module.normalize_host_feed({**feed, 'payload_filename': '../bad'}, config, '8.3.19', status)
+    with pytest.raises(RuntimeError, match='SHA-256'):
+        module.normalize_host_feed({**feed, 'payload_sha256': ''}, config, '8.3.19', status)
+    with pytest.raises(RuntimeError, match='HTTPS'):
+        module.normalize_host_feed(feed, {'PVE_THIN_CLIENT_BEAGLE_MANAGER_URL': 'http://srv1'}, '8.3.19', status)
+
+
+def test_rolling_revision_detects_changed_payload_without_overriding_disabled_policy():
+    module = _load_update_client_module()
+    sha_old, sha_new = 'a' * 64, 'b' * 64
+    feed = {'enabled': True, 'channel': 'rolling', 'version_pin': '', 'update_path': 'self_update', 'latest_version': '8.3.20', 'payload_url': 'https://srv1/payload', 'payload_sha256': sha_new, 'available': False}
+    assert module.apply_rolling_revision(feed, '8.3.20', {'payload_sha256': sha_old})['available'] is True
+    assert module.apply_rolling_revision(feed, '8.3.20', {'payload_sha256': sha_new})['available'] is False
+    assert module.apply_rolling_revision({**feed, 'enabled': False}, '8.3.20', {'payload_sha256': sha_old})['available'] is False
+    assert module.apply_rolling_revision({**feed, 'channel': 'stable'}, '8.3.20', {'payload_sha256': sha_old})['available'] is False
+    assert module.apply_rolling_revision({**feed, 'update_path': 'reinstall_required'}, '8.3.20', {'payload_sha256': sha_old})['available'] is False
+    assert module.apply_rolling_revision({**feed, 'version_pin': '8.3.20'}, '8.3.20', {'payload_sha256': sha_old})['available'] is False
+
+
+def test_stage_update_does_not_override_host_disabled_or_compatibility_policy(monkeypatch, tmp_path):
+    module = _load_update_client_module()
+    monkeypatch.setattr(module, 'live_medium', lambda: tmp_path)
+    monkeypatch.setattr(module, 'current_version', lambda *_: '8.3.19')
+    monkeypatch.setattr(module, 'ensure_slot_layout', lambda _c, writable=False: (tmp_path, 'a'))
+    monkeypatch.setattr(module, 'load_json', lambda *_: {})
+    monkeypatch.setattr(module, 'update_status', lambda **kwargs: kwargs)
+    monkeypatch.setattr(module, 'download_payload', lambda *_: pytest.fail('disabled update must not download'))
+    for feed in (
+        {'available': False, 'enabled': False, 'latest_version': '8.3.20'},
+        {'available': True, 'enabled': True, 'update_path': 'reinstall_required', 'latest_version': '8.3.20'},
+    ):
+        assert module.stage_update(feed, {}, force=True)['state'] == 'idle'
+
+
+def test_staged_manifest_remembers_verified_payload_hash(tmp_path):
+    module = _load_update_client_module()
+    for name in ('vmlinuz', 'initrd.img', 'filesystem.squashfs'):
+        (tmp_path / name).write_bytes(name.encode())
+    result = module.build_manifest(tmp_path, '8.3.20', 'https://srv1/payload', slot='b', previous_version='8.3.19', payload_sha256='a' * 64)
+    assert result['payload_sha256'] == 'a' * 64
+
+
+def test_host_update_policy_overrides_client_channel_and_pin():
+    service = UpdateFeedService(
+        downloads_status_file=Path('/unused'),
+        load_json_file=lambda _p, _d: {'version': '8.3.20'},
+        update_payload_metadata=lambda version: {'filename': 'pve-thin-client-usb-payload-latest.tar.gz', 'payload_url': 'https://srv1/payload', 'payload_sha256': 'a' * 64},
+        public_update_sha256sums_url=lambda: '',
+    )
+    feed = service.build_update_feed({'update_channel': 'stable', 'update_version_pin': ''}, installed_version='8.3.19', channel='rolling', version_pin='8.9.99')
+    assert feed['channel'] == 'stable'
+    assert feed['latest_version'] == '8.3.20'
+    assert feed['version_pin'] == ''
+
+
+def test_client_does_not_send_local_channel_or_pin_to_host():
+    from urllib.parse import parse_qs, urlparse
+    module = _load_update_client_module()
+    config = {
+        'PVE_THIN_CLIENT_BEAGLE_MANAGER_URL': 'https://srv1.beagle-os.com/beagle-api',
+        'PVE_THIN_CLIENT_BEAGLE_UPDATE_CHANNEL': 'rolling',
+        'PVE_THIN_CLIENT_BEAGLE_UPDATE_VERSION_PIN': '8.9.99',
+        'PVE_THIN_CLIENT_BEAGLE_UPDATE_FEED_URL': 'https://srv1.beagle-os.com/feed?channel=rolling&version_pin=8.9.99',
+    }
+    query = parse_qs(urlparse(module.manager_feed_url(config, '8.3.19')).query)
+    assert 'channel' not in query
+    assert 'version_pin' not in query
+    assert query['installed_version'] == ['8.3.19']
+
+
+def test_download_rejects_external_host_invalid_hash_and_path_traversal(tmp_path, monkeypatch):
+    module = _load_update_client_module()
+    monkeypatch.setattr(module, 'CACHE_ROOT', tmp_path)
+    config = {'PVE_THIN_CLIENT_BEAGLE_MANAGER_URL': 'https://srv1.beagle-os.com/beagle-api'}
+    feed = {'latest_version': '8.3.20', 'payload_filename': 'pve-thin-client-usb-payload-latest.tar.gz', 'payload_url': 'https://beagle-os.com/beagle-updates/pve-thin-client-usb-payload-latest.tar.gz', 'payload_sha256': 'a' * 64}
+    with pytest.raises(RuntimeError, match='connected host'):
+        module.download_payload(feed, config)
+    with pytest.raises(RuntimeError, match='SHA-256'):
+        module.download_payload({**feed, 'payload_sha256': ''}, config)
+    with pytest.raises(RuntimeError, match='invalid payload metadata'):
+        module.download_payload({**feed, 'latest_version': '../other'}, config)
+
+
+def test_host_status_supplies_size_only_when_version_and_hash_match():
+    module = _load_update_client_module()
+    name = 'pve-thin-client-usb-payload-latest.tar.gz'
+    checksum = 'c' * 64
+    config = {'PVE_THIN_CLIENT_BEAGLE_MANAGER_URL': 'https://srv1.beagle-os.com/beagle-api'}
+    feed = {'latest_version': '8.3.20', 'payload_filename': name, 'payload_url': 'https://srv1.beagle-os.com/beagle-downloads/' + name, 'payload_sha256': checksum, 'available': True}
+    status = {'version': '8.3.20', 'payload_filename': name, 'payload_sha256': checksum, 'payload_size': 1432246878}
+    assert module.normalize_host_feed(feed, config, '8.3.19', status)['payload_size'] == 1432246878
+    with pytest.raises(RuntimeError, match='version does not match'):
+        module.normalize_host_feed(feed, config, '8.3.19', {**status, 'version': '8.3.21'})

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Mount only the explicit boot medium when live-boot has copied it to RAM.
+set -euo pipefail
+mountpoint_dir=/run/beagle-live-medium
+cmdline=$(cat /proc/cmdline)
+[[ " $cmdline " == *" toram "* ]] || exit 0
+boot_device=''
+for token in $cmdline; do
+  case "$token" in
+    live-media=/dev/disk/by-uuid/*) boot_device=${token#live-media=} ;;
+  esac
+done
+[[ -n "$boot_device" && -b "$boot_device" ]] || { echo 'explicit live boot device unavailable' >&2; exit 1; }
+mkdir -p "$mountpoint_dir"
+mounted_here=0
+if mountpoint -q "$mountpoint_dir"; then
+  existing=$(findmnt -nro SOURCE --mountpoint "$mountpoint_dir")
+  [[ "$(readlink -f "$existing")" == "$(readlink -f "$boot_device")" ]] || { echo 'unexpected device at live medium mountpoint' >&2; exit 1; }
+else
+  mount -o rw,nosuid,nodev,noexec "$boot_device" "$mountpoint_dir"
+  mounted_here=1
+fi
+if [[ ! -d "$mountpoint_dir/live" || ! -f "$mountpoint_dir/pve-thin-client/state/thinclient.conf" ]]; then
+  echo 'boot device does not contain the expected Beagle live state' >&2
+  if [[ "$mounted_here" == 1 ]]; then umount "$mountpoint_dir" || true; fi
+  exit 1
+fi

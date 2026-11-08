@@ -248,6 +248,21 @@ populate_live_rootfs_stage_from_repo() {
   install -D -m 0755 \
     "$ROOT_DIR/thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-runtime-heartbeat" \
     "$rootfs_stage/usr/local/sbin/beagle-runtime-heartbeat"
+  install -D -m 0755 \
+    "$ROOT_DIR/thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-live-medium-prepare" \
+    "$rootfs_stage/usr/local/sbin/beagle-live-medium-prepare"
+  install -D -m 0755 \
+    "$ROOT_DIR/thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-ssh-hostkeys-prepare" \
+    "$rootfs_stage/usr/local/sbin/beagle-ssh-hostkeys-prepare"
+  for unit_path in \
+    "$ROOT_DIR/thin-client-assistant/live-build/config/includes.chroot/etc/systemd/system/beagle-live-medium.service" \
+    "$ROOT_DIR/thin-client-assistant/live-build/config/includes.chroot/etc/systemd/system/beagle-netbridge-agent.service" \
+    "$ROOT_DIR/thin-client-assistant/live-build/config/includes.chroot/etc/systemd/system/beagle-ssh-hostkeys.service" \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-update-scan.service" \
+    "$ROOT_DIR/beagle-os/overlay/etc/systemd/system/beagle-update-confirm.service"
+  do
+    install -D -m 0644 "$unit_path" "$rootfs_stage/etc/systemd/system/$(basename "$unit_path")"
+  done
   for script_path in \
     "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-endpoint-report" \
     "$ROOT_DIR/beagle-os/overlay/usr/local/sbin/beagle-endpoint-dispatch" \
@@ -274,6 +289,13 @@ usr/local/lib/pve-thin-client/usb
 usr/local/lib/pve-thin-client/templates
 usr/local/lib/scripts/lib/trace-guard.sh
 usr/local/sbin/beagle-runtime-heartbeat
+usr/local/sbin/beagle-live-medium-prepare
+usr/local/sbin/beagle-ssh-hostkeys-prepare
+etc/systemd/system/beagle-live-medium.service
+etc/systemd/system/beagle-netbridge-agent.service
+etc/systemd/system/beagle-ssh-hostkeys.service
+etc/systemd/system/beagle-update-scan.service
+etc/systemd/system/beagle-update-confirm.service
 usr/local/sbin/beagle-endpoint-report
 usr/local/sbin/beagle-endpoint-dispatch
 usr/local/sbin/beagle-healthcheck

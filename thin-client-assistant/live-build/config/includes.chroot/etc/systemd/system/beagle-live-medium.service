@@ -1,0 +1,11 @@
+[Unit]
+Description=Mount the physical Beagle live medium when booted from RAM
+DefaultDependencies=no
+After=local-fs.target
+Before=beagle-netbridge-agent.service beagle-update-scan.service beagle-update-confirm.service beagle-ssh-hostkeys.service
+ConditionKernelCommandLine=toram
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/beagle-live-medium-prepare
+RemainAfterExit=yes

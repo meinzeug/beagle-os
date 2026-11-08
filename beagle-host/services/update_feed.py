@@ -57,9 +57,13 @@ class UpdateFeedService:
             if isinstance(downloads_status.get("endpoint_compatibility"), dict)
             else {}
         )
-        configured_channel = _normalize_channel(str(profile.get("update_channel") or channel or "stable"))
+        # The host profile is authoritative; client query parameters are not
+        # allowed to change the update strategy or select another version.
+        configured_channel = _normalize_channel(str(profile.get("update_channel") or "stable"))
         configured_behavior = str(profile.get("update_behavior", "prompt") or "prompt").strip() or "prompt"
-        configured_version_pin = str(version_pin or profile.get("update_version_pin", "") or "").strip()
+        configured_version_pin = str(profile.get("update_version_pin", "") or "").strip()
+        if configured_version_pin.lower() == "latest":
+            configured_version_pin = ""
         enabled = bool(profile.get("update_enabled", True))
         installed = str(installed_version or "").strip()
         target_version = configured_version_pin or latest_version
@@ -133,6 +137,7 @@ class UpdateFeedService:
             "payload_filename": payload.get("filename", "") if payload_ready else "",
             "payload_url": payload.get("payload_url", "") if payload_ready else "",
             "payload_sha256": payload.get("payload_sha256", "") if payload_ready else "",
+            "payload_size": payload.get("payload_size", 0) if payload_ready else 0,
             "payload_pinned_pubkey": payload.get("payload_pinned_pubkey", "") if payload_ready else "",
             "payload_allow_insecure_tls": False,
             "sha256sums_url": payload.get("sha256sums_url", self._public_update_sha256sums_url()) if payload_ready else "",

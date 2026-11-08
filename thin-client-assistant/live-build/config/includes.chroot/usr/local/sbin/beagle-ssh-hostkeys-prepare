@@ -21,6 +21,7 @@ have_valid_host_keys() {
 
 STATE_DIR=""
 for candidate in \
+  "/run/beagle-live-medium/pve-thin-client/state" \
   "${LIVE_STATE_DIR:-/run/live/medium/pve-thin-client/state}" \
   "/run/live/medium/pve-thin-client/state" \
   "/lib/live/mount/medium/pve-thin-client/state"

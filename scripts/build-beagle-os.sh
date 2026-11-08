@@ -453,6 +453,8 @@ install_thin_client_runtime() {
   install -m 0644 "$ROOT_DIR/thin-client-assistant/systemd/beagle-thin-client-prepare.service" "$ROOTFS_DIR/etc/systemd/system/beagle-thin-client-prepare.service"
   install -m 0644 "$ROOT_DIR/thin-client-assistant/systemd/pve-thin-client-prepare.service" "$ROOTFS_DIR/etc/systemd/system/pve-thin-client-prepare.service"
   install -m 0644 "$ROOT_DIR/thin-client-assistant/systemd/beagle-wg-runtime-guard.service" "$ROOTFS_DIR/etc/systemd/system/beagle-wg-runtime-guard.service"
+  install -m 0755 "$ROOT_DIR/thin-client-assistant/live-build/config/includes.chroot/usr/local/sbin/beagle-live-medium-prepare" "$ROOTFS_DIR/usr/local/sbin/beagle-live-medium-prepare"
+  install -m 0644 "$ROOT_DIR/thin-client-assistant/live-build/config/includes.chroot/etc/systemd/system/beagle-live-medium.service" "$ROOTFS_DIR/etc/systemd/system/beagle-live-medium.service"
 }
 
 seed_endpoint_profile() {

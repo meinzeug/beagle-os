@@ -3,6 +3,9 @@ Description=Confirm active Beagle OS update slot after boot
 After=local-fs.target beagle-thin-client-prepare.service
 Wants=beagle-thin-client-prepare.service
 
+After=beagle-live-medium.service
+Wants=beagle-live-medium.service
+
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/beagle-update-client confirm-boot
