@@ -35,8 +35,8 @@ while true; do
 
   echo "beagle-camera-stream: streaming $CAMERA_DEV (${CAMERA_SIZE}@${CAMERA_FPS}fps) on TCP port $STREAM_PORT"
 
-  # Stream camera as MJPEG-in-MPEG-TS over TCP (listen for one connection, then restart).
-  # Using mpegts container so ffmpeg on the VM side can seek/parse the stream reliably.
+  # Stream a raw MJPEG sequence: MPEG-TS marks MJPEG as private data, which
+  # FFmpeg receivers cannot reliably discover as a video stream.
   ffmpeg \
     -nostdin \
     -loglevel error \
@@ -46,9 +46,9 @@ while true; do
     -i "$CAMERA_DEV" \
     -vcodec mjpeg \
     -q:v "$CAMERA_QUALITY" \
-    -f mpegts \
+    -f mjpeg \
     -listen 1 \
-    "tcp://0.0.0.0:${STREAM_PORT}" 2>&1 || true
+    "tcp://127.0.0.1:${STREAM_PORT}" 2>&1 || true
 
   # Short pause before accepting the next connection or retrying device open
   sleep "$POLL_INTERVAL"

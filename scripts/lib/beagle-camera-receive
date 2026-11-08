@@ -42,6 +42,19 @@ setup_loopback() {
       }
     sleep 1
   fi
+  # Other applications may already have loaded v4l2loopback with a different
+  # device number. Add our own device without reloading or stealing theirs.
+  if [[ ! -e "$LOOPBACK_DEV" ]]; then
+    if ! command -v v4l2loopback-ctl >/dev/null 2>&1 || \
+       ! v4l2loopback-ctl add -n "Beagle Camera" -x 1 "$LOOPBACK_DEV"; then
+      echo "beagle-camera-receive: cannot create $LOOPBACK_DEV" >&2
+      return 1
+    fi
+  fi
+  if [[ "$(cat "/sys/class/video4linux/video${LOOPBACK_NR}/name" 2>/dev/null)" != "Beagle Camera" ]]; then
+    echo "beagle-camera-receive: refusing to use an unrelated $LOOPBACK_DEV" >&2
+    return 1
+  fi
   # Ensure the video group can access the device
   if [[ -e "$LOOPBACK_DEV" ]]; then
     chown root:"$CAMERA_GROUP" "$LOOPBACK_DEV" 2>/dev/null || true
@@ -54,20 +67,17 @@ setup_loopback() {
   return 0
 }
 
-setup_loopback || true
-
 echo "beagle-camera-receive: ${STREAM_HOST}:${STREAM_PORT} → ${LOOPBACK_DEV} (${CAMERA_W}x${CAMERA_H}@${CAMERA_FPS}fps)"
 
 # ── Receive loop ──────────────────────────────────────────────────────────────
 # Retry automatically: if the TC stream drops or is not yet up, wait and retry.
 while true; do
-  if [[ ! -e "$LOOPBACK_DEV" ]]; then
-    setup_loopback || { sleep "$POLL_INTERVAL"; continue; }
-  fi
+  setup_loopback || { sleep "$POLL_INTERVAL"; continue; }
 
   ffmpeg \
     -nostdin \
     -loglevel error \
+    -f mjpeg \
     -i "tcp://${STREAM_HOST}:${STREAM_PORT}" \
     -vf "scale=${CAMERA_W}:${CAMERA_H},format=yuv420p" \
     -f v4l2 \

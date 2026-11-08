@@ -1882,7 +1882,7 @@ fi
 # TC streams the camera via ffmpeg (TCP:BEAGLE_CAMERA_STREAM_PORT) and the VM receives it through a
 # v4l2loopback virtual device so browsers see a normal /dev/video10 camera.
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-  ffmpeg v4l2loopback-dkms 2>/dev/null || true
+  ffmpeg v4l2loopback-dkms v4l2loopback-utils 2>/dev/null || true
 
 # Ensure beagle desktop user is in the video group
 usermod -aG video beagle 2>/dev/null || true
@@ -1906,15 +1906,19 @@ setup_loopback() {
     modprobe v4l2loopback devices=1 video_nr="\$LOOPBACK_NR" card_label="Beagle Camera" exclusive_caps=1 2>/dev/null || return 1
     sleep 1
   fi
+  if [[ ! -e "\$LOOPBACK_DEV" ]]; then
+    command -v v4l2loopback-ctl >/dev/null 2>&1 && v4l2loopback-ctl add -n "Beagle Camera" -x 1 "\$LOOPBACK_DEV" || return 1
+  fi
+  [[ "\$(cat "/sys/class/video4linux/video\${LOOPBACK_NR}/name" 2>/dev/null)" == "Beagle Camera" ]] || return 1
   [[ -e "\$LOOPBACK_DEV" ]] && chown root:"\$CAMERA_GROUP" "\$LOOPBACK_DEV" && chmod 660 "\$LOOPBACK_DEV" || true
   id beagle &>/dev/null && usermod -aG "\$CAMERA_GROUP" beagle 2>/dev/null || true
   return 0
 }
-setup_loopback || true
 echo "beagle-camera-receive: \${STREAM_HOST}:\${STREAM_PORT} → \${LOOPBACK_DEV}"
 while true; do
-  [[ ! -e "\$LOOPBACK_DEV" ]] && { setup_loopback || true; sleep "\$POLL_INTERVAL"; continue; }
+  setup_loopback || { sleep "\$POLL_INTERVAL"; continue; }
   ffmpeg -nostdin -loglevel error \
+    -f mjpeg \
     -i "tcp://\${STREAM_HOST}:\${STREAM_PORT}" \
     -vf "scale=\${CAMERA_W}:\${CAMERA_H},format=yuv420p" \
     -f v4l2 -pix_fmt yuv420p "\$LOOPBACK_DEV" 2>/dev/null || true

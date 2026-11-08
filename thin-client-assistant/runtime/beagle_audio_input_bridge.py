@@ -10,7 +10,6 @@ import socket
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 
 SAMPLE_WIDTH_BYTES = 2
@@ -168,7 +167,6 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    Path("/var/log/beagle").mkdir(parents=True, exist_ok=True)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((args.host, args.port))
