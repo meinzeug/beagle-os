@@ -1,0 +1,17 @@
+diff --git a/extender/crates/extender-server/src/transfer.rs b/extender/crates/extender-server/src/transfer.rs
+index b24de46..d787712 100644
+--- a/extender/crates/extender-server/src/transfer.rs
++++ b/extender/crates/extender-server/src/transfer.rs
+@@ -68,0 +69,12 @@ pub fn execute_control_transfer(
++    // A repeated SET_CONFIGURATION on Android gadgets can reset USB and
++    // invalidate the physical handle. A guest selecting the configuration
++    // that is already active does not require another device request.
++    if bm_request_type == 0 && b_request == 9 && w_index == 0 && w_length == 0 {
++        if let Ok(active) = handle.active_configuration() {
++            if u16::from(active) == w_value {
++                tracing::debug!(bus_id = device.bus_id(), active, "skipping redundant SET_CONFIGURATION");
++                return TransferResult { status: 0, actual_length: 0, data: Vec::new() };
++            }
++        }
++    }
++
