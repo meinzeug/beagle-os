@@ -77,6 +77,7 @@ while true; do
   ffmpeg \
     -nostdin \
     -loglevel error \
+    -rw_timeout 5000000 \
     -f mjpeg \
     -i "tcp://${STREAM_HOST}:${STREAM_PORT}" \
     -vf "scale=${CAMERA_W}:${CAMERA_H},format=yuv420p" \

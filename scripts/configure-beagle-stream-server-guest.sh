@@ -1918,6 +1918,7 @@ echo "beagle-camera-receive: \${STREAM_HOST}:\${STREAM_PORT} → \${LOOPBACK_DEV
 while true; do
   setup_loopback || { sleep "\$POLL_INTERVAL"; continue; }
   ffmpeg -nostdin -loglevel error \
+    -rw_timeout 5000000 \
     -f mjpeg \
     -i "tcp://\${STREAM_HOST}:\${STREAM_PORT}" \
     -vf "scale=\${CAMERA_W}:\${CAMERA_H},format=yuv420p" \
