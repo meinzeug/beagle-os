@@ -43,8 +43,8 @@ and a 256 KiB test file was transferred, checksum-verified, and removed. This
 demonstrates a real USB data transfer through the experimental server, not
 automatic provisioning or long-term stability. The test server was bound only
 to thinclient loopback and reached over the existing authenticated SSH tunnel.
-The temporary USB attachment was detached after testing and the existing ADB
-bridge restored.
+The initial temporary USB attachment was detached after testing and the
+existing ADB bridge restored.
 
 The SC420 microphone and webcam must remain available while USB is used.
 The patched camera pipeline was separately exercised with the physical webcam:
@@ -62,3 +62,12 @@ local input, mounted storage, camera and audio, manage the secure tunnel and
 restart/cleanup, and verify concurrent devices, unplug/replug and reboots on
 the installed image. Do not enable an unverified general-purpose USB backend
 or describe the temporary test as a completed automatic deployment.
+
+A subsequent session-only test added a temporary phone export monitor on the
+thinclient and auto-attach service on the VM, excluding devices with audio,
+HID, mass-storage, video or Bluetooth interfaces. After detaching the phone
+from the VM, it reappeared automatically and a live Android command worked
+again after six seconds. This is an attached-device reconnect test, not a
+physical unplug/replug or reboot test. Both temporary services use runtime
+files and are lost when their respective systems reboot; they are not the
+update/installation integration described above.
